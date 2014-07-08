@@ -1,0 +1,9 @@
+Building StealthCoin
+
+See doc/readme-qt.rst for instructions on building StealthCoin QT,
+the intended-for-end-users, nice-graphical-interface, reference
+implementation of StealthCoin.
+
+See doc/build-*.txt for instructions on building StealthCoind,
+the intended-for-services, no-graphical-interface, reference
+implementation of StealthCoin.

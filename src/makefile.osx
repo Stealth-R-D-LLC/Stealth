@@ -1,0 +1,293 @@
+# -*- mode: Makefile; -*-
+# Copyright (c) 2011 Bitcoin Developers
+# Distributed under the MIT/X11 software license, see the accompanying
+# file COPYING or http://www.opensource.org/licenses/mit-license.php.
+
+# Mac OS X makefile for bitcoin
+# Originally by Laszlo Hanyecz (solar@heliacal.net)
+
+# CXX=llvm-g++
+CXX=clang++
+# CXX=g++
+CC=clang
+DEPSDIR=/opt/local
+
+INCLUDEPATHS= \
+ -I"$(CURDIR)" \
+ -I"$(CURDIR)/obj" \
+ -I"$(CURDIR)/tor" \
+ -I"$(DEPSDIR)/include" \
+ -I"$(DEPSDIR)/include/db48" \
+ -I"$(DEPSDIR)/include/boost"
+
+LIBPATHS= \
+ -L"$(DEPSDIR)/lib" \
+ -L"$(DEPSDIR)/lib/db48"
+
+USE_UPNP:=1
+USE_IPV6:=1
+
+LIBS= -dead_strip
+
+TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
+
+ifdef STATIC
+# Build STATIC if you are redistributing the bitcoind binary
+TESTLIBS += \
+ $(DEPSDIR)/lib/libboost_unit_test_framework-mt.a
+LIBS += \
+ $(DEPSDIR)/lib/db48/libdb_cxx-4.8.a \
+ $(DEPSDIR)/lib/libboost_system-mt.a \
+ $(DEPSDIR)/lib/libboost_filesystem-mt.a \
+ $(DEPSDIR)/lib/libboost_program_options-mt.a \
+ $(DEPSDIR)/lib/libboost_thread-mt.a \
+ $(DEPSDIR)/lib/libssl.a \
+ $(DEPSDIR)/lib/libcrypto.a \
+ -lz
+else
+TESTLIBS += \
+ -lboost_unit_test_framework-mt
+
+LIBS += \
+ -ldb_cxx-4.8 \
+ -lboost_system-mt \
+ -lboost_filesystem-mt \
+ -lboost_program_options-mt \
+ -lboost_thread-mt \
+ -lssl \
+ -lcrypto \
+ -lz \
+ -levent
+
+TESTDEFS += -DBOOST_TEST_DYN_LINK
+endif
+
+DEFS=-DMAC_OSX -DMSG_NOSIGNAL=0 -DBOOST_SPIRIT_THREADSAFE
+
+#  ifdef RELEASE
+# Compile for maximum compatibility and smallest size.
+# This requires that dependencies are compiled
+# the same way.
+CFLAGS = -mmacosx-version-min=10.7 -arch x86_64 -O0
+# else
+# CFLAGS = -g -msse2
+# endif
+
+# ppc doesn't work because we don't support big-endian
+CFLAGS += -Wall -Wextra -Wformat -Wformat-security -Wno-unused-parameter \
+    $(DEBUGFLAGS) $(DEFS) $(INCLUDEPATHS)
+
+
+OBJS= \
+    obj/address.o \
+    obj/addressmap.o \
+    obj/aes.o \
+    obj/backtrace.o \
+    obj/buffers.o \
+    obj/channel.o \
+    obj/channeltls.o \
+    obj/circpathbias.o \
+    obj/circuitbuild.o \
+    obj/circuitlist.o \
+    obj/circuitmux.o \
+    obj/circuitmux_ewma.o \
+    obj/circuitstats.o \
+    obj/circuituse.o \
+    obj/command.o \
+    obj/compat.o \
+    obj/compat_libevent.o \
+    obj/config.o \
+    obj/config_codedigest.o \
+    obj/confparse.o \
+    obj/connection.o \
+    obj/connection_edge.o \
+    obj/connection_or.o \
+    obj/container.o \
+    obj/control.o \
+    obj/cpuworker.o \
+    obj/crypto.o \
+    obj/crypto_curve25519.o \
+    obj/crypto_format.o \
+    obj/curve25519-donna.o \
+    obj/di_ops.o \
+    obj/directory.o \
+    obj/dirserv.o \
+    obj/dirvote.o \
+    obj/dns.o \
+    obj/dnsserv.o \
+    obj/entrynodes.o \
+    obj/ext_orport.o \
+    obj/fp_pair.o \
+    obj/geoip.o \
+    obj/hibernate.o \
+    obj/log.o \
+    obj/memarea.o \
+    obj/mempool.o \
+    obj/microdesc.o \
+    obj/networkstatus.o \
+    obj/nodelist.o \
+    obj/onion.o \
+    obj/onion_fast.o \
+    obj/onion_main.o \
+    obj/onion_ntor.o \
+    obj/onion_tap.o \
+    obj/policies.o \
+    obj/procmon.o \
+    obj/reasons.o \
+    obj/relay.o \
+    obj/rendclient.o \
+    obj/rendcommon.o \
+    obj/rendmid.o \
+    obj/rendservice.o \
+    obj/rephist.o \
+    obj/replaycache.o \
+    obj/router.o \
+    obj/routerlist.o \
+    obj/routerparse.o \
+    obj/routerset.o \
+    obj/sandbox.o \
+    obj/statefile.o \
+    obj/status.o \
+    obj/tor_util.o \
+    obj/torgzip.o \
+    obj/tortls.o \
+    obj/transports.o \
+    obj/util_codedigest.o \
+    obj/aes_helper.o \
+    obj/fugue.o \
+    obj/hamsi.o \
+    obj/groestl.o \
+    obj/blake.o \
+    obj/bmw.o \
+    obj/skein.o \
+    obj/keccak.o \
+    obj/shavite.o \
+    obj/jh.o \
+    obj/luffa.o \
+    obj/cubehash.o \
+    obj/echo.o \
+    obj/simd.o \
+    obj/alert.o \
+    obj/version.o \
+    obj/checkpoints.o \
+    obj/netbase.o \
+    obj/addrman.o \
+    obj/crypter.o \
+    obj/key.o \
+    obj/db.o \
+    obj/init.o \
+    obj/irc.o \
+    obj/keystore.o \
+    obj/main.o \
+    obj/net.o \
+    obj/protocol.o \
+    obj/bitcoinrpc.o \
+    obj/rpcdump.o \
+    obj/rpcnet.o \
+    obj/rpcmining.o \
+    obj/rpcwallet.o \
+    obj/rpcblockchain.o \
+    obj/rpcrawtransaction.o \
+    obj/script.o \
+    obj/sync.o \
+    obj/util.o \
+    obj/wallet.o \
+    obj/walletdb.o \
+    obj/noui.o \
+    obj/pbkdf2.o \
+    obj/kernel.o \
+    obj/scrypt_mine.o \
+    obj/scrypt-x86.o \
+    obj/scrypt-x86_64.o
+
+ifndef USE_UPNP
+	override USE_UPNP = -
+endif
+ifneq (${USE_UPNP}, -)
+	DEFS += -DUSE_UPNP=$(USE_UPNP)
+ifdef STATIC
+	LIBS += $(DEPSDIR)/lib/libminiupnpc.a
+else
+	LIBS += -lminiupnpc
+endif
+endif
+
+ifneq (${USE_IPV6}, -)
+	DEFS += -DUSE_IPV6=$(USE_IPV6)
+endif
+
+all: StealthCoind
+
+test check: test_stealthcoin FORCE
+	./test_stealthcoin
+
+# auto-generated dependencies:
+-include obj/*.P
+-include obj-test/*.P
+
+obj/build.h: FORCE
+	/bin/sh ../share/genbuild.sh obj/build.h
+version.cpp: obj/build.h
+DEFS += -DHAVE_BUILD_INFO
+
+obj/%.o: %.cpp
+	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+
+obj/%.o: %.c
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: tor/%.c
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	rm -f $(@:%.o=%.d)
+
+obj/stealth.o: tor/stealth.cpp
+	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	rm -f $(@:%.o=%.d)
+
+
+
+obj/scrypt-x86.o: scrypt-x86.S
+	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+
+obj/scrypt-x86_64.o: scrypt-x86_64.S
+	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+
+StealthCoind: $(OBJS:obj/%=obj/%) obj/stealth.o
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
+
+TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
+
+obj-test/%.o: test/%.cpp
+	$(CXX) -c $(TESTDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+test_stealthcoin: $(TESTOBJS) $(filter-out obj/init.o,$(OBJS:obj/%=obj/%))
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) $(TESTLIBS)
+
+clean:
+	-rm -f StealthCoind test_stealthcoin
+	-rm -f obj/*.o
+	-rm -f obj-test/*.o
+	-rm -f obj/*.P
+	-rm -f obj-test/*.P
+	-rm -f obj/build.h
+
+FORCE:
