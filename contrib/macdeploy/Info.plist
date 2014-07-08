@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist SYSTEM "file://localhost/System/Library/DTDs/PropertyList.dtd">
+<plist version="0.9">
+<dict>
+        <key>NSPrincipalClass</key>
+        <string>NSApplication</string>
+        <key>CFBundleIconFile</key>
+        <string>bitcoin.icns</string>
+        <key>CFBundlePackageType</key>
+        <string>APPL</string>
+        <key>CFBundleGetInfoString</key>
+        <string>STealthCoin Complete Anonymity 1.0.0.1</string>
+        <key>CFBundleExecutable</key>
+        <string>Stealth Qt</string>
+        <key>CFBundleIdentifier</key>
+        <string>com.stealth-coin.EBTcoin-Qt</string>
+        <key>CFBundleShortVersionString</key>
+        <string>1.0.0.1</string>
+        <key>CFBundleSignature</key>
+        <string>oXST</string>
+        <key>CFBundleVersion</key>
+        <string>1.0.0.1</string>
+</dict>
+</plist>
