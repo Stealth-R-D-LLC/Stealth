@@ -54,8 +54,6 @@ uint256 hashBestChain = 0;
 CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
 
-unsigned int POS_NBITS_CUTOFF = 29360128;   // 1c000000 >> 4
-
 
 CMedianFilter<int> cPeerBlockCounts(5, 0); // Amount of blocks that other nodes claim to have
 
@@ -954,6 +952,9 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees, uint256 prevHash)
         nSubsidy = 4000 * COIN;
     else if (nHeight <= 4580)
         nSubsidy = 2000 * COIN;
+    else if (nHeight < CUTOFF_POW_BLOCK)
+        nSubsidy = 1000 * COIN;  // was 1 coin
+/*
     else if (nHeight <= 6020)
         nSubsidy = 1000 * COIN;
     else if (nHeight <= 7460)
@@ -976,6 +977,7 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees, uint256 prevHash)
         nSubsidy = 2 * COIN;
     else if (nHeight < CUTOFF_POW_BLOCK)
         nSubsidy = 1 * COIN;
+ */
     
     return nSubsidy + nFees;
 }
@@ -2300,10 +2302,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
         unsigned int nLastBits = LastBlock->nBits;
 
     if (pblock->IsProofOfStake()) {
-            if ((nHeight < CUTOFF_POW_BLOCK) && (nLastBits > POS_NBITS_CUTOFF)) {
-                nLastBits = nLastBits >> 12;  // adjust difficulty for big hashes
-            }
             bnRequired.SetCompact(ComputeMinStake(nLastBits, deltaTime, pblock->nTime));
+            if ((nHeight < (unsigned int) CUTOFF_POW_BLOCK) && (bnNewBlock > bnProofOfStakeLimit)) {
+                bnNewBlock = bnNewBlock >> 2;  // adjust target for big hashes
+            }
         }
         else
             bnRequired.SetCompact(ComputeMinWork(nLastBits, deltaTime));
