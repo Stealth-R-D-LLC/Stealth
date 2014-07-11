@@ -4,6 +4,7 @@ Stealth coin provides a complete anonymity solution for cryptocurrencies. It com
 
 This wallet supports the staking=0 option in the StealthCoin.conf file to disable the stake miner thread for pool and exchange operators.
 
+
 Money supply
 ============
 
@@ -16,7 +17,6 @@ Halving every 1440 blocks (about 1 day)
 Last PoW block: 20,420
 Total PoW Money: 23,273,860 XST
 PoS Interest: 20%
-PoS Minting: 3 day Maturity, 9 Day Full Weight, 12 Day Max age
 
 Ports
 =====
@@ -24,7 +24,7 @@ P2P: 4437
 Test P2P: 4438
 RPC: 46502
 Test RPC: 46503
- 
+
 Application
 ===========
 
@@ -39,3 +39,4 @@ Windows < Vista: C:\Documents and Settings\Username\Application Data\StealthCoin
 Windows >= Vista: C:\Users\Username\AppData\Roaming\StealthCoin
 Mac: ~/Library/Application Support/StealthCoin
 Unix: ~/.StealthCoin
+
