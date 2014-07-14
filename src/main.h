@@ -46,6 +46,7 @@ static const double TAX_PERCENTAGE = 0.00; //no tax
 static const int64 MAX_STEALTH_PROOF_OF_STAKE = 0.20 * COIN;	// 20% annual interest
 // static const int CUTOFF_POW_BLOCK = 20421;  // too many problems with PoW+PoS and big hashes
 static const int CUTOFF_POW_BLOCK = 5460;
+static const unsigned int CUTOFF_POW_TIME = 1405125188;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
 
