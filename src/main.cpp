@@ -2071,10 +2071,11 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot) const
     if (IsProofOfStake() && !CheckCoinStakeTimestamp(GetBlockTime(), (int64)vtx[1].nTime))
         return DoS(50, error("CheckBlock() : coinstake timestamp violation nTimeBlock=%"PRI64d" nTimeTx=%u", GetBlockTime(), vtx[1].nTime));
 
-    CBlockIndex* pindexPrev = pindexBest;
-    if ((pindexPrev->nHeight >= (int) CUTOFF_POW_BLOCK) && (IsProofOfWork()))
-         return DoS(100, error("CheckBlock() : Proof of work (%f XST) on or after block %d.\n",
-                               ((double) vtx[0].GetValueOut() / (double) COIN), (int) CUTOFF_POW_BLOCK));
+    if ((nTime >= CUTOFF_POW_TIME) && (IsProofOfWork()))
+         return DoS(100, error("CheckBlock() : Proof of work (%f XST) at t=%d on or after %d.\n",
+                               ((double) vtx[0].GetValueOut() / (double) COIN),
+                                (int) nTime,
+                                (int) CUTOFF_POW_TIME));
 
     // Check transactions
     BOOST_FOREACH(const CTransaction& tx, vtx)
