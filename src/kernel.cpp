@@ -337,8 +337,8 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
     }
 
     // Now check if proof-of-stake hash meets target protocol
-    // The factor of 10 on the right is a calibration for stealth
-    if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay * 10)
+    // The factor of 20 on the right is a calibration for stealth
+    if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay * 20)
 	{
 		if(fDebug)
 		{
