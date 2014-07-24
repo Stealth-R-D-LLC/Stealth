@@ -367,10 +367,17 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
 }
 
 // Check kernel hash target and coinstake signature
-bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake)
+bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hashProofOfStake,
+                       bool fIsInitialDownload)
 {
     if (!tx.IsCoinStake())
         return error("CheckProofOfStake() : called on non-coinstake %s", tx.GetHash().ToString().c_str());
+
+    // give a pass to blocks already in the blockchain, duh (?).
+    // this prevents many restarts just to load a chain, which has the same effect
+    if (fIsInitialDownload) {
+      return true;
+    }
 
     // Kernel (input 0) must match the stake hash target per coin age (nBits)
     const CTxIn& txin = tx.vin[0];
@@ -380,7 +387,8 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     CTransaction txPrev;
     CTxIndex txindex;
     if (!txPrev.ReadFromDisk(txdb, txin.prevout, txindex))
-        return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));  // previous transaction not in main chain, may occur during initial download
+        // previous transaction not in main chain, may occur during initial download
+        return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));
     txdb.Close();
 
     // Verify signature

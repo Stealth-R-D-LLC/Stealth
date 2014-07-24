@@ -231,7 +231,8 @@ std::string HelpMessage()
         "  -dblogsize=<n>         " + _("Set database disk log size in megabytes (default: 100)") + "\n" +
         "  -timeout=<n>           " + _("Specify connection timeout in milliseconds (default: 5000)") + "\n" +
         "  -socks=<n>             " + _("Select the version of socks proxy to use (4-5, default: 5)") + "\n" +
-        "  -tor=<ip:port>         " + _("Use proxy to reach tor hidden services") + "\n"
+        "  -tor=<ip:port>         " + _("Use proxy to reach tor hidden services") + "\n" +
+        "  -torport=<port>        " + _("Use a tor port different from the default of 2367") + "\n" +
         "  -dns                   " + _("Allow DNS lookups for -addnode, -seednode and -connect") + "\n" +
         "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4438)") + "\n" +
         "  -maxconnections=<n>    " + _("Maintain at most <n> connections to peers (default: 125)") + "\n" +
@@ -521,8 +522,18 @@ bool AppInit2()
 
 
     CService addrOnion;
-    // need to move onion_port to a header
-    unsigned short const onion_port = 9060;
+
+    unsigned short onion_port;
+
+    onion_port = (unsigned short) GetArg("-torport", TORPORT);
+
+    /*
+    if (mapArgs.count("-torport" && mapArgs["-torport"] != "0")) {
+         onion_port = mapArgs["-torport"];
+    } else {
+         onion_port = TORPORT;
+    }
+    */
 
     if (mapArgs.count("-tor") && mapArgs["-tor"] != "0") {
         addrOnion = CService(mapArgs["-tor"], onion_port);
