@@ -1010,9 +1010,9 @@ unsigned int ComputeMaxBits(CBigNum bnTargetLimit, unsigned int nBase, int64 nTi
     bnResult *= 2;
     while (nTime > 0 && bnResult < bnTargetLimit)
     {
-        // Maximum 200% adjustment per day...
+        // Maximum 200% adjustment per day/10...because block times 1/10 PPC
         bnResult *= 2;
-        nTime -= 24 * 60 * 60;
+        nTime -= 24 * 60 * 6;
     }
     if (bnResult > bnTargetLimit)
         bnResult = bnTargetLimit;
@@ -2257,7 +2257,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock)
     if (pblock->IsProofOfStake())
     {
         uint256 hashProofOfStake = 0;
-        if (!CheckProofOfStake(pblock->vtx[1], pblock->nBits, hashProofOfStake))
+        if (!CheckProofOfStake(pblock->vtx[1], pblock->nBits, hashProofOfStake, IsInitialBlockDownload()))
         {
             printf("WARNING: ProcessBlock(): check proof-of-stake failed for block %s\n", hash.ToString().c_str());
             return false; // do not error here as we expect this during initial block download
