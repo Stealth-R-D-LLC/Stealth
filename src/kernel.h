@@ -38,4 +38,7 @@ bool CheckStakeModifierCheckpoints(int nHeight, unsigned int nStakeModifierCheck
 // Get time weight using supplied timestamps
 int64 GetWeight(int64 nIntervalBeginning, int64 nIntervalEnd);
 
+// shit happens - someone minted with a beta wallet
+static const int64 KERNEL_MODIFIER_TIME_01 = 1406227020 + 60 * 60 * 2;
+
 #endif // PPCOIN_KERNEL_H

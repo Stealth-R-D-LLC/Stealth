@@ -952,7 +952,7 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees, uint256 prevHash)
         nSubsidy = 4000 * COIN;
     else if (nHeight <= 4580)
         nSubsidy = 2000 * COIN;
-    else if (nHeight < CUTOFF_POW_BLOCK)
+    else if (nHeight < (int) CUTOFF_POW_BLOCK)
         nSubsidy = 1000 * COIN;  // was 1 coin
 /*
     else if (nHeight <= 6020)
@@ -1621,7 +1621,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck)
 		// printf("==> Got prevHash = %s\n", prevHash.ToString().c_str());
 	}
 
-	if (vtx[0].GetValueOut() > GetProofOfWorkReward(pindex->nHeight, nFees, prevHash))
+	if (vtx[0].GetValueOut() > GetProofOfWorkReward((unsigned int) pindex->nHeight, nFees, prevHash))
 		return false;
 
     // Update block index on disk without changing it in memory.
@@ -2130,9 +2130,9 @@ bool CBlock::AcceptBlock()
     if (mi == mapBlockIndex.end())
         return DoS(10, error("AcceptBlock() : prev block not found"));
     CBlockIndex* pindexPrev = (*mi).second;
-    int nHeight = pindexPrev->nHeight+1;
+    unsigned int nHeight = pindexPrev->nHeight+1;
 
-    if (IsProofOfWork() && nHeight > CUTOFF_POW_BLOCK)
+    if (IsProofOfWork() && (nHeight > CUTOFF_POW_BLOCK))
         return DoS(100, error("AcceptBlock() : No proof-of-work allowed anymore (height = %d)", nHeight));
 
     // Check proof-of-work or proof-of-stake
@@ -3629,10 +3629,12 @@ bool ProcessMessages(CNode* pfrom)
     }
     CDataStream& vRecv = pfrom->vRecv;
     if (vRecv.empty()) {
+        /*
         if (fDebug) {
              printf("ProcessMessages: %s message empty\n",
                     pfrom->addr.ToString().c_str());
         }
+        */
         return true;
     }
     //if (fDebug)
@@ -4277,7 +4279,8 @@ CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake)
             printf("CreateNewBlock(): total size %"PRI64u"\n", nBlockSize);
 
         if (pblock->IsProofOfWork())
-            pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(pindexPrev->nHeight+1, nFees, pindexPrev->GetBlockHash());
+            pblock->vtx[0].vout[0].nValue = GetProofOfWorkReward(((unsigned int) pindexPrev->nHeight)+1,
+                                                                 nFees, pindexPrev->GetBlockHash());
 
         // Fill in header
         pblock->hashPrevBlock  = pindexPrev->GetBlockHash();
@@ -4454,7 +4457,8 @@ void BitcoinMiner(CWallet *pwallet, bool fProofOfStake)
                 CheckWork(pblock.get(), *pwalletMain, reservekey);
                 SetThreadPriority(THREAD_PRIORITY_LOWEST);
             }
-            Sleep(250);
+            // space blocks better, sleep 1 minute after mint
+            Sleep(60000);
             continue;
         }
 

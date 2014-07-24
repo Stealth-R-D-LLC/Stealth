@@ -23,6 +23,7 @@ static std::map<int, unsigned int> mapStakeModifierCheckpoints =
     (     0, 0xfd11f4e7u )
 	;
 
+
 // Get time weight
 int64 GetWeight(int64 nIntervalBeginning, int64 nIntervalEnd)
 {
@@ -92,7 +93,7 @@ static bool SelectBlockFromCandidates(
         uint256 hashProof = pindex->IsProofOfStake()? pindex->hashProofOfStake : pindex->GetBlockHash();
         CDataStream ss(SER_GETHASH, 0);
         ss << hashProof << nStakeModifierPrev;
-        uint256 hashSelection = Hash(ss.begin(), ss.end());
+        uint256 hashSelection = ProofHash(ss.begin(), ss.end());
         // the selection hash is divided by 2**32 so that proof-of-stake block
         // is always favored over proof-of-work block. this is to preserve
         // the energy efficiency property
@@ -337,15 +338,31 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
     }
 
     // Now check if proof-of-stake hash meets target protocol
-    // The factor of 20 on the right is a calibration for stealth
-    if (CBigNum(hashProofOfStake) > bnCoinDayWeight * bnTargetPerCoinDay * 20)
+    // The factor of 10 on the right is a calibration for stealth
+    CBigNum bnProduct = bnCoinDayWeight * bnTargetPerCoinDay * 10;
+
+
+
+    // someone minted with beta
+    /*
+      if (nTimeBlockFrom <= KERNEL_MODIFIER_TIME_01) {
+      printf("\n>>> dividing by 256\n");
+      hashProofOfStake = hashProofOfStake >> 8;
+    }
+    */
+
+
+    if (CBigNum(hashProofOfStake) > bnProduct)
 	{
-		if(fDebug)
-		{
-		 printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n", 
-			bnCoinDayWeight.ToString().c_str(), bnTargetPerCoinDay.ToString().c_str()); 
+		// if(fDebug)
+		// {
+		 printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n>>> too small:<bnProduct=%s>\n", 
+			bnCoinDayWeight.ToString().c_str(),
+                        bnTargetPerCoinDay.ToString().c_str(),
+                        bnProduct.ToString().c_str()); 
 		 printf(">>> CheckStakeKernelHash - hashProofOfStake too much\n");
-		}
+		 printf(">>> hashProofOfStake too much: %s\n", CBigNum(hashProofOfStake).ToString().c_str());
+		// }
         return false;
 	}
 
@@ -373,11 +390,13 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     if (!tx.IsCoinStake())
         return error("CheckProofOfStake() : called on non-coinstake %s", tx.GetHash().ToString().c_str());
 
+    /*
     // give a pass to blocks already in the blockchain, duh (?).
     // this prevents many restarts just to load a chain, which has the same effect
     if (fIsInitialDownload) {
       return true;
     }
+    */
 
     // Kernel (input 0) must match the stake hash target per coin age (nBits)
     const CTxIn& txin = tx.vin[0];
