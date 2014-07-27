@@ -848,7 +848,7 @@ void BitcoinGUI::setEncryptionStatus(int status)
         encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
         changePassphraseAction->setEnabled(true);
         lockWalletToggleAction->setVisible(true);
-        lockWalletToggleAction->setIcon(QIcon(":/icons/lock_closed"));
+        lockWalletToggleAction->setIcon(QIcon(":/icons/lock_open"));
         lockWalletToggleAction->setText(tr("&Lock Wallet"));
         lockWalletToggleAction->setToolTip(tr("Lock wallet"));
         break;
@@ -860,7 +860,7 @@ void BitcoinGUI::setEncryptionStatus(int status)
         encryptWalletAction->setEnabled(false); // TODO: decrypt currently not supported
         changePassphraseAction->setEnabled(true);
         lockWalletToggleAction->setVisible(true);
-        lockWalletToggleAction->setIcon(QIcon(":/icons/lock_open"));
+        lockWalletToggleAction->setIcon(QIcon(":/icons/lock_closed"));
         lockWalletToggleAction->setText(tr("&Unlock Wallet..."));
         lockWalletToggleAction->setToolTip(tr("Unlock wallet"));
         break;
