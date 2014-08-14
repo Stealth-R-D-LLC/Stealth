@@ -630,7 +630,7 @@ win32:contains(WINBITS, 64) {
 contains(RELEASE, 1) {
     !win32:!macx {
         # Linux: turn dynamic linking back on for c/c++ runtime libraries
-        LIBS += -Wl,-Bdynamic
+        LIBS += -Wl,-Bdynamic,-rpath,.
     }
 }
 
