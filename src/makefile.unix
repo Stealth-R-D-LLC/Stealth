@@ -2,23 +2,67 @@
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-USE_UPNP:=1
+STATIC=1
+
+DEPSDIR=/usr/local
+
+# should already be in LD path on ubuntu
+LIB_LINUX="/usr/lib/x86_64-linux-gnu"
+
+INCLUDEPATHS= \
+ -I"$(CURDIR)" \
+ -I"$(CURDIR)/obj" \
+ -I"$(CURDIR)/tor" \
+ -I"$(DEPSDIR)/include" \
+ -I"$(DEPSDIR)/ssl/include" \
+ -I"$(DEPSDIR)/include/boost" \
+ -I"$(DEPSDIR)/include/event2" \
+ -I"$(DEPSDIR)/BerkeleyDB.4.8/include"
+
+LIBPATHS= \
+ -L"$(DEPSDIR)/lib" \
+ -L"$(DEPSDIR)/BerkeleyDB.4.8/lib" \
+ -L"$(DEPSDIR)/ssl/lib" 
+
+CFLAGS += $(INCLUDEPATHS)
+
+USE_UPNP:=-
 USE_IPV6:=1
 
 LINK:=$(CXX)
 
 DEFS=-DBOOST_SPIRIT_THREADSAFE
 
-DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/tor $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
+# manual way above
+# DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/tor $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
+# LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
 
 # libevent
-EVENTDIR = /usr/local
+# EVENTDIR = /usr/local
 DEFS += $(addprefix -I,$(EVENTDIR)/include)
 LIBS += -levent $(addprefix -L,$(EVENTDIR)/lib)
 
-
 TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
+
+
+ifdef STATIC
+# Build STATIC if you are redistributing the bitcoind binary
+TESTLIBS += \
+ $(DEPSDIR)/lib/libboost_unit_test_framework.a
+LIBS += \
+ $(DEPSDIR)/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a \
+ $(LIB_LINUX)/libboost_system.a \
+ $(LIB_LINUX)/libboost_filesystem.a \
+ $(LIB_LINUX)/libboost_program_options.a \
+ $(LIB_LINUX)/libboost_thread.a \
+ $(DEPSDIR)/ssl/lib/libssl.a \
+ $(DEPSDIR)/ssl/lib/libcrypto.a \
+ $(DEPSDIR)/lib/libz.a
+else
+TESTLIBS += \
+ -lboost_unit_test_framework
+endif
+
 
 LMODE = dynamic
 LMODE2 = dynamic
@@ -34,22 +78,16 @@ endif
 # for boost 1.37, add -mt to the boost libraries
 LIBS += \
  -Wl,-B$(LMODE) \
-   -l boost_system$(BOOST_LIB_SUFFIX) \
-   -l boost_filesystem$(BOOST_LIB_SUFFIX) \
-   -l boost_program_options$(BOOST_LIB_SUFFIX) \
-   -l boost_thread$(BOOST_LIB_SUFFIX) \
-   -l db_cxx$(BDB_LIB_SUFFIX) \
-   -l ssl \
-   -l event \
-   -l crypto
+   -lboost_system$(BOOST_LIB_SUFFIX) \
+   -lboost_filesystem$(BOOST_LIB_SUFFIX) \
+   -lboost_program_options$(BOOST_LIB_SUFFIX) \
+   -lboost_thread$(BOOST_LIB_SUFFIX) \
+   -ldb_cxx$(BDB_LIB_SUFFIX) \
+   -lssl \
+   -levent \
+   -lcrypto \
+   -lz
 
-ifndef USE_UPNP
-	override USE_UPNP = -
-endif
-ifneq (${USE_UPNP}, -)
-	LIBS += -l miniupnpc
-	DEFS += -DUSE_UPNP=$(USE_UPNP)
-endif
 
 ifneq (${USE_IPV6}, -)
 	DEFS += -DUSE_IPV6=$(USE_IPV6)
@@ -57,9 +95,9 @@ endif
 
 LIBS+= \
  -Wl,-B$(LMODE2) \
-   -l z \
-   -l dl \
-   -l pthread
+   -lz \
+   -ldl \
+   -lpthread
 
 
 # Hardening
@@ -182,6 +220,7 @@ OBJS= \
     obj/tortls.o \
     obj/transports.o \
     obj/util_codedigest.o \
+    obj/aes_helper.o \
     obj/fugue.o \
     obj/hamsi.o \
     obj/groestl.o \
@@ -222,13 +261,11 @@ OBJS= \
     obj/wallet.o \
     obj/walletdb.o \
     obj/noui.o \
-    obj/kernel.o \
     obj/pbkdf2.o \
-    obj/scrypt.o \
+    obj/kernel.o \
     obj/scrypt_mine.o \
     obj/scrypt-x86.o \
     obj/scrypt-x86_64.o
-
 
 all: StealthCoind
 
@@ -244,54 +281,58 @@ obj/build.h: FORCE
 version.cpp: obj/build.h
 DEFS += -DHAVE_BUILD_INFO
 
-obj/scrypt-x86.o: scrypt-x86.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
-
-obj/scrypt-x86_64.o: scrypt-x86_64.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
-
 obj/%.o: %.cpp
-	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
+
 obj/%.o: %.c
-	$(CXX) -c $(xCXXFLAGS) -fpermissive -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
+	  rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/%.c
-	$(CC) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/stealth.o: tor/stealth.cpp
-	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
+
+
+obj/scrypt-x86.o: scrypt-x86.S
+	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+
+obj/scrypt-x86_64.o: scrypt-x86_64.S
+	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
+
 StealthCoind: $(OBJS:obj/%=obj/%) obj/stealth.o
-	$(LINK) $(xCXXFLAGS) -o $@ $^ $(xLDFLAGS) $(LIBS)
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
 
 obj-test/%.o: test/%.cpp
-	$(CXX) -c $(TESTDEFS) $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CXX) -c $(TESTDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
 test_stealthcoin: $(TESTOBJS) $(filter-out obj/init.o,$(OBJS:obj/%=obj/%))
-	$(LINK) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ -Wl,-B$(LMODE) -lboost_unit_test_framework $(xLDFLAGS) $(LIBS)
+	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS) $(TESTLIBS)
+
 
 clean:
 	-rm -f StealthCoind test_stealthcoin
