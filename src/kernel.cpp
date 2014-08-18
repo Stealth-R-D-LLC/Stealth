@@ -9,6 +9,8 @@
 
 using namespace std;
 
+extern int nStakeCapAge; // 9 days
+
 extern int nStakeMaxAge;
 extern int nStakeTargetSpacing;
 
@@ -260,9 +262,12 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64& nStakeModifier
 
 // ppcoin kernel protocol
 // coinstake must meet hash target according to the protocol:
-// kernel (input 0) must meet the formula
-//     hash(nStakeModifier + txPrev.block.nTime + txPrev.offset + txPrev.nTime + txPrev.vout.n + nTime) < bnTarget * nCoinDayWeight * 10
-// (the 10 was added for the short staking times of Stealth (36 hr --> 216 hr full wt))
+// kernel (input 0) must meet the formula or something similar
+
+//     hash(nStakeModifier + txPrev.block.nTime +
+//          txPrev.offset + txPrev.nTime + txPrev.vout.n + nTime)
+//     < bnTarget * nCoinDayWeight * nTargetMultiplier
+// (the nTargetMultiplier is 10 for the short staking times of XST (72 hr --> 144 hr full wt))
 // this ensures that the chance of getting a coinstake is proportional to the
 // amount of coin age one owns.
 // The reason this hash is chosen is the following:
@@ -284,6 +289,9 @@ static bool GetKernelStakeModifier(uint256 hashBlockFrom, uint64& nStakeModifier
 //
 bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned int nTxPrevOffset, const CTransaction& txPrev, const COutPoint& prevout, unsigned int nTimeTx, uint256& hashProofOfStake, bool fPrintProofOfStake)
 {
+
+    unsigned int nTargetMultiplier = 10;
+
     if (nTimeTx < txPrev.nTime)  // Transaction timestamp violation
         return error("CheckStakeKernelHash() : nTime violation");
 
@@ -338,8 +346,8 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
     }
 
     // Now check if proof-of-stake hash meets target protocol
-    // The factor of 10 on the right is a calibration for stealth
-    CBigNum bnProduct = bnCoinDayWeight * bnTargetPerCoinDay * 10;
+    // The nTargetMultiplier of 10 is a calibration for stealth
+    CBigNum bnProduct = bnCoinDayWeight * bnTargetPerCoinDay * nTargetMultiplier;
 
 
 
@@ -354,15 +362,15 @@ bool CheckStakeKernelHash(unsigned int nBits, const CBlock& blockFrom, unsigned 
 
     if (CBigNum(hashProofOfStake) > bnProduct)
 	{
-		// if(fDebug)
-		// {
+		if(fDebug)
+		{
 		 printf(">>> bnCoinDayWeight = %s, bnTargetPerCoinDay=%s\n>>> too small:<bnProduct=%s>\n", 
 			bnCoinDayWeight.ToString().c_str(),
                         bnTargetPerCoinDay.ToString().c_str(),
                         bnProduct.ToString().c_str()); 
 		 printf(">>> CheckStakeKernelHash - hashProofOfStake too much\n");
 		 printf(">>> hashProofOfStake too much: %s\n", CBigNum(hashProofOfStake).ToString().c_str());
-		// }
+		}
         return false;
 	}
 

@@ -567,8 +567,10 @@ void BitcoinGUI::setNumBlocks(int count, int nTotalBlocks)
     {
         progressBarLabel->setText(strStatusBarWarnings);
         progressBarLabel->setVisible(true);
+        progressBarLabel->setStyleSheet("color:white");
         progressBar->setVisible(false);
     }
+
 
     tooltip = tr("Current difficulty is %1.").arg(clientModel->GetDifficulty()) + QString("<br>") + tooltip;
 

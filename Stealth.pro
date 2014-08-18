@@ -18,7 +18,7 @@ win32 {
 
 TEMPLATE = app
 TARGET = "Stealth Qt"
-VERSION = 1.1.0.1
+VERSION = 1.1.1.1
 INCLUDEPATH += src src/json src/qt src/tor
 QT += core gui network
 CONFIG += no_include_pwd
@@ -29,9 +29,15 @@ CONFIG += thread+
 macx:INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include # /usr/local/include
 
 !macx:!win32 {
-   INCLUDEPATH += /usr/local/ssl/include /usr/local/BerkeleyDB.4.8/include
-   INCLUDEPATH += /usr/local/boost
-   INCLUDEPATH += /usr/local/include/event2
+   # debian
+   INCLUDEPATH += /usr/include/x86_64-linux-gnu
+   # custom linux
+   # INCLUDEPATH += /usr/local/include
+   # INCLUDEPATH += /usr/local/ssl/include
+   # INCLUDEPATH += /usr/local/boost
+   # INCLUDEPATH += /usr/local/include/event2
+   # custom linux for static
+   INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include
 }
 
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE \
@@ -78,7 +84,7 @@ contains(RELEASE, 1) {
                     -isysroot /Developer/SDKs/MacOSX10.7.sdk
     !win32:!macx {
         # Linux: static link
-        # LIBS += -Bstatic
+        LIBS += -Bstatic
     }
 }
 
@@ -99,12 +105,6 @@ contains(RELEASE, 1) {
       # QMAKE_CXXFLAGS_RELEASE -= -O2
       QMAKE_CXXFLAGS_RELEASE += -O0
 }
-
-!macx:!win32 {
-  LIBS += -L/usr/local/lib
-  LIBS += -L/usr/local/BerkeleyDB.4.8/lib
-}
-
 
 USE_QRCODE=1
 # use: qmake "USE_QRCODE=1"
@@ -174,11 +174,6 @@ contains(BITCOIN_NEED_QT_PLUGINS, 1) {
     QMAKE_LFLAGS += -fstack-protector
     # do not enable this on windows, as it will result in a non-working executable!
 }
-
-# !win32:!macx {
-#     QMAKE_LFLAGS *= -static
-# }
-
 
 
 # regenerate src/build.h
@@ -542,7 +537,8 @@ isEmpty(BDB_INCLUDE_PATH) {
 
 isEmpty(BOOST_LIB_PATH) {
     macx:BOOST_LIB_PATH = /opt/local/lib
-    # !macx:!win32:BOOST_LIB_PATH = /usr/local/boost/staging/lib
+    # custom linux
+    # !macx:!win32:BOOST_LIB_PATH = /usr/local/boost/stage/lib
 }
 
 isEmpty(BOOST_INCLUDE_PATH) {
@@ -561,11 +557,6 @@ win32:!contains(MINGW_THREAD_BUGFIX, 0) {
     # any problems on some untested qmake profile now or in the future.
     DEFINES += _MT
     QMAKE_LIBS_QT_ENTRY = -lmingwthrd $$QMAKE_LIBS_QT_ENTRY
-}
-
-!win32:!macx {
-    DEFINES += LINUX
-    LIBS += -lrt
 }
 
 macx {
@@ -594,37 +585,64 @@ win32:contains(WINBITS, 64) {
 win32:LIBS += -L"C:/$$MSYS/local/lib"
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libgcc_s_sjlj-1.dll"
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libstdc++-6.dll"
+macx|win32 {
 LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) \
         $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
+}
+
 LIBS += -lssl -lcrypto -levent -lz
-macx:win32 {
+
+
+!win32:!macx {
+    DEFINES += LINUX
+    # debian
+    LIBS += -L/usr/lib/x86_64-linux-gnu
+    # custom linux
+    # LIBS += -L/usr/local/ssl/lib
+}
+
+!macx:!win32 {
+    LIBS += -lrt
+    LIBS += -ldl
+}
+
+macx|win32 {
     LIBS += -ldb_cxx$$BDB_LIB_SUFFIX
 }
+
 !macx:!win32 {
-    LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
+    # debian
+    LIBS += /usr/lib/x86_64-linux-gnu/libssl.a
+    LIBS += /usr/lib/x86_64-linux-gnu/libcrypto.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_system.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_filesystem.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_thread.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_program_options.a
+    # custom linux
+    # LIBS += /usr/local/ssl/lib/libssl.a
+    # LIBS += /usr/local/ssl/lib/libcrypto.a
+    # LIBS += /usr/local/boost/stage/lib/libboost_system.a
+    # LIBS += /usr/local/boost/stage/lib/libboost_filesystem.a
+    # LIBS += /usr/local/boost/stage/lib/libboost_thread.a
+    # LIBS += /usr/local/boost/stage/lib/libboost_program_options.a
+    # custom linux for static
+    LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
 }
+
 # -lgdi32 has to happen after -lcrypto (see  #681)
 win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
-win32:macx:LIBS += -lboost_system$$BOOST_LIB_SUFFIX \
-                   -lboost_filesystem$$BOOST_LIB_SUFFIX \
-                   -lboost_program_options$$BOOST_LIB_SUFFIX \
-                   -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
+
+win32|macx {
+    LIBS += -lboost_system$$BOOST_LIB_SUFFIX \
+            -lboost_filesystem$$BOOST_LIB_SUFFIX \
+            -lboost_program_options$$BOOST_LIB_SUFFIX \
+            -lboost_thread$$BOOST_THREAD_LIB_SUFFIX
+}
 
 win32:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 
 win32:contains(WINBITS, 64) {
        LIBS += -pthread
-}
-
-!win32:!macx {
-       LIBS += -L/usr/local/lib -L/usr/local/boost/stage -L/usr/local/ssl/lib
-
-       # LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
-       LIBS += -ldl
 }
 
 contains(RELEASE, 1) {
