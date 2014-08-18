@@ -97,12 +97,12 @@ Value sendalert(const Array& params, bool fHelp)
     CKey key;
 
     alert.strStatusBar = params[0].get_str();
-    alert.nMinVer = params[2].get_int();
-    alert.nMaxVer = params[3].get_int();
-    alert.nPriority = params[4].get_int();
-    alert.nID = params[5].get_int();
+    alert.nMinVer = atoi(params[2].get_str());
+    alert.nMaxVer = atoi(params[3].get_str());
+    alert.nPriority = atoi(params[4].get_str());
+    alert.nID = atoi(params[5].get_str());
     if (params.size() > 6)
-        alert.nCancel = params[6].get_int();
+        alert.nCancel = atoi(params[6].get_str());
     alert.nVersion = PROTOCOL_VERSION;
     alert.nRelayUntil = GetAdjustedTime() + 365*24*60*60;
     alert.nExpiration = GetAdjustedTime() + 365*24*60*60;
@@ -111,6 +111,7 @@ Value sendalert(const Array& params, bool fHelp)
     sMsg << (CUnsignedAlert)alert;
     alert.vchMsg = vector<unsigned char>(sMsg.begin(), sMsg.end());
 
+    printf("sendalert 1\n");
     vector<unsigned char> vchPrivKey = ParseHex(params[1].get_str());
     key.SetPrivKey(CPrivKey(vchPrivKey.begin(), vchPrivKey.end())); // if key is not correct openssl may crash
     if (!key.Sign(Hash(alert.vchMsg.begin(), alert.vchMsg.end()), alert.vchSig))

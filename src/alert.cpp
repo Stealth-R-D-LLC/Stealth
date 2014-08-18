@@ -16,7 +16,16 @@ using namespace std;
 map<uint256, CAlert> mapAlerts;
 CCriticalSection cs_mapAlerts;
 
-static const char* pszMainKey = "04f7588644485641221aa2e15e6dd11e1c75a1ced52e719b425e520e7f84e31bb0fc0a361fefa1fd423659fd8b204104dd046c2b3d60e42b0769ddd9fb0469ba91";
+// stealth: sync-checkpoint master key (520 bits, 130 hex)
+// this is the public key for a secp256k1 private key
+// e.g.: openssl ecparam -name secp256k1 -genkey -noout -out private-key.pem
+//       openssl ec -in private-key.pem -pubout -text -out ecpubkey.txt
+// hex is the "pub:" section in ecpubkey.txt with colons removed
+static const char* pszMainKey = "04bf2dc2aac67e7d58365a3aa68946"
+                                "e40026cd5c97a2606f41991b9614a0"
+                                "818c905c28b344e3bbbb2cb072ba18"
+                                "0a8974bba93d8bdc53bca40418bd87"
+                                "9a733bb064";
 
 // TestNet alerts pubKey
 static const char* pszTestKey = "04f7588644485641221aa2e15e6dd11e1c75a1ced52e719b425e520e7f84e31bb0fc0a361fefa1fd423659fd8b204104dd046c2b3d60e42b0769ddd9fb0469ba91";
