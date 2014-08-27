@@ -515,7 +515,6 @@ string sendtoaddresswithtime(string sAddress, int64 nAmount, unsigned int nTime)
 }
 
 
-
 Value decryptsend(const Array& params, bool fHelp)
 {
     // Not Synced, No Pin, No Secret, Replay, Bad Timestamp, Bad Format
@@ -560,14 +559,10 @@ Value decryptsend(const Array& params, bool fHelp)
 
     string sAddress = txdescr[0];
     int64 nAmount = roundint64(atof(txdescr[1].c_str()) * COIN);
-    // int64 nAmount = static_cast<int>(atof(txdescr[1].c_str()) * COIN);
 
     // want seconds, not milliseconds (better than int division)
     string sTimeStamp = txdescr[2].substr(0, txdescr[2].size() - 3);
     unsigned int nTime = atoi(sTimeStamp.c_str());
-
-    cout << "Time is: " << nTime << endl;
-    cout << "Amount is: " << nAmount << endl;
 
     // make sure external transaction is within time window
     int adjtime = GetAdjustedTime();
@@ -576,52 +571,18 @@ Value decryptsend(const Array& params, bool fHelp)
             return string("<<Bad Timestamp>>");
     }
 
-    Array ret;
-      
     // look for existing matching timestamps in wallet (ghetto uid)
     // should handle replay with scriptsig in future (version 2)
     LOCK(pwalletMain->cs_wallet);
     for (map<uint256, CWalletTx>::const_iterator it = pwalletMain->mapWallet.begin();
          it != pwalletMain->mapWallet.end(); ++it) {
              const CWalletTx* pcoin = &(*it).second;
-             // Object entry;
-             // WalletTxToJSON(pcoin, entry);
-             std::stringstream repr;
-             repr << pcoin->nTime;
-             ret.push_back(repr.str());
              if (pcoin->nTime == nTime) {
                    return string("<<Replay>>");
              }
     }
 
-
-
-    // return ret;
-
-
     return sendtoaddresswithtime(sAddress, nAmount, nTime);
-
-    //     - construct transaction using sendmoney, for example,
-    //             rpcwallet.cpp: sendtoaddress
-    //             wallet.cpp: pwalletMain->SendMoneyToDestination
-    //             wallet.cpp: CWallet::SendMoney
-    //             wallet.cpp: CWallet::CreateTransaction
-    //             This boils down to manually setting the nTime after creating
-    //                wTxNew wherever it is created.
-    //             The CTransaction constructor sets nTime to GetAdjustedTime();
-    //                CWalletTx <- CMerkleTx <- CTransaction
-    //       but insist on timestamp
-
-    //   - return txid
-         
-
-    // mapArgs["-rpcpassword"]
-
-
-    // string cypherText = DecodeBase64(params[0].get_str());
-    // printf("Value is: '%s'\n", cypherText.c_str());
-
-    // return Value::null;
 }
 
 
