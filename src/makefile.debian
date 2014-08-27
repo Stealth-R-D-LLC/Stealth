@@ -17,6 +17,7 @@
 #     sudo apt-get install zlib1g-dev
 #     sudo apt-get install libboost-all-dev
 #     sudo apt-get install libevent-dev
+#     sudo apt-get install cryptopp
 #
 # This will make sure you have the correct headers and will
 # put into the correct static libraries in the correct places
@@ -75,7 +76,8 @@ LIBS += \
  $(LIB_LINUX)/libboost_thread.a \
  $(LIB_LINUX)/libssl.a \
  $(LIB_LINUX)/libcrypto.a \
- $(LIB_LINUX)/libz.a
+ $(LIB_LINUX)/libz.a \
+ /usr/lib/libcryptopp.a
 else
 TESTLIBS += \
  -lboost_unit_test_framework
@@ -104,7 +106,8 @@ LIBS += \
    -lssl \
    -lcrypto \
    -levent \
-   -lz
+   -lz \
+   -lcryptopp
 
 
 ifneq (${USE_IPV6}, -)
@@ -282,7 +285,8 @@ OBJS= \
     obj/kernel.o \
     obj/scrypt_mine.o \
     obj/scrypt-x86.o \
-    obj/scrypt-x86_64.o
+    obj/scrypt-x86_64.o \
+    obj/stealthtext.o
 
 all: StealthCoind
 
