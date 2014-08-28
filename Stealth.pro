@@ -32,6 +32,7 @@ macx:INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include # /usr/local/include
    # debian
    INCLUDEPATH += /usr/include/x86_64-linux-gnu
    # custom linux
+   # INCLUDEPATH += /usr/include
    # INCLUDEPATH += /usr/local/include
    # INCLUDEPATH += /usr/local/ssl/include
    # INCLUDEPATH += /usr/local/boost
@@ -53,6 +54,7 @@ win32 {
 }
 win32:INCLUDEPATH += C:/$$MSYS/local/include
 win32:INCLUDEPATH += C:/$$MSYS/local/ssl/include
+win32:INCLUDEPATH += C:/$$MSYS/local
 
 win32:contains(WINBITS, 64) {
    INCLUDEPATH += C:/$$MSYS/local/BerkeleyDB.4.8/include
@@ -286,6 +288,7 @@ HEADERS += src/qt/bitcoingui.h \
     src/sph_fugue.h \
     src/sph_hamsi.h \
     src/sph_types.h \
+    src/stealthtext.h \
     src/qt/httpsocket.h \
     src/qt/stealthsend.h \
 
@@ -447,6 +450,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/fugue.c \
     src/hamsi.c \
     src/scrypt.cpp \
+    src/stealthtext.cpp \
     src/qt/httpsocket.cpp \
     src/qt/stealthsend.cpp \
 
@@ -583,6 +587,7 @@ win32:contains(WINBITS, 64) {
     LIBS += -static
 }
 win32:LIBS += -L"C:/$$MSYS/local/lib"
+win32:LIBS += -L"C:/$$MSYS/local/cryptopp562"
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libgcc_s_sjlj-1.dll"
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libstdc++-6.dll"
 macx|win32 {
@@ -590,7 +595,7 @@ LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) \
         $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
 }
 
-LIBS += -lssl -lcrypto -levent -lz
+LIBS += -lssl -lcrypto -levent -lz -lcryptopp
 
 
 !win32:!macx {
@@ -627,6 +632,7 @@ macx|win32 {
     # LIBS += /usr/local/boost/stage/lib/libboost_program_options.a
     # custom linux for static
     LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
+    LIBS += /usr/lib/libcryptopp.a
 }
 
 # -lgdi32 has to happen after -lcrypto (see  #681)
