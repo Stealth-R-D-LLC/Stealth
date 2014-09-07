@@ -2,7 +2,7 @@ Stealth Coin (ticker symbol XST) Release
 
 Stealth coin provides a complete anonymity solution for cryptocurrencies. It combines the network analysis resistance of Tor with the blockchain analysis resistance of stealth send. Stealth has a fair distribution with nearly four hours of low reward blocks, a small premine of 1%, and the long-term energy efficiency of proof-of-stake minting.
 
-This wallet supports the staking=0 option in the StealthCoin.conf file to disable the stake miner thread for pool and exchange operators.
+This wallet supports the stake=0 option in the StealthCoin.conf file to disable the stake miner thread for pool and exchange operators.
 
 
 Money supply
