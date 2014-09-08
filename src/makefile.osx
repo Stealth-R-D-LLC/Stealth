@@ -6,6 +6,8 @@
 # Mac OS X makefile for bitcoin
 # Originally by Laszlo Hanyecz (solar@heliacal.net)
 
+STATIC=1
+
 # CXX=llvm-g++
 CXX=clang++
 # CXX=g++
@@ -41,9 +43,12 @@ LIBS += \
  $(DEPSDIR)/lib/libboost_filesystem-mt.a \
  $(DEPSDIR)/lib/libboost_program_options-mt.a \
  $(DEPSDIR)/lib/libboost_thread-mt.a \
+ $(DEPSDIR)/lib/libboost_atomic-mt.a \
  $(DEPSDIR)/lib/libssl.a \
  $(DEPSDIR)/lib/libcrypto.a \
- -lz
+ $(DEPSDIR)/lib/libcryptopp.a \
+ $(DEPSDIR)/lib/libevent.a \
+ $(DEPSDIR)/lib/libz.a
 else
 TESTLIBS += \
  -lboost_unit_test_framework-mt
@@ -57,7 +62,8 @@ LIBS += \
  -lssl \
  -lcrypto \
  -lz \
- -levent
+ -levent \
+ -lcryptopp
 
 TESTDEFS += -DBOOST_TEST_DYN_LINK
 endif
@@ -198,7 +204,8 @@ OBJS= \
     obj/kernel.o \
     obj/scrypt_mine.o \
     obj/scrypt-x86.o \
-    obj/scrypt-x86_64.o
+    obj/scrypt-x86_64.o \
+    obj/stealthtext.o
 
 ifndef USE_UPNP
 	override USE_UPNP = -
