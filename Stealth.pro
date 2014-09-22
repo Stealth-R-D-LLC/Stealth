@@ -651,11 +651,9 @@ win32:contains(WINBITS, 64) {
        LIBS += -pthread
 }
 
-contains(RELEASE, 1) {
-    !win32:!macx {
+!win32:!macx {
         # Linux: turn dynamic linking back on for c/c++ runtime libraries
         LIBS += -Wl,-Bdynamic,-rpath,.
-    }
 }
 
 system($$QMAKE_LRELEASE -silent $$_PRO_FILE_)
