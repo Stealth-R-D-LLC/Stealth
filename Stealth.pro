@@ -244,7 +244,6 @@ HEADERS += src/qt/bitcoingui.h \
     src/key.h \
     src/db.h \
     src/txdb.h \
-    src/txdb-bdb.h \
     src/txdb-leveldb.h \
     src/walletdb.h \
     src/script.h \

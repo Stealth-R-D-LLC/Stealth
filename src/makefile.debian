@@ -47,7 +47,9 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor" \
  -I"/usr/include" \
  -I"$(INC_LINUX)" \
- -I"$(DEPSDIR)/BerkeleyDB.4.8/include"
+ -I"$(DEPSDIR)/BerkeleyDB.4.8/include" \
+ -I"$(CURDIR)/leveldb/include" \
+ -I"$(CURDIR)/leveldb/helpers"
 
 LIBPATHS= \
  -L"/usr/lib" \
@@ -77,7 +79,9 @@ LIBS += \
  $(LIB_LINUX)/libssl.a \
  $(LIB_LINUX)/libcrypto.a \
  $(LIB_LINUX)/libz.a \
- /usr/lib/libcryptopp.a
+ /usr/lib/libcryptopp.a \
+ $(CURDIR)/leveldb/libleveldb.a \
+ $(CURDIR)/leveldb/libmemenv.a
 else
 TESTLIBS += \
  -lboost_unit_test_framework
@@ -286,9 +290,21 @@ OBJS= \
     obj/scrypt_mine.o \
     obj/scrypt-x86.o \
     obj/scrypt-x86_64.o \
-    obj/stealthtext.o
+    obj/stealthtext.o \
+    obj/txdb-leveldb.o 
 
 all: StealthCoind
+
+#
+# LevelDB support
+#
+MAKEOVERRIDES =
+LIBS += $(CURDIR)/leveldb/libleveldb.a $(CURDIR)/leveldb/libmemenv.a
+DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
+DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
+leveldb/libleveldb.a:
+	@echo "Building LevelDB ..." && cd leveldb && $(MAKE) CC=$(CC) CXX=$(CXX) OPT="$(xCXXFLAGS)" libleveldb.a libmemenv.a && cd ..
+
 
 test check: test_stealthcoin FORCE
 	./test_stealthcoin
