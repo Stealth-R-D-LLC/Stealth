@@ -5,7 +5,8 @@
 #include <boost/assign/list_of.hpp>
 
 #include "kernel.h"
-#include "db.h"
+//#include "db.h"
+#include "txdb.h"
 
 using namespace std;
 
@@ -418,7 +419,7 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     if (!txPrev.ReadFromDisk(txdb, txin.prevout, txindex))
         // previous transaction not in main chain, may occur during initial download
         return tx.DoS(1, error("CheckProofOfStake() : INFO: read txPrev failed"));
-    txdb.Close();
+    //txdb.Close();
 
     // Verify signature
     if (!VerifySignature(txPrev, tx, 0, true, 0))
