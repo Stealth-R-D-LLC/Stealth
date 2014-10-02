@@ -43,10 +43,14 @@ static const int64 MIN_RELAY_TX_FEE = 1 * CENT;
 static const int64 MAX_MONEY = COIN * 23300000;  // 23.3 Million
 static const int64 CIRCULATION_MONEY = MAX_MONEY;
 static const double TAX_PERCENTAGE = 0.00; //no tax
-static const int64 MAX_STEALTH_PROOF_OF_STAKE = 0.20 * COIN;	// 20% annual interest
-// static const unsigned int CUTOFF_POW_BLOCK = 20421;  // too many problems with PoW+PoS and big hashes
-static const unsigned int CUTOFF_POW_BLOCK = 5460;
+// 20% annual interest
+static const int64 MAX_STEALTH_PROOF_OF_STAKE = 0.20 * COIN;
+// too many problems with PoW+PoS and big hashes
+// static const unsigned int CUTOFF_POW_BLOCK = 20421;
+static const int CUTOFF_POW_BLOCK = 5460;
 static const unsigned int CUTOFF_POW_TIME = 1405125188;
+// Thu Oct  9 00:00:00 2014 MST
+static const unsigned int STEALTH_ADDR_KICK_IN = 1412834400;
 
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
 
@@ -60,8 +64,10 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-static const uint256 hashGenesisBlockOfficial("0x1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a");
-static const uint256 hashGenesisBlockTestNet ("0x1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a");
+static const uint256 hashGenesisBlockOfficial(
+   "0x1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a");
+static const uint256 hashGenesisBlockTestNet (
+   "0x3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634");
 
 static const int64 nMaxClockDrift = 2 * 60 * 60;        // two hours
 
@@ -96,6 +102,8 @@ extern std::map<uint256, CBlock*> mapOrphanBlocks;
 
 // Settings
 extern int64 nTransactionFee;
+extern unsigned int nDerivationMethodIndex;
+extern int64 nReserveBalance;
 
 // Minimum disk space required - used in CheckDiskSpace()
 static const uint64 nMinDiskSpace = 52428800;
@@ -739,6 +747,8 @@ protected:
 /** A transaction with a merkle branch linking it to the block chain. */
 class CMerkleTx : public CTransaction
 {
+private:
+    int GetDepthInMainChainINTERNAL(CBlockIndex* &pindexRet) const;
 public:
     uint256 hashBlock;
     std::vector<uint256> vMerkleBranch;
@@ -778,8 +788,14 @@ public:
 
     int SetMerkleBranch(const CBlock* pblock=NULL);
     int GetDepthInMainChain(CBlockIndex* &pindexRet) const;
-    int GetDepthInMainChain() const { CBlockIndex *pindexRet; return GetDepthInMainChain(pindexRet); }
-    bool IsInMainChain() const { return GetDepthInMainChain() > 0; }
+    int GetDepthInMainChain() const {
+            CBlockIndex *pindexRet;
+            return GetDepthInMainChain(pindexRet);
+    }
+     bool IsInMainChain() const {
+           CBlockIndex *pindexRet;
+           return GetDepthInMainChainINTERNAL(pindexRet) > 0;
+    }
     int GetBlocksToMaturity() const;
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true);
     bool AcceptToMemoryPool();
@@ -860,7 +876,7 @@ class CBlock
 {
 public:
     // header
-    static const int CURRENT_VERSION=4;
+    static const int CURRENT_VERSION=6;
     int nVersion;
     uint256 hashPrevBlock;
     uint256 hashMerkleRoot;
@@ -1107,7 +1123,8 @@ public:
     bool ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions=true);
     bool SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew);
     bool AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos);
-    bool CheckBlock(bool fCheckPOW=true, bool fCheckMerkleRoot=true) const;
+    bool CheckBlock(bool fCheckPOW=true,
+                    bool fCheckMerkleRoot=true, bool fCheckSig=true) const;
     bool AcceptBlock();
     bool GetCoinAge(uint64& nCoinAge) const; // ppcoin: calculate total coin age spent in block
     bool SignBlock(const CKeyStore& keystore);
@@ -1260,6 +1277,11 @@ public:
         return true;
     }
 
+    int64 GetPastTimeLimit() const
+    {
+        return GetMedianTimePast();
+    }
+
     enum { nMedianTimeSpan=11 };
 
     int64 GetMedianTimePast() const
@@ -1360,6 +1382,8 @@ public:
 /** Used to marshal pointers into hashes for db storage. */
 class CDiskBlockIndex : public CBlockIndex
 {
+private:
+    uint256 blockHash;
 public:
     uint256 hashPrev;
     uint256 hashNext;
@@ -1368,6 +1392,7 @@ public:
     {
         hashPrev = 0;
         hashNext = 0;
+        blockHash = 0;
     }
 
     explicit CDiskBlockIndex(CBlockIndex* pindex) : CBlockIndex(*pindex)
@@ -1409,10 +1434,13 @@ public:
         READWRITE(nTime);
         READWRITE(nBits);
         READWRITE(nNonce);
+        READWRITE(blockHash);
     )
 
     uint256 GetBlockHash() const
     {
+        if((nTime < GetAdjustedTime() - 24 * 60 * 60) && blockHash != 0)
+            return blockHash;
         CBlock block;
         block.nVersion        = nVersion;
         block.hashPrevBlock   = hashPrev;
@@ -1420,7 +1448,8 @@ public:
         block.nTime           = nTime;
         block.nBits           = nBits;
         block.nNonce          = nNonce;
-        return block.GetHash();
+        const_cast<CDiskBlockIndex*>(this)->blockHash = block.GetHash();
+        return blockHash;
     }
 
 
@@ -1590,9 +1619,10 @@ public:
     std::map<COutPoint, CInPoint> mapNextTx;
 
     bool accept(CTxDB& txdb, CTransaction &tx,
-                bool fCheckInputs, bool* pfMissingInputs);
+                bool fCheckInputs, bool* pfMissingInputs = NULL);
     bool addUnchecked(const uint256& hash, CTransaction &tx);
-    bool remove(CTransaction &tx);
+    bool remove(const CTransaction &tx, bool fRecursive = false);
+    bool removeConflicts(const CTransaction &tx);
     void clear();
     void queryHashes(std::vector<uint256>& vtxid);
 
@@ -1611,7 +1641,16 @@ public:
     {
         return mapTx[hash];
     }
+
+    bool lookup(uint256 hash, CTransaction& result) const
+    {
+        std::map<uint256, CTransaction>::const_iterator i = mapTx.find(hash);
+        if (i==mapTx.end()) return false;
+        result = i->second;
+        return true;
+    }
 };
+
 
 extern CTxMemPool mempool;
 

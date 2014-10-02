@@ -122,6 +122,41 @@ std::string HexBits(unsigned int nBits)
 }
 
 
+// Utilities: convert hex-encoded Values
+// (throws error if not hex).
+//
+uint256 ParseHashV(const Value& v, string strName)
+{
+    string strHex;
+    if (v.type() == str_type)
+        strHex = v.get_str();
+    if (!IsHex(strHex)) // Note: IsHex("") is false
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strName+" must be hexadecimal string (not '"+strHex+"')");
+    uint256 result;
+    result.SetHex(strHex);
+    return result;
+}
+
+uint256 ParseHashO(const Object& o, string strKey)
+{
+    return ParseHashV(find_value(o, strKey), strKey);
+}
+
+vector<unsigned char> ParseHexV(const Value& v, string strName)
+{
+    string strHex;
+    if (v.type() == str_type)
+        strHex = v.get_str();
+   if (!IsHex(strHex))
+        throw JSONRPCError(RPC_INVALID_PARAMETER, strName+" must be hexadecimal string (not '"+strHex+"')");
+    return ParseHex(strHex);
+}
+
+vector<unsigned char> ParseHexO(const Object& o, string strKey)
+{
+    return ParseHexV(find_value(o, strKey), strKey);
+}
+
 
 ///
 /// Note: This interface may still be subject to change.
@@ -204,6 +239,7 @@ static const CRPCCommand vRPCCommands[] =
   //  ------------------------  -----------------------  ------  --------
     { "help",                   &help,                   true,   true },
     { "stop",                   &stop,                   true,   true },
+    { "getbestblockhash",       &getbestblockhash,       true,   false },
     { "getblockcount",          &getblockcount,          true,   false },
     { "getconnectioncount",     &getconnectioncount,     true,   false },
     { "getpeerinfo",            &getpeerinfo,            true,   false },
@@ -212,6 +248,7 @@ static const CRPCCommand vRPCCommands[] =
     { "setgenerate",            &setgenerate,            true,   false },
     { "gethashespersec",        &gethashespersec,        true,   false },
     { "getinfo",                &getinfo,                true,   false },
+    { "getsubsidy",             &getsubsidy,             true,   false },
     { "getmininginfo",          &getmininginfo,          true,   false },
     { "getnewaddress",          &getnewaddress,          true,   false },
     { "getnewpubkey",           &getnewpubkey,           true,   false },
@@ -269,6 +306,13 @@ static const CRPCCommand vRPCCommands[] =
     { "resendtx",               &resendtx,               false,  true},
     { "makekeypair",            &makekeypair,            false,  true},
     { "sendalert",              &sendalert,              false,  false},
+    { "getnewstealthaddress",   &getnewstealthaddress,   false,  false},
+    { "liststealthaddresses",   &liststealthaddresses,   false,  false},
+    { "importstealthaddress",   &importstealthaddress,   false,  false},
+    { "sendtostealthaddress",   &sendtostealthaddress,   false,  false},
+    { "clearwallettransactions",&clearwallettransactions,false,  false},
+    { "scanforalltxns",         &scanforalltxns,         false,  false},
+    { "scanforstealthtxns",     &scanforstealthtxns,     false,  false},
 };
 
 CRPCTable::CRPCTable()
@@ -1187,6 +1231,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "createrawtransaction"   && n > 1) ConvertTo<Object>(params[1]);
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
     if (strMethod == "signrawtransaction"     && n > 2) ConvertTo<Array>(params[2], true);
+    if (strMethod == "sendtostealthaddress"   && n > 1) ConvertTo<double>(params[1]);
 
     return params;
 }

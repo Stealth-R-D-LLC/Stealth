@@ -113,9 +113,11 @@ protected:
     bool fSet;
     bool fCompressedPubKey;
 
-    void SetCompressedPubKey();
-
 public:
+    void SetCompressedPubKey();
+    void SetUnCompressedPubKey();
+
+    EC_KEY* GetECKey();
 
     void Reset();
 
@@ -157,6 +159,9 @@ public:
     bool VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig);
 
     bool IsValid();
+
+    static bool CheckSignatureElement(const unsigned char *vch, int len, bool half);
+    bool ECC_InitSanityCheck(void);
 };
 
 #endif

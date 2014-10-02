@@ -7,6 +7,7 @@
 #include "kernel.h"
 //#include "db.h"
 #include "txdb.h"
+#include "util.h"
 
 using namespace std;
 
@@ -23,7 +24,8 @@ unsigned int nModifierInterval = MODIFIER_INTERVAL;
 // Hard checkpoints of stake modifiers to ensure they are deterministic
 static std::map<int, unsigned int> mapStakeModifierCheckpoints =
     boost::assign::map_list_of
-    (     0, 0xfd11f4e7u )
+             (        0, 0xfd11f4e7u )
+             (   114200, 0xe2232be0u )
 	;
 
 

@@ -18,8 +18,10 @@ win32 {
 
 TEMPLATE = app
 TARGET = "Stealth Qt"
-VERSION = 1.1.1.1
+VERSION = 1.3.0.0
 INCLUDEPATH += src src/json src/qt src/tor
+INCLUDEPATH += src/tor/adapter src/tor/common src/tor/ext
+INCLUDEPATH += src/tor/ext/curve25519_donna src/tor/or
 QT += core gui network
 CONFIG += no_include_pwd
 CONFIG += thread+
@@ -184,6 +186,12 @@ LIBS += $$PWD/src/leveldb/libleveldb.a $$PWD/src/leveldb/libmemenv.a
     LIBS += -lshlwapi
     # genleveldb.commands = cd $$PWD/src/leveldb && CC=$$QMAKE_CC CXX=$$QMAKE_CXX TARGET_OS=OS_WINDOWS_CROSSCOMPILE $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a && $$QMAKE_RANLIB $$PWD/src/leveldb/libleveldb.a && $$QMAKE_RANLIB $$PWD/src/leveldb/libmemenv.a
 }
+genleveldb.target = $$PWD/src/leveldb/libleveldb.a
+genleveldb.depends = FORCE
+PRE_TARGETDEPS += $$PWD/src/leveldb/libleveldb.a
+QMAKE_EXTRA_TARGETS += genleveldb
+# Gross ugly hack that depends on qmake internals, unfortunately there is no other way to do it.
+QMAKE_CLEAN += $$PWD/src/leveldb/libleveldb.a; cd $$PWD/src/leveldb ; $(MAKE) clean
 
 
 !win32 {
@@ -204,6 +212,10 @@ LIBS += $$PWD/src/leveldb/libleveldb.a $$PWD/src/leveldb/libmemenv.a
     DEFINES += HAVE_BUILD_INFO
 }
 
+win32 {
+  QMAKE_LFLAGS += -Wl,-enable-auto-import
+}
+
 QMAKE_CXXFLAGS += -msse2
 QMAKE_CFLAGS += -msse2
 QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra\
@@ -212,7 +224,10 @@ QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra\
 
 # Input
 DEPENDPATH += src src/json src/qt
-HEADERS += src/qt/bitcoingui.h \
+
+HEADERS += \
+    src/stealthaddress.h \
+    src/qt/bitcoingui.h \
     src/qt/transactiontablemodel.h \
     src/qt/addresstablemodel.h \
     src/qt/optionsdialog.h \
@@ -310,7 +325,9 @@ HEADERS += src/qt/bitcoingui.h \
     src/qt/httpsocket.h \
     src/qt/stealthsend.h \
 
-SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
+SOURCES += \
+    src/qt/bitcoin.cpp \
+    src/qt/bitcoingui.cpp \
     src/qt/transactiontablemodel.cpp \
     src/qt/addresstablemodel.cpp \
     src/qt/optionsdialog.cpp \
@@ -322,83 +339,85 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/qt/aboutdialog.cpp \
     src/qt/editaddressdialog.cpp \
     src/qt/bitcoinaddressvalidator.cpp \
-    src/tor/address.c \
-    src/tor/addressmap.c \
-    src/tor/aes.c \
-    src/tor/backtrace.c \
-    src/tor/buffers.c \
-    src/tor/channel.c \
-    src/tor/channeltls.c \
-    src/tor/circpathbias.c \
-    src/tor/circuitbuild.c \
-    src/tor/circuitlist.c \
-    src/tor/circuitmux.c \
-    src/tor/circuitmux_ewma.c \
-    src/tor/circuitstats.c \
-    src/tor/circuituse.c \
-    src/tor/command.c \
-    src/tor/compat.c \
-    src/tor/compat_libevent.c \
-    src/tor/config.c \
-    src/tor/config_codedigest.c \
-    src/tor/confparse.c \
-    src/tor/connection.c \
-    src/tor/connection_edge.c \
-    src/tor/connection_or.c \
-    src/tor/container.c \
-    src/tor/control.c \
-    src/tor/cpuworker.c \
-    src/tor/crypto.c \
-    src/tor/crypto_curve25519.c \
-    src/tor/crypto_format.c \
-    src/tor/curve25519-donna.c \
-    src/tor/di_ops.c \
-    src/tor/directory.c \
-    src/tor/dirserv.c \
-    src/tor/dirvote.c \
-    src/tor/dns.c \
-    src/tor/dnsserv.c \
-    src/tor/entrynodes.c \
-    src/tor/ext_orport.c \
-    src/tor/fp_pair.c \
-    src/tor/geoip.c \
-    src/tor/hibernate.c \
-    src/tor/log.c \
-    src/tor/memarea.c \
-    src/tor/mempool.c \
-    src/tor/microdesc.c \
-    src/tor/networkstatus.c \
-    src/tor/nodelist.c \
-    src/tor/onion.c \
-    src/tor/onion_fast.c \
-    src/tor/onion_main.c \
-    src/tor/onion_ntor.c \
-    src/tor/onion_tap.c \
-    src/tor/policies.c \
-    src/tor/stealth.cpp \
-    src/tor/procmon.c \
-    src/tor/reasons.c \
-    src/tor/relay.c \
-    src/tor/rendclient.c \
-    src/tor/rendcommon.c \
-    src/tor/rendmid.c \
-    src/tor/rendservice.c \
-    src/tor/rephist.c \
-    src/tor/replaycache.c \
-    src/tor/router.c \
-    src/tor/routerlist.c \
-    src/tor/routerparse.c \
-    src/tor/routerset.c \
-    src/tor/sandbox.c \
-    src/tor/statefile.c \
-    src/tor/status.c \
-    src/tor/strlcat.c \
-    src/tor/strlcpy.c \
-    src/tor/tor_util.c \
-    src/tor/torgzip.c \
-    src/tor/tortls.c \
-    src/tor/transports.c \
-    src/tor/util_codedigest.c \
+    src/tor/common/address.c \
+    src/tor/or/addressmap.c \
+    src/tor/common/aes.c \
+    src/tor/common/backtrace.c \
+    src/tor/or/buffers.c \
+    src/tor/or/channel.c \
+    src/tor/or/channeltls.c \
+    src/tor/or/circpathbias.c \
+    src/tor/or/circuitbuild.c \
+    src/tor/or/circuitlist.c \
+    src/tor/or/circuitmux.c \
+    src/tor/or/circuitmux_ewma.c \
+    src/tor/or/circuitstats.c \
+    src/tor/or/circuituse.c \
+    src/tor/or/command.c \
+    src/tor/common/tor_compat.c \
+    src/tor/common/compat_libevent.c \
+    src/tor/or/config.c \
+    src/tor/or/config_codedigest.c \
+    src/tor/or/confparse.c \
+    src/tor/or/connection.c \
+    src/tor/or/connection_edge.c \
+    src/tor/or/connection_or.c \
+    src/tor/common/container.c \
+    src/tor/or/control.c \
+    src/tor/or/cpuworker.c \
+    src/tor/common/crypto.c \
+    src/tor/common/crypto_curve25519.c \
+    src/tor/common/crypto_format.c \
+    src/tor/ext/csiphash.c \
+    src/tor/ext/curve25519_donna/curve25519-donna.c \
+    src/tor/common/di_ops.c \
+    src/tor/or/directory.c \
+    src/tor/or/dirserv.c \
+    src/tor/or/dirvote.c \
+    src/tor/or/dns.c \
+    src/tor/or/dnsserv.c \
+    src/tor/or/entrynodes.c \
+    # src/tor/ext/eventdns.c \
+    src/tor/or/ext_orport.c \
+    src/tor/or/fp_pair.c \
+    src/tor/or/geoip.c \
+    src/tor/or/hibernate.c \
+    src/tor/common/log.c \
+    src/tor/common/memarea.c \
+    src/tor/common/mempool.c \
+    src/tor/or/microdesc.c \
+    src/tor/or/networkstatus.c \
+    src/tor/or/nodelist.c \
+    src/tor/or/onion.c \
+    src/tor/or/onion_fast.c \
+    src/tor/or/onion_main.c \
+    src/tor/or/onion_ntor.c \
+    src/tor/or/onion_tap.c \
+    src/tor/or/policies.c \
+    src/tor/adapter/stealth.cpp \
+    src/tor/common/procmon.c \
+    src/tor/or/reasons.c \
+    src/tor/or/relay.c \
+    src/tor/or/rendclient.c \
+    src/tor/or/rendcommon.c \
+    src/tor/or/rendmid.c \
+    src/tor/or/rendservice.c \
+    src/tor/or/rephist.c \
+    src/tor/or/replaycache.c \
+    src/tor/or/router.c \
+    src/tor/or/routerlist.c \
+    src/tor/or/routerparse.c \
+    src/tor/or/routerset.c \
+    src/tor/common/sandbox.c \
+    src/tor/or/statefile.c \
+    src/tor/or/status.c \
+    src/tor/common/tor_util.c \
+    src/tor/common/torgzip.c \
+    src/tor/common/tortls.c \
+    src/tor/or/tor_main.c \
+    src/tor/or/transports.c \
+    src/tor/common/util_codedigest.c \
+    src/tor/common/util_process.c \
     src/alert.cpp \
     src/version.cpp \
     src/sync.cpp \
@@ -415,6 +434,7 @@ SOURCES += src/qt/bitcoin.cpp src/qt/bitcoingui.cpp \
     src/db.cpp \
     src/txdb-leveldb.cpp \
     src/walletdb.cpp \
+    src/stealthaddress.cpp \
     src/qt/clientmodel.cpp \
     src/qt/guiutil.cpp \
     src/qt/transactionrecord.cpp \
@@ -489,6 +509,18 @@ FORMS += \
     src/qt/forms/askpassphrasedialog.ui \
     src/qt/forms/rpcconsole.ui \
     src/qt/forms/optionsdialog.ui
+
+
+
+win32 {
+  HEADERS += src/tor/or/ntmain.h
+}
+
+
+win32 {
+  SOURCES += src/tor/or/ntmain.c
+}
+
 
 contains(USE_QRCODE, 1) {
 HEADERS += src/qt/qrcodedialog.h
