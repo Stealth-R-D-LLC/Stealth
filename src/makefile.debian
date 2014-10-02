@@ -45,6 +45,11 @@ INCLUDEPATHS= \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
  -I"$(CURDIR)/tor" \
+ -I"$(CURDIR)/tor/adapter" \
+ -I"$(CURDIR)/tor/common" \
+ -I"$(CURDIR)/tor/ext" \
+ -I"$(CURDIR)/tor/ext/curve25519_donna" \
+ -I"$(CURDIR)/tor/or" \
  -I"/usr/include" \
  -I"$(INC_LINUX)" \
  -I"$(DEPSDIR)/BerkeleyDB.4.8/include" \
@@ -185,7 +190,7 @@ OBJS= \
     obj/circuitstats.o \
     obj/circuituse.o \
     obj/command.o \
-    obj/compat.o \
+    obj/tor_compat.o \
     obj/compat_libevent.o \
     obj/config.o \
     obj/config_codedigest.o \
@@ -197,6 +202,7 @@ OBJS= \
     obj/control.o \
     obj/cpuworker.o \
     obj/crypto.o \
+    obj/csiphash.o \
     obj/crypto_curve25519.o \
     obj/crypto_format.o \
     obj/curve25519-donna.o \
@@ -242,8 +248,10 @@ OBJS= \
     obj/tor_util.o \
     obj/torgzip.o \
     obj/tortls.o \
+    obj/tor_main.o \
     obj/transports.o \
     obj/util_codedigest.o \
+    obj/util_process.o \
     obj/aes_helper.o \
     obj/fugue.o \
     obj/hamsi.o \
@@ -291,6 +299,7 @@ OBJS= \
     obj/scrypt-x86.o \
     obj/scrypt-x86_64.o \
     obj/stealthtext.o \
+    obj/stealthaddress.o \
     obj/txdb-leveldb.o 
 
 all: StealthCoind
@@ -333,14 +342,43 @@ obj/%.o: %.c
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
-obj/%.o: tor/%.c
+obj/%.o: tor/common/%.c
 	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
-obj/stealth.o: tor/stealth.cpp
+obj/%.o: tor/ext/%.c
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	rm -f $(@:%.o=%.d)
+
+obj/%.o: tor/ext/curve25519_donna/%.c
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	rm -f $(@:%.o=%.d)
+
+
+obj/%.o: tor/or/%.c
+	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	rm -f $(@:%.o=%.d)
+
+# obj/%.o: tor/win32/%.c
+# 	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+# 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+# 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+#           -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+# 	rm -f $(@:%.o=%.d)
+
+obj/stealth.o: tor/adapter/stealth.cpp
 	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \

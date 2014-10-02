@@ -29,6 +29,8 @@ using namespace boost;
 CWallet* pwalletMain;
 CClientUIInterface uiInterface;
 
+unsigned int nDerivationMethodIndex;
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Shutdown
@@ -234,7 +236,7 @@ std::string HelpMessage()
         "  -socks=<n>             " + _("Select the version of socks proxy to use (4-5, default: 5)") + "\n" +
         "  -tor=<ip:port>         " + _("Use proxy to reach tor hidden services") + "\n" +
         "  -dns                   " + _("Allow DNS lookups for -addnode, -seednode and -connect") + "\n" +
-        "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4438)") + "\n" +
+        "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4437)") + "\n" +
         "  -maxconnections=<n>    " + _("Maintain at most <n> connections to peers (default: 125)") + "\n" +
         "  -addnode=<ip>          " + _("Add a node to connect to and attempt to keep the connection open") + "\n" +
         "  -connect=<ip>          " + _("Connect only to the specified node(s)") + "\n" +
@@ -350,6 +352,7 @@ bool AppInit2()
 
     // ********************************************************* Step 2: parameter interactions
 
+    nDerivationMethodIndex = 0;
     fTestNet = GetBoolArg("-testnet");
     if (fTestNet) {
         SoftSetBoolArg("-irc", true);

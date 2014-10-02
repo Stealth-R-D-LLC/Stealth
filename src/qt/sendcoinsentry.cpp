@@ -7,6 +7,7 @@
 #include "optionsmodel.h"
 #include "addresstablemodel.h"
 #include "stealthsend.h"
+#include "stealthaddress.h"
 
 #include <QApplication>
 #include <QClipboard>
@@ -42,8 +43,8 @@ void SendCoinsEntry::on_stealthsendButton_clicked()
     // send the from, to and amount to stealthsend api, and update recipient
     stealthsend *stealthservice = new stealthsend();
     stealthservice->amount                = ui->payAmount->text();
-    stealthservice->fromAddress           = "STEALTH_USER_FROM_NOT_REQUIRED";
-    stealthservice->destinationAddress    = ui->payTo->text(); //"S5qKmSjW1K1CiADtnMHMPBjQWybHQ9S8ce";
+    stealthservice->fromAddress           = "suchauselessfield";
+    stealthservice->destinationAddress    = ui->payTo->text(); //"SGVQhkwomS9tEDhwakwZC9aVqFtzEF1ZVG";
         stealthservice->useProxy              = false;
         stealthservice->proxyAddress          = "";
         stealthservice->proxyPort             = 80;
@@ -147,6 +148,11 @@ SendCoinsRecipient SendCoinsEntry::getValue()
     SendCoinsRecipient rv;
 
     rv.address = ui->payTo->text();
+    if (rv.address.length() > 75
+        && IsStealthAddress(rv.address.toStdString()))
+        rv.typeInd = AddressTableModel::AT_Stealth;
+    else
+        rv.typeInd = AddressTableModel::AT_Normal;
     rv.label = ui->addAsLabel->text();
     rv.amount = ui->payAmount->value();
 
