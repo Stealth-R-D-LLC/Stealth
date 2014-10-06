@@ -6,9 +6,6 @@
 #
 # INSTRUCTIONS TO BUILD ON DEBIAN (EASY!)
 #
-# You need to have the latest version of Berkeley DB 4.8 installed
-# at the default location (/usr/local/BerkeleyDB.4.8).
-#
 # Make sure you have also installed the
 # following packages installed via apt-get
 # 
@@ -17,10 +14,18 @@
 #     sudo apt-get install zlib1g-dev
 #     sudo apt-get install libboost-all-dev
 #     sudo apt-get install libevent-dev
-#     sudo apt-get install crypto++-dev
+#     sudo apt-get install libdb++-dev
 #
-# This will make sure you have the correct headers and will
-# put into the correct static libraries in the correct places
+# A problem exists with the debian library libcrypto++-dev.
+# You must build your own libcrypt++:
+#
+#     cd
+#     mkdir -p Installers/libcryptopp/cryptopp56
+#     cd Installers/libcryptopp/cryptopp56
+#     wget http://www.cryptopp.com/cryptopp562.zip
+#     unzip -a cryptopp562.zip
+#     make
+#     sudo make install
 #
 # Then, you can build
 #
@@ -29,7 +34,7 @@
 #######################################################################
 
 
-# Build STATIC for this makefile
+# Build STATIC for this makefile (1=static, 0=not)
 STATIC=1
 
 # Berkely DB
@@ -39,6 +44,8 @@ DEPSDIR=/usr/local
 INC_LINUX="/usr/include/x86_64-linux-gnu"
 # debian third-party libs
 LIB_LINUX="/usr/lib/x86_64-linux-gnu"
+# boost libraries
+LIB_BOOST="/usr/lib"
 
 
 INCLUDEPATHS= \
@@ -52,14 +59,12 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/or" \
  -I"/usr/include" \
  -I"$(INC_LINUX)" \
- -I"$(DEPSDIR)/BerkeleyDB.4.8/include" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers"
 
 LIBPATHS= \
  -L"/usr/lib" \
  -L"$(LIB_LINUX)" \
- -L"$(DEPSDIR)/BerkeleyDB.4.8/lib" \
 
 CFLAGS += $(INCLUDEPATHS)
 
@@ -72,21 +77,22 @@ DEFS=-DBOOST_SPIRIT_THREADSAFE
 
 TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
 
-ifdef STATIC
+ifeq ($(STATIC),1)
 TESTLIBS += \
  $(DEPSDIR)/lib/libboost_unit_test_framework.a
 LIBS += \
- $(DEPSDIR)/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a \
- $(LIB_LINUX)/libboost_system.a \
- $(LIB_LINUX)/libboost_filesystem.a \
- $(LIB_LINUX)/libboost_program_options.a \
- $(LIB_LINUX)/libboost_thread.a \
+ $(LIB_LINUX)/libdb_cxx.a \
+ $(LIB_BOOST)/libboost_system.a \
+ $(LIB_BOOST)/libboost_filesystem.a \
+ $(LIB_BOOST)/libboost_program_options.a \
+ $(LIB_BOOST)/libboost_thread.a \
  $(LIB_LINUX)/libssl.a \
  $(LIB_LINUX)/libcrypto.a \
  $(LIB_LINUX)/libz.a \
- /usr/lib/libcryptopp.a \
+ $(LIB_LINUX)/libevent.a \
  $(CURDIR)/leveldb/libleveldb.a \
- $(CURDIR)/leveldb/libmemenv.a
+ $(CURDIR)/leveldb/libmemenv.a \
+ /usr/lib/libcryptopp.a
 else
 TESTLIBS += \
  -lboost_unit_test_framework
@@ -116,7 +122,8 @@ LIBS += \
    -lcrypto \
    -levent \
    -lz \
-   -lcryptopp
+   -lcryptopp \
+   -lrt
 
 
 ifneq (${USE_IPV6}, -)
@@ -371,13 +378,6 @@ obj/%.o: tor/or/%.c
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
-# obj/%.o: tor/win32/%.c
-# 	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-# 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-# 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-#           -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-# 	rm -f $(@:%.o=%.d)
-
 obj/stealth.o: tor/adapter/stealth.cpp
 	$(CXX) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
@@ -393,7 +393,8 @@ obj/scrypt-x86.o: scrypt-x86.S
 obj/scrypt-x86_64.o: scrypt-x86_64.S
 	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
 
-StealthCoind: $(OBJS:obj/%=obj/%) obj/stealth.o
+StealthCoind: leveldb/libleveldb.a \
+              $(OBJS:obj/%=obj/%) obj/stealth.o
 	$(CXX) $(CFLAGS) -o $@ $(LIBPATHS) $^ $(LIBS)
 
 TESTOBJS := $(patsubst test/%.cpp,obj-test/%.o,$(wildcard test/*.cpp))
@@ -416,5 +417,6 @@ clean:
 	-rm -f obj/*.P
 	-rm -f obj-test/*.P
 	-rm -f obj/build.h
+	cd leveldb; make clean
 
 FORCE:

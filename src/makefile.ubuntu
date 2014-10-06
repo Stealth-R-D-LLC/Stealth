@@ -4,43 +4,33 @@
 
 #######################################################################
 #
-# INSTRUCTIONS TO BUILD ON UNIX
+# INSTRUCTIONS TO BUILD ON UBUNTU (EASY!)
 #
-# If you have Debain, use makefile.debian. See instructions therein.
-# If you have Mint or Ubuntu, use makefile.ubuntu.
-#
-# There are lots of flavors of unix. They put packages in all
-# kinds of places. You will have to find where yours are.
-# If you build from scratch, most libraries will go into /usr/local.
-# An exception is crypto++, which installs by default to /usr/.
+# These instructions use standard ubuntu packages and assume a
+# fresh Ubuntu 14.0.4 install.
 #
 # First, install git and clone the repo:
 #
 #    sudo apt-get install git
 #    git clone https://github.com/StealthSend/Stealth.git
 #
-# As of StealthCoin version 1.3.0.0, the Qt clients are built
-# against Berkeley DB (BDB) 4.8. So you should build BDB from the
-# archive at http://download.oracle.com/berkeley-db/db-4.8.30.tar.gz
-# Install BDB to the default location (/usr/local/BerkeleyDB.4.8/).
+# Make sure you have also installed the
+# following packages via apt-get
 #
-# Make sure you have also installed the following packages with
-# linkable libraries, preferably using your system's package
-# manager. If you build from scratch, make sure to enable building
-# the static libraries when running configure.
+#     sudo apt-get install build-essential
+#     sudo apt-get install libssl-dev
+#     sudo apt-get install zlib1g-dev
+#     sudo apt-get install libboost-all-dev
+#     sudo apt-get install libevent-dev
+#     sudo apt-get install libcrypto++-dev
+#     sudo apt-get install libdb++-dev
 #
-#     OpenSSL: https://www.openssl.org/
-#     ZLib: http://www.zlib.net/
-#     Boost: http://www.boost.org/
-#     LibEvent: http://libevent.org/
-#     Crypto++: http://www.cryptopp.com/
-#
-# Once these packages are installed, you will have the correct
-# headers and static libraries.
+# These commands will make sure you have the correct headers and will
+# put the correct static libraries into the correct places
 #
 # Then, you can build
 #
-#     make -f makefile.unix
+#     make -f makefile.ubuntu
 #
 #######################################################################
 
@@ -48,12 +38,15 @@
 # Build STATIC for this makefile (1=static, 0=not)
 STATIC=1
 
+# Berkely DB
 DEPSDIR=/usr/local
 
-# ubuntu puts boost libs at /usr/lib/x86_64-linux-gnu
-LIB_BOOST="/usr/lib/x86_64-linux-gnu"
+# debian third-party headers
+INC_LINUX="/usr/include/x86_64-linux-gnu"
+# debian third-party libs
+LIB_LINUX="/usr/lib/x86_64-linux-gnu"
 
-# this combo works for mint and ubuntu
+
 INCLUDEPATHS= \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
@@ -64,18 +57,13 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/ext/curve25519_donna" \
  -I"$(CURDIR)/tor/or" \
  -I"/usr/include" \
+ -I"$(INC_LINUX)" \
  -I"$(CURDIR)/leveldb/include" \
- -I"$(DEPSDIR)/include" \
- -I"$(DEPSDIR)/ssl/include" \
- -I"$(DEPSDIR)/include/boost" \
- -I"$(DEPSDIR)/include/event2" \
- -I"$(DEPSDIR)/BerkeleyDB.4.8/include" \
  -I"$(CURDIR)/leveldb/helpers"
 
 LIBPATHS= \
- -L"$(DEPSDIR)/lib" \
- -L"$(DEPSDIR)/BerkeleyDB.4.8/lib" \
- -L"$(DEPSDIR)/ssl/lib" 
+ -L"/usr/lib" \
+ -L"$(LIB_LINUX)" \
 
 CFLAGS += $(INCLUDEPATHS)
 
@@ -88,20 +76,19 @@ DEFS=-DBOOST_SPIRIT_THREADSAFE
 
 TESTDEFS = -DTEST_DATA_DIR=$(abspath test/data)
 
-
 ifeq ($(STATIC),1)
 TESTLIBS += \
  $(DEPSDIR)/lib/libboost_unit_test_framework.a
 LIBS += \
- $(DEPSDIR)/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a \
- $(LIB_BOOST)/libboost_system.a \
- $(LIB_BOOST)/libboost_filesystem.a \
- $(LIB_BOOST)/libboost_program_options.a \
- $(LIB_BOOST)/libboost_thread.a \
- $(DEPSDIR)/ssl/lib/libssl.a \
- $(DEPSDIR)/ssl/lib/libcrypto.a \
- $(DEPSDIR)/lib/libz.a \
- $(DEPSDIR)/lib/libevent.a \
+ $(LIB_LINUX)/libdb_cxx.a \
+ $(LIB_LINUX)/libboost_system.a \
+ $(LIB_LINUX)/libboost_filesystem.a \
+ $(LIB_LINUX)/libboost_program_options.a \
+ $(LIB_LINUX)/libboost_thread.a \
+ $(LIB_LINUX)/libssl.a \
+ $(LIB_LINUX)/libcrypto.a \
+ $(LIB_LINUX)/libz.a \
+ $(LIB_LINUX)/libevent.a \
  /usr/lib/libcryptopp.a \
  $(CURDIR)/leveldb/libleveldb.a \
  $(CURDIR)/leveldb/libmemenv.a
@@ -134,8 +121,7 @@ LIBS += \
    -lcrypto \
    -levent \
    -lz \
-   -lcryptopp \
-   -lrt
+   -lcryptopp
 
 
 ifneq (${USE_IPV6}, -)
