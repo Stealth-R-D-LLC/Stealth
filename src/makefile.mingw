@@ -14,12 +14,19 @@ INCLUDEPATHS= \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/json" \
  -I"$(CURDIR)/tor" \
+ -I"$(CURDIR)/tor/adapter" \
+ -I"$(CURDIR)/tor/common" \
+ -I"$(CURDIR)/tor/ext" \
+ -I"$(CURDIR)/tor/ext/curve25519_donna" \
+ -I"$(CURDIR)/tor/or" \
  -I"/usr/local/include/boost-1_55" \
  -I"/usr/local/cryptopp562" \
  -I"/usr/local/include" \
  -I"/usr/local/ssl/include" \
  -I"/usr/local" \
- 
+ -I"$(CURDIR)/leveldb/include" \
+ -I"$(CURDIR)/leveldb/helpers"
+
 LIBPATHS= \
  -L"/usr/local/ssl/lib" \
  -L"/usr/local/lib" \
@@ -70,7 +77,10 @@ ifdef STATIC
     /usr/local/ssl/lib/libssl.a \
     /usr/local/ssl/lib/libcrypto.a \
     /usr/local/lib/libz.a \
-    /usr/local/cryptopp/libcryptopp.a
+    /usr/local/cryptopp/libcryptopp.a \
+    $(CURDIR)/leveldb/libleveldb.a \
+    $(CURDIR)/leveldb/libmemenv.a
+
 endif
 
 LIBS += -lkernel32 -luser32 -lgdi32 -lcomdlg32 -lwinspool \
@@ -96,7 +106,7 @@ OBJS= \
     obj/circuitstats.o \
     obj/circuituse.o \
     obj/command.o \
-    obj/compat.o \
+    obj/tor_compat.o \
     obj/compat_libevent.o \
     obj/config.o \
     obj/config_codedigest.o \
@@ -108,6 +118,7 @@ OBJS= \
     obj/control.o \
     obj/cpuworker.o \
     obj/crypto.o \
+    obj/csiphash.o \
     obj/crypto_curve25519.o \
     obj/crypto_format.o \
     obj/curve25519-donna.o \
@@ -153,8 +164,10 @@ OBJS= \
     obj/tor_util.o \
     obj/torgzip.o \
     obj/tortls.o \
+    obj/tor_main.o \
     obj/transports.o \
     obj/util_codedigest.o \
+    obj/util_process.o \
     obj/aes_helper.o \
     obj/fugue.o \
     obj/hamsi.o \
@@ -201,7 +214,10 @@ OBJS= \
     obj/scrypt_mine.o \
     obj/scrypt-x86.o \
     obj/scrypt-x86_64.o \
-    obj/stealthtext.o
+    obj/stealthtext.o \
+    obj/stealthaddress.o \
+    obj/txdb-leveldb.o \
+    obj/ntmain.o
 
 all: StealthCoind.exe
 
@@ -214,10 +230,20 @@ obj/%.o: %.cpp $(HEADERS)
 obj/%.o: %.c $(HEADERS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-obj/%.o: tor/%.c $(HEADERS)
+obj/%.o: tor/common/%.c $(HEADERS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
-obj/stealth.o: tor/stealth.cpp
+obj/%.o: tor/ext/%.c $(HEADERS)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+obj/%.o: tor/ext/curve25519_donna/%.c $(HEADERS)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+obj/%.o: tor/or/%.c $(HEADERS)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+
+obj/stealth.o: tor/adapter/stealth.cpp
 	$(CXX) -c $(CFLAGS) -o $@ $<
 
 obj/scrypt-x86.o: scrypt-x86.S
@@ -238,8 +264,9 @@ test_stealthcoin.exe: $(TESTOBJS) $(filter-out obj/init.o,$(OBJS:obj/%=obj/%))
 	$(CXX) $(CFLAGS) $(LDFLAGS) -o $@ $(LIBPATHS) $^ -lboost_unit_test_framework $(LIBS)
 
 clean:
-	-del /Q StealthCoind.exe test_stealthcoin.exe
-	-del /Q obj\*
-	-del /Q obj-test\*
+	-rm -f StealthCoind.exe test_stealthcoin.exe
+	-rm -f obj\*
+	-rm -f obj-test\*
+	cd leveldb; make clean
 
 FORCE:
