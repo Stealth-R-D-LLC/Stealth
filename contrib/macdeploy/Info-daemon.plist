@@ -7,15 +7,15 @@
         <key>CFBundleDevelopmentRegion</key>
         <string>English</string>
         <key>CFBundleGetInfoString</key>
-        <string>StealthCoin [XST] Complete Anonymity 1.2.0.1</string>
+        <string>StealthCoin [XST] Complete Anonymity 1.3.0.0</string>
         <key>CFBundleIdentifier</key>
         <string>com.stealth-coin.stealthcoin-qt</string>
         <key>CFBundleShortVersionString</key>
-        <string>1.2.0.1</string>
+        <string>1.3.0.0</string>
         <key>CFBundleSignature</key>
         <string>oXST</string>
         <key>CFBundleVersion</key>
-        <string>1.2.0.1</string>
+        <string>1.3.0.0</string>
         <key>CFBundleName</key>
         <string>StealthCoind</string>
 </dict>

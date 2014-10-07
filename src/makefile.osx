@@ -74,7 +74,8 @@ LIBS += \
  -lcrypto \
  -lz \
  -levent \
- -lcryptopp
+ -lcryptopp \
+ -sectcreate __TEXT __info_plist ../contrib/macdeploy/Info-daemon.plist
 
 TESTDEFS += -DBOOST_TEST_DYN_LINK
 endif
