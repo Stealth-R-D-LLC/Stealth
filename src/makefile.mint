@@ -80,7 +80,7 @@ ifeq ($(STATIC),1)
 TESTLIBS += \
  $(DEPSDIR)/lib/libboost_unit_test_framework.a
 LIBS += \
- /usr/local/libdb_cxx.a \
+ $(LIB_LINUX)/libdb_cxx.a \
  $(LIB_LINUX)/libboost_system.a \
  $(LIB_LINUX)/libboost_filesystem.a \
  $(LIB_LINUX)/libboost_program_options.a \
