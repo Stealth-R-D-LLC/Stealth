@@ -1,8 +1,12 @@
 #ifndef SENDCOINSDIALOG_H
 #define SENDCOINSDIALOG_H
 
+#include "qhoverbutton.h"
+#include "qstealthpage.h"
 #include <QDialog>
 #include <QString>
+#include <QTextEdit>
+#include <QLineEdit>
 
 namespace Ui {
     class SendCoinsDialog;
@@ -23,8 +27,10 @@ class SendCoinsDialog : public QDialog
 public:
     explicit SendCoinsDialog(QWidget *parent = 0);
     ~SendCoinsDialog();
+    void customizeUI();
 
     void setModel(WalletModel *model);
+    void showOutOfSyncWarning(bool fShow);
 
     /** Set up the tab chain manually, as Qt messes up the tab chain by default in some cases (issue https://bugreports.qt-project.org/browse/QTBUG-10907).
      */
@@ -40,11 +46,28 @@ public slots:
     SendCoinsEntry *addEntry();
     void updateRemoveEnabled();
     void setBalance(qint64 balance, qint64 stake, qint64 unconfirmedBalance, qint64 immatureBalance);
+    void setNumTransactions(int count);
+
+    void displayBannerInfo();
 
 private:
     Ui::SendCoinsDialog *ui;
-    WalletModel *model;
+    WalletModel         *model;
+    QStealthBlueInfo    *txtBanner;
     bool fNewRecipientAllowed;
+    bool fOutOfSync;
+    bool fShowImmature;
+    qint64 nCountOfTransactions;
+    qint64 currentBalance;
+    qint64 currentStake;
+    qint64 currentUnconfirmedBalance;
+    qint64 currentImmatureBalance;
+
+    // added widgets for design
+    QLabel              *lblLabel[3];
+    QLineEdit           *edtInput[3];
+    QHoverButton        *btnTransfer;
+    QHoverButton        *btnSend;
 
 private slots:
     void on_sendButton_clicked();

@@ -103,10 +103,11 @@ public:
     class UnlockContext
     {
     public:
-        UnlockContext(WalletModel *wallet, bool valid, bool relock);
+        UnlockContext(WalletModel *wallet, bool valid, bool relock, bool mintonly);
         ~UnlockContext();
 
         bool isValid() const { return valid; }
+        bool mintOnly() const { return mint; }
 
         // Copy operator and constructor transfer the context
         UnlockContext(const UnlockContext& obj) { CopyFrom(obj); }
@@ -115,6 +116,7 @@ public:
         WalletModel *wallet;
         bool valid;
         mutable bool relock; // mutable, as it can be set to false by copying
+        mutable bool mint;
 
         void CopyFrom(const UnlockContext& rhs);
     };

@@ -1,4 +1,5 @@
 #include "guiutil.h"
+#include "common/qstealth.h"
 #include "bitcoinaddressvalidator.h"
 #include "walletmodel.h"
 #include "bitcoinunits.h"
@@ -10,6 +11,11 @@
 #include <QDoubleValidator>
 #include <QFont>
 #include <QLineEdit>
+#if QT_VERSION >= 0x050000
+  #include <QUrlQuery>
+#else
+  #include <QUrl>
+#endif
 #include <QUrl>
 #include <QTextDocument> // For Qt::escape
 #include <QAbstractItemView>
@@ -52,10 +58,30 @@ QString dateTimeStr(qint64 nTime)
     return dateTimeStr(QDateTime::fromTime_t((qint32)nTime));
 }
 
+QFont stealthAppFont()
+{
+    QFont font(SC_APP_FONT_NAME);
+    // letter spacing does not work right on mac and windows
+    // font.setLetterSpacing(SC_APP_FONT_SPACING_TYPE, SC_APP_FONT_SPACING);
+    font.setStyleHint(QFont::SansSerif);
+    return font;
+}
+
+QFont stealthBoldFont()
+{
+    QFont font(SC_BOLD_FONT_NAME);
+    // letter spacing does not work right on mac and windows
+    // font.setLetterSpacing(SC_APP_FONT_SPACING_TYPE, SC_APP_FONT_SPACING);
+    font.setStyleHint(QFont::SansSerif);
+    return font;
+}
+
 QFont bitcoinAddressFont()
 {
-    QFont font("Monospace");
-    font.setStyleHint(QFont::TypeWriter);
+    QFont font(SC_APP_FONT_NAME);
+    font.setPixelSize(SC_TABLE_FONT_PX);
+    // QFont font("Monospace");
+    // font.setStyleHint(QFont::TypeWriter);
     return font;
 }
 
@@ -83,7 +109,12 @@ bool parseBitcoinURI(const QUrl &uri, SendCoinsRecipient *out)
     SendCoinsRecipient rv;
     rv.address = uri.path();
     rv.amount = 0;
+#if QT_VERSION < 0x050000
     QList<QPair<QString, QString> > items = uri.queryItems();
+#else
+    QUrlQuery uriQuery(uri);
+    QList<QPair<QString, QString> > items = uriQuery.queryItems();
+#endif
     for (QList<QPair<QString, QString> >::iterator i = items.begin(); i != items.end(); i++)
     {
         bool fShouldReturnFalse = false;
@@ -136,7 +167,12 @@ bool parseBitcoinURI(QString uri, SendCoinsRecipient *out)
 
 QString HtmlEscape(const QString& str, bool fMultiLine)
 {
+#if QT_VERSION < 0x050000
     QString escaped = Qt::escape(str);
+#else
+    QString escaped = str.toHtmlEscaped();
+#endif
+
     if(fMultiLine)
     {
         escaped = escaped.replace("\n", "<br>\n");
@@ -171,7 +207,11 @@ QString getSaveFileName(QWidget *parent, const QString &caption,
     QString myDir;
     if(dir.isEmpty()) // Default to user documents location
     {
+#if QT_VERSION < 0x050000
         myDir = QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation);
+#else
+        myDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
+#endif
     }
     else
     {

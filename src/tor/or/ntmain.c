@@ -14,6 +14,7 @@
 #include <event.h>
 #endif
 
+#include <winsock2.h>
 #include <windows.h>
 #define GENSRV_SERVICENAME  "tor"
 #define GENSRV_DISPLAYNAME  "Tor Win32 Service"

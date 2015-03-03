@@ -45,6 +45,7 @@ namespace Checkpoints
         (       83500, uint256("0xdf42ca49b49683e6e6cf79228e072322eb80578f94dc01af08e068eabc7cb487"))
         (      100500, uint256("0x80749a6d5ed2ab45312c11206a355f81c9ec6e3effd2f835ec007caf40865c6f"))
         (      105000, uint256("0xacc3cc5ecf67849d7616f9f0f6e955e7288be2b93a614e0be52b7bd540327071"))
+        (      347000, uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb"))
 		;
 		;
 
@@ -85,9 +86,9 @@ namespace Checkpoints
 
     // ppcoin: synchronized checkpoint (centrally broadcasted)
     uint256 hashSyncCheckpoint =
-       uint256("0xacc3cc5ecf67849d7616f9f0f6e955e7288be2b93a614e0be52b7bd540327071");
+       uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb");
     uint256 hashPendingCheckpoint =
-       uint256("0xacc3cc5ecf67849d7616f9f0f6e955e7288be2b93a614e0be52b7bd540327071");
+       uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb");
     CSyncCheckpoint checkpointMessage;
     CSyncCheckpoint checkpointMessagePending;
     uint256 hashInvalidCheckpoint = 0;
@@ -391,12 +392,11 @@ namespace Checkpoints
 //       openssl ec -in private-key.pem -pubout -text -out ecpubkey.txt
 // hex is the "pub:" section in ecpubkey.txt with colons removed
 const std::string CSyncCheckpoint::strMasterPubKey =
-                                "04bf2dc2aac67e7d58365a3aa68946"
-                                "e40026cd5c97a2606f41991b9614a0"
-                                "818c905c28b344e3bbbb2cb072ba18"
-                                "0a8974bba93d8bdc53bca40418bd87"
-                                "9a733bb064";
-
+                                "0484f4bcfce3238a1ebcbf0d4ac99c"
+                                "d3e8f75e96e73325783c807f9068c1"
+                                "e9191b210f7f875fd8e63551989dac"
+                                "fa22f1d9b365a13f2f5a135c87d001"
+                                "0e46d6a576";
 
 std::string CSyncCheckpoint::strMasterPrivKey = "";
 

@@ -3,7 +3,9 @@
 #include "bitcoinunits.h"
 
 #include "guiconstants.h"
+#include "common/qstealth.h"
 
+#include <QMessageBox>
 #include <QLabel>
 #include <QLineEdit>
 #include <QRegExpValidator>
@@ -15,24 +17,35 @@
 #include <qmath.h>
 
 BitcoinAmountField::BitcoinAmountField(QWidget *parent):
-        QWidget(parent), amount(0), currentUnit(-1)
+        QWidget(parent),
+        amount(0),
+        currentUnit(-1),
+        fHasTriAngle(false)
 {
     amount = new QDoubleSpinBox(this);
     amount->setLocale(QLocale::c());
     amount->setDecimals(8);
     amount->installEventFilter(this);
-    amount->setMaximumWidth(170);
     amount->setSingleStep(0.001);
 
-    QHBoxLayout *layout = new QHBoxLayout(this);
-    layout->addWidget(amount);
     unit = new QValueComboBox(this);
     unit->setModel(new BitcoinUnits(this));
-    layout->addWidget(unit);
-    layout->addStretch(1);
-    layout->setContentsMargins(0,0,0,0);
 
-    setLayout(layout);
+    if (parent && parent->parent() && parent->parent()->inherits("SendCoinsEntry")) {
+        amount->setFixedSize(400, 30);
+	    ((QDoubleSpinBoxEx *)amount)->lineEdit()->setPlaceholderText("0.000000");
+	    unit->hide();
+    }
+	else {
+	    amount->setMaximumWidth(170);
+	    QHBoxLayout *layout = new QHBoxLayout(this);
+	    layout->addWidget(amount);
+	    layout->addWidget(unit);
+	    layout->addStretch(1);
+	    layout->setContentsMargins(0,0,0,0);
+
+	    setLayout(layout);
+	}
 
     setFocusPolicy(Qt::TabFocus);
     setFocusProxy(amount);
@@ -74,10 +87,23 @@ bool BitcoinAmountField::validate()
 
 void BitcoinAmountField::setValid(bool valid)
 {
-    if (valid)
-        amount->setStyleSheet("");
-    else
-        amount->setStyleSheet(STYLE_INVALID);
+    QWidget* parent = (QWidget*)this->parent();
+    if (parent && parent->parent() && parent->parent()->inherits("SendCoinsEntry")) {
+        ;
+    }
+    else {
+        amount->setStyleSheet((valid) ? "" : "background-color: #f88;");
+        return;
+    }
+    QString qss = SC_QSS_TOOLTIP_DEFAULT;
+    qss += "QDoubleSpinBox {border: none;";
+    qss += (valid) ? "background-color: #fff;" : "background-color: #f88;";
+    qss += (fHasTriAngle) ? "background-image: url(:/resources/res/images/bg_triangle_right.png); background-position: left center; background-repeat: no-repeat; padding: 0px 20px; font-size: 12px;" : "";
+    qss += "}";
+    qss += "QDoubleSpinBox::up-button {width: 15px; margin: 2px 5px 0 0; border-image: url(" + QString(SC_ICON_PATH_DEFAULT) + "bg_btn_up.png); border: none;}";
+    qss += "QDoubleSpinBox::down-button {width: 15px; margin: 0 5px 2px 0; border-image: url(" + QString(SC_ICON_PATH_DEFAULT) + "bg_btn_down.png); border: none;}";
+
+    amount->setStyleSheet(qss);
 }
 
 QString BitcoinAmountField::text() const
@@ -165,4 +191,19 @@ void BitcoinAmountField::unitChanged(int idx)
 void BitcoinAmountField::setDisplayUnit(int newUnit)
 {
     unit->setValue(newUnit);
+}
+
+void BitcoinAmountField::makeTriAngle()
+{
+    fHasTriAngle = true;
+
+    QString qss = SC_QSS_TOOLTIP_DEFAULT;
+    qss += "QDoubleSpinBox {height: 30px;border: none;";
+    qss += "background-color: #fff;";
+    qss += "background-image: url(:/resources/res/images/bg_triangle_right.png); background-position: left center; background-repeat: no-repeat; padding: 0px 20px; font-size: 12px;";
+    qss += "}";
+    qss += "QDoubleSpinBox::up-button {width: 15px; margin: 2px 5px 0 0; border-image: url(" + QString(SC_ICON_PATH_DEFAULT) + "bg_btn_up.png); border: none;}";
+    qss += "QDoubleSpinBox::down-button {width: 15px; margin: 0 5px 2px 0; border-image: url(" + QString(SC_ICON_PATH_DEFAULT) + "bg_btn_down.png); border: none;}";
+
+    amount->setStyleSheet(qss);
 }

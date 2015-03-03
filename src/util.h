@@ -35,7 +35,7 @@ typedef unsigned long long  uint64;
 static const int64 COIN = 1000000;
 static const int64 CENT = 10000;
 
-#define loop                for (;;)
+#define LOOP                for (;;)
 #define BEGIN(a)            ((char*)&(a))
 #define END(a)              ((char*)&((&(a))[1]))
 #define UBEGIN(a)           ((unsigned char*)&(a))
@@ -231,6 +231,7 @@ void SetMockTime(int64 nMockTimeIn);
 int64 GetAdjustedTime();
 long hex2long(const char* hexString);
 std::string FormatFullVersion();
+std::string FormatVersionNumbers();
 std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);
 void AddTimeData(const CNetAddr& ip, int64 nTime);
 void runCommand(std::string strCommand);

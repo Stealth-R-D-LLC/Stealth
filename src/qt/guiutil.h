@@ -23,6 +23,9 @@ namespace GUIUtil
     QString dateTimeStr(const QDateTime &datetime);
     QString dateTimeStr(qint64 nTime);
 
+    // Some systems do not honor app fonts, so get them here
+    QFont stealthAppFont();
+    QFont stealthBoldFont();
     // Render Bitcoin addresses in monospace font
     QFont bitcoinAddressFont();
 

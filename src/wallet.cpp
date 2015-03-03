@@ -150,10 +150,11 @@ bool CWallet::Lock()
     return LockKeyStore();
 }
 
-bool CWallet::Unlock(const SecureString& strWalletPassphrase)
+bool CWallet::Unlock(const SecureString& strWalletPassphrase, bool lockedOK)
 {
-    if (!IsLocked())
+    if ((!lockedOK) && (!IsLocked())) {
         return false;
+    }
 
     CCrypter crypter;
     CKeyingMaterial vMasterKey;
@@ -1111,6 +1112,11 @@ int64 CWallet::GetUnconfirmedBalance() const
     return nTotal;
 }
 
+// it's not obvious what the original version intended as it always summed to 0
+// XST has hijacked it report inaccuracies in GetBalance() when stake is immature
+// In reality, it seems like it should be the "stake" (the Debit going into the mint),
+// which at present is doubly subtracted in GetBalance
+// The present GetStake should really be called "GetStakeReward"
 int64 CWallet::GetImmatureBalance() const
 {
     int64 nTotal = 0;
@@ -1119,8 +1125,12 @@ int64 CWallet::GetImmatureBalance() const
         for (map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); ++it)
         {
             const CWalletTx& pcoin = (*it).second;
-            if (pcoin.IsCoinBase() && pcoin.GetBlocksToMaturity() > 0 && pcoin.IsInMainChain())
-                nTotal += GetCredit(pcoin);
+            if ((pcoin.GetBlocksToMaturity() > 0) && (pcoin.IsInMainChain())) {
+                int64 nDebit = GetDebit(pcoin);
+                if ((nDebit > 0) && ((pcoin.GetValueOut() - nDebit) > 0)) {
+                     nTotal += nDebit;
+                }
+            }
         }
     }
     return nTotal;
@@ -1211,6 +1221,7 @@ int64 CWallet::GetStake() const
     return nTotal;
 }
 
+// redundant with GetStake
 int64 CWallet::GetNewMint() const
 {
     int64 nTotal = 0;

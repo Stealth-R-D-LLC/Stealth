@@ -54,13 +54,20 @@ const std::string CLIENT_NAME("Junaeth");
 #    endif
 #endif
 
+#define BUILD_DESC_FROM_NUMBERS(maj,min,rev,build) \
+    DO_STRINGIZE(maj) "." DO_STRINGIZE(min) "." DO_STRINGIZE(rev) "." DO_STRINGIZE(build)
+
+#define BUILD_NUMBERS BUILD_DESC_FROM_NUMBERS(DISPLAY_VERSION_MAJOR, DISPLAY_VERSION_MINOR,  DISPLAY_VERSION_REVISION, DISPLAY_VERSION_BUILD)
+
+
 #ifndef BUILD_DATE
 #    ifdef GIT_COMMIT_DATE
-#        define BUILD_DATE GIT_COMMIT_DATE
+#        define BUILD_DATE __DATE__ ", " __TIME__
 #    else
 #        define BUILD_DATE __DATE__ ", " __TIME__
 #    endif
 #endif
 
 const std::string CLIENT_BUILD(BUILD_DESC CLIENT_VERSION_SUFFIX);
+const std::string CLIENT_NUMBERS(BUILD_NUMBERS);
 const std::string CLIENT_DATE(BUILD_DATE);

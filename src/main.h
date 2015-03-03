@@ -11,6 +11,7 @@
 #include "script.h"
 #include "scrypt.h"
 #include "hashblock.h"
+#include "stealth.h"
 
 #include <list>
 
@@ -40,7 +41,7 @@ static const int64 MIN_RELAY_TX_FEE = 1 * CENT;
 // Go look at GetProofOfWorkReward and do the math yourself
 // Don't quote the value of MAX_MONEY as an indicator
 // of the true money supply or you will look foolish!!!!!!
-static const int64 MAX_MONEY = COIN * 23300000;  // 23.3 Million
+static const int64 MAX_MONEY = COIN * 43300000;  // 23.3 Million -> 43.3 bumped to be safe
 static const int64 CIRCULATION_MONEY = MAX_MONEY;
 static const double TAX_PERCENTAGE = 0.00; //no tax
 // 20% annual interest
@@ -119,7 +120,7 @@ class CTxIndex;
 void RegisterWallet(CWallet* pwalletIn);
 void UnregisterWallet(CWallet* pwalletIn);
 void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool fUpdate = false, bool fConnect = true);
-bool ProcessBlock(CNode* pfrom, CBlock* pblock);
+bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool fIsBootstrap=false);
 bool CheckDiskSpace(uint64 nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
 FILE* AppendBlockFile(unsigned int& nFileRet);
@@ -347,6 +348,8 @@ public:
     {
         printf("%s\n", ToString().c_str());
     }
+
+
 };
 
 
@@ -398,6 +401,20 @@ public:
     bool IsEmpty() const
     {
         return (nValue == 0 && scriptPubKey.empty());
+    }
+
+    bool IsOpReturn() const {
+       std::vector<uint8_t> vchR;
+       opcodetype opCode;
+       CScript scriptPK = this->scriptPubKey;
+       CScript::const_iterator pc = scriptPK.begin();
+       if (!vchR.empty()) {
+             vchR.clear();
+       }
+       if (scriptPK.GetOp(pc, opCode, vchR) && (opCode == OP_RETURN)) {
+              return true;
+       }
+       return false;
     }
 
     uint256 GetHash() const

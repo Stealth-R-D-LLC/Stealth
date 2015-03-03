@@ -442,7 +442,8 @@ bool WalletModel::setWalletLocked(bool locked, const SecureString &passPhrase)
     else
     {
         // Unlock
-        return wallet->Unlock(passPhrase);
+        // wallet->Lock();
+        return wallet->Unlock(passPhrase, true);
     }
 }
 
@@ -519,37 +520,38 @@ void WalletModel::unsubscribeFromCoreSignals()
 // WalletModel::UnlockContext implementation
 WalletModel::UnlockContext WalletModel::requestUnlock()
 {
-    bool was_locked = getEncryptionStatus() == Locked;
-    if ((!was_locked) && fWalletUnlockMintOnly)
-    {
-       setWalletLocked(true);
-       was_locked = getEncryptionStatus() == Locked;
-
-    }
-    if(was_locked)
+    bool was_locked = (getEncryptionStatus() == Locked);
+    bool was_mintOnly = ((!was_locked) && fWalletUnlockMintOnly);
+    if (was_locked || was_mintOnly)
     {
         // Request UI to unlock wallet
         emit requireUnlock();
     }
-    // If wallet is still locked, unlock was failed or cancelled, mark context as invalid
-    bool valid = getEncryptionStatus() != Locked;
+    // If wallet is still locked or mint only, unlock was failed or cancelled
+    // Mark context as invalid
+    bool valid = ((getEncryptionStatus() != Locked) && (!fWalletUnlockMintOnly));
+    // bool valid = (getEncryptionStatus() != Locked);
 
-    return UnlockContext(this, valid, was_locked && fWalletUnlockMintOnly);
+    return UnlockContext(this, valid, was_locked, was_mintOnly);
 }
 
-WalletModel::UnlockContext::UnlockContext(WalletModel *wallet, bool valid, bool relock):
+WalletModel::UnlockContext::UnlockContext(WalletModel *wallet, bool valid,
+                                                               bool relock,
+                                                               bool mint ):
         wallet(wallet),
         valid(valid),
-        relock(relock)
+        relock(relock),
+        mint(mint)
 {
 }
 
 WalletModel::UnlockContext::~UnlockContext()
 {
-    if(valid && relock)
+    if (valid && relock)
     {
-        wallet->setWalletLocked(true);
+         wallet->setWalletLocked(true);
     }
+    fWalletUnlockMintOnly = mint;
 }
 
 void WalletModel::UnlockContext::CopyFrom(const UnlockContext& rhs)

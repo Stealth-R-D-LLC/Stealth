@@ -18,8 +18,8 @@
 
 #ifdef _WIN32
 #include <process.h>
-#include <windows.h>
 #include <winsock2.h>
+#include <windows.h>
 /* For access to structs needed by GetAdaptersAddresses */
 #undef _WIN32_WINNT
 #define _WIN32_WINNT 0x0501

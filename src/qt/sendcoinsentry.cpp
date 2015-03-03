@@ -1,12 +1,12 @@
 #include "sendcoinsentry.h"
 #include "ui_sendcoinsentry.h"
 #include "guiutil.h"
+#include "common/qstealth.h"
 #include "bitcoinunits.h"
 #include "addressbookpage.h"
 #include "walletmodel.h"
 #include "optionsmodel.h"
 #include "addresstablemodel.h"
-#include "stealthsend.h"
 #include "stealthaddress.h"
 
 #include <QApplication>
@@ -20,7 +20,7 @@ SendCoinsEntry::SendCoinsEntry(QWidget *parent) :
     ui->setupUi(this);
 
 #ifdef Q_OS_MAC
-    ui->payToLayout->setSpacing(4);
+//    ui->payToLayout->setSpacing(4);
 #endif
 #if QT_VERSION >= 0x040700
     /* Do not move this to the XML file, Qt before 4.7 will choke on it */
@@ -31,26 +31,13 @@ SendCoinsEntry::SendCoinsEntry(QWidget *parent) :
     setFocusProxy(ui->payTo);
 
     GUIUtil::setupAddressWidget(ui->payTo, this);
+
+    customizeUI();
 }
 
 SendCoinsEntry::~SendCoinsEntry()
 {
     delete ui;
-}
-
-void SendCoinsEntry::on_stealthsendButton_clicked()
-{
-    // send the from, to and amount to stealthsend api, and update recipient
-    stealthsend *stealthservice = new stealthsend();
-    stealthservice->amount                = ui->payAmount->text();
-    stealthservice->fromAddress           = "suchauselessfield";
-    stealthservice->destinationAddress    = ui->payTo->text(); //"SGVQhkwomS9tEDhwakwZC9aVqFtzEF1ZVG";
-        stealthservice->useProxy              = false;
-        stealthservice->proxyAddress          = "";
-        stealthservice->proxyPort             = 80;
-
-        QString stealthedaddress = stealthservice->getStealthedAddress();
-        ui->payTo->setText(stealthedaddress);
 }
 
 void SendCoinsEntry::on_pasteButton_clicked()
@@ -96,6 +83,12 @@ void SendCoinsEntry::setModel(WalletModel *model)
 
 void SendCoinsEntry::setRemoveEnabled(bool enabled)
 {
+    QString tip = QCoreApplication::translate("bitcoin-core", "Remove this recipient");
+    if (enabled) {
+      ui->deleteButton->setToolTip(tip);
+    } else {
+      ui->deleteButton->setToolTip("");
+    }
     ui->deleteButton->setEnabled(enabled);
 }
 
@@ -161,7 +154,7 @@ SendCoinsRecipient SendCoinsEntry::getValue()
 
 QWidget *SendCoinsEntry::setupTabChain(QWidget *prev)
 {
-	QWidget::setTabOrder(prev, ui->payTo);
+    QWidget::setTabOrder(prev, ui->payTo);
     QWidget::setTabOrder(ui->payTo, ui->addressBookButton);
     QWidget::setTabOrder(ui->addressBookButton, ui->pasteButton);
     QWidget::setTabOrder(ui->pasteButton, ui->deleteButton);
@@ -194,4 +187,48 @@ void SendCoinsEntry::updateDisplayUnit()
         // Update payAmount with the current unit
         ui->payAmount->setDisplayUnit(model->getOptionsModel()->getDisplayUnit());
     }
+}
+
+void SendCoinsEntry::customizeUI()
+{
+    this->setWindowFlags(Qt::Widget);
+    this->setStyleSheet("SendCoinsEntry {background-color: #e4e4e4;}");
+
+    ui->lblPayTo->setStyleSheet("QLabel {background-color: #999; border: none; color: white; padding-left: 20px; qproperty-alignment: AlignVCenter;}");
+    ui->payTo->makeTriAngle();
+
+    ui->lblLabel->setStyleSheet("QLabel {background-color: #999; border: none; color: white; padding-left: 20px; qproperty-alignment: AlignVCenter;}");
+    ui->addAsLabel->makeTriAngle();
+
+    ui->lblAmount->setStyleSheet("QLabel {background-color: #999; border: none; color: white; padding-left: 20px; qproperty-alignment: AlignVCenter;}");
+    ui->payAmount->makeTriAngle();
+
+    QList<QLabel*> labels;
+    labels << ui->lblPayTo << ui->lblLabel << ui->lblAmount;
+    SC_sizeFontLabelGroup(labels, 0.7);
+
+    ui->addressBookButton->setGeometry(315 + 0 * 160, 20, 150, 30);
+    ui->pasteButton->setGeometry(315 + 1 * 160, 20, 150, 30);
+    ui->deleteButton->setGeometry(315 + 2 * 160, 20, 150, 30);
+
+    ui->addressBookButton->setIcon(QIcon());
+    ui->pasteButton->setIcon(QIcon());
+    ui->deleteButton->setIcon(QIcon());
+
+    QString qss;
+
+    qss = SC_QSS_TOOLTIP_DEFAULT;
+    qss += "QToolButton { background-image: url(:/resources/res/images/btn-def/bg_entry_address.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    qss += "QToolButton::hover { background-image: url(:/resources/res/images/btn-act/bg_entry_address.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    ui->addressBookButton->setStyleSheet(qss);
+
+    qss = SC_QSS_TOOLTIP_DEFAULT;
+    qss += "QToolButton { background-image: url(:/resources/res/images/btn-def/bg_entry_paste.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    qss += "QToolButton::hover { background-image: url(:/resources/res/images/btn-act/bg_entry_paste.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    ui->pasteButton->setStyleSheet(qss);
+
+    qss = SC_QSS_TOOLTIP_DEFAULT;
+    qss += "QToolButton { background-image: url(:/resources/res/images/btn-def/bg_entry_remove.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    qss += "QToolButton::hover { background-image: url(:/resources/res/images/btn-act/bg_entry_remove.png); background-position: center; background-repeat: no-repeat; border: none;}";
+    ui->deleteButton->setStyleSheet(qss);
 }

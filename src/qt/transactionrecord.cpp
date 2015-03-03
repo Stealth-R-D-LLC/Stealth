@@ -7,9 +7,10 @@
  */
 bool TransactionRecord::showTransaction(const CWalletTx &wtx)
 {
-    if (wtx.IsCoinBase())
+    if (wtx.IsCoinBase() || wtx.IsCoinStake())
     {
         // Ensures we show generated coins / mined transactions at depth 1
+        // Transactions with 0 confs less than 1 hour old are also shown
         if (!wtx.IsInMainChain())
         {
             return false;
@@ -43,7 +44,7 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
         //
         BOOST_FOREACH(const CTxOut& txout, wtx.vout)
         {
-            if(wallet->IsMine(txout))
+            if (wallet->IsMine(txout))
             {
                 TransactionRecord sub(hash, nTime);
                 CTxDestination address;
@@ -102,10 +103,11 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
                 TransactionRecord sub(hash, nTime);
                 sub.idx = parts.size();
 
-                if(wallet->IsMine(txout))
+                if(wallet->IsMine(txout) || txout.IsOpReturn())
                 {
                     // Ignore parts sent to self, as this is usually the change
                     // from a transaction sent back to our own address.
+                    // Ignore OpReturns too.
                     continue;
                 }
 

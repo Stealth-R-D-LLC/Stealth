@@ -4,12 +4,16 @@
 #include <QMainWindow>
 #include <QSystemTrayIcon>
 
+#include "qstealthgrid.h"
+#include "qstealthmain.h"
+#include "qbottombar.h"
+
 #include "util.h" // for uint64
 
 class TransactionTableModel;
 class ClientModel;
 class WalletModel;
-class TransactionView;
+class QPageTransactions;
 class OverviewPage;
 class AddressBookPage;
 class SendCoinsDialog;
@@ -49,6 +53,18 @@ public:
     */
     void setWalletModel(WalletModel *walletModel);
 
+signals:
+    void gotoMainMenu();
+
+public slots:
+    void mousePressEvent(QMouseEvent *);
+    void slotGoToMainMenu();
+    void slotSelectedMenuItem(int id);
+    void slotSelectedPageItem(int id);
+
+private:
+    void showSelectedPageItem(SC_PAGE_ID id);
+
 protected:
     void changeEvent(QEvent *e);
     void closeEvent(QCloseEvent *event);
@@ -56,24 +72,28 @@ protected:
     void dropEvent(QDropEvent *event);
 
 private:
+    QStealthGrid *mainMenu;
+    QStealthMain *mainPage;
+    QBottomBar   *bottomBar;
+
     ClientModel *clientModel;
     WalletModel *walletModel;
 
-    QStackedWidget *centralWidget;
+//    QStackedWidget *centralWidget;
 
-    OverviewPage *overviewPage;
-    QWidget *transactionsPage;
-    AddressBookPage *addressBookPage;
-    AddressBookPage *receiveCoinsPage;
-    SendCoinsDialog *sendCoinsPage;
+//    OverviewPage *overviewPage;
+//    QWidget *transactionsPage;
+//    AddressBookPage *addressBookPage;
+//    AddressBookPage *receiveCoinsPage;
+//    SendCoinsDialog *sendCoinsPage;
     SignVerifyMessageDialog *signVerifyMessageDialog;
 
-    QLabel *labelEncryptionIcon;
+//    QLabel *labelEncryptionIcon;
     QLabel *labelMintingIcon;
     QLabel *labelConnectionsIcon;
     QLabel *labelBlocksIcon;
-    QLabel *progressBarLabel;
-    QProgressBar *progressBar;
+//    QLabel *progressBarLabel;
+//    QProgressBar *progressBar;
 
     QMenuBar *appMenuBar;
     QAction *overviewAction;
@@ -97,7 +117,7 @@ private:
 
     QSystemTrayIcon *trayIcon;
     Notificator *notificator;
-    TransactionView *transactionView;
+//    QPageTransactions *transactionView;
     RPCConsole *rpcConsole;
 
     QMovie *syncIconMovie;
@@ -110,8 +130,8 @@ private:
     void createActions();
     /** Create the menu bar and sub-menus. */
     void createMenuBar();
-    /** Create the toolbars */
-    void createToolBars();
+//    /** Create the toolbars */
+//    void createToolBars();
     /** Create system tray (notification) icon */
     void createTrayIcon();
 
@@ -177,6 +197,8 @@ private slots:
     void changePassphrase();
     /** Toggle unlocking wallet temporarily */
     void lockWalletToggle();
+    /** Unlock wallet for transaction (no toggling) */
+    void unlockWalletForTxn();
 
     /** Show window if hidden, unminimize when minimized, rise when obscured or show if hidden and fToggleHidden is true */
     void showNormalIfMinimized(bool fToggleHidden = false);
@@ -187,6 +209,9 @@ private slots:
     void updateMintingIcon();
     /** Update minting weight info */
     void updateMintingWeights();
+
+    /** when lock button is clicked */
+    void lockBtnClicked();
 };
 
 #endif

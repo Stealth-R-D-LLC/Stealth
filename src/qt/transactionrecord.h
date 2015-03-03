@@ -74,6 +74,8 @@ public:
 
     /** Number of confirmation needed for transaction */
     static const int NumConfirmations = 4;
+    /** Number of confirmation needed for coinbase transaction */
+    static const int NumConfirmationsCoinbase = 60;
 
     TransactionRecord():
             hash(), time(0), type(Other), address(""), debit(0), credit(0), idx(0)

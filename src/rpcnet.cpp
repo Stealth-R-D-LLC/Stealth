@@ -89,7 +89,7 @@ Value sendalert(const Array& params, bool fHelp)
             "<minver> is the minimum applicable internal client version\n"
             "<maxver> is the maximum applicable internal client version\n"
             "<priority> is integer priority number\n"
-            "<id> is the alert id\n"
+            "<id> is the alert id (id=0 canels *all* alerts except id=1 alerts)\n"
             "[cancelupto] cancels all alert id's up to this number\n"
             "Returns true or false.");
 

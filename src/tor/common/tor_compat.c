@@ -28,6 +28,7 @@
 
 #ifdef _WIN32
 #include <process.h>
+#include <winsock2.h>
 #include <windows.h>
 #include <sys/locking.h>
 #endif

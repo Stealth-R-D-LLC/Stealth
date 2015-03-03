@@ -10,9 +10,9 @@ win32 {
 }
 win32 {
    contains(WINBITS, 32) {
-     MSYS = MinGW/msys/1.0
+       MSYS = MinGW/msys/1.0
    } else {
-     MSYS = mingw64/msys
+       MSYS = mingw64/msys
    }
 }
 
@@ -22,13 +22,19 @@ VERSION = 1.3.0.0
 INCLUDEPATH += src src/json src/qt src/tor
 INCLUDEPATH += src/tor/adapter src/tor/common src/tor/ext
 INCLUDEPATH += src/tor/ext/curve25519_donna src/tor/or
-QT += core gui network
+QT += core gui network webkit
+greaterThan(QT_MAJOR_VERSION, 4): QT+= webkitwidgets
 CONFIG += no_include_pwd
-CONFIG += thread+
+CONFIG += thread
+win32 {
+  contains(WINBITS, 32) {
+    CONFIG += openssl-linked
+  }
+}
 
-!macx:CONFIG += static
+!macx:!win32:CONFIG += static
 
-macx:INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include # /usr/local/include
+macx:INCLUDEPATH += /opt/local/include/db53
 
 !macx:!win32 {
    # debian
@@ -40,7 +46,8 @@ macx:INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include # /usr/local/include
    # INCLUDEPATH += /usr/local/boost
    # INCLUDEPATH += /usr/local/include/event2
    # custom linux for static
-   INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include
+   # bdb is obsolete as of stealth 2
+   # INCLUDEPATH += /usr/local/BerkeleyDB.4.8/include
 }
 
 DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE \
@@ -49,17 +56,22 @@ DEFINES += QT_GUI BOOST_THREAD_USE_LIB BOOST_SPIRIT_THREADSAFE \
 
 win32 {
    contains(WINBITS, 32) {
-      INCLUDEPATH += C:/$$MSYS/local/include/boost-1_55/
+      INCLUDEPATH += C:/$$MSYS/local/boost_1_57_0/
    } else {
       INCLUDEPATH += C:/$$MSYS/local/include/boost-1_55/
    }
 }
-win32:INCLUDEPATH += C:/$$MSYS/local/include
-win32:INCLUDEPATH += C:/$$MSYS/local/ssl/include
-win32:INCLUDEPATH += C:/$$MSYS/local
 
-win32:contains(WINBITS, 64) {
-   INCLUDEPATH += C:/$$MSYS/local/BerkeleyDB.4.8/include
+win32 {
+   INCLUDEPATH += C:/$$MSYS/local/include
+   INCLUDEPATH += C:/$$MSYS/local/ssl/include
+   INCLUDEPATH += C:/$$MSYS/local/
+   INCLUDEPATH += C:/$$MSYS/include/
+   win32:contains(WINBITS, 32) {
+      INCLUDEPATH += C:/$$MSYS/local/BerkeleyDB.5.3/include
+   } else {
+      INCLUDEPATH += C:/$$MSYS/local/BerkeleyDB.4.8/include
+   }
 }
 
 win32:contains(WINBITS, 32) {
@@ -116,11 +128,7 @@ USE_QRCODE=1
 contains(USE_QRCODE, 1) {
     message(Building with QRCode support)
     DEFINES += USE_QRCODE
-    win32:contains(WINBITS, 32) {
-       INCLUDEPATH += C:/qrencode-3.4.3
-       LIBS += -L"C:/qrencode-3.4.3"
-    }
-    macx:LIBS += /usr/local/lib/libqrencode.3.dylib
+    macx:LIBS += /opt/local/lib/libqrencode.3.dylib
     LIBS += -lqrencode
 } else {
     message(Building without QRCode support)
@@ -141,8 +149,9 @@ contains(USE_UPNP, -) {
     DEFINES += USE_UPNP=$$USE_UPNP STATICLIB
     win32 {
        contains(WINBITS, 32) {
-           INCLUDEPATH += C:/miniupnpc-1.9
-           LIBS += -L"C:/miniupnpc-1.9/miniupnpc"
+           # INCLUDEPATH += "C:/$$MSYS/local/miniupnpc-1.9.20141128"
+           LIBS += -L"C:/$$MSYS/local/miniupnpc-1.9.20141128"
+           LIBS += "C:/$$MSYS/local/miniupnpc-1.9.20141128/libminiupnpc.a"
        } else {
            INCLUDEPATH += "C:/$$MSYS/local/miniupnpc-1.9"
            LIBS += -L"C:/$$MSYS/local/miniupnpc-1.9/miniupnpc"
@@ -176,13 +185,13 @@ INCLUDEPATH += $$PWD/src/leveldb/include $$PWD/src/leveldb/helpers
 INCLUDEPATH += $$PWD/src/leveldb/include/leveldb $$PWD/src/leveldb/helpers/memenv
 LIBS += $$PWD/src/leveldb/libleveldb.a $$PWD/src/leveldb/libmemenv.a
 !win32 {
-    #we use QMAKE_CXXFLAGS_RELEASE even without RELEASE=1 because we use RELEASE to indicate linking preferences not -O preferences
-     genleveldb.commands = cd $$PWD/src/leveldb && CC=$$QMAKE_CC CXX=$$QMAKE_CXX $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
+    # we use QMAKE_CXXFLAGS_RELEASE even without RELEASE=1 because we use RELEASE to indicate linking preferences not -O preferences
+    genleveldb.commands = cd $$PWD/src/leveldb && CC=$$QMAKE_CC CXX=$$QMAKE_CXX $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a
 } else {
     # make an educated guess about what the ranlib command is called
-    #isEmpty(QMAKE_RANLIB) {
+    # isEmpty(QMAKE_RANLIB) {
     #    QMAKE_RANLIB = $$replace(QMAKE_STRIP, strip, ranlib)
-    #}
+    # }
     LIBS += -lshlwapi
     # genleveldb.commands = cd $$PWD/src/leveldb && CC=$$QMAKE_CC CXX=$$QMAKE_CXX TARGET_OS=OS_WINDOWS_CROSSCOMPILE $(MAKE) OPT=\"$$QMAKE_CXXFLAGS $$QMAKE_CXXFLAGS_RELEASE\" libleveldb.a libmemenv.a && $$QMAKE_RANLIB $$PWD/src/leveldb/libleveldb.a && $$QMAKE_RANLIB $$PWD/src/leveldb/libmemenv.a
 }
@@ -191,7 +200,7 @@ genleveldb.depends = FORCE
 PRE_TARGETDEPS += $$PWD/src/leveldb/libleveldb.a
 QMAKE_EXTRA_TARGETS += genleveldb
 # Gross ugly hack that depends on qmake internals, unfortunately there is no other way to do it.
-QMAKE_CLEAN += $$PWD/src/leveldb/libleveldb.a; cd $$PWD/src/leveldb ; $(MAKE) clean
+# QMAKE_CLEAN += $$PWD/src/leveldb/libleveldb.a; cd $$PWD/src/leveldb ; $(MAKE) clean
 
 
 !win32 {
@@ -216,8 +225,21 @@ win32 {
   QMAKE_LFLAGS += -Wl,-enable-auto-import
 }
 
-QMAKE_CXXFLAGS += -msse2
-QMAKE_CFLAGS += -msse2
+contains(USE_O3, 1) {
+    message(Building without O3 optimization flag)
+    QMAKE_CXXFLAGS_RELEASE -= -O2
+    QMAKE_CFLAGS_RELEASE -= -O2
+    QMAKE_CXXFLAGS += -O3
+    QMAKE_CFLAGS += -O3
+}
+
+*-g++-32 {
+    message("32 platform, adding -msse2 flag")
+
+    QMAKE_CXXFLAGS += -msse2
+    QMAKE_CFLAGS += -msse2
+}
+
 QMAKE_CXXFLAGS_WARN_ON = -fdiagnostics-show-option -Wall -Wextra\
                          -Wformat -Wformat-security -Wno-unused-parameter
 
@@ -286,7 +308,6 @@ HEADERS += \
     src/wallet.h \
     src/keystore.h \
     src/qt/transactionfilterproxy.h \
-    src/qt/transactionview.h \
     src/qt/walletmodel.h \
     src/bitcoinrpc.h \
     src/qt/overviewpage.h \
@@ -323,7 +344,30 @@ HEADERS += \
     src/sph_types.h \
     src/stealthtext.h \
     src/qt/httpsocket.h \
-    src/qt/stealthsend.h \
+    src/qt/qcircleprogressbar.h \
+    src/qt/qstealthsplash.h \
+    src/qt/qstealthgrid.h \
+    src/qt/qhoverbutton.h \
+    src/qt/qbottombar.h \
+    src/qt/common/qstealth.h \
+    src/qt/qstealthprogressbar.h \
+    src/qt/qtitlepopup.h \
+    src/qt/qtitlebar.h \
+    src/qt/qstealthmain.h \
+    src/qt/qsidemenubar.h \
+    src/qt/qsidebutton.h \
+    src/qt/qpagestatistics.h \
+    src/qt/qpagesocial.h \
+    src/qt/qpagesendxst.h \
+    src/qt/qpageoverview.h \
+    src/qt/qpageincomeexpense.h \
+    src/qt/blockbrowser.h \
+    src/qt/qpageaddrbook.h \
+    src/qt/qgridbutton.h \
+    src/qt/qstealthpage.h \
+    src/qt/qstealthtableview.h \
+    src/qt/common/mymodel.h \
+    src/qt/qpagetransactions.h
 
 SOURCES += \
     src/qt/bitcoin.cpp \
@@ -447,7 +491,6 @@ SOURCES += \
     src/wallet.cpp \
     src/keystore.cpp \
     src/qt/transactionfilterproxy.cpp \
-    src/qt/transactionview.cpp \
     src/qt/walletmodel.cpp \
     src/bitcoinrpc.cpp \
     src/rpcdump.cpp \
@@ -491,7 +534,30 @@ SOURCES += \
     src/scrypt.cpp \
     src/stealthtext.cpp \
     src/qt/httpsocket.cpp \
-    src/qt/stealthsend.cpp \
+    src/qt/qcircleprogressbar.cpp \
+    src/qt/qstealthsplash.cpp \
+    src/qt/qstealthgrid.cpp \
+    src/qt/qhoverbutton.cpp \
+    src/qt/qbottombar.cpp \
+    src/qt/common/qstealth.cpp \
+    src/qt/qstealthprogressbar.cpp \
+    src/qt/qtitlepopup.cpp \
+    src/qt/qtitlebar.cpp \
+    src/qt/qstealthmain.cpp \
+    src/qt/qsidemenubar.cpp \
+    src/qt/qsidebutton.cpp \
+    src/qt/qpagestatistics.cpp \
+    src/qt/qpagesocial.cpp \
+    src/qt/qpagesendxst.cpp \
+    src/qt/qpageoverview.cpp \
+    src/qt/qpageincomeexpense.cpp \
+    src/qt/blockbrowser.cpp \
+    src/qt/qpageaddrbook.cpp \
+    src/qt/qgridbutton.cpp \
+    src/qt/qstealthpage.cpp \
+    src/qt/qstealthtableview.cpp \
+    src/qt/common/mymodel.cpp \
+    src/qt/qpagetransactions.cpp
 
 RESOURCES += \
     src/qt/bitcoin.qrc
@@ -508,9 +574,8 @@ FORMS += \
     src/qt/forms/sendcoinsentry.ui \
     src/qt/forms/askpassphrasedialog.ui \
     src/qt/forms/rpcconsole.ui \
-    src/qt/forms/optionsdialog.ui
-
-
+    src/qt/forms/optionsdialog.ui \
+    src/qt/forms/blockbrowser.ui
 
 win32 {
   HEADERS += src/tor/or/ntmain.h
@@ -567,7 +632,7 @@ isEmpty(BOOST_LIB_SUFFIX) {
     macx:BOOST_LIB_SUFFIX = -mt
     win32 {
       contains(WINBITS, 32) {
-         BOOST_LIB_SUFFIX = -mgw44-mt-d-1_55
+         BOOST_LIB_SUFFIX = -mgw49-mt-s-1_57
       } else {
          BOOST_LIB_SUFFIX = -mgw47-mt-d-1_55
       }
@@ -579,15 +644,15 @@ isEmpty(BOOST_THREAD_LIB_SUFFIX) {
 }
 
 isEmpty(BDB_LIB_PATH) {
-    macx:BDB_LIB_PATH = /usr/local/BerkeleyDB.4.8/lib
+    macx:BDB_LIB_PATH = /opt/local/lib/db53
 }
 
 isEmpty(BDB_LIB_SUFFIX) {
-    macx:BDB_LIB_SUFFIX = -4.8
+    macx:BDB_LIB_SUFFIX = -5.3
 }
 
 isEmpty(BDB_INCLUDE_PATH) {
-    macx:BDB_INCLUDE_PATH = /usr/local/BerkeleyDB.4.8/include
+    macx:BDB_INCLUDE_PATH = /opt/local/include/db53
 }
 
 isEmpty(BOOST_LIB_PATH) {
@@ -622,23 +687,45 @@ macx {
    DEFINES += MAC_OSX MSG_NOSIGNAL=0
    ICON = src/qt/res/icons/bitcoin.icns
    TARGET = "Stealth Qt"
-   QMAKE_CFLAGS_THREAD += -pthread
-   QMAKE_LFLAGS_THREAD += -pthread
-   QMAKE_CXXFLAGS_THREAD += -pthread
+   # QMAKE_CFLAGS_THREAD += -pthread
+   # QMAKE_LFLAGS_THREAD += -pthread
+   # QMAKE_CXXFLAGS_THREAD += -pthread
 }
 
 
 # Set libraries and includes at end, to use platform-defined defaults if not overridden
 INCLUDEPATH += $$BOOST_INCLUDE_PATH $$BDB_INCLUDE_PATH $$OPENSSL_INCLUDE_PATH $$QRENCODE_INCLUDE_PATH
+
+
+win32:LIBS += -L"C:/$$MSYS/local/lib"
+win32:LIBS += -L"C:/$$MSYS/lib"
 win32:LIBS += -L"C:/$$MSYS/local/ssl/lib"
-win32:contains(WINBITS, 64) {
+
+LIBS +=  -lcryptopp -lssl -levent -lz -lcrypto
+
+win32 {
+  contains(WINBITS, 32) {
+    LIBS += -L"C:/$$MSYS/local/BerkeleyDB.5.3/lib"
+    # LIBS += -L"C:/$$MSYS/local/miniupnpc-1.9.20141128"
+    LIBS += -L"C:/$$MSYS/local/boost_1_57_0/stage/lib"
+    # static needs memmove_s entrypoint not found in xp msvcrt.dll
+    LIBS += "C:/$$MSYS/lib/libcryptopp.a"
+    LIBS += "C:/$$MSYS/local/ssl/lib/libcrypto.a"
+    LIBS += "C:/$$MSYS/local/ssl/lib/libssl.a"
+    # LIBS += "C:/$$MSYS/local/lib/libevent.a"
+    LIBS += "C:/$$MSYS/local/lib/libqrencode.a"
+    # Qt 5 craziness
+    LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/bin/libwinpthread-1.dll"
+    # probably delete this, it looks like 64 bit
+    # LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/i686-w64-mingw32/lib/libmsvcrt.a"
+  } else {
     LIBS += -L"C:/$$MSYS/local/BerkeleyDB.4.8/lib"
     LIBS += "C:/mingw64/bin/libwinpthread-1.dll"
     LIBS += "C:/$$MSYS/local/lib/libboost_filesystem-mgw47-mt-d-1_55.dll"
     LIBS += -static
+  }
 }
-win32:LIBS += -L"C:/$$MSYS/local/lib"
-win32:LIBS += -L"C:/$$MSYS/local/cryptopp562"
+
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libgcc_s_sjlj-1.dll"
 # win32:LIBS += "C:/mingw64/x86_64-w64-mingw32/lib/libstdc++-6.dll"
 macx|win32 {
@@ -646,8 +733,15 @@ LIBS += $$join(BOOST_LIB_PATH,,-L,) $$join(BDB_LIB_PATH,,-L,) \
         $$join(OPENSSL_LIB_PATH,,-L,) $$join(QRENCODE_LIB_PATH,,-L,)
 }
 
-LIBS += -lssl -lcrypto -levent -lz -lcryptopp
 
+win32 {
+  contains(WINBITS, 32) {
+    LIBS += -L"C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin"
+    LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin/libeay32.dll"
+    LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin/ssleay32.dll"
+    LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/i686-w64-mingw32/lib/libpthread.dll.a"
+  }
+}
 
 !win32:!macx {
     DEFINES += LINUX
@@ -662,8 +756,13 @@ LIBS += -lssl -lcrypto -levent -lz -lcryptopp
     LIBS += -ldl
 }
 
-macx|win32 {
+win32 {
     LIBS += -ldb_cxx$$BDB_LIB_SUFFIX
+}
+
+macx {
+    LIBS += -ldb_cxx-5.3
+    LIBS += /opt/local/lib/db53/libdb_cxx-5.3.a
 }
 
 !macx:!win32 {
@@ -674,6 +773,7 @@ macx|win32 {
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_filesystem.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_thread.a
     LIBS += /usr/lib/x86_64-linux-gnu/libboost_program_options.a
+    LIBS += /usr/lib/x86_64-linux-gnu/libdb_cxx.a
     # custom linux
     # LIBS += /usr/local/ssl/lib/libssl.a
     # LIBS += /usr/local/ssl/lib/libcrypto.a
@@ -682,12 +782,11 @@ macx|win32 {
     # LIBS += /usr/local/boost/stage/lib/libboost_thread.a
     # LIBS += /usr/local/boost/stage/lib/libboost_program_options.a
     # custom linux for static
-    LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
+    # bdb is obsolete as of stealth 2
+    # LIBS += /usr/local/BerkeleyDB.4.8/lib/libdb_cxx-4.8.a
     LIBS += /usr/lib/libcryptopp.a
 }
 
-# -lgdi32 has to happen after -lcrypto (see  #681)
-win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
 
 win32|macx {
     LIBS += -lboost_system$$BOOST_LIB_SUFFIX \
@@ -700,7 +799,13 @@ win32:LIBS += -lboost_chrono$$BOOST_LIB_SUFFIX
 
 win32:contains(WINBITS, 64) {
        LIBS += -pthread
+} else {
+       LIBS += -pthread -lpthread
 }
+
+
+# -lgdi32 has to happen after -lcrypto (see  #681)
+win32:LIBS += -lws2_32 -lshlwapi -lmswsock -lole32 -loleaut32 -luuid -lgdi32
 
 !win32:!macx {
         # Linux: turn dynamic linking back on for c/c++ runtime libraries

@@ -117,8 +117,20 @@ bool CAlert::IsInEffect() const
 
 bool CAlert::Cancels(const CAlert& alert) const
 {
-    if (!IsInEffect())
+    if (!IsInEffect()) {
         return false; // this was a no-op before 31403
+    }
+
+    // alerts with 0 id will cancel all alerts except 1 id alerts
+    if (nID == 0) {
+         return (alert.nID != 1);
+    }
+
+    // only alerts with ID 1 will cancel alerts with ID 0
+    if (alert.nID == 0) {
+         return (nID == 1);
+    }
+    
     return (alert.nID <= nCancel || setCancel.count(alert.nID));
 }
 
@@ -243,11 +255,12 @@ bool CAlert::ProcessAlert()
 
         // Add to mapAlerts
         mapAlerts.insert(make_pair(GetHash(), *this));
-        // Notify UI if it applies to me
-        if(AppliesToMe())
+        // Notify UI if it applies to me and wouldn't cancel itself
+        if(AppliesToMe() && (nID > nCancel)) {
             uiInterface.NotifyAlertChanged(GetHash(), CT_NEW);
-    }
+        }
 
     printf("accepted alert %d, AppliesToMe()=%d\n", nID, AppliesToMe());
     return true;
+  }
 }

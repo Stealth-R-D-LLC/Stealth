@@ -11,14 +11,15 @@
 #include "init.h"
 #include "ui_interface.h"
 #include "qtipcserver.h"
+#include "qstealthsplash.h"
 
 #include <QApplication>
 #include <QMessageBox>
 #include <QTextCodec>
 #include <QLocale>
 #include <QTranslator>
-#include <QSplashScreen>
 #include <QLibraryInfo>
+#include <QFontDatabase>
 
 #if defined(BITCOIN_NEED_QT_PLUGINS) && !defined(_BITCOIN_QT_PLUGINS_INCLUDED)
 #define _BITCOIN_QT_PLUGINS_INCLUDED
@@ -33,7 +34,7 @@ Q_IMPORT_PLUGIN(qtaccessiblewidgets)
 
 // Need a global reference for the notifications to find the GUI
 static BitcoinGUI *guiref;
-static QSplashScreen *splashref;
+static QStealthSplash *splashref = NULL;
 
 static void ThreadSafeMessageBox(const std::string& message, const std::string& caption, int style)
 {
@@ -83,7 +84,8 @@ static void InitMessage(const std::string &message)
 {
     if(splashref)
     {
-        splashref->showMessage(QString::fromStdString(message), Qt::AlignBottom|Qt::AlignHCenter, QColor(191,191,191));
+        //splashref->showMessage(QString::fromStdString(message), Qt::AlignBottom|Qt::AlignHCenter, QColor(191,191,191));
+        splashref->setPercent(splashref->percent() + 21);
         QApplication::instance()->processEvents();
     }
 }
@@ -117,11 +119,38 @@ int main(int argc, char *argv[])
     ipcScanRelay(argc, argv);
 
     // Internal string conversion is all UTF-8
-    QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
-    QTextCodec::setCodecForCStrings(QTextCodec::codecForTr());
+    // QTextCodec::setCodecForTr(QTextCodec::codecForName("UTF-8"));
+    QTextCodec::setCodecForLocale(QTextCodec::codecForName("UTF-8"));
+    // QTextCodec::setCodecForCStrings(QTextCodec::codecForTr());
 
     Q_INIT_RESOURCE(bitcoin);
     QApplication app(argc, argv);
+
+    // clear all the child style sheets (mac and windows issues)
+    QObjectList objlistChildren = app.children();
+    int count = objlistChildren.count();
+    for(int i = 0; i < count; i++) {
+        QWidget *widget = qobject_cast<QWidget *>(objlistChildren[i]);
+        if (widget) {
+             ( (QWidget*)objlistChildren[i] )->setStyleSheet("");
+        }
+    }
+
+    // make the custom fonts available
+    QString sFontPath(SC_APP_FONT_PATH);
+    QFontDatabase::addApplicationFont(sFontPath);
+    QString sBoldPath(SC_BOLD_FONT_PATH);
+    QFontDatabase::addApplicationFont(sBoldPath);
+
+    if (SC_LOAD_APP_QSS) {
+        QString qsAppStyleSheet = readStyleSheet(QString(SC_APP_QSS_PATH));
+        app.setStyleSheet(qsAppStyleSheet);
+    } else {
+        // Set font
+        app.setStyleSheet("");
+        QFont fntAppFont = app.font();
+        app.setFont(fntAppFont);
+    }
 
     // Install global event filter that makes sure that long tooltips can be word-wrapped
     app.installEventFilter(new GUIUtil::ToolTipToRichTextFilter(TOOLTIP_WRAP_THRESHOLD, &app));
@@ -196,11 +225,11 @@ int main(int argc, char *argv[])
         return 1;
     }
 
-    QSplashScreen splash(QPixmap(":/images/splash"), 0);
-    if (GetBoolArg("-splash", true) && !GetBoolArg("-min"))
+    QStealthSplash splash;
+    // if (GetBoolArg("-splash", true) && !GetBoolArg("-min"))
+    if (GetBoolArg("-splash", true))
     {
         splash.show();
-        splash.setAutoFillBackground(true);
         splashref = &splash;
     }
 
@@ -225,7 +254,11 @@ int main(int argc, char *argv[])
                 optionsModel.Upgrade(); // Must be done after AppInit2
 
                 if (splashref)
+                {
+                    splashref->setPercent(100);
+                    Sleep(300);
                     splash.finish(&window);
+                }
 
                 ClientModel clientModel(&optionsModel);
                 WalletModel walletModel(pwalletMain, &optionsModel);

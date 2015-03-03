@@ -17,6 +17,7 @@ class SendCoinsEntry : public QFrame
 public:
     explicit SendCoinsEntry(QWidget *parent = 0);
     ~SendCoinsEntry();
+    void customizeUI();
 
     void setModel(WalletModel *model);
     bool validate();
@@ -42,7 +43,6 @@ signals:
 	void payAmountChanged();
 
 private slots:
-    void on_stealthsendButton_clicked();
     void on_deleteButton_clicked();
     void on_payTo_textChanged(const QString &address);
     void on_addressBookButton_clicked();

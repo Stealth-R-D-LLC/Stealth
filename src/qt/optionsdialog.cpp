@@ -48,6 +48,8 @@ OptionsDialog::OptionsDialog(QWidget *parent) :
     /* Window elements init */
 #ifdef Q_OS_MAC
     ui->tabWindow->setVisible(false);
+    // OS X handles startup items different
+    ui->bitcoinAtStartup->setVisible(false);
 #endif
 
     /* Display elements init */
@@ -139,10 +141,15 @@ void OptionsDialog::setMapper()
     mapper->addMapping(ui->socksVersion, OptionsModel::ProxySocksVersion);
 
     /* Window */
-#ifndef Q_OS_MAC
+#ifdef Q_OS_MAC
+    ui->minimizeToTray->hide();
+    // os x minimizes on close no matter what
+    ui->minimizeOnClose->setCheckState(Qt::Checked);
+    ui->minimizeOnClose->setEnabled(false);
+#else
     mapper->addMapping(ui->minimizeToTray, OptionsModel::MinimizeToTray);
-    mapper->addMapping(ui->minimizeOnClose, OptionsModel::MinimizeOnClose);
 #endif
+    mapper->addMapping(ui->minimizeOnClose, OptionsModel::MinimizeOnClose);
 
     /* Display */
     mapper->addMapping(ui->lang, OptionsModel::Language);
@@ -237,7 +244,7 @@ void OptionsDialog::handleProxyIpValid(QValidatedLineEdit *object, bool fState)
     {
         disableSaveButtons();
         object->setValid(fProxyIpValid);
-        ui->statusLabel->setStyleSheet("QLabel { color: red; }");
+        ui->statusLabel->setStyleSheet("QLabel { color: white; }");
         ui->statusLabel->setText(tr("The supplied proxy address is invalid."));
     }
 }

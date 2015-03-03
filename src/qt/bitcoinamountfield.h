@@ -2,11 +2,22 @@
 #define BITCOINFIELD_H
 
 #include <QWidget>
+#include <QLineEdit>
+#include <QDoubleSpinBox>
 
 QT_BEGIN_NAMESPACE
 class QDoubleSpinBox;
 class QValueComboBox;
 QT_END_NAMESPACE
+
+
+class QDoubleSpinBoxEx : public QDoubleSpinBox
+{
+public:
+    QDoubleSpinBoxEx(QWidget *parent = 0) : QDoubleSpinBox(parent) {}
+    QLineEdit *lineEdit() const { return QDoubleSpinBox::lineEdit(); }
+};
+
 
 /** Widget for entering bitcoin amounts.
   */
@@ -38,6 +49,8 @@ public:
 
     QString text() const;
 
+    void makeTriAngle();
+
 signals:
     void textChanged();
 
@@ -49,6 +62,7 @@ private:
     QDoubleSpinBox *amount;
     QValueComboBox *unit;
     int currentUnit;
+    bool fHasTriAngle;
 
     void setText(const QString &text);
 

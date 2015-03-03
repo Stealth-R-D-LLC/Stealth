@@ -11,6 +11,7 @@ class QValidatedLineEdit : public QLineEdit
     Q_OBJECT
 public:
     explicit QValidatedLineEdit(QWidget *parent = 0);
+    void makeTriAngle();
     void clear();
 
 protected:
@@ -18,6 +19,7 @@ protected:
 
 private:
     bool valid;
+    bool fHasTriAngle;
 
 public slots:
     void setValid(bool valid);

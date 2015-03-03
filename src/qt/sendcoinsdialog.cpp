@@ -1,4 +1,5 @@
 #include "sendcoinsdialog.h"
+#include "common/qstealth.h"
 #include "ui_sendcoinsdialog.h"
 #include "init.h"
 #include "walletmodel.h"
@@ -12,7 +13,6 @@
 #include "askpassphrasedialog.h"
 #include "coincontrol.h"
 #include "coincontroldialog.h"
-#include "stealthsend.h"
 
 #include <QMessageBox>
 #include <QLocale>
@@ -20,10 +20,21 @@
 #include <QScrollBar>
 #include <QClipboard>
 
+
+extern bool fWalletUnlockMintOnly;
+
 SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
     QDialog(parent),
     ui(new Ui::SendCoinsDialog),
-    model(0)
+    model(0),
+    fOutOfSync(1),
+    fShowImmature(1),
+    nCountOfTransactions(0),
+    currentBalance(0),
+    currentStake(0),
+    currentUnconfirmedBalance(0),
+    currentImmatureBalance(0)
+
 {
     ui->setupUi(this);
 
@@ -43,7 +54,7 @@ SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
     connect(ui->addButton, SIGNAL(clicked()), this, SLOT(addEntry()));
     connect(ui->clearButton, SIGNAL(clicked()), this, SLOT(clear()));
 	
-	    // Coin Control
+        // Coin Control
      ui->lineEditCoinControlChange->setFont(GUIUtil::bitcoinAddressFont());
      connect(ui->pushButtonCoinControl, SIGNAL(clicked()), this, SLOT(coinControlButtonClicked()));
      connect(ui->checkBoxCoinControlChange, SIGNAL(stateChanged(int)), this, SLOT(coinControlChangeChecked(int)));
@@ -75,7 +86,19 @@ SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
      ui->labelCoinControlLowOutput->addAction(clipboardLowOutputAction);
      ui->labelCoinControlChange->addAction(clipboardChangeAction);
  
-    fNewRecipientAllowed = true;
+     fNewRecipientAllowed = true;
+
+     SC_sizeFontLabel(ui->labelBalance);
+     ui->labelBalance->setMinimumSize(0, 20);
+
+
+     customizeUI();
+     displayBannerInfo();
+}
+
+SendCoinsDialog::~SendCoinsDialog()
+{
+    delete ui;
 }
 
 void SendCoinsDialog::setModel(WalletModel *model)
@@ -95,30 +118,40 @@ void SendCoinsDialog::setModel(WalletModel *model)
         setBalance(model->getBalance(), model->getStake(), model->getUnconfirmedBalance(), model->getImmatureBalance());
         connect(model, SIGNAL(balanceChanged(qint64, qint64, qint64, qint64)), this, SLOT(setBalance(qint64, qint64, qint64, qint64)));
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
+        setNumTransactions(model->getNumTransactions());
+        connect(model, SIGNAL(numTransactionsChanged(int)), this, SLOT(setNumTransactions(int)));
+
+        connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(updateDisplayUnit()));
+        updateDisplayUnit();
 		
         // Coin Control
         connect(model->getOptionsModel(), SIGNAL(displayUnitChanged(int)), this, SLOT(coinControlUpdateLabels()));
         connect(model->getOptionsModel(), SIGNAL(coinControlFeaturesChanged(bool)), this, SLOT(coinControlFeatureChanged(bool)));
         connect(model->getOptionsModel(), SIGNAL(transactionFeeChanged(qint64)), this, SLOT(coinControlUpdateLabels()));
         ui->frameCoinControl->setVisible(model->getOptionsModel()->getCoinControlFeatures());
+        ui->frmBanner->setVisible(!(model->getOptionsModel()->getCoinControlFeatures()));
         coinControlUpdateLabels();
     }
+
+    displayBannerInfo();
 }
 
-SendCoinsDialog::~SendCoinsDialog()
+void SendCoinsDialog::showOutOfSyncWarning(bool fShow)
 {
-    delete ui;
+    fOutOfSync = fShow;
+    displayBannerInfo();
 }
-
 
 void SendCoinsDialog::on_sendButton_clicked()
 {
+    bool mintonly = fWalletUnlockMintOnly;
+
     QList<SendCoinsRecipient> recipients;
     bool valid = true;
 
     if(!model)
         return;
-	
+
     for(int i = 0; i < ui->entries->count(); ++i)
     {
         SendCoinsEntry *entry = qobject_cast<SendCoinsEntry*>(ui->entries->itemAt(i)->widget());
@@ -144,7 +177,11 @@ void SendCoinsDialog::on_sendButton_clicked()
     QStringList formatted;
     foreach(const SendCoinsRecipient &rcp, recipients)
     {
+#if QT_VERSION < 0x050000
         formatted.append(tr("<b>%1</b> to %2 (%3)").arg(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, rcp.amount), Qt::escape(rcp.label), rcp.address));
+#else
+        formatted.append(tr("<b>%1</b> to %2 (%3)").arg(BitcoinUnits::formatWithUnit(BitcoinUnits::BTC, rcp.amount), rcp.label.toHtmlEscaped(), rcp.address));
+#endif
     }
 
     fNewRecipientAllowed = false;
@@ -168,7 +205,7 @@ void SendCoinsDialog::on_sendButton_clicked()
         return;
     }
 
-       WalletModel::SendCoinsReturn sendstatus;
+    WalletModel::SendCoinsReturn sendstatus;
 
     if (!model->getOptionsModel() || !model->getOptionsModel()->getCoinControlFeatures())
         sendstatus = model->sendCoins(recipients);
@@ -222,10 +259,14 @@ void SendCoinsDialog::on_sendButton_clicked()
         break;
     case WalletModel::OK:
         accept();
-		CoinControlDialog::coinControl->UnSelectAll();
+        CoinControlDialog::coinControl->UnSelectAll();
         coinControlUpdateLabels();
         break;
     }
+
+    fWalletUnlockMintOnly = mintonly;
+    model->updateStatus();
+
     fNewRecipientAllowed = true;
 }
 
@@ -259,7 +300,7 @@ SendCoinsEntry *SendCoinsDialog::addEntry()
     entry->setModel(model);
     ui->entries->addWidget(entry);
     connect(entry, SIGNAL(removeEntry(SendCoinsEntry*)), this, SLOT(removeEntry(SendCoinsEntry*)));
-	connect(entry, SIGNAL(payAmountChanged()), this, SLOT(coinControlUpdateLabels()));
+    connect(entry, SIGNAL(payAmountChanged()), this, SLOT(coinControlUpdateLabels()));
 
     updateRemoveEnabled();
 
@@ -267,6 +308,7 @@ SendCoinsEntry *SendCoinsDialog::addEntry()
     entry->clear();
     entry->setFocus();
     ui->scrollAreaWidgetContents->resize(ui->scrollAreaWidgetContents->sizeHint());
+
     QCoreApplication::instance()->processEvents();
     QScrollBar* bar = ui->scrollArea->verticalScrollBar();
     if(bar)
@@ -278,16 +320,19 @@ void SendCoinsDialog::updateRemoveEnabled()
 {
     // Remove buttons are enabled as soon as there is more than one send-entry
     bool enabled = (ui->entries->count() > 1);
-    for(int i = 0; i < ui->entries->count(); ++i)
-    {
+    for (int i = 0; i < ui->entries->count(); ++i) {
         SendCoinsEntry *entry = qobject_cast<SendCoinsEntry*>(ui->entries->itemAt(i)->widget());
-        if(entry)
-        {
+        if (entry) {
             entry->setRemoveEnabled(enabled);
+
+            QString qss = "SendCoinsEntry {background-color: ";
+            qss += (i % 2 == 0) ? "#e4e4e4" : "#cccccc";
+            qss += ";}";
+            entry->setStyleSheet(qss);
         }
     }
     setupTabChain(0);
-	coinControlUpdateLabels();
+    coinControlUpdateLabels();
 }
 
 void SendCoinsDialog::removeEntry(SendCoinsEntry* entry)
@@ -352,22 +397,40 @@ bool SendCoinsDialog::handleURI(const QString &uri)
 
 void SendCoinsDialog::setBalance(qint64 balance, qint64 stake, qint64 unconfirmedBalance, qint64 immatureBalance)
 {
-    Q_UNUSED(stake);
-    Q_UNUSED(unconfirmedBalance);
-    Q_UNUSED(immatureBalance);
-    if(!model || !model->getOptionsModel())
-        return;
+    currentBalance = balance;
+    currentStake = stake;
+    currentUnconfirmedBalance = unconfirmedBalance;
+    currentImmatureBalance = immatureBalance;
 
-    int unit = model->getOptionsModel()->getDisplayUnit();
-    ui->labelBalance->setText(BitcoinUnits::formatWithUnit(unit, balance));
+    // only show immature (newly mined) balance if it's non-zero, so as not to complicate    things
+    // for the non-mining users
+    fShowImmature = (immatureBalance != 0);
+    updateDisplayUnit();
+    displayBannerInfo();
 }
+
+void SendCoinsDialog::setNumTransactions(int count)
+{
+    nCountOfTransactions = count;
+    displayBannerInfo();
+}
+
 
 void SendCoinsDialog::updateDisplayUnit()
 {
+#if 1
+    qint64 balance = model->getBalance();
+#elif 0
+    qint64 balance = (1000 + 100)*1000000;
+#else
+    qint64 balance = 888888888888888;
+#endif
+
     if(model && model->getOptionsModel())
     {
         // Update labelBalance with the current balance and the current unit
-        ui->labelBalance->setText(BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), model->getBalance()));
+        ui->labelBalance->setText(QString("Balance: ") + BitcoinUnits::formatWithUnit(model->getOptionsModel()->getDisplayUnit(), balance));
+        displayBannerInfo();
     }
 }
 
@@ -423,6 +486,7 @@ void SendCoinsDialog::updateDisplayUnit()
  void SendCoinsDialog::coinControlFeatureChanged(bool checked)
  {
      ui->frameCoinControl->setVisible(checked);
+     ui->frmBanner->setVisible(!checked);
  
      if (!checked && model) // coin control features disabled
          CoinControlDialog::coinControl->SetNull();
@@ -461,20 +525,19 @@ void SendCoinsDialog::updateDisplayUnit()
  
          // label for the change address
          ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color:black;}");
-         if (text.isEmpty())
+         if (text.isEmpty()) {
              ui->labelCoinControlChangeLabel->setText("");
-         else if (!CBitcoinAddress(text.toStdString()).IsValid())
-         {
-             ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color:red;}");
+         }
+         else if (!CBitcoinAddress(text.toStdString()).IsValid()) {
+             ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color:white;}");
              ui->labelCoinControlChangeLabel->setText(tr("WARNING: Invalid Bitcoin address"));
          }
-         else
-         {
+         else {
              QString associatedLabel = model->getAddressTableModel()->labelForAddress(text);
-             if (!associatedLabel.isEmpty())
+             if (!associatedLabel.isEmpty()) {
                  ui->labelCoinControlChangeLabel->setText(associatedLabel);
-             else
-             {
+             }
+             else {
                  CPubKey pubkey;
                  CKeyID keyid;
                  CBitcoinAddress(text.toStdString()).GetKeyID(keyid);   
@@ -482,7 +545,7 @@ void SendCoinsDialog::updateDisplayUnit()
                      ui->labelCoinControlChangeLabel->setText(tr("(no label)"));
                  else
                  {
-                     ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color:red;}");
+                     ui->labelCoinControlChangeLabel->setStyleSheet("QLabel{color: white;}");
                      ui->labelCoinControlChangeLabel->setText(tr("WARNING: unknown change address"));
                  }
              }
@@ -518,6 +581,132 @@ void SendCoinsDialog::updateDisplayUnit()
         ui->widgetCoinControl->hide();
         ui->labelCoinControlInsuffFunds->hide();
     }
-}	
+}
 
-	
+
+void SendCoinsDialog::displayBannerInfo()
+{
+    if (model == NULL) return;
+    if (model->getOptionsModel() == NULL) return;
+
+    qint64 netWorth = currentBalance + currentImmatureBalance;
+
+    int unit = model->getOptionsModel()->getDisplayUnit();
+
+    txtBanner->setOverviewInfo(
+        fOutOfSync,
+        // the names of these values here and in the GUI are different
+#if 1
+        BitcoinUnits::formatWithUnit(unit, netWorth),
+        BitcoinUnits::formatWithUnit(unit, currentBalance),
+        BitcoinUnits::formatWithUnit(unit, currentStake),
+        BitcoinUnits::formatWithUnit(unit, currentUnconfirmedBalance),
+        BitcoinUnits::formatWithUnit(unit, currentImmatureBalance),
+        QString().setNum((nCountOfTransactions > 0) ? nCountOfTransactions : 0));
+#elif 0
+        BitcoinUnits::formatWithUnit(unit, (1000 + 100)*1000000),
+        BitcoinUnits::formatWithUnit(unit, 1000*1000000),
+        BitcoinUnits::formatWithUnit(unit, 101*1000000),
+        BitcoinUnits::formatWithUnit(unit, 0*1000000),
+        BitcoinUnits::formatWithUnit(unit, 100*1000000),
+        QString().setNum(100));
+#elif 0
+        BitcoinUnits::formatWithUnit(unit, 888888888888888),
+        BitcoinUnits::formatWithUnit(unit, 888888888888888),
+        BitcoinUnits::formatWithUnit(unit, 888888888888888),
+        BitcoinUnits::formatWithUnit(unit, 888888888888888),
+        BitcoinUnits::formatWithUnit(unit, 888888888888888),
+        QString().setNum(88888888));
+#endif
+
+}
+
+
+void SendCoinsDialog::customizeUI()
+{
+    if (model != NULL) {
+        if (model->getOptionsModel() != NULL) {
+            bool feature = model->getOptionsModel()->getCoinControlFeatures();
+            QMessageBox::warning(0, "", feature ? "1" : "0");
+        }
+    }
+
+    this->setWindowFlags(Qt::Widget);
+
+    ui->frameCoinControl->setGeometry(0, 0, 825, 180);
+    ui->frameCoinControl->setFixedSize(825, 180);
+    ui->frameCoinControl->setStyleSheet(SC_QSS_TOOLTIP_DEFAULT + " QFrame {background-color: " + QString(SC_MAIN_COLOR_BLUE) + "; color: white; font-size: 15px; border: none;}");
+    ui->widgetCoinControl->setStyleSheet(SC_QSS_TOOLTIP_DEFAULT + " QLabel {background-color: " + QString(SC_MAIN_COLOR_BLUE) + "; color: white; font-size: 12px; border: none;}");
+    ui->labelCoinControlFeatures->setStyleSheet("QLabel {color: white; font-size: 25px; line-height: 30px; border: none;}");
+    ui->labelCoinControlAutomaticallySelected->setStyleSheet("QLabel {color: white; font-size: 15px; line-height: 30px; border: none; qproperty-alignment: AlignRight;}");
+    ui->labelCoinControlInsuffFunds->setStyleSheet("QLabel {color: white; font-size: 15px; line-height: 30px; border: none; qproperty-alignment: AlignRight;}");
+    ui->pushButtonCoinControl->setStyleSheet("QPushButton {background-color: #666666; border: none; color: white; font-size: 15px; } QPushButton::hover {background-color: #3e3e41;}");
+
+    QString qss = "QCheckBox {color: #fff; font-size: 15px; border: none; border-width: 0px; outline: none;}";
+    qss += "QCheckBox::indicator { width: 30px; height: 30px; }";
+    qss += "QCheckBox::indicator:unchecked {background-image: url(:/resources/res/images/icons-def/bg_checkbox.png);}";
+    qss += "QCheckBox::indicator:checked {background-image: url(:/resources/res/images/icons-act/bg_checkbox.png);}";
+    qss += "QCheckBox::indicator:hover {background-image: url(:/resources/res/images/icons-def/bg_checkbox_hover.png);}";
+    qss += "QCheckBox::indicator:unchecked:pressed {background-image: url(:/resources/res/images/icons-def/bg_checkbox_pressed.png);}";
+    qss += "QCheckBox::indicator:checked:pressed {background-image: url(:/resources/res/images/icons-def/bg_checkbox_pressed.png);}";
+    qss += "QCheckBox::indicator:pressed {background-image: url(:/resources/res/images/icons-def/bg_checkbox_pressed.png);}";
+    qss += "QCheckBox::indicator:hover:checked {background-image: url(:/resources/res/images/icons-def/bg_checkbox_hover.png);}";
+    ui->checkBoxCoinControlChange->setStyleSheet(qss);
+
+    ui->lineEditCoinControlChange->setStyleSheet("QLineEdit {background-color: #fff; border: none; color: black; padding-left: 0px 10px; font-size: 12px; }");
+
+    txtBanner = new QStealthBlueInfo(STEALTH_PAGE_ID_SEND_XST, ui->frmBanner);
+
+    qss = SC_QSS_TOOLTIP_DEFAULT + "QPushButton {background-image: url(";
+    qss += SC_BTN_PATH_ACTIVE;
+    qss += "bg_add_recipient.png); background-repeat: no-repeat; background-position: center; border: none;}";
+    qss += "QPushButton::hover {background-image: url(";
+    qss += SC_BTN_PATH_DEFAULT;
+    qss += "bg_add_recipient.png);}";
+    ui->addButton->setStyleSheet(qss);
+    ui->addButton->setText("");
+
+    qss = SC_QSS_TOOLTIP_DEFAULT + "QPushButton {background-image: url(";
+    qss += SC_BTN_PATH_ACTIVE;
+    qss += "bg_clear_all.png); background-repeat: no-repeat; background-position: center; border: none;}";
+    qss += "QPushButton::hover {background-image: url(";
+    qss += SC_BTN_PATH_DEFAULT;
+    qss += "bg_clear_all.png);}";
+    ui->clearButton->setStyleSheet(qss);
+    ui->clearButton->setText("");
+
+    ui->frmBalance->setFont(GUIUtil::stealthAppFont());
+    ui->frmBalance->setStyleSheet("QFrame {background-color: #979797; color: #fff;}");
+
+    // ui->frmBalance->resize(ui->frmBalance->width(), ui->clearButton->height());
+    ui->frmBalance->setMaximumHeight(ui->clearButton->height());
+
+    ui->sendButton->setFont(GUIUtil::stealthAppFont());
+    // qss = SC_QSS_TOOLTIP_DEFAULT + "QPushButton {background-color: " + QString(SC_MAIN_COLOR_BLUE) + "; color: white; font-size: 15px; border: none; font-weight: bold;}";
+    qss = SC_QSS_TOOLTIP_DEFAULT + "QPushButton {background-color: " + QString(SC_MAIN_COLOR_BLUE) + "; color: white; border: none; font-weight: bold;}";
+    qss += "QPushButton::hover {background-color: #3e3e41;}";
+    ui->sendButton->setStyleSheet(qss);
+
+
+    // size the font dynamically for device compatibility
+    SC_sizeFontButton(ui->sendButton, 0.72);
+
+    ui->scrollArea->horizontalScrollBar()->setDisabled(true);
+    ui->scrollArea->horizontalScrollBar()->hide();
+    ui->scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    ui->scrollArea->setFixedHeight(300);
+
+    qss = "";
+    qss += "QScrollBar { border: none; }";
+    qss += "QScrollBar::handle:vertical { background-color: #3e3e41; min-height:  40px;}";
+    qss += "QScrollBar::sub-page:vertical { background-color: #999; }";
+    qss += "QScrollBar::add-page:vertical { background-color: #999; }";
+    ui->scrollArea->setStyleSheet(qss);
+
+    ui->scrollAreaWidgetContents->setObjectName("scroll-area-widget");
+    ui->scrollAreaWidgetContents->setStyleSheet("QWidget#scroll-area-widget {background-color: #ccc; border: none;}");
+
+    qss = "SendCoinsDialog {border: none; background-color: #e4e4e4;}";
+    qss += "QFrame { border: none; background-color: transparent;}";
+    this->setStyleSheet(qss);
+}

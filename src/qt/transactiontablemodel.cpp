@@ -239,6 +239,10 @@ TransactionTableModel::~TransactionTableModel()
     delete priv;
 }
 
+void TransactionTableModel::refreshWallet() {
+    priv->refreshWallet();
+}
+
 void TransactionTableModel::updateTransaction(const QString &hash, int status)
 {
     uint256 updated;
@@ -289,7 +293,14 @@ QString TransactionTableModel::formatTxStatus(const TransactionRecord *wtx) cons
         status = tr("Offline (%1 confirmations)").arg(wtx->status.depth);
         break;
     case TransactionStatus::Unconfirmed:
-        status = tr("Unconfirmed (%1 of %2 confirmations)").arg(wtx->status.depth).arg(TransactionRecord::NumConfirmations);
+        int num_confirmations;
+        if(wtx->type == TransactionRecord::Generated ||
+            wtx->type == TransactionRecord::StakeMint) {
+              num_confirmations = TransactionRecord::NumConfirmationsCoinbase;
+        } else {
+              num_confirmations = TransactionRecord::NumConfirmations;
+        }
+        status = tr("Unconfirmed (%1 of %2 confirmations)").arg(wtx->status.depth).arg(num_confirmations);
         break;
     case TransactionStatus::HaveConfirmations:
         status = tr("Confirmed (%1 confirmations)").arg(wtx->status.depth);
@@ -376,7 +387,7 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
         {
             QString str = BitcoinUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit);
             float dd = str.toFloat();
-            printf("stake: %f", dd);
+            // printf("TransactionTableModel(): stake: %f\n", dd);
             return QIcon(":/icons/tx_mined");
         }
     case TransactionRecord::RecvWithAddress:

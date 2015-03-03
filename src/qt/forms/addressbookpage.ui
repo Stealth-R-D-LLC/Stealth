@@ -15,19 +15,23 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QLabel" name="labelExplanation">
-     <property name="styleSheet">
-      <string notr="true">#labelExplanation { color: #464747; }</string>
+    <widget class="QWebView" name="labelExplanation">
+     <property name="html">
+      <string>These are your StealthCoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</string>
      </property>
+<!--
      <property name="text">
       <string>These are your StealthCoin addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</string>
      </property>
+  -->
+<!--
      <property name="textFormat">
       <enum>Qt::PlainText</enum>
      </property>
      <property name="wordWrap">
       <bool>true</bool>
      </property>
+  -->
     </widget>
    </item>
    <item>

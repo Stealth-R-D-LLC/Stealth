@@ -1,5 +1,6 @@
 IDI_ICON1 ICON DISCARDABLE "icons/StealthCoin.ico"
 
+#include <winsock2.h>
 #include <windows.h>             // needed for VERSIONINFO
 #include "../../clientversion.h" // holds the needed client version information
 
