@@ -24,7 +24,9 @@
 #     cd Installers/libcryptopp/cryptopp56
 #     wget http://www.cryptopp.com/cryptopp562.zip
 #     unzip -a cryptopp562.zip
-#     make
+#     make static
+#     make dynamic
+#     make all
 #     sudo make install
 #
 # Then, you can build

@@ -153,7 +153,7 @@ public:
     // (the signature is a valid signature of the given data for that key)
     bool SetCompactSignature(uint256 hash, const std::vector<unsigned char>& vchSig);
 
-    bool Verify(uint256 hash, const std::vector<unsigned char>& vchSig);
+    bool Verify(uint256 hash, const std::vector<unsigned char>& vchSigParam);
 
     // Verify a compact signature
     bool VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig);

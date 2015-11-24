@@ -30,7 +30,8 @@ extern const std::string CLIENT_DATE;
 //         Different keys for alerts and hash sync checkpoints
 // 62010 : New rule to accept duplicate stake on bootstrap (only!)
 //         Technically not a network protocol difference
-static const int PROTOCOL_VERSION = 62010;
+// 62020 : Fixes signature malleability
+static const int PROTOCOL_VERSION = 62020;
 
 // earlier versions not supported as of Feb 2012, and are disconnected
 static const int MIN_PROTO_VERSION = 61300;
@@ -53,7 +54,7 @@ static const int DATABASE_VERSION = 61201;
 
 #define DISPLAY_VERSION_MAJOR       2
 #define DISPLAY_VERSION_MINOR       0
-#define DISPLAY_VERSION_REVISION    1
+#define DISPLAY_VERSION_REVISION    2
 #define DISPLAY_VERSION_BUILD       0
 
 #endif
