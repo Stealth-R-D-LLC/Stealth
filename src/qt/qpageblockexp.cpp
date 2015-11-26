@@ -1,7 +1,8 @@
 #include "qpageblockexp.h"
 
 QPageBlockExp::QPageBlockExp(QWidget *parent) :
-    QStealthPage(parent)
+    QStealthPage(parent),
+    model(0)
 {
     lblBottom = new QLabel(this);
     lblBottom->setGeometry(0, 320, 825, 260);

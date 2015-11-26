@@ -89,6 +89,7 @@ public:
 
 QPageOverview::QPageOverview(QWidget *parent) :
     QStealthPage(parent),
+    model(0),
     nCountOfTransactions(0),
     currentBalance(0),
     currentStake(0),

@@ -448,15 +448,6 @@ bool CKey::SetCompactSignature(uint256 hash, const std::vector<unsigned char>& v
     return false;
 }
 
-// bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSig)
-// {
-//     // -1 = error, 0 = bad sig, 1 = good
-//     if (ECDSA_verify(0, (unsigned char*)&hash, sizeof(hash), &vchSig[0], vchSig.size(), pkey) != 1)
-//         return false;
-// 
-//     return true;
-// }
-
 
 // Credit: https://github.com/ppcoin/ppcoin/pull/101/files
 bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSigParam)
@@ -512,10 +503,6 @@ bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSigParam)
     OPENSSL_free(norm_der);
     return ret;
 }
-
-
-
-
 
 
 bool CKey::VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig)

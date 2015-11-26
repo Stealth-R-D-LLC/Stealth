@@ -223,7 +223,8 @@ void QStealthBlueInfo::setStatisticsInfo(QString totalSupply, QString marketCap,
 
 
 QStealthPage::QStealthPage(QWidget *parent) :
-    QLabel(parent)
+    QLabel(parent),
+    model(0)
 {
     setGeometry(250 + 25, 70, SC_PAGE_WIDTH, SC_PAGE_HEIGHT);
     setStyleSheet("QStealthPage {background-color: #ccc;}");
