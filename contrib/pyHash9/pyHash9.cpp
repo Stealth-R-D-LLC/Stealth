@@ -1,3 +1,6 @@
+// Copyright (c) 2016, The StealthCoin Developers
+
+
 #include <stddef.h>
 #include "hashblock.h"
 

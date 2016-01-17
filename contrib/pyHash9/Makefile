@@ -1,5 +1,6 @@
+# (c) Copyright The StealthCoin Developers, 2016
+
 # specify PYINCDIR if using non-system python
-# PYINCDIR = -I/usr/include/python2.7/Python.h
 PYINCDIR = -I/usr/include/python2.7
 INCDIRS = $(PYINCDIR) -I../../src
 # CFLAGS = -g -Wall -pedantic -dynamiclib -fPIC
