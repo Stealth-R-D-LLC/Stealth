@@ -1,0 +1,44 @@
+=======
+pyHash9
+=======
+
+A python module that produces an X13 hash from an input string.
+
+
+Rationale
+---------
+
+This module is useful for chain linearization.
+
+
+
+Usage
+-----
+
+::
+     >>> from pyHash9 import hash9
+     >>> hash9("Why did they call it Hash9?")
+     '3bddd71f63eb706ca44fd61743b5e23da7497b86db1164c3d2125432bd8d4c31'
+
+
+
+Building
+--------
+
+::
+
+    % cd pyHash9
+    % make
+
+
+
+Installation
+------------
+
+    % cp pyHash9.so ${PYTHONPATH}
+
+
+Copyright
+---------
+
+(c) The StealthCoin Developers, 2016

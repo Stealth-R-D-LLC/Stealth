@@ -49,3 +49,6 @@ cache
 # qt creator
 *.user
 
+# coin stuff
+StealthCoind
+bootstrap*.dat
