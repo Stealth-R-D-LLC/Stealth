@@ -142,7 +142,7 @@ def mklookup(settings, blkindex):
                 inF = open(fname, "rb")
             except IOError:
                 print "Done"
-                return
+                return lookup
 
         position = (fname, inF.tell())
 
@@ -156,7 +156,7 @@ def mklookup(settings, blkindex):
         inMagic = inhdr[:4]
         if (inMagic != settings['netmagic']):
             print("Invalid magic: 0x" + base64.b16encode(inMagic))
-            return
+            return lookup
         inLenLE = inhdr[4:]
         su = struct.unpack("<I", inLenLE)
         inLen = su[0]
@@ -173,7 +173,6 @@ def mklookup(settings, blkindex):
             continue
 
         lookup[hash_str] = position
-
 
     return lookup
 
