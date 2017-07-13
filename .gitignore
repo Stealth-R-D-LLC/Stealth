@@ -1,7 +1,70 @@
+
+################################
+# Operating System Files
+################################
+
+#
+# Windows
+#
+
+
+# Windows image file caches
+Thumbs.db
+ehthumbs.db
+
+# Folder config file
+Desktop.ini
+
+# Recycle Bin used on file shares
+$RECYCLE.BIN/
+
+# Windows Installer files
+*.cab
+*.msi
+*.msm
+*.msp
+
+#
+# OSX
+#
+
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Icon must end with two \r
+Icon
+
+# Thumbnails
+._*
+
+# Files that might appear on external disk
+.Spotlight-V100
+.Trashes
+
+# Directories potentially created on remote AFP share
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+
+################################
+# Programming Languages
+################################
+
+
+# python
 *.py[cod]
 
 # C extensions
 *.so
+
+
+################################
+# Packages
+################################
 
 # Packages
 *.egg
@@ -18,37 +81,91 @@ develop-eggs
 lib
 lib64
 
+
+################################
+# Archives
+################################
+
+# compressed
+*.tar
+
+# bootstraps
+bootstrap*.dat
+
+
+
+################################
+# Log Files
+################################
+
 # Installer logs
 pip-log.txt
+
+# General logs
+*.log
+
+
+################################
+# Testing
+################################
 
 # Unit test / coverage reports
 .coverage
 .tox
 nosetests.xml
 
-# Translations
-*.mo
 
-# Mr Developer
-.mr.developer.cfg
-.project
-.pydevproject
+################################
+# Temporary Files
+################################
 
 # vim backup files
 *~
 
-# svn & OS X
-.svn
-.DS_Store
+# Translations
+*.mo
 
-# eraseme
+# general
+*.not
 *eraseme*
 erase.*
 cache
+*.bak
+*.lkg
+
+
+################################
+# IDEs
+################################
+
+# mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
 
 # qt creator
 *.user
+*.user.*
+*.qm
 
-# coin stuff
+
+################################
+# Revision Control
+################################
+
+# svn
+.svn
+
+
+################################
+# Building Artifacts
+################################
+
+# daemon
 StealthCoind
-bootstrap*.dat
+
+# libcryptopp
+src/libcryptopp/*.o
+src/libcryptopp/adhoc.cpp
+src/libcryptopp/cryptest.exe
+src/libcryptopp/libcryptopp.a
