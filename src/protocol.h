@@ -19,7 +19,12 @@ extern bool fTestNet;
 static inline unsigned short GetDefaultPort(const bool testnet = fTestNet)
 {
     //               testnet : p2p
-    return testnet ? 4437 : 4437;
+    return testnet ? 4438 : 4437;
+}
+
+static inline unsigned short GetDefaultProxy(const bool testnet = fTestNet)
+{
+    return testnet ? 19050 : 9050;
 }
 
 

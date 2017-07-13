@@ -2,7 +2,6 @@
 // Copyright (c) 2009-2012 The Bitcoin developers
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
-//#include "db.h"
 #include "txdb.h"
 #include "walletdb.h"
 #include "bitcoinrpc.h"
@@ -19,16 +18,21 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <openssl/crypto.h>
 
+#include "addednode.h"
+
 #ifndef WIN32
 #include <signal.h>
 #endif
+
+unsigned short onion_port = TOR_PORT;
+unsigned short p2p_port = GetDefaultPort();
 
 using namespace std;
 using namespace boost;
 
 CWallet* pwalletMain;
 CClientUIInterface uiInterface;
-
+std::string strWalletFileName;
 unsigned int nDerivationMethodIndex;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -230,20 +234,30 @@ std::string HelpMessage()
         "  -stake                 " + _("Stake coins") + "\n" +
         "  -stake=0               " + _("Turn off staking") + "\n" +
         "  -datadir=<dir>         " + _("Specify data directory") + "\n" +
+        "  -wallet=<file>          " + _("Specify wallet file (within data directory)") + "\n" +
         "  -dbcache=<n>           " + _("Set database cache size in megabytes (default: 25)") + "\n" +
         "  -dblogsize=<n>         " + _("Set database disk log size in megabytes (default: 100)") + "\n" +
         "  -timeout=<n>           " + _("Specify connection timeout in milliseconds (default: 5000)") + "\n" +
+        "  -proxy=<ip:port>       " + _("Connect through socks proxy") + "\n" +
         "  -socks=<n>             " + _("Select the version of socks proxy to use (4-5, default: 5)") + "\n" +
-        "  -tor=<ip:port>         " + _("Use proxy to reach tor hidden services") + "\n" +
+        "  -torext=<ip:port>      " + _("Use proxy to reach tor hidden services (default: same as -proxy)") + "\n"
         "  -dns                   " + _("Allow DNS lookups for -addnode, -seednode and -connect") + "\n" +
-        "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4437)") + "\n" +
+        "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4438)") + "\n" +
+        "  -torport=<port>        " + _("Connect to Tor through <torport> (default: 9060)") + "\n" 
         "  -maxconnections=<n>    " + _("Maintain at most <n> connections to peers (default: 125)") + "\n" +
         "  -addnode=<ip>          " + _("Add a node to connect to and attempt to keep the connection open") + "\n" +
         "  -connect=<ip>          " + _("Connect only to the specified node(s)") + "\n" +
         "  -seednode=<ip>         " + _("Connect to a node to retrieve peer addresses, and disconnect") + "\n" +
         "  -externalip=<ip>       " + _("Specify your own public address") + "\n" +
+        "  -onlynet=<net>         " + _("Only connect to nodes in network <net> (IPv4, IPv6 or Tor)") + "\n" +
         "  -onionseed             " + _("Find peers using .onion seeds (default: 1 unless -connect)") + "\n" +
         "  -nosynccheckpoints     " + _("Disable sync checkpoints (default: 0)") + "\n" +
+        "  -discover              " + _("Discover own IP address (default: 1 when listening and no -externalip)") + "\n" +
+        "  -irc                   " + _("Find peers using internet relay chat (default: 0)") + "\n" +
+        "  -listen                " + _("Accept connections from outside (default: 1 if no -proxy or -connect)") + "\n" +
+        "  -bind=<addr>           " + _("Bind to given address. Use [host]:port notation for IPv6") + "\n" +
+        "  -dnsseed               " + _("Find peers using DNS lookup (default: 1)") + "\n" +
+        "  -staking               " + _("Stake your coins to support network and gain reward (default: 1)") + "\n" +
         "  -banscore=<n>          " + _("Threshold for disconnecting misbehaving peers (default: 100)") + "\n" +
         "  -bantime=<n>           " + _("Number of seconds to keep misbehaving peers from reconnecting (default: 86400)") + "\n" +
         "  -maxreceivebuffer=<n>  " + _("Maximum per-connection receive buffer, <n>*1000 bytes (default: 5000)") + "\n" +
@@ -280,7 +294,7 @@ std::string HelpMessage()
         "  -rpcallowip=<ip>       " + _("Allow JSON-RPC connections from specified IP address") + "\n" +
         "  -rpcconnect=<ip>       " + _("Send commands to node running on <ip> (default: 127.0.0.1)") + "\n" +
         "  -blocknotify=<cmd>     " + _("Execute command when the best block changes (%s in cmd is replaced by block hash)") + "\n" +
-		"  -walletnotify=<cmd>    " + _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)") + "\n" +
+        "  -walletnotify=<cmd>    " + _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)") + "\n" +
         "  -upgradewallet         " + _("Upgrade wallet to latest format") + "\n" +
         "  -keypool=<n>           " + _("Set key pool size to <n> (default: 100)") + "\n" +
         "  -rescan                " + _("Rescan the block chain for missing wallet transactions") + "\n" +
@@ -355,12 +369,44 @@ bool AppInit2()
     nDerivationMethodIndex = 0;
     fTestNet = GetBoolArg("-testnet");
     if (fTestNet) {
+       nTestNet = 1;
+    } else {
+       nTestNet = 0;
+    }
+    
+    if (fTestNet)
+    {
         SoftSetBoolArg("-irc", true);
+    }
+
+    if (mapArgs.count("-bind")) {
+        // when specifying an explicit binding address, you want to listen on it
+        // even when -connect or -proxy is specified
+        SoftSetBoolArg("-listen", true);
     }
 
     if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0) {
         // when only connecting to trusted nodes, do not seed via .onion, or listen by default
         SoftSetBoolArg("-onionseed", false);
+        // when only connecting to trusted nodes, do not seed via DNS, or listen by default
+        SoftSetBoolArg("-dnsseed", false);
+        SoftSetBoolArg("-listen", false);
+    }
+
+    if (mapArgs.count("-proxy")) {
+        // to protect privacy, do not listen by default if a proxy server is specified
+        SoftSetBoolArg("-listen", false);
+    }
+
+    if (!GetBoolArg("-listen", true)) {
+        // do not map ports or try to retrieve public IP when not listening (pointless)
+        SoftSetBoolArg("-upnp", false);
+        SoftSetBoolArg("-discover", false);
+    }
+
+    if (mapArgs.count("-externalip")) {
+        // if an explicit public IP is specified, do not try to find others
+        SoftSetBoolArg("-discover", false);
     }
 
     if (GetBoolArg("-salvagewallet")) {
@@ -424,6 +470,11 @@ bool AppInit2()
     // ********************************************************* Step 4: application initialization: dir lock, daemonize, pidfile, debug log
 
     std::string strDataDir = GetDataDir().string();
+    std::string strWalletFileName = GetArg("-wallet", "wallet.dat");
+
+    // strWalletFileName must be a plain filename without a directory
+    if (strWalletFileName != boost::filesystem::basename(strWalletFileName) + boost::filesystem::extension(strWalletFileName))
+        return InitError(strprintf(_("Wallet %s resides outside data directory %s."), strWalletFileName.c_str(), strDataDir.c_str()));
 
     // Make sure only a single Bitcoin process is using the data directory.
     boost::filesystem::path pathLockFile = GetDataDir() / ".lock";
@@ -486,13 +537,13 @@ bool AppInit2()
     if (GetBoolArg("-salvagewallet"))
     {
         // Recover readable keypairs:
-        if (!CWalletDB::Recover(bitdb, "wallet.dat", true))
+        if (!CWalletDB::Recover(bitdb, strWalletFileName, true))
             return false;
     }
 
-    if (filesystem::exists(GetDataDir() / "wallet.dat"))
+    if (filesystem::exists(GetDataDir() / strWalletFileName))
     {
-        CDBEnv::VerifyResult r = bitdb.Verify("wallet.dat", CWalletDB::Recover);
+        CDBEnv::VerifyResult r = bitdb.Verify(strWalletFileName, CWalletDB::Recover);
         if (r == CDBEnv::RECOVER_OK)
         {
             string msg = strprintf(_("Warning: wallet.dat corrupt, data salvaged!"
@@ -507,70 +558,216 @@ bool AppInit2()
 
     // ********************************************************* Step 6: network initialization
 
+    // uiInterface.InitMessage(_("Initializing network..."));
     int nSocksVersion = GetArg("-socks", 5);
-    if (nSocksVersion != 4 && nSocksVersion != 5)
-        return InitError(strprintf(_("Unknown -socks proxy version requested: %i"), nSocksVersion));
 
-    do {
-        std::set<enum Network> nets;
-        nets.insert(
+    if (nSocksVersion != 4 && nSocksVersion != 5)
+        return InitError(strprintf(_("Unknown -socks proxy version requested: %d"), nSocksVersion));
+
+    // built-in tor is enabled by default (but set to true elsewhere)
+    bool fBuiltinTor = false;
+    bool fExternalTor = false;
+
+    // -onlynet indicates a specific network selection and not to use built in TOR
+    std::set<enum Network> setNets;
+    if (mapArgs.count("-onlynet"))
+    {
+        BOOST_FOREACH(std::string snet, mapMultiArgs["-onlynet"]) {
+            // torext doesn't map to unique network, so do this manually
+            if (snet == "torext")
+            {
+                setNets.insert(NET_TOR);
+                fExternalTor = true;
+            }
+            else
+            {
+                enum Network net = ParseNetwork(snet);
+                if (net == NET_UNROUTABLE)
+                {
+                    return InitError(strprintf(_("Unknown network specified in -onlynet: '%s'"), snet.c_str()));
+                }
+                setNets.insert(net);
+                if (net == NET_TOR)
+                {
+                    fBuiltinTor = true;
+                }
+            }
+        }
+    }
+    else   // default to built-in tor
+    {
+        setNets.insert(
             NET_TOR
         );
-        for (int n = 0; n < NET_MAX; n++) {
-            enum Network net = (enum Network)n;
-            if (!nets.count(net))
-                SetLimited(net);
+        fBuiltinTor = true;
+    }
+    for (int n = 0; n < NET_MAX; n++) {
+        enum Network net = (enum Network)n;
+        if (!setNets.count(net))
+        {
+            SetLimited(net);
         }
-    } while (
-        false
-    );
+        else
+        {
+            // add the ipv4 hardcodded nodes -- TODO: find better way
+            if (net == NET_IPV4)
+            {
+                // TODO: need better way to add hardcoded nodes
+                static const char *(*strAddedNodes)[1] =
+                          fTestNet ? strTestNetAddedNodes : strMainNetAddedNodes;
 
-
-    CService addrOnion;
-
-    unsigned short onion_port = TORPORT;
-
-    if (mapArgs.count("-tor") && mapArgs["-tor"] != "0") {
-        addrOnion = CService(mapArgs["-tor"], onion_port);
-        if (!addrOnion.IsValid())
-            return InitError(strprintf(_("Invalid -tor address: '%s'"), mapArgs["-tor"].c_str()));
-    } else {
-        addrOnion = CService("127.0.0.1", onion_port);
+                for (unsigned int i = 0; strAddedNodes[i][0] != NULL; i++)
+                {
+                   mapMultiArgs["-addnode"].push_back(strAddedNodes[i][0]);
+                }
+            }
+        }
     }
 
-    if (true) {
+#if defined(USE_IPV6)
+#if ! USE_IPV6
+    for (std::set<enum Network>::iterator it = setNets.begin(); it != setNets.end(); ++it)
+    {
+        if (*it == NET_IPV6)
+        {
+            setNets.erase(it);
+        }
+    }
+    SetLimited(NET_IPV6);
+#endif
+#endif
+
+    CService addrProxy;
+    bool fProxy = false;
+    if (mapArgs.count("-proxy")) {
+        addrProxy = CService(mapArgs["-proxy"], GetDefaultProxy());
+        if (!addrProxy.IsValid())
+            return InitError(strprintf(_("Invalid -proxy address: '%s'"), mapArgs["-proxy"].c_str()));
+
+        if (!IsLimited(NET_IPV4))
+            SetProxy(NET_IPV4, addrProxy, nSocksVersion);
+        if (nSocksVersion > 4) {
+#ifdef USE_IPV6
+            if (!IsLimited(NET_IPV6))
+                SetProxy(NET_IPV6, addrProxy, nSocksVersion);
+#endif
+            SetNameProxy(addrProxy, nSocksVersion);
+        }
+        fProxy = true;
+    }
+
+    // if not using built in tor, check for external
+    // this test means that internal and external tor are exclusive
+    if (fBuiltinTor)
+    {
+        CService addrOnion;
+        p2p_port = GetDefaultPort();
+        onion_port = (unsigned short)GetArg("-torport", TOR_PORT);
+        if (mapArgs.count("-tor") && mapArgs["-tor"] != "0") {
+            addrOnion = CService(mapArgs["-tor"], onion_port);
+            if (!addrOnion.IsValid())
+                return InitError(strprintf(_("Invalid -tor address: '%s'"), mapArgs["-tor"].c_str()));
+        } else {
+            addrOnion = CService("127.0.0.1", onion_port);
+        }
         SetProxy(NET_TOR, addrOnion, 5);
         SetReachable(NET_TOR);
+    }
+    else
+    {
+        // -torext can override normal proxy, -notorext disables tor entirely
+        if (!(mapArgs.count("-torext") && mapArgs["-torext"] == "0") &&
+            (fProxy || mapArgs.count("-torext") || fExternalTor)) {
+            CService addrOnion;
+            if (!mapArgs.count("-torext"))
+            {
+                if (fExternalTor)
+                {
+                    return InitError(std::string("Specify -torext address (e.g. '127.0.0.1:9150')"));
+                }
+                else
+                {
+                    addrOnion = addrProxy;
+                }
+            }
+            else
+            {
+                addrOnion = CService(mapArgs["-torext"], 9050);
+            }
+            if (!addrOnion.IsValid())
+            {
+                return InitError(strprintf(_("Invalid -torext address: '%s'"), mapArgs["-torext"].c_str()));
+            }
+            SetProxy(NET_TOR, addrOnion);
+            SetReachable(NET_TOR);
+        }
     }
 
 
     // see Step 2: parameter interactions for more information about these
+    fNoListen = !GetBoolArg("-listen", true);
+    fDiscover = GetBoolArg("-discover", true);
     fNameLookup = GetBoolArg("-dns", true);
 
     bool fBound = false;
-    if (true) {
-        if (true) {
-            do {
+
+    if (!fNoListen)
+    {
+        // TODO: use of -bind is not fully tested
+        std::string strError;
+        if (mapArgs.count("-bind"))
+        {
+            BOOST_FOREACH(std::string strBind, mapMultiArgs["-bind"])
+            {
                 CService addrBind;
-                if (!Lookup("127.0.0.1", addrBind, GetListenPort(), false))
-                    return InitError(strprintf(_("Cannot resolve binding address: '%s'"),  "127.0.0.1"));
+                if (!Lookup(strBind.c_str(), addrBind, GetListenPort(), false))
+                    return InitError(strprintf(_("Cannot resolve -bind address: '%s'"), strBind.c_str()));
                 fBound |= Bind(addrBind);
-            } while (
-                false
-            );
+            }
+        } else {
+            struct in_addr inaddr_any;
+            inaddr_any.s_addr = INADDR_ANY;
+#ifdef USE_IPV6
+            if (!IsLimited(NET_IPV6))
+                fBound |= Bind(CService(in6addr_any, GetListenPort()), false);
+#endif
+            if (!IsLimited(NET_IPV4))
+            {
+                fBound |= Bind(CService(inaddr_any, GetListenPort()), !fBound);
+            }
         }
+
+        // in any case try to bind to 127.0.0.1 if using builtin tor
+        if (fBuiltinTor || fExternalTor)
+        {
+            CService addrBind;
+            if (!Lookup("127.0.0.1", addrBind, GetListenPort(), false))
+            {
+                return InitError(strprintf(_("Cannot resolve binding address: '%s'"),  "127.0.0.1"));
+            }
+            fBound |= Bind(addrBind);
+        }
+
         if (!fBound)
+        {
             return InitError(_("Failed to listen on any port."));
+        }
     }
 
+    if (fBuiltinTor)
+    {
+        uiInterface.InitMessage(_("Starting Tor..."));
 
-    // start up tor
-    if (!(mapArgs.count("-tor") && mapArgs["-tor"] != "0")) {
-      if (!NewThread(StartTor, NULL))
-        InitError(_("Error: could not start tor"));
+        // start up tor
+        if (!(mapArgs.count("-tor") && mapArgs["-tor"] != "0")) {
+          if (!NewThread(StartTor, NULL))
+            InitError(_("Error: could not start tor"));
+        }
+
+        uiInterface.InitMessage(_("Waiting for Tor initialization..."));
+        wait_initialized();
+        uiInterface.InitMessage(_("Tor Initialized."));
     }
-
-    wait_initialized();
 
 
     if (mapArgs.count("-externalip"))
@@ -581,7 +778,9 @@ bool AppInit2()
                 return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr.c_str()));
             AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
         }
-    } else {
+    }
+    else if (fBuiltinTor)
+    {
         string automatic_onion;
         filesystem::path const hostname_path = GetDataDir(
         ) / "onion" / "hostname";
@@ -650,6 +849,8 @@ bool AppInit2()
     if (!LoadBlockIndex())
         return InitError(_("Error loading blkindex.dat"));
 
+    printf("Block index loaded successfully.\n");
+
     // as LoadBlockIndex can take several minutes, it's possible the user
     // requested to kill bitcoin-qt during the last operation. If so, exit.
     // As the program has not fully started yet, Shutdown() is possibly overkill.
@@ -695,7 +896,7 @@ bool AppInit2()
     printf("Loading wallet...\n");
     nStart = GetTimeMillis();
     bool fFirstRun = true;
-    pwalletMain = new CWallet("wallet.dat");
+    pwalletMain = new CWallet(strWalletFileName);
     DBErrors nLoadWalletRet = pwalletMain->LoadWallet(fFirstRun);
     if (nLoadWalletRet != DB_LOAD_OK)
     {
@@ -758,7 +959,7 @@ bool AppInit2()
         pindexRescan = pindexGenesisBlock;
     else
     {
-        CWalletDB walletdb("wallet.dat");
+        CWalletDB walletdb(strWalletFileName);
         CBlockLocator locator;
         if (walletdb.ReadBestBlock(locator))
             pindexRescan = locator.GetBlockIndex();

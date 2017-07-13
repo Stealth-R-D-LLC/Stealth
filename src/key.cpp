@@ -460,7 +460,7 @@ bool CKey::Verify(uint256 hash, const std::vector<unsigned char>& vchSigParam)
     {
         unsigned char nLengthBytes = vchSig[1] & 0x7f;
 
-        if (vchSig.size() < 2 + nLengthBytes)
+        if (vchSig.size() < 2 + (unsigned int) nLengthBytes)
             return false;
 
         if (nLengthBytes > 4)

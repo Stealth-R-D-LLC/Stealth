@@ -11,7 +11,7 @@
 #include "script.h"
 #include "scrypt.h"
 #include "hashblock.h"
-#include "stealth.h"
+#include "toradapter.h"
 
 #include <list>
 
@@ -29,6 +29,7 @@ class CNode;
 
 static const unsigned int MAX_BLOCK_SIZE = 1000000;
 static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
+static const unsigned int MAX_STANDARD_TX_SIZE = MAX_BLOCK_SIZE_GEN/5;
 static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
 static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
 static const unsigned int MAX_INV_SZ = 50000;
@@ -56,8 +57,6 @@ static const unsigned int STEALTH_ADDR_KICK_IN = 1412834400;
 static const int64 MIN_TXOUT_AMOUNT = MIN_TX_FEE;
 
 inline bool MoneyRange(int64 nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
-// Threshold for nLockTime: below this value it is interpreted as block number, otherwise as UNIX timestamp.
-static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
 
 #ifdef USE_UPNP
 static const int fHaveUPnP = true;
@@ -70,9 +69,28 @@ static const uint256 hashGenesisBlockOfficial(
 static const uint256 hashGenesisBlockTestNet (
    "0x3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634");
 
+
+// cloners: add your new forks higher than highest here
+//          keep existing
+//          also, rewrite GetFork
+enum ForkNumbers
+{
+    XST_GENESIS = 0,
+    XST_FORK005,
+    TOTAL_FORKS
+};
+
+// cloners: edit aForks
+int GetFork(int nHeight);
+ 
 static const int64 nMaxClockDrift = 2 * 60 * 60;        // two hours
 
+// blackcoin pos 2.0 drift recommendations
+// inline int64 PastDrift(CBlockIndex *pprev)   {return pprev->nTime; } // time of last block
+inline int64 FutureDrift(int64 nTime) {
+                  return fTestNet ? nTime + 7 : nTime + 17; } // up to 17 sec in the future
 
+        
 extern CScript COINBASE_FLAGS;
 
 
@@ -747,7 +765,7 @@ public:
      */
     bool ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                        std::map<uint256, CTxIndex>& mapTestPool, const CDiskTxPos& posThisTx,
-                       const CBlockIndex* pindexBlock, bool fBlock, bool fMiner, bool fStrictPayToScriptHash=true);
+                       const CBlockIndex* pindexBlock, bool fBlock, bool fMiner, unsigned int flags);
     bool ClientConnectInputs();
     bool CheckTransaction() const;
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true, bool* pfMissingInputs=NULL);
@@ -1296,7 +1314,14 @@ public:
 
     int64 GetPastTimeLimit() const
     {
-        return GetMedianTimePast();
+        if (GetFork(this->nHeight) >= XST_FORK005)
+        {
+             return GetBlockTime();
+        }
+        else
+        {
+             return GetMedianTimePast();
+        }
     }
 
     enum { nMedianTimeSpan=11 };

@@ -93,7 +93,7 @@ Value getmininginfo(const Array& params, bool fHelp)
     obj.push_back(Pair("generate",      GetBoolArg("-gen")));
     obj.push_back(Pair("genproclimit",  (int)GetArg("-genproclimit", -1)));
     obj.push_back(Pair("hashespersec",  gethashespersec(params, false)));
-	obj.push_back(Pair("networkhashps", getnetworkhashps(params, false)));
+    obj.push_back(Pair("networkhashps", getnetworkhashps(params, false)));
     obj.push_back(Pair("pooledtx",      (uint64_t)mempool.size()));
     obj.push_back(Pair("testnet",       fTestNet));
     return obj;
@@ -433,8 +433,11 @@ Value getblocktemplate(const Array& params, bool fHelp)
     static CBlockIndex* pindexPrev;
     static int64 nStart;
     static CBlock* pblock;
-    if (pindexPrev != pindexBest ||
-        (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 5))
+    if ((pindexPrev != pindexBest) ||
+        (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 5) ||
+        ((GetFork(pindexBest->nHeight + 1) >= XST_FORK005) &&
+         // give it 12 seconds for a new getwork (because future drift is only 15 s)
+         (pblock->GetBlockTime() >= FutureDrift((int64)pblock->vtx[0].nTime) + 12)))
     {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = NULL;

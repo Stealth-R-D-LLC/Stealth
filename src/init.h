@@ -7,7 +7,7 @@
 
 #include "wallet.h"
 
-#include "stealth.h"
+#include "toradapter.h"
 
 extern CWallet* pwalletMain;
 
@@ -17,6 +17,6 @@ bool AppInit2();
 std::string HelpMessage();
 
 // random port number, not used much
-unsigned short const TORPORT = 9060;
+unsigned short const TOR_PORT = 9060;
 
 #endif

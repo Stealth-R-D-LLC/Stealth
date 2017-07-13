@@ -23,7 +23,7 @@ using namespace boost;
 using namespace boost::assign;
 using namespace json_spirit;
 
-// Externally constructed transactions have a 10 minute window
+// SSend: Externally constructed transactions have a 10 minute window
 const int MaxTxnTimeDrift = 5 * 60;
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
@@ -478,8 +478,10 @@ Value signrawtransaction(const Array& params, bool fHelp)
         {
             txin.scriptSig = CombineSignatures(prevPubKey, mergedTx, i, txin.scriptSig, txv.vin[i].scriptSig);
         }
-        if (!VerifyScript(txin.scriptSig, prevPubKey, mergedTx, i, true, 0))
+        if (!VerifyScript(txin.scriptSig, prevPubKey, mergedTx, i, STANDARD_SCRIPT_VERIFY_FLAGS, 0))
+        {
             fComplete = false;
+        }
     }
 
     Object result;
