@@ -7,6 +7,9 @@
 /* tor's configuration directory */
 #define CONFDIR "/usr/local/etc/tor"
 
+/* Defined if we're not going to look for a torrc in SYSCONF */
+/* #undef DISABLE_SYSTEM_TORRC */
+
 /* shared data dir */
 #define SHARE_DATADIR "/usr/share"
 
@@ -58,6 +61,9 @@
 /* Define to 1 if you have the `backtrace_symbols_fd' function. */
 #define HAVE_BACKTRACE_SYMBOLS_FD 1
 
+/* Define to 1 if you have the `cap_set_proc' function. */
+/* #undef HAVE_CAP_SET_PROC */
+
 /* Defined if the requested minimum BOOST version is satisfied */
 #define HAVE_BOOST 1
 
@@ -87,6 +93,14 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
+/* Define to 1 if you have the declaration of `SecureZeroMemory', and to 0 if
+   you don't. */
+/* #undef HAVE_DECL_SECUREZEROMEMORY */
+
+/* Define to 1 if you have the declaration of `_getwch', and to 0 if you
+   don't. */
+/* #undef HAVE_DECL__GETWCH */
+
 /* Define to 1 if you have the <dmalloc.h> header file. */
 /* #undef HAVE_DMALLOC_H */
 
@@ -111,6 +125,9 @@
 /* Define to 1 if you have the <event2/event.h> header file. */
 #define HAVE_EVENT2_EVENT_H 1
 
+/* Define to 1 if you have the `eventfd' function. */
+/* #undef HAVE_EVENTFD */
+
 /* Define to 1 if you have the `event_base_loopexit' function. */
 #define HAVE_EVENT_BASE_LOOPEXIT 1
 
@@ -123,8 +140,11 @@
 /* Define to 1 if you have the `event_get_version_number' function. */
 #define HAVE_EVENT_GET_VERSION_NUMBER 1
 
-/* Define to 1 if you have the `event_set_log_callback' function. */
-#define HAVE_EVENT_SET_LOG_CALLBACK 1
+/* Define to 1 if you have the `EVP_PBE_scrypt' function. */
+/* #undef HAVE_EVP_PBE_SCRYPT */
+
+/* Define to 1 if you have the `evutil_secure_rng_init' function. */
+#define HAVE_EVUTIL_SECURE_RNG_INIT 1
 
 /* Define to 1 if you have the `evutil_secure_rng_set_urandom_device_file'
    function. */
@@ -132,6 +152,9 @@
 
 /* Define to 1 if you have the <execinfo.h> header file. */
 #define HAVE_EXECINFO_H 1
+
+/* Define to 1 if you have the `explicit_bzero' function. */
+/* #undef HAVE_EXPLICIT_BZERO */
 
 /* Defined if we have extern char **environ already declared */
 /* #undef HAVE_EXTERN_ENVIRON_DECLARED */
@@ -148,6 +171,9 @@
 /* Define to 1 if you have the `getaddrinfo' function. */
 #define HAVE_GETADDRINFO 1
 
+/* Define to 1 if you have the `getentropy' function. */
+/* #undef HAVE_GETENTROPY */
+
 /* Define this if you have any gethostbyname_r() */
 /* #undef HAVE_GETHOSTBYNAME_R */
 
@@ -162,6 +188,9 @@
 
 /* Define to 1 if you have the `getifaddrs' function. */
 #define HAVE_GETIFADDRS 1
+
+/* Define to 1 if you have the `getpass' function. */
+#define HAVE_GETPASS 1
 
 /* Define to 1 if you have the `getresgid' function. */
 /* #undef HAVE_GETRESGID */
@@ -181,6 +210,9 @@
 /* Define to 1 if you have the <grp.h> header file. */
 #define HAVE_GRP_H 1
 
+/* Define to 1 if you have the `htonll' function. */
+/* #undef HAVE_HTONLL */
+
 /* Define to 1 if you have the <ifaddrs.h> header file. */
 #define HAVE_IFADDRS_H 1
 
@@ -196,11 +228,27 @@
 /* Define to 1 if you have the `issetugid' function. */
 #define HAVE_ISSETUGID 1
 
+/* Define to 1 if you have the `cap' library (-lcap). */
+/* #undef HAVE_LIBCAP */
+
+/* Define to 1 if you have the <libscrypt.h> header file. */
+/* #undef HAVE_LIBSCRYPT_H */
+
+/* Define to 1 if you have the `libscrypt_scrypt' function. */
+/* #undef HAVE_LIBSCRYPT_SCRYPT */
+
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H 1
 
+/* Define to 1 if you have the <linux/if.h> header file. */
+/* #undef HAVE_LINUX_IF_H */
+
 /* Define to 1 if you have the <linux/netfilter_ipv4.h> header file. */
 /* #undef HAVE_LINUX_NETFILTER_IPV4_H */
+
+/* Define to 1 if you have the <linux/netfilter_ipv6/ip6_tables.h> header
+   file. */
+/* #undef HAVE_LINUX_NETFILTER_IPV6_IP6_TABLES_H */
 
 /* Define to 1 if you have the <linux/types.h> header file. */
 /* #undef HAVE_LINUX_TYPES_H */
@@ -239,10 +287,13 @@
 /* #undef HAVE_MALLOC_NP_H */
 
 /* Define to 1 if you have the `memmem' function. */
-#define HAVE_MEMMEM 0
+#define HAVE_MEMMEM 1
 
 /* Define to 1 if you have the <memory.h> header file. */
 #define HAVE_MEMORY_H 1
+
+/* Define to 1 if you have the `memset_s' function. */
+/* #undef HAVE_MEMSET_S */
 
 /* Define to 1 if you have the `mlockall' function. */
 #define HAVE_MLOCKALL 1
@@ -266,8 +317,17 @@
 /* Define to 1 if you have the <net/pfvar.h> header file. */
 /* #undef HAVE_NET_PFVAR_H */
 
+/* Define to 1 if you have the `pipe' function. */
+#define HAVE_PIPE 1
+
+/* Define to 1 if you have the `pipe2' function. */
+/* #undef HAVE_PIPE2 */
+
 /* Define to 1 if you have the `prctl' function. */
 /* #undef HAVE_PRCTL */
+
+/* Define to 1 if you have the `pthread_condattr_setclock' function. */
+/* #undef HAVE_PTHREAD_CONDATTR_SETCLOCK */
 
 /* Define to 1 if you have the `pthread_create' function. */
 #define HAVE_PTHREAD_CREATE 1
@@ -278,17 +338,29 @@
 /* Define to 1 if you have the <pwd.h> header file. */
 #define HAVE_PWD_H 1
 
+/* Define to 1 if you have the `readpassphrase' function. */
+#define HAVE_READPASSPHRASE 1
+
+/* Define to 1 if you have the <readpassphrase.h> header file. */
+#define HAVE_READPASSPHRASE_H 1
+
 /* Define to 1 if you have the `rint' function. */
 #define HAVE_RINT 1
 
 /* Define to 1 if the system has the type `rlim_t'. */
 #define HAVE_RLIM_T 1
 
+/* Define to 1 if you have the `RtlSecureZeroMemory' function. */
+/* #undef HAVE_RTLSECUREZEROMEMORY */
+
 /* Define to 1 if the system has the type `sa_family_t'. */
 #define HAVE_SA_FAMILY_T 1
 
 /* Define to 1 if you have the <seccomp.h> header file. */
 /* #undef HAVE_SECCOMP_H */
+
+/* Define to 1 if you have the `SecureZeroMemory' function. */
+/* #undef HAVE_SECUREZEROMEMORY */
 
 /* Define to 1 if you have the `sigaction' function. */
 #define HAVE_SIGACTION 1
@@ -301,6 +373,24 @@
 
 /* Define to 1 if the system has the type `ssize_t'. */
 #define HAVE_SSIZE_T 1
+
+/* Define to 1 if you have the `SSL_CIPHER_find' function. */
+/* #undef HAVE_SSL_CIPHER_FIND */
+
+/* Define to 1 if you have the `SSL_get_client_ciphers' function. */
+/* #undef HAVE_SSL_GET_CLIENT_CIPHERS */
+
+/* Define to 1 if you have the `SSL_get_client_random' function. */
+/* #undef HAVE_SSL_GET_CLIENT_RANDOM */
+
+/* Define to 1 if you have the `SSL_get_server_random' function. */
+/* #undef HAVE_SSL_GET_SERVER_RANDOM */
+
+/* Define to 1 if you have the `SSL_SESSION_get_master_key' function. */
+/* #undef HAVE_SSL_SESSION_GET_MASTER_KEY */
+
+/* Define to 1 if you have the `statvfs' function. */
+#define HAVE_STATVFS 1
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
@@ -319,6 +409,9 @@
 
 /* Define to 1 if you have the `strlcpy' function. */
 #define HAVE_STRLCPY 1
+
+/* Define to 1 if you have the `strnlen' function. */
+#define HAVE_STRNLEN 1
 
 /* Define to 1 if you have the `strptime' function. */
 #define HAVE_STRPTIME 1
@@ -350,14 +443,33 @@
 /* Define to 1 if `sin_len' is a member of `struct sockaddr_in'. */
 #define HAVE_STRUCT_SOCKADDR_IN_SIN_LEN 1
 
+/* Define to 1 if `get_cipher_by_char' is a member of `struct ssl_method_st'.
+   */
+#define HAVE_STRUCT_SSL_METHOD_ST_GET_CIPHER_BY_CHAR 1
+
 /* Define to 1 if `tv_sec' is a member of `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL_TV_SEC 1
 
 /* Define to 1 if you have the `sysconf' function. */
 #define HAVE_SYSCONF 1
 
+/* Define to 1 if you have the `sysctl' function. */
+#define HAVE_SYSCTL 1
+
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
+
+/* Have systemd */
+/* #undef HAVE_SYSTEMD */
+
+/* Have systemd v209 or more */
+/* #undef HAVE_SYSTEMD_209 */
+
+/* Define to 1 if you have the <sys/capability.h> header file. */
+/* #undef HAVE_SYS_CAPABILITY_H */
+
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+/* #undef HAVE_SYS_EVENTFD_H */
 
 /* Define to 1 if you have the <sys/fcntl.h> header file. */
 #define HAVE_SYS_FCNTL_H 1
@@ -383,11 +495,23 @@
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #define HAVE_SYS_RESOURCE_H 1
 
+/* Define to 1 if you have the <sys/select.h> header file. */
+#define HAVE_SYS_SELECT_H 1
+
 /* Define to 1 if you have the <sys/socket.h> header file. */
 #define HAVE_SYS_SOCKET_H 1
 
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#define HAVE_SYS_STATVFS_H 1
+
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
+
+/* Define to 1 if you have the <sys/syscall.h> header file. */
+#define HAVE_SYS_SYSCALL_H 1
+
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#define HAVE_SYS_SYSCTL_H 1
 
 /* Define to 1 if you have the <sys/syslimits.h> header file. */
 #define HAVE_SYS_SYSLIMITS_H 1
@@ -413,6 +537,12 @@
 /* Define to 1 if you have the <time.h> header file. */
 #define HAVE_TIME_H 1
 
+/* Define to 1 if you have the `timingsafe_memcmp' function. */
+/* #undef HAVE_TIMINGSAFE_MEMCMP */
+
+/* Define to 1 if you have the `TLS_method' function. */
+/* #undef HAVE_TLS_METHOD */
+
 /* Define to 1 if you have the <ucontext.h> header file. */
 /* #undef HAVE_UCONTEXT_H */
 
@@ -424,6 +554,9 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
+
+/* Define to 1 if you have the `usleep' function. */
+#define HAVE_USLEEP 1
 
 /* Define to 1 if you have the <utime.h> header file. */
 #define HAVE_UTIME_H 1
@@ -479,7 +612,7 @@
 #define PACKAGE_NAME "tor"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "tor 0.2.5.1-alpha-dev"
+#define PACKAGE_STRING "tor 0.3.0.9"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "tor"
@@ -488,7 +621,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.2.5.1-alpha-dev"
+#define PACKAGE_VERSION "0.3.0.9"
 
 /* How to access the PC from a struct ucontext */
 #define PC_FROM_UCONTEXT uc_mcontext->__ss.__rip
@@ -588,7 +721,7 @@
 #define USING_TWOS_COMPLEMENT 1
 
 /* Version number of package */
-#define VERSION "0.2.5.1-alpha-dev"
+#define VERSION "0.3.0.9"
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */

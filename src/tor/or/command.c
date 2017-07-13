@@ -1,12 +1,32 @@
 /* Copyright (c) 2001 Matej Pfajfar.
  * Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
  * \file command.c
  * \brief Functions for processing incoming cells.
+ *
+ * When we receive a cell from a client or a relay, it arrives on some
+ * channel, and tells us what to do with it. In this module, we dispatch based
+ * on the cell type using the functions command_process_cell() and
+ * command_process_var_cell(), and deal with the cell accordingly.  (These
+ * handlers are installed on a channel with the command_setup_channel()
+ * function.)
+ *
+ * Channels have a chance to handle some cell types on their own before they
+ * are ever passed here --- typically, they do this for cells that are
+ * specific to a given channel type.  For example, in channeltls.c, the cells
+ * for the initial connection handshake are handled before we get here.  (Of
+ * course, the fact that there _is_ only one channel type for now means that
+ * we may have gotten the factoring wrong here.)
+ *
+ * Handling other cell types is mainly farmed off to other modules, after
+ * initial sanity-checking.  CREATE* cells are handled ultimately in onion.c,
+ * CREATED* cells trigger circuit creation in circuitbuild.c, DESTROY cells
+ * are handled here (since they're simple), and RELAY cells, in all their
+ * complexity, are passed off to relay.c.
  **/
 
 /* In-points to command.c:
@@ -310,7 +330,7 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     /* hand it off to the cpuworkers, and then return. */
     if (connection_or_digest_is_known_relay(chan->identity_digest))
       rep_hist_note_circuit_handshake_requested(create_cell->handshake_type);
-    if (assign_onionskin_to_cpuworker(NULL, circ, create_cell) < 0) {
+    if (assign_onionskin_to_cpuworker(circ, create_cell) < 0) {
       log_debug(LD_GENERAL,"Failed to hand off onionskin. Closing.");
       circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_RESOURCELIMIT);
       return;
@@ -340,7 +360,6 @@ command_process_create_cell(cell_t *cell, channel_t *chan)
     if (len < 0) {
       log_warn(LD_OR,"Failed to generate key material. Closing.");
       circuit_mark_for_close(TO_CIRCUIT(circ), END_CIRC_REASON_INTERNAL);
-      tor_free(create_cell);
       return;
     }
     created_cell.cell_type = CELL_CREATED_FAST;
@@ -398,7 +417,6 @@ command_process_created_cell(cell_t *cell, channel_t *chan)
     log_debug(LD_OR,"at OP. Finishing handshake.");
     if ((err_reason = circuit_finish_handshake(origin_circ,
                                         &extended_cell.created_cell)) < 0) {
-      log_warn(LD_OR,"circuit_finish_handshake failed.");
       circuit_mark_for_close(circ, -err_reason);
       return;
     }
@@ -438,6 +456,7 @@ command_process_created_cell(cell_t *cell, channel_t *chan)
 static void
 command_process_relay_cell(cell_t *cell, channel_t *chan)
 {
+  const or_options_t *options = get_options();
   circuit_t *circ;
   int reason, direction;
 
@@ -510,6 +529,14 @@ command_process_relay_cell(cell_t *cell, channel_t *chan)
            "(%s) failed. Closing.",
            direction==CELL_DIRECTION_OUT?"forward":"backward");
     circuit_mark_for_close(circ, -reason);
+  }
+
+  /* If this is a cell in an RP circuit, count it as part of the
+     hidden service stats */
+  if (options->HiddenServiceStatistics &&
+      !CIRCUIT_IS_ORIGIN(circ) &&
+      TO_OR_CIRCUIT(circ)->circuit_carries_hs_traffic_stats) {
+    rep_hist_seen_new_rp_cell();
   }
 }
 

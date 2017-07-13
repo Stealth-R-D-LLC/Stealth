@@ -1,11 +1,24 @@
-/* Copyright (c) 2007-2013, The Tor Project, Inc. */
+/* Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
- * \file dnsserv.c \brief Implements client-side DNS proxy server code.  Note:
- * this is the DNS Server code, not the Server DNS code.  Confused?  This code
- * runs on client-side, and acts as a DNS server.  The code in dns.c, on the
- * other hand, runs on Tor servers, and acts as a DNS client.
+ * \file dnsserv.c
+ * \brief Implements client-side DNS proxy server code.
+ *
+ * When a user enables the DNSPort configuration option to have their local
+ * Tor client handle DNS requests, this module handles it.  It functions as a
+ * "DNS Server" on the client side, which client applications use.
+ *
+ * Inbound DNS requests are represented as entry_connection_t here (since
+ * that's how Tor represents client-side streams), which are kept associated
+ * with an evdns_server_request structure as exposed by Libevent's
+ * evdns code.
+ *
+ * Upon receiving a DNS request, libevent calls our evdns_server_callback()
+ * function here, which causes this module to create an entry_connection_t
+ * request as appropriate.  Later, when that request is answered,
+ * connection_edge.c calls dnsserv_resolved() so we can finish up and tell the
+ * DNS client.
  **/
 
 #include "or.h"
@@ -16,14 +29,10 @@
 #include "control.h"
 #include "onion_main.h"
 #include "policies.h"
-#ifdef HAVE_EVENT2_DNS_H
 #include <event2/dns.h>
 #include <event2/dns_compat.h>
 /* XXXX this implies we want an improved evdns  */
 #include <event2/dns_struct.h>
-#else
-#include "eventdns.h"
-#endif
 
 /** Helper function: called by evdns whenever the client sends a request to our
  * DNSPort.  We need to eventually answer the request <b>req</b>.
@@ -87,8 +96,6 @@ evdns_server_callback(struct evdns_server_request *req, void *data_)
   for (i = 0; i < req->nquestions; ++i) {
     if (req->questions[i]->dns_question_class != EVDNS_CLASS_INET)
       continue;
-    if (! q)
-      q = req->questions[i];
     switch (req->questions[i]->type) {
       case EVDNS_TYPE_A:
       case EVDNS_TYPE_AAAA:
@@ -96,7 +103,7 @@ evdns_server_callback(struct evdns_server_request *req, void *data_)
         /* We always pick the first one of these questions, if there is
            one. */
         if (! supported_q)
-          supported_q = q;
+          supported_q = req->questions[i];
         break;
       default:
         break;
@@ -125,12 +132,13 @@ evdns_server_callback(struct evdns_server_request *req, void *data_)
   /* Make a new dummy AP connection, and attach the request to it. */
   entry_conn = entry_connection_new(CONN_TYPE_AP, AF_INET);
   conn = ENTRY_TO_EDGE_CONN(entry_conn);
+  CONNECTION_AP_EXPECT_NONPENDING(entry_conn);
   TO_CONN(conn)->state = AP_CONN_STATE_RESOLVE_WAIT;
   conn->is_dns_request = 1;
 
   tor_addr_copy(&TO_CONN(conn)->addr, &tor_addr);
   TO_CONN(conn)->port = port;
-  TO_CONN(conn)->address = tor_dup_addr(&tor_addr);
+  TO_CONN(conn)->address = tor_addr_to_str_dup(&tor_addr);
 
   if (q->type == EVDNS_TYPE_A || q->type == EVDNS_TYPE_AAAA ||
       q->type == EVDNS_QTYPE_ALL) {
@@ -140,14 +148,16 @@ evdns_server_callback(struct evdns_server_request *req, void *data_)
     entry_conn->socks_request->command = SOCKS_COMMAND_RESOLVE_PTR;
   }
 
+  /* This serves our DNS port so enable DNS request by default. */
+  entry_conn->entry_cfg.dns_request = 1;
   if (q->type == EVDNS_TYPE_A || q->type == EVDNS_QTYPE_ALL) {
-    entry_conn->ipv4_traffic_ok = 1;
-    entry_conn->ipv6_traffic_ok = 0;
-    entry_conn->prefer_ipv6_traffic = 0;
+    entry_conn->entry_cfg.ipv4_traffic = 1;
+    entry_conn->entry_cfg.ipv6_traffic = 0;
+    entry_conn->entry_cfg.prefer_ipv6 = 0;
   } else if (q->type == EVDNS_TYPE_AAAA) {
-    entry_conn->ipv4_traffic_ok = 0;
-    entry_conn->ipv6_traffic_ok = 1;
-    entry_conn->prefer_ipv6_traffic = 1;
+    entry_conn->entry_cfg.ipv4_traffic = 0;
+    entry_conn->entry_cfg.ipv6_traffic = 1;
+    entry_conn->entry_cfg.prefer_ipv6 = 1;
   }
 
   strlcpy(entry_conn->socks_request->address, q->name,
@@ -155,8 +165,8 @@ evdns_server_callback(struct evdns_server_request *req, void *data_)
 
   entry_conn->socks_request->listener_type = listener->base_.type;
   entry_conn->dns_server_request = req;
-  entry_conn->isolation_flags = listener->isolation_flags;
-  entry_conn->session_group = listener->session_group;
+  entry_conn->entry_cfg.isolation_flags = listener->entry_cfg.isolation_flags;
+  entry_conn->entry_cfg.session_group = listener->entry_cfg.session_group;
   entry_conn->nym_epoch = get_signewnym_epoch();
 
   if (connection_add(ENTRY_TO_CONN(entry_conn)) < 0) {
@@ -199,12 +209,13 @@ dnsserv_launch_request(const char *name, int reverse,
   /* Make a new dummy AP connection, and attach the request to it. */
   entry_conn = entry_connection_new(CONN_TYPE_AP, AF_INET);
   conn = ENTRY_TO_EDGE_CONN(entry_conn);
+  CONNECTION_AP_EXPECT_NONPENDING(entry_conn);
   conn->base_.state = AP_CONN_STATE_RESOLVE_WAIT;
 
   tor_addr_copy(&TO_CONN(conn)->addr, &control_conn->base_.addr);
 #ifdef AF_UNIX
   /*
-   * The control connection can be AF_UNIX and if so tor_dup_addr will
+   * The control connection can be AF_UNIX and if so tor_addr_to_str_dup will
    * unhelpfully say "<unknown address type>"; say "(Tor_internal)"
    * instead.
    */
@@ -213,11 +224,11 @@ dnsserv_launch_request(const char *name, int reverse,
     TO_CONN(conn)->address = tor_strdup("(Tor_internal)");
   } else {
     TO_CONN(conn)->port = control_conn->base_.port;
-    TO_CONN(conn)->address = tor_dup_addr(&control_conn->base_.addr);
+    TO_CONN(conn)->address = tor_addr_to_str_dup(&control_conn->base_.addr);
   }
 #else
   TO_CONN(conn)->port = control_conn->base_.port;
-  TO_CONN(conn)->address = tor_dup_addr(&control_conn->base_.addr);
+  TO_CONN(conn)->address = tor_addr_to_str_dup(&control_conn->base_.addr);
 #endif
 
   if (reverse)
@@ -232,9 +243,9 @@ dnsserv_launch_request(const char *name, int reverse,
 
   entry_conn->socks_request->listener_type = CONN_TYPE_CONTROL_LISTENER;
   entry_conn->original_dest_address = tor_strdup(name);
-  entry_conn->session_group = SESSION_GROUP_CONTROL_RESOLVE;
+  entry_conn->entry_cfg.session_group = SESSION_GROUP_CONTROL_RESOLVE;
   entry_conn->nym_epoch = get_signewnym_epoch();
-  entry_conn->isolation_flags = ISO_DEFAULT;
+  entry_conn->entry_cfg.isolation_flags = ISO_DEFAULT;
 
   if (connection_add(TO_CONN(conn))<0) {
     log_warn(LD_APP, "Couldn't register dummy connection for RESOLVE request");
@@ -273,7 +284,7 @@ dnsserv_reject_request(entry_connection_t *conn)
 }
 
 /** Look up the original name that corresponds to 'addr' in req.  We use this
- * to preserve case in order to facilitate people using 0x20-hacks to avoid
+ * to preserve case in order to facilitate clients using 0x20-hacks to avoid
  * DNS poisoning. */
 static const char *
 evdns_get_orig_address(const struct evdns_server_request *req,
@@ -291,6 +302,10 @@ evdns_get_orig_address(const struct evdns_server_request *req,
   case RESOLVED_TYPE_IPV6:
     type = EVDNS_TYPE_AAAA;
     break;
+  case RESOLVED_TYPE_ERROR:
+  case RESOLVED_TYPE_ERROR_TRANSIENT:
+     /* Addr doesn't matter, since we're not sending it back in the reply.*/
+    return addr;
   default:
     tor_fragile_assert();
     return addr;

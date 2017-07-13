@@ -80,6 +80,10 @@
 /* Define to 1 if you have the <cygwin/signal.h> header file. */
 /* #undef HAVE_CYGWIN_SIGNAL_H */
 
+/* Define to 1 if you have the declaration of `getpagesize', and to 0 if you
+   don't. */
+#define HAVE_DECL_GETPAGESIZE 0
+
 /* Define to 1 if you have the declaration of `mlockall', and to 0 if you
    don't. */
 #define HAVE_DECL_MLOCKALL 1
@@ -110,6 +114,9 @@
 
 /* Define to 1 if you have the <event2/event.h> header file. */
 #define HAVE_EVENT2_EVENT_H 1
+
+/* Define to 1 if you have the `eventfd' function. */
+#define HAVE_EVENTFD 1
 
 /* Define to 1 if you have the `event_base_loopexit' function. */
 #define HAVE_EVENT_BASE_LOOPEXIT 1
@@ -302,6 +309,24 @@
 /* Define to 1 if the system has the type `ssize_t'. */
 #define HAVE_SSIZE_T 1
 
+/* Define to 1 if you have the `SSL_CIPHER_find' function. */
+/* #undef HAVE_SSL_CIPHER_FIND */
+
+/* Define to 1 if you have the `SSL_get_client_ciphers' function. */
+/* #undef HAVE_SSL_GET_CLIENT_CIPHERS */
+
+/* Define to 1 if you have the `SSL_get_client_random' function. */
+/* #undef HAVE_SSL_GET_CLIENT_RANDOM */
+
+/* Define to 1 if you have the `SSL_get_server_random' function. */
+/* #undef HAVE_SSL_GET_SERVER_RANDOM */
+
+/* Define to 1 if you have the `SSL_SESSION_get_master_key' function. */
+/* #undef HAVE_SSL_SESSION_GET_MASTER_KEY */
+
+/* Define to 1 if you have the `statvfs' function. */
+#define HAVE_STATVFS 1
+
 /* Define to 1 if you have the <stdint.h> header file. */
 #define HAVE_STDINT_H 1
 
@@ -319,6 +344,9 @@
 
 /* Define to 1 if you have the `strlcpy' function. */
 /* #undef HAVE_STRLCPY */
+
+/* Define to 1 if you have the `strnlen' function. */
+#define HAVE_STRNLEN 1
 
 /* Define to 1 if you have the `strptime' function. */
 #define HAVE_STRPTIME 1
@@ -350,14 +378,33 @@
 /* Define to 1 if `sin_len' is a member of `struct sockaddr_in'. */
 /* #undef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN */
 
+/* Define to 1 if `get_cipher_by_char' is a member of `struct ssl_method_st'.
+   */
+#define HAVE_STRUCT_SSL_METHOD_ST_GET_CIPHER_BY_CHAR 1
+
 /* Define to 1 if `tv_sec' is a member of `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL_TV_SEC 1
 
 /* Define to 1 if you have the `sysconf' function. */
 #define HAVE_SYSCONF 1
 
+/* Define to 1 if you have the `sysctl' function. */
+#define HAVE_SYSCTL 1
+
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
+
+/* Have systemd */
+/* #undef HAVE_SYSTEMD */
+
+/* Have systemd v209 or more */
+/* #undef HAVE_SYSTEMD_209 */
+
+/* Define to 1 if you have the <sys/capability.h> header file. */
+/* #undef HAVE_SYS_CAPABILITY_H */
+
+/* Define to 1 if you have the <sys/eventfd.h> header file. */
+#define HAVE_SYS_EVENTFD_H 1
 
 /* Define to 1 if you have the <sys/fcntl.h> header file. */
 #define HAVE_SYS_FCNTL_H 1
@@ -383,11 +430,23 @@
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #define HAVE_SYS_RESOURCE_H 1
 
+/* Define to 1 if you have the <sys/select.h> header file. */
+#define HAVE_SYS_SELECT_H 1
+
 /* Define to 1 if you have the <sys/socket.h> header file. */
 #define HAVE_SYS_SOCKET_H 1
 
+/* Define to 1 if you have the <sys/statvfs.h> header file. */
+#define HAVE_SYS_STATVFS_H 1
+
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
+
+/* Define to 1 if you have the <sys/syscall.h> header file. */
+#define HAVE_SYS_SYSCALL_H 1
+
+/* Define to 1 if you have the <sys/sysctl.h> header file. */
+#define HAVE_SYS_SYSCTL_H 1
 
 /* Define to 1 if you have the <sys/syslimits.h> header file. */
 /* #undef HAVE_SYS_SYSLIMITS_H */
@@ -413,6 +472,12 @@
 /* Define to 1 if you have the <time.h> header file. */
 #define HAVE_TIME_H 1
 
+/* Define to 1 if you have the `timingsafe_memcmp' function. */
+/* #undef HAVE_TIMINGSAFE_MEMCMP */
+
+/* Define to 1 if you have the `TLS_method' function. */
+/* #undef HAVE_TLS_METHOD */
+
 /* Define to 1 if you have the <ucontext.h> header file. */
 #define HAVE_UCONTEXT_H 1
 
@@ -424,6 +489,9 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #define HAVE_UNISTD_H 1
+
+/* Define to 1 if you have the `usleep' function. */
+#define HAVE_USLEEP 1
 
 /* Define to 1 if you have the <utime.h> header file. */
 #define HAVE_UTIME_H 1
@@ -482,7 +550,7 @@
 #define PACKAGE_NAME "tor"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "tor 0.2.5.1-alpha-dev"
+#define PACKAGE_STRING "tor 0.3.0.9"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "tor"
@@ -491,10 +559,14 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "0.2.5.1-alpha-dev"
+#define PACKAGE_VERSION "0.3.0.9"
 
 /* How to access the PC from a struct ucontext */
-/* #define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP] */
+#if defined(__arm__)
+#define PC_FROM_UCONTEXT uc_mcontext.arm_r0
+#else
+#define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP]
+#endif
 
 /* Define to 1 iff right-shifting a negative value performs sign-extension */
 #define RSHIFT_DOES_SIGN_EXTEND 1
@@ -591,7 +663,7 @@
 #define USING_TWOS_COMPLEMENT 1
 
 /* Version number of package */
-#define VERSION "0.2.5.1-alpha-dev"
+#define VERSION "0.3.0.9"
 
 /* Define WORDS_BIGENDIAN to 1 if your processor stores words with the most
    significant byte first (like Motorola and SPARC, unlike Intel). */
@@ -603,6 +675,11 @@
 # ifndef WORDS_BIGENDIAN
 /* #  undef WORDS_BIGENDIAN */
 # endif
+#endif
+
+/* Enable large inode numbers on Mac OS X 10.5.  */
+#ifndef _DARWIN_USE_64_BIT_INODE
+# define _DARWIN_USE_64_BIT_INODE 1
 #endif
 
 /* Number of bits in a file offset, on hosts where this is settable. */

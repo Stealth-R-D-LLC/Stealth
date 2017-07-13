@@ -1,20 +1,31 @@
 /* Copyright (c) 2001-2004, Roger Dingledine.
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
+
+/**
+ * \file ntmain.c
+ *
+ * \brief Entry points for running/configuring Tor as a Windows Service.
+ *
+ * Windows Services expect to be registered with the operating system, and to
+ * have entry points for starting, stopping, and monitoring them.  This module
+ * implements those entry points so that a tor relay or client or hidden
+ * service can run as a Windows service.  Therefore, this module
+ * is only compiled when building for Windows.
+ *
+ * Warning: this module is not very well tested or very well maintained.
+ */
+
+#ifdef _WIN32
 
 #include "or.h"
 #include "config.h"
 #include "onion_main.h"
 #include "ntmain.h"
 
-#ifdef HAVE_EVENT2_EVENT_H
 #include <event2/event.h>
-#else
-#include <event.h>
-#endif
 
-#include <winsock2.h>
 #include <windows.h>
 #define GENSRV_SERVICENAME  "tor"
 #define GENSRV_DISPLAYNAME  "Tor Win32 Service"
@@ -316,8 +327,10 @@ nt_service_main(void)
       case CMD_HASH_PASSWORD:
       case CMD_VERIFY_CONFIG:
       case CMD_DUMP_CONFIG:
+      case CMD_KEYGEN:
         log_err(LD_CONFIG, "Unsupported command (--list-fingerprint, "
-                "--hash-password, or --verify-config) in NT service.");
+               "--hash-password, --keygen, --dump-config, or --verify-config) "
+                "in NT service.");
         break;
       case CMD_RUN_UNITTESTS:
       default:
@@ -762,4 +775,6 @@ nt_service_parse_options(int argc, char **argv, int *should_exit)
   *should_exit = 0;
   return 0;
 }
+
+#endif
 
