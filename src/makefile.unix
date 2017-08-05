@@ -404,7 +404,7 @@ DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
 OBJS += obj/txdb-leveldb.o
 leveldb/out-static/libleveldb.a:
-	@echo "Building LevelDB ..."; cd leveldb; make; cd ..;
+	@echo "Building LevelDB ..."; cd leveldb; make staticlibs; cd ..;
 obj/txdb-leveldb.o: leveldb/out-static/libleveldb.a
 
 
