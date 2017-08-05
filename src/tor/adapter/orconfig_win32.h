@@ -44,7 +44,7 @@
 #undef HAVE_INET_ATON
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-/* #define HAVE_INTTYPES_H */
+#define HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H
@@ -266,7 +266,13 @@
 #define STDERR_FILENO 2
 #endif
 
-#define WINVER 0x0501
-#define _WIN32_WINNT 0x0501
+#ifndef WINVER
+#define WINVER 0x0502
+#endif
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0502
+#endif
+
 #define WIN32_LEAN_AND_MEAN 1
 

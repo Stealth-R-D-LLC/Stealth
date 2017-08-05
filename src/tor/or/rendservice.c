@@ -36,9 +36,7 @@
 #include "toradapter.h"
 
 extern int nTestNet;
-
 extern unsigned short p2p_port;
-
 
 struct rend_service_t;
 static origin_circuit_t *find_intro_circuit(rend_intro_point_t *intro,
@@ -374,8 +372,12 @@ rend_add_service(smartlist_t *service_list, rend_service_t *service)
                  "have no AF_UNIX support on this platform.  This is "
                  "probably a bug.",
                  p->virtual_port);
+// TODO: There must be a more specific test for AF_UNIX on mingw.
+//       Earlier versions of Tor did not abort here.
+#ifndef _WIN32
         rend_service_free(service);
         return -1;
+#endif
 #endif /* defined(HAVE_SYS_UN_H) */
       }
     }

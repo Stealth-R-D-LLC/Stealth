@@ -735,8 +735,11 @@ pick_ed25519_impl(void)
 {
   ed25519_impl = &impl_donna;
 
+// TODO: figure out ed25519 for windows
+#ifndef _WIN32
   if (ed25519_impl_spot_check() == 0)
     return;
+#endif
 
   /* LCOV_EXCL_START
    * unreachable unless ed25519_donna is broken */

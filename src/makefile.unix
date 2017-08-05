@@ -12,7 +12,6 @@
 # There are lots of flavors of unix. They put packages in all
 # kinds of places. You will have to find where yours are.
 # If you build from scratch, most libraries will go into /usr/local.
-# An exception is crypto++, which installs by default to /usr/.
 #
 # First, install git and clone the repo:
 #
@@ -33,7 +32,6 @@
 #     ZLib: http://www.zlib.net/
 #     Boost: http://www.boost.org/
 #     LibEvent: http://libevent.org/
-#     Crypto++: http://www.cryptopp.com/
 #
 # Once these packages are installed, you will have the correct
 # headers and static libraries.
@@ -66,7 +64,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/trunnel/hs" \
  -I"$(CURDIR)/src/libcryptopp" \
  -I"/usr/include" \
- -I"$(INC_LINUX)" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json"
@@ -78,7 +75,7 @@ USE_IPV6:=-
 
 
 LINK:=$(CXX)
-ARCH:=$(system lscpu | head -n 1 | awk '{print $2}')
+ARCH:=$(shell uname -m)
 
 DEFS=-DBOOST_SPIRIT_THREADSAFE
 
@@ -168,7 +165,9 @@ else
 endif
 
 
-ifeq (${ARCH}, i686)
+ifeq ($(ARCH),armv7l)
+    EXT_OPTIONS=
+else
     EXT_OPTIONS=-msse2
 endif
 
@@ -389,12 +388,9 @@ OBJS= \
     obj/noui.o \
     obj/kernel.o \
     obj/pbkdf2.o \
-    obj/scrypt_mine.o \
-    obj/scrypt-x86.o \
-    obj/scrypt-x86_64.o \
     obj/stealthtext.o \
     obj/stealthaddress.o \
-    obj/txdb-leveldb.o 
+    obj/txdb-leveldb.o
 
 all: StealthCoind
 
@@ -518,15 +514,6 @@ obj/toradapter.o: tor/adapter/toradapter.cpp
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
-
-obj/scrypt-x86.o: scrypt-x86.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
-
-obj/scrypt-x86_64.o: scrypt-x86_64.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
-
-obj/scrypt-arm.o: scrypt-arm.S
-	$(CXX) -c $(xCXXFLAGS) -MMD -o $@ $<
 
 StealthCoind: leveldb/out-static/libleveldb.a libcryptopp/libcryptopp.a \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
