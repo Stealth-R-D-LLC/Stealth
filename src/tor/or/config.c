@@ -485,7 +485,7 @@ static config_var_t option_vars_[] = {
   V(SocksListenAddress,          LINELIST, NULL),
   V(SocksPolicy,                 LINELIST, NULL),
   VPORT(SocksPort),
-  V(SocksTimeout,                INTERVAL, "2 minutes"),
+  V(SocksTimeout,                INTERVAL, "20 seconds"),
   V(SSLKeyLifetime,              INTERVAL, "0"),
   OBSOLETE("StrictEntryNodes"),
   OBSOLETE("StrictExitNodes"),
