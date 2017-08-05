@@ -231,7 +231,7 @@ uint256 GetRandHash();
 int64 GetTime();
 void SetMockTime(int64 nMockTimeIn);
 int64 GetAdjustedTime();
-long hex2long(const char* hexString);
+long hex2long(const unsigned char* hexString);
 std::string FormatFullVersion();
 std::string FormatVersionNumbers();
 std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);

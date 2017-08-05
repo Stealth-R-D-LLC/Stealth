@@ -569,8 +569,8 @@ Value decryptsend(const Array& params, bool fHelp)
 
     // make sure external transaction is within time window
     int adjtime = GetAdjustedTime();
-    if (((nTime < adjtime) && ((adjtime - nTime) > MaxTxnTimeDrift)) ||
-        ((nTime > adjtime) && ((nTime - adjtime) > MaxTxnTimeDrift))) {
+    if ((((int) nTime < adjtime) && ((adjtime - (int) nTime) > MaxTxnTimeDrift)) ||
+        (((int) nTime > adjtime) && (((int) nTime - adjtime) > MaxTxnTimeDrift))) {
             return string("<<Bad Timestamp>>");
     }
 

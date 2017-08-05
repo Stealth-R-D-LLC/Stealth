@@ -499,7 +499,7 @@ static const long hextable[] =
 };
 
 
-long hex2long(const char* hexString)
+long hex2long(const unsigned char* hexString)
 {
 	long ret = 0; 
 

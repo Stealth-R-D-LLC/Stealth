@@ -75,7 +75,7 @@ static const uint256 hashGenesisBlockTestNet (
 //          also, rewrite GetFork
 enum ForkNumbers
 {
-    XST_GENESIS = 0,
+    XST_LAUNCH = 0,
     XST_FORK005,
     TOTAL_FORKS
 };

@@ -83,13 +83,14 @@ int64 nReserveBalance = 0;
 //
 // forks
 //
+
 int GetFork(int nHeight)
 {   
     // Make sure Heights are ascending!
-    //                                          Height, Fork Number
     const int aForks[TOTAL_FORKS][2] = {   
-                                           {         0, XST_GENESIS},
-                                           {   1725001, XST_FORK005}
+    //                                          Height, Fork Number
+     /* Jul 4 02:47:04 MDT 2014 */          {         1,  XST_LAUNCH },
+                  /* 08/16/2017 */          {   1732201, XST_FORK005 }
                                        };
     
     if (fTestNet)
@@ -109,6 +110,40 @@ int GetFork(int nHeight)
        nFork = aForks[i][1];
     }
     return nFork;
+}
+
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// network
+//
+
+int GetMinPeerProtoVersion(int nHeight)
+{
+    // helps to prevent buffer overrun
+    static const int nVersions = 2;
+
+    // Make sure forks are ascending!
+    const int aVersions[nVersions][2] = {
+    //                                    Fork, Proto Version
+                   {                XST_LAUNCH,         62020 },
+                   {               XST_FORK005,         62100 }
+                                          };
+
+    int nFork = GetFork(nHeight);
+
+    int nVersion = aVersions[0][1];
+
+    for (int i = 1; i < nVersions; ++i)
+    {
+       if (aVersions[i][0] > nFork)
+       {
+           break;
+       }
+       nVersion = aVersions[i][1];
+    }
+
+    return nVersion;
 }
 
 
@@ -3177,7 +3212,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint64 nNonce = 1;
         uint64 verification_token = 0;
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
-        if (pfrom->nVersion < MIN_PROTO_VERSION)
+        if (pfrom->nVersion < GetMinPeerProtoVersion(nBestHeight))
         {
             // disconnect from peers older than this proto version
             printf("partner %s using obsolete version %i; disconnecting\n", pfrom->addr.ToString().c_str(), pfrom->nVersion);
@@ -3185,8 +3220,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             return false;
         }
 
-        if (pfrom->nVersion == 10300)
-            pfrom->nVersion = 300;
         if (!vRecv.empty())
             vRecv >> addrFrom >> verification_token >> nNonce;
         if (!vRecv.empty()) {
@@ -3516,6 +3549,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (strCommand == "getblocks")
     {
+        if (pfrom->nVersion < GetMinPeerProtoVersion(nBestHeight))
+        {
+            printf("partner %s using obsolete version %i; disconnecting\n", pfrom->addr.ToString().c_str(), pfrom->nVersion);
+            pfrom->fDisconnect = true;
+            return false;
+       }
+
         CBlockLocator locator;
         uint256 hashStop;
         vRecv >> locator >> hashStop;

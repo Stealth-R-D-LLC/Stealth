@@ -31,10 +31,19 @@ extern const std::string CLIENT_DATE;
 // 62010 : New rule to accept duplicate stake on bootstrap (only!)
 //         Technically not a network protocol difference
 // 62020 : Fixes signature malleability
-static const int PROTOCOL_VERSION = 62020;
+// 62200 : Mulisignatures
+static const int PROTOCOL_VERSION = 62100;
 
+// intial proto version, to be increased after version/verack negotiation
+static const int INIT_PROTO_VERSION = 61300;
+
+
+// This was MIN_PROTO_VERSION and has now bifurcated to
+// MIN_PEER_PROTO_VERSION and INIT_PROTO_VERSION.
+// This is replaced by a function, peers will be dropped that do not
+// support the same chain as this node.
 // earlier versions not supported as of Feb 2012, and are disconnected
-static const int MIN_PROTO_VERSION = 61300;
+// static const int MIN_PEER_PROTO_VERSION = 61300;
 
 // nTime field added to CAddress, starting with this version;
 // if possible, avoid requesting addresses nodes older than this
@@ -42,7 +51,7 @@ static const int CADDR_TIME_VERSION = 61001;
 
 // only request blocks from nodes outside this range of versions
 static const int NOBLKS_VERSION_START = 0;
-static const int NOBLKS_VERSION_END = 62999;
+static const int NOBLKS_VERSION_END = 62010;
 
 // BIP 0031, pong message, is enabled for all versions AFTER this one
 static const int BIP0031_VERSION = 60000;
@@ -53,8 +62,8 @@ static const int MEMPOOL_GD_VERSION = 60002;
 static const int DATABASE_VERSION = 61201;
 
 #define DISPLAY_VERSION_MAJOR       2
-#define DISPLAY_VERSION_MINOR       0
-#define DISPLAY_VERSION_REVISION    2
+#define DISPLAY_VERSION_MINOR       1
+#define DISPLAY_VERSION_REVISION    0
 #define DISPLAY_VERSION_BUILD       0
 
 #endif
