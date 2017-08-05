@@ -397,7 +397,7 @@ all: StealthCoind
 
 LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
 libcryptopp/libcryptopp.a:
-	@echo "Building libcryptopp ..."; cd libcryptopp; make static
+	@echo "Building libcryptopp ..."; cd libcryptopp; make libcryptopp.a; cd ..;
 
 LIBS += $(CURDIR)/leveldb/out-static/libleveldb.a $(CURDIR)/leveldb/out-static/libmemenv.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
