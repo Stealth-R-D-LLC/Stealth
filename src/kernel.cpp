@@ -450,7 +450,7 @@ unsigned int GetStakeModifierChecksum(const CBlockIndex* pindex)
     uint256 hashChecksum = Hash(ss.begin(), ss.end());
     hashChecksum >>= (256 - 32);
     if(fDebug)
-	printf("stake checksum: 0x%016"PRI64x"", hashChecksum.Get64());
+	printf("stake checksum: 0x%016"PRI64x"\n", hashChecksum.Get64());
     return hashChecksum.Get64();
 }
 

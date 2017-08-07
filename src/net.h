@@ -184,6 +184,7 @@ public:
     bool fNetworkNode;
     bool fSuccessfullyConnected;
     bool fDisconnect;
+    int nOrphans;
     CSemaphoreGrant grantOutbound;
 protected:
     int nRefCount;
@@ -237,6 +238,7 @@ public:
         fNetworkNode = false;
         fSuccessfullyConnected = false;
         fDisconnect = false;
+        nOrphans = 0;
         nRefCount = 0;
         nReleaseTime = 0;
         hashContinue = 0;

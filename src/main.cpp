@@ -56,6 +56,8 @@ uint256 hashBestChain = 0;
 CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
 
+static const int GETBLOCKS_LIMIT = 2000;
+
 
 CMedianFilter<int> cPeerBlockCounts(5, 0); // Amount of blocks that other nodes claim to have
 
@@ -2587,8 +2589,15 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool fIsBootstrap)
             pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(pblock2));
             // ppcoin: getblocks may not obtain the ancestor block rejected
             // earlier by duplicate-stake check so we ask for it again directly
-            if (!IsInitialBlockDownload())
+            if (IsInitialBlockDownload())
+            {
+                pfrom->nOrphans += 1;
+            }
+            else
+            {
+                pfrom->nOrphans = 0;
                 pfrom->AskFor(CInv(MSG_BLOCK, WantedByOrphan(pblock2)));
+            }
         }
         return true;
     }
@@ -3566,7 +3575,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Send the rest of the chain
         if (pindex)
             pindex = pindex->pnext;
-        int nLimit = 500;
+        int nLimit = GETBLOCKS_LIMIT;
         if (fDebug) {
           printf("getblocks %d to %s limit %d\n",
                  (pindex ? pindex->nHeight : -1),
@@ -3736,6 +3745,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (ProcessBlock(pfrom, &block))
             mapAlreadyAskedFor.erase(inv);
         if (block.nDoS) pfrom->Misbehaving(block.nDoS);
+        if (pfrom->nOrphans > 2 * GETBLOCKS_LIMIT)
+        {
+            printf("Node has exceeded max init download orphans.\n");
+            pfrom->Misbehaving(100);
+        }
     }
 
 
@@ -3887,12 +3901,11 @@ bool ProcessMessages(CNode* pfrom)
     }
     CDataStream& vRecv = pfrom->vRecv;
     if (vRecv.empty()) {
-        /*
-        if (fDebug) {
-             printf("ProcessMessages: %s message empty\n",
-                    pfrom->addr.ToString().c_str());
+        if (fDebug)
+        {
+            printf("ProcessMessages: %s [empty]\n",
+                      pfrom->addr.ToString().c_str());
         }
-        */
         return true;
     }
     //if (fDebug)
@@ -3939,6 +3952,10 @@ bool ProcessMessages(CNode* pfrom)
             continue;
         }
         string strCommand = hdr.GetCommand();
+        if (fDebug) {
+              printf("ProcessMessages: %s [%s]\n",
+                         pfrom->addr.ToString().c_str(), strCommand.c_str());
+        }
 
         // Message size
         unsigned int nMessageSize = hdr.nMessageSize;
