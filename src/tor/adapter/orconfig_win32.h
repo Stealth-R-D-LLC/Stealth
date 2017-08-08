@@ -44,7 +44,7 @@
 #undef HAVE_INET_ATON
 
 /* Define to 1 if you have the <inttypes.h> header file. */
-/* #define HAVE_INTTYPES_H */
+#define HAVE_INTTYPES_H 1
 
 /* Define to 1 if you have the <limits.h> header file. */
 #define HAVE_LIMITS_H
@@ -235,13 +235,13 @@
 /* Define to 1 iff unaligned int access is allowed */
 #define UNALIGNED_INT_ACCESS_OK
 
-#define HAVE_EVENT_H
+#define HAVE_EVENT_H 1
 
 /* Define to 1 iff we represent negative integers with two's complement */
 #define USING_TWOS_COMPLEMENT
 
 /* Version number of package */
-#define VERSION "0.2.5.1-alpha-dev"
+#define VERSION "0.3.0.9"
 
 
 
@@ -249,11 +249,30 @@
 #define HAVE_STRUCT_IN6_ADDR
 #define RSHIFT_DOES_SIGN_EXTEND
 #define FLEXIBLE_ARRAY_MEMBER 0
-#define HAVE_EVENT2_EVENT_H
+#define HAVE_EVENT2_EVENT_H 1
 #define SHARE_DATADIR ""
-#define HAVE_EVENT2_DNS_H
-#define HAVE_EVENT_BASE_LOOPEXIT
+#define HAVE_EVENT2_DNS_H 1
+#define HAVE_EVENT_BASE_LOOPEXIT 1
 #define CURVE25519_ENABLED
 #define USE_CURVE25519_DONNA
 
 #define ENUM_VALS_ARE_SIGNED 1
+
+#ifndef STDOUT_FILENO
+#define STDOUT_FILENO 1
+#endif
+
+#ifndef STDERR_FILENO
+#define STDERR_FILENO 2
+#endif
+
+#ifndef WINVER
+#define WINVER 0x0502
+#endif
+
+#ifndef _WIN32_WINNT
+#define _WIN32_WINNT 0x0502
+#endif
+
+#define WIN32_LEAN_AND_MEAN 1
+

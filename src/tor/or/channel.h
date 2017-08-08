@@ -1,4 +1,4 @@
-/* * Copyright (c) 2012-2013, The Tor Project, Inc. */
+/* * Copyright (c) 2012-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -18,7 +18,7 @@ typedef void (*channel_cell_handler_fn_ptr)(channel_t *, cell_t *);
 typedef void (*channel_var_cell_handler_fn_ptr)(channel_t *, var_cell_t *);
 
 struct cell_queue_entry_s;
-TOR_SIMPLEQ_HEAD(chan_cell_queue, cell_queue_entry_s) incoming_queue;
+TOR_SIMPLEQ_HEAD(chan_cell_queue, cell_queue_entry_s);
 typedef struct chan_cell_queue chan_cell_queue_t;
 
 /**
@@ -57,6 +57,32 @@ struct channel_s {
     CHANNEL_CLOSE_FOR_ERROR
   } reason_for_closing;
 
+  /** State variable for use by the scheduler */
+  enum {
+    /*
+     * The channel is not open, or it has a full output buffer but no queued
+     * cells.
+     */
+    SCHED_CHAN_IDLE = 0,
+    /*
+     * The channel has space on its output buffer to write, but no queued
+     * cells.
+     */
+    SCHED_CHAN_WAITING_FOR_CELLS,
+    /*
+     * The scheduler has queued cells but no output buffer space to write.
+     */
+    SCHED_CHAN_WAITING_TO_WRITE,
+    /*
+     * The scheduler has both queued cells and output buffer space, and is
+     * eligible for the scheduler loop.
+     */
+    SCHED_CHAN_PENDING
+  } scheduler_state;
+
+  /** Heap index for use by the scheduler */
+  int sched_heap_idx;
+
   /** Timestamps for both cell channels and listeners */
   time_t timestamp_created; /* Channel created */
   time_t timestamp_active; /* Any activity */
@@ -64,7 +90,7 @@ struct channel_s {
   /* Methods implemented by the lower layer */
 
   /** Free a channel */
-  void (*free)(channel_t *);
+  void (*free_fn)(channel_t *);
   /** Close an open channel */
   void (*close)(channel_t *);
   /** Describe the transport subclass for this channel */
@@ -79,6 +105,11 @@ struct channel_s {
   /* Methods implemented by the lower layer */
 
   /**
+   * Ask the lower layer for an estimate of the average overhead for
+   * transmissions on this channel.
+   */
+  double (*get_overhead_estimate)(channel_t *);
+  /*
    * Ask the underlying transport what the remote endpoint address is, in
    * a tor_addr_t.  This is optional and subclasses may leave this NULL.
    * If they implement it, they should write the address out to the
@@ -110,7 +141,11 @@ struct channel_s {
   int (*matches_extend_info)(channel_t *, extend_info_t *);
   /** Check if this channel matches a target address when extending */
   int (*matches_target)(channel_t *, const tor_addr_t *);
-  /** Write a cell to an open channel */
+  /* Ask the lower layer how many bytes it has queued but not yet sent */
+  size_t (*num_bytes_queued)(channel_t *);
+  /* Ask the lower layer how many cells can be written */
+  int (*num_cells_writeable)(channel_t *);
+  /* Write a cell to an open channel */
   int (*write_cell)(channel_t *, cell_t *);
   /** Write a packed cell to an open channel */
   int (*write_packed_cell)(channel_t *, packed_cell_t *);
@@ -118,16 +153,32 @@ struct channel_s {
   int (*write_var_cell)(channel_t *, var_cell_t *);
 
   /**
-   * Hash of the public RSA key for the other side's identity key, or
-   * zeroes if the other side hasn't shown us a valid identity key.
+   * Hash of the public RSA key for the other side's RSA identity key -- or
+   * zeroes if we don't have an RSA identity in mind for the other side, and
+   * it hasn't shown us one.
+   *
+   * Note that this is the RSA identity that we hope the other side has -- not
+   * necessarily its true identity.  Don't believe this identity unless
+   * authentication has happened.
    */
   char identity_digest[DIGEST_LEN];
+  /**
+   * Ed25519 key for the other side of this channel -- or zeroes if we don't
+   * have an Ed25519 identity in mind for the other side, and it hasn't shown
+   * us one.
+   *
+   * Note that this is the identity that we hope the other side has -- not
+   * necessarily its true identity.  Don't believe this identity unless
+   * authentication has happened.
+   */
+  ed25519_public_key_t ed25519_identity;
+
   /** Nickname of the OR on the other side, or NULL if none. */
   char *nickname;
 
   /**
-   * Linked list of channels with the same identity digest, for the
-   * digest->channel map
+   * Linked list of channels with the same RSA identity digest, for use with
+   * the digest->channel map
    */
   TOR_LIST_ENTRY(channel_s) next_with_same_id;
 
@@ -147,7 +198,7 @@ struct channel_s {
    * space should we use?
    */
   circ_id_type_bitfield_t circ_id_type:2;
-  /** DOCDOC*/
+  /* DOCDOC */
   unsigned wide_circ_ids:1;
 
   /** For how many circuits are we n_chan?  What about p_chan? */
@@ -198,8 +249,16 @@ struct channel_s {
   uint64_t dirreq_id;
 
   /** Channel counters for cell channels */
-  uint64_t n_cells_recved;
-  uint64_t n_cells_xmitted;
+  uint64_t n_cells_recved, n_bytes_recved;
+  uint64_t n_cells_xmitted, n_bytes_xmitted;
+
+  /** Our current contribution to the scheduler's total xmit queue */
+  uint64_t bytes_queued_for_xmit;
+
+  /** Number of bytes in this channel's cell queue; does not include
+   * lower-layer queueing.
+   */
+  uint64_t bytes_in_queue;
 };
 
 struct channel_listener_s {
@@ -230,7 +289,7 @@ struct channel_listener_s {
   /* Methods implemented by the lower layer */
 
   /** Free a channel */
-  void (*free)(channel_listener_t *);
+  void (*free_fn)(channel_listener_t *);
   /** Close an open channel */
   void (*close)(channel_listener_t *);
   /** Describe the transport subclass for this channel */
@@ -311,6 +370,39 @@ void channel_set_cmux_policy_everywhere(circuitmux_policy_t *pol);
 
 #ifdef TOR_CHANNEL_INTERNAL_
 
+#ifdef CHANNEL_PRIVATE_
+/* Cell queue structure (here rather than channel.c for test suite use) */
+
+typedef struct cell_queue_entry_s cell_queue_entry_t;
+struct cell_queue_entry_s {
+  TOR_SIMPLEQ_ENTRY(cell_queue_entry_s) next;
+  enum {
+    CELL_QUEUE_FIXED,
+    CELL_QUEUE_VAR,
+    CELL_QUEUE_PACKED
+  } type;
+  union {
+    struct {
+      cell_t *cell;
+    } fixed;
+    struct {
+      var_cell_t *var_cell;
+    } var;
+    struct {
+      packed_cell_t *packed_cell;
+    } packed;
+  } u;
+};
+
+/* Cell queue functions for benefit of test suite */
+STATIC int chan_cell_queue_len(const chan_cell_queue_t *queue);
+
+STATIC void cell_queue_entry_free(cell_queue_entry_t *q, int handed_off);
+
+void channel_write_cell_generic_(channel_t *chan, const char *cell_type,
+                                 void *cell, cell_queue_entry_t *q);
+#endif
+
 /* Channel operations for subclasses and internal use only */
 
 /* Initialize a newly allocated channel - do this first in subclass
@@ -351,7 +443,8 @@ void channel_mark_incoming(channel_t *chan);
 void channel_mark_outgoing(channel_t *chan);
 void channel_mark_remote(channel_t *chan);
 void channel_set_identity_digest(channel_t *chan,
-                                 const char *identity_digest);
+                                 const char *identity_digest,
+                                 const ed25519_public_key_t *ed_identity);
 void channel_set_remote_end(channel_t *chan,
                             const char *identity_digest,
                             const char *nickname);
@@ -384,7 +477,8 @@ void channel_queue_var_cell(channel_t *chan, var_cell_t *var_cell);
 void channel_flush_cells(channel_t *chan);
 
 /* Request from lower layer for more cells if available */
-ssize_t channel_flush_some_cells(channel_t *chan, ssize_t num_cells);
+MOCK_DECL(ssize_t, channel_flush_some_cells,
+          (channel_t *chan, ssize_t num_cells));
 
 /* Query if data available on this channel */
 int channel_more_to_flush(channel_t *chan);
@@ -394,6 +488,10 @@ void channel_notify_flushed(channel_t *chan);
 
 /* Handle stuff we need to do on open like notifying circuits */
 void channel_do_open_actions(channel_t *chan);
+
+#ifdef TOR_UNIT_TESTS
+extern uint64_t estimated_total_queue_size;
+#endif
 
 #endif
 
@@ -408,9 +506,11 @@ int channel_send_destroy(circid_t circ_id, channel_t *chan,
  */
 
 channel_t * channel_connect(const tor_addr_t *addr, uint16_t port,
-                            const char *id_digest);
+                            const char *rsa_id_digest,
+                            const ed25519_public_key_t *ed_id);
 
-channel_t * channel_get_for_extend(const char *digest,
+channel_t * channel_get_for_extend(const char *rsa_id_digest,
+                                   const ed25519_public_key_t *ed_id,
                                    const tor_addr_t *target_addr,
                                    const char **msg_out,
                                    int *launch_out);
@@ -424,18 +524,53 @@ int channel_is_better(time_t now,
  */
 
 channel_t * channel_find_by_global_id(uint64_t global_identifier);
-channel_t * channel_find_by_remote_digest(const char *identity_digest);
+channel_t * channel_find_by_remote_identity(const char *rsa_id_digest,
+                                            const ed25519_public_key_t *ed_id);
 
 /** For things returned by channel_find_by_remote_digest(), walk the list.
+ * The RSA key will match for all returned elements; the Ed25519 key might not.
  */
-channel_t * channel_next_with_digest(channel_t *chan);
+channel_t * channel_next_with_rsa_identity(channel_t *chan);
+
+/*
+ * Helper macros to lookup state of given channel.
+ */
+
+#define CHANNEL_IS_CLOSED(chan) (channel_is_in_state((chan), \
+                                 CHANNEL_STATE_CLOSED))
+#define CHANNEL_IS_OPENING(chan) (channel_is_in_state((chan), \
+                                  CHANNEL_STATE_OPENING))
+#define CHANNEL_IS_OPEN(chan) (channel_is_in_state((chan), \
+                               CHANNEL_STATE_OPEN))
+#define CHANNEL_IS_MAINT(chan) (channel_is_in_state((chan), \
+                                CHANNEL_STATE_MAINT))
+#define CHANNEL_IS_CLOSING(chan) (channel_is_in_state((chan), \
+                                  CHANNEL_STATE_CLOSING))
+#define CHANNEL_IS_ERROR(chan) (channel_is_in_state((chan), \
+                                CHANNEL_STATE_ERROR))
+
+#define CHANNEL_FINISHED(chan) (CHANNEL_IS_CLOSED(chan) || \
+                                CHANNEL_IS_ERROR(chan))
+
+#define CHANNEL_CONDEMNED(chan) (CHANNEL_IS_CLOSING(chan) || \
+                                 CHANNEL_FINISHED(chan))
+
+#define CHANNEL_CAN_HANDLE_CELLS(chan) (CHANNEL_IS_OPENING(chan) || \
+                                        CHANNEL_IS_OPEN(chan) || \
+                                        CHANNEL_IS_MAINT(chan))
+
+static inline int
+channel_is_in_state(channel_t *chan, channel_state_t state)
+{
+  return chan->state == state;
+}
 
 /*
  * Metadata queries/updates
  */
 
 const char * channel_describe_transport(channel_t *chan);
-void channel_dump_statistics(channel_t *chan, int severity);
+MOCK_DECL(void, channel_dump_statistics, (channel_t *chan, int severity));
 void channel_dump_transport_statistics(channel_t *chan, int severity);
 const char * channel_get_actual_remote_descr(channel_t *chan);
 const char * channel_get_actual_remote_address(channel_t *chan);
@@ -455,15 +590,23 @@ int channel_matches_extend_info(channel_t *chan, extend_info_t *extend_info);
 int channel_matches_target_addr_for_extend(channel_t *chan,
                                            const tor_addr_t *target);
 unsigned int channel_num_circuits(channel_t *chan);
-void channel_set_circid_type(channel_t *chan, crypto_pk_t *identity_rcvd,
-                             int consider_identity);
+MOCK_DECL(void,channel_set_circid_type,(channel_t *chan,
+                                        crypto_pk_t *identity_rcvd,
+                                        int consider_identity));
 void channel_timestamp_client(channel_t *chan);
+void channel_update_xmit_queue_size(channel_t *chan);
 
 const char * channel_listener_describe_transport(channel_listener_t *chan_l);
 void channel_listener_dump_statistics(channel_listener_t *chan_l,
                                       int severity);
 void channel_listener_dump_transport_statistics(channel_listener_t *chan_l,
                                                 int severity);
+
+void channel_update_bad_for_new_circs(const char *digest, int force);
+
+/* Flow control queries */
+uint64_t channel_get_global_queue_estimate(void);
+int channel_num_cells_writeable(channel_t *chan);
 
 /* Timestamp queries */
 time_t channel_when_created(channel_t *chan);

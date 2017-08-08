@@ -417,7 +417,7 @@ bool CheckProofOfStake(const CTransaction& tx, unsigned int nBits, uint256& hash
     //txdb.Close();
 
     // Verify signature
-    if (!VerifySignature(txPrev, tx, 0, true, 0))
+    if (!VerifySignature(txPrev, tx, 0, SCRIPT_VERIFY_NONE, 0))
         return tx.DoS(100, error("CheckProofOfStake() : VerifySignature failed on coinstake %s", tx.GetHash().ToString().c_str()));
 
     // Read block header
@@ -450,7 +450,7 @@ unsigned int GetStakeModifierChecksum(const CBlockIndex* pindex)
     uint256 hashChecksum = Hash(ss.begin(), ss.end());
     hashChecksum >>= (256 - 32);
     if(fDebug)
-	printf("stake checksum: 0x%016"PRI64x"", hashChecksum.Get64());
+	printf("stake checksum: 0x%016"PRI64x"\n", hashChecksum.Get64());
     return hashChecksum.Get64();
 }
 

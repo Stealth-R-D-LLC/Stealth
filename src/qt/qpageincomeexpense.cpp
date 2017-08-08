@@ -8,12 +8,12 @@
 
 QPageIncomeExpense::QPageIncomeExpense(QWidget *parent) :
     QStealthPage(parent),
+    fOutOfSync(1),
     nCountOfTransactions(0),
     currentBalance(0),
     currentStake(0),
     currentUnconfirmedBalance(0),
-    currentImmatureBalance(0),
-    fOutOfSync(1)
+    currentImmatureBalance(0)
 {
     txtBanner = new QStealthBlueInfo(STEALTH_PAGE_ID_OVERVIEW, this);
 

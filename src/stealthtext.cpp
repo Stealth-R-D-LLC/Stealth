@@ -3,23 +3,23 @@
 
 // cryptopp headers
 
-#include "cryptopp/hex.h"
+#include "libcryptopp/hex.h"
 using CryptoPP::HexEncoder;
 
-#include "cryptopp/base64.h"
+#include "libcryptopp/base64.h"
 using CryptoPP::Base64Decoder;
 
-#include "cryptopp/filters.h"
+#include "libcryptopp/filters.h"
 using CryptoPP::Redirector;
 using CryptoPP::StringSink;
 using CryptoPP::StringSource;
 using CryptoPP::AuthenticatedDecryptionFilter;
 
-#include "cryptopp/sha.h"
+#include "libcryptopp/sha.h"
 using CryptoPP::SHA256;
 using CryptoPP::HashFilter;
 
-#include "cryptopp/gcm.h"
+#include "libcryptopp/gcm.h"
 using CryptoPP::GCM;
 
 #include <boost/algorithm/string.hpp>

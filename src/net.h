@@ -55,6 +55,7 @@ enum
     LOCAL_MAX
 };
 
+bool IsPeerAddrLocalGood(CNode *pnode);
 void SetLimited(enum Network net, bool fLimited = true);
 bool IsLimited(enum Network net);
 bool IsLimited(const CNetAddr& addr);
@@ -112,6 +113,8 @@ enum threadId
 };
 
 extern bool fClient;
+extern bool fDiscover;
+extern bool fUseUPnP;
 extern uint64 nLocalServices;
 extern uint64 nLocalHostNonce;
 extern CAddress addrSeenByPeer;
@@ -181,6 +184,7 @@ public:
     bool fNetworkNode;
     bool fSuccessfullyConnected;
     bool fDisconnect;
+    int nOrphans;
     CSemaphoreGrant grantOutbound;
 protected:
     int nRefCount;
@@ -213,7 +217,7 @@ public:
     CCriticalSection cs_inventory;
     std::multimap<int64, CInv> mapAskFor;
 
-    CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn = "", bool fInboundIn=false) : vSend(SER_NETWORK, MIN_PROTO_VERSION), vRecv(SER_NETWORK, MIN_PROTO_VERSION)
+    CNode(SOCKET hSocketIn, CAddress addrIn, std::string addrNameIn = "", bool fInboundIn=false) : vSend(SER_NETWORK,  INIT_PROTO_VERSION), vRecv(SER_NETWORK, INIT_PROTO_VERSION)
     {
         nServices = 0;
         hSocket = hSocketIn;
@@ -234,6 +238,7 @@ public:
         fNetworkNode = false;
         fSuccessfullyConnected = false;
         fDisconnect = false;
+        nOrphans = 0;
         nRefCount = 0;
         nReleaseTime = 0;
         hashContinue = 0;

@@ -1,6 +1,6 @@
 /* Copyright (c) 2003-2004, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -22,6 +22,7 @@
 /* for the correct alias to struct stat */
 #include <sys/stat.h>
 #endif
+#include "util_bug.h"
 
 #ifndef O_BINARY
 #define O_BINARY 0
@@ -29,32 +30,9 @@
 #ifndef O_TEXT
 #define O_TEXT 0
 #endif
-
-/* Replace assert() with a variant that sends failures to the log before
- * calling assert() normally.
- */
-#ifdef NDEBUG
-/* Nobody should ever want to build with NDEBUG set.  99% of our asserts will
- * be outside the critical path anyway, so it's silly to disable bug-checking
- * throughout the entire program just because a few asserts are slowing you
- * down.  Profile, optimize the critical path, and keep debugging on.
- *
- * And I'm not just saying that because some of our asserts check
- * security-critical properties.
- */
-#error "Sorry; we don't support building with NDEBUG."
+#ifndef O_NOFOLLOW
+#define O_NOFOLLOW 0
 #endif
-
-/** Like assert(3), but send assertion failures to the log as well as to
- * stderr. */
-#define tor_assert(expr) STMT_BEGIN                                     \
-  if (PREDICT_UNLIKELY(!(expr))) {                                      \
-    tor_assertion_failed_(SHORT_FILE__, __LINE__, __func__, #expr);     \
-    abort();                                                            \
-  } STMT_END
-
-void tor_assertion_failed_(const char *fname, unsigned int line,
-                           const char *func, const char *expr);
 
 /* If we're building with dmalloc, we want all of our memory allocation
  * functions to take an extra file/line pair of arguments.  If not, not.
@@ -69,16 +47,12 @@ void tor_assertion_failed_(const char *fname, unsigned int line,
 #define DMALLOC_ARGS
 #endif
 
-/** Define this if you want Tor to crash when any problem comes up,
- * so you can get a coredump and track things down. */
-// #define tor_fragile_assert() tor_assert(0)
-#define tor_fragile_assert()
-
 /* Memory management */
 void *tor_malloc_(size_t size DMALLOC_PARAMS) ATTR_MALLOC;
 void *tor_malloc_zero_(size_t size DMALLOC_PARAMS) ATTR_MALLOC;
 void *tor_calloc_(size_t nmemb, size_t size DMALLOC_PARAMS) ATTR_MALLOC;
 void *tor_realloc_(void *ptr, size_t size DMALLOC_PARAMS);
+void *tor_reallocarray_(void *ptr, size_t size1, size_t size2 DMALLOC_PARAMS);
 char *tor_strdup_(const char *s DMALLOC_PARAMS) ATTR_MALLOC ATTR_NONNULL((1));
 char *tor_strndup_(const char *s, size_t n DMALLOC_PARAMS)
   ATTR_MALLOC ATTR_NONNULL((1));
@@ -87,6 +61,8 @@ void *tor_memdup_(const void *mem, size_t len DMALLOC_PARAMS)
 void *tor_memdup_nulterm_(const void *mem, size_t len DMALLOC_PARAMS)
   ATTR_MALLOC ATTR_NONNULL((1));
 void tor_free_(void *mem);
+uint64_t tor_htonll(uint64_t a);
+uint64_t tor_ntohll(uint64_t a);
 #ifdef USE_DMALLOC
 extern int dmalloc_free(const char *file, const int line, void *pnt,
                         const int func_id);
@@ -106,7 +82,7 @@ extern int dmalloc_free(const char *file, const int line, void *pnt,
  */
 #define tor_free(p) STMT_BEGIN                                 \
     if (PREDICT_LIKELY((p)!=NULL)) {                           \
-      free(p);                                                 \
+      raw_free(p);                                             \
       (p)=NULL;                                                \
     }                                                          \
   STMT_END
@@ -116,10 +92,20 @@ extern int dmalloc_free(const char *file, const int line, void *pnt,
 #define tor_malloc_zero(size)  tor_malloc_zero_(size DMALLOC_ARGS)
 #define tor_calloc(nmemb,size) tor_calloc_(nmemb, size DMALLOC_ARGS)
 #define tor_realloc(ptr, size) tor_realloc_(ptr, size DMALLOC_ARGS)
+#define tor_reallocarray(ptr, sz1, sz2) \
+  tor_reallocarray_((ptr), (sz1), (sz2) DMALLOC_ARGS)
 #define tor_strdup(s)          tor_strdup_(s DMALLOC_ARGS)
 #define tor_strndup(s, n)      tor_strndup_(s, n DMALLOC_ARGS)
 #define tor_memdup(s, n)       tor_memdup_(s, n DMALLOC_ARGS)
 #define tor_memdup_nulterm(s, n)       tor_memdup_nulterm_(s, n DMALLOC_ARGS)
+
+/* Aliases for the underlying system malloc/realloc/free. Only use
+ * them to indicate "I really want the underlying system function, I know
+ * what I'm doing." */
+#define raw_malloc  malloc
+#define raw_realloc realloc
+#define raw_free    free
+#define raw_strdup  strdup
 
 void tor_log_mallinfo(int severity);
 
@@ -169,7 +155,12 @@ uint64_t round_to_power_of_2(uint64_t u64);
 unsigned round_to_next_multiple_of(unsigned number, unsigned divisor);
 uint32_t round_uint32_to_next_multiple_of(uint32_t number, uint32_t divisor);
 uint64_t round_uint64_to_next_multiple_of(uint64_t number, uint64_t divisor);
+int64_t sample_laplace_distribution(double mu, double b, double p);
+int64_t add_laplace_noise(int64_t signal, double random, double delta_f,
+                          double epsilon);
 int n_bits_set_u8(uint8_t v);
+int64_t clamp_double_to_int64(double number);
+void simplify_fraction64(uint64_t *numer, uint64_t *denom);
 
 /* Compute the CEIL of <b>a</b> divided by <b>b</b>, for nonnegative <b>a</b>
  * and positive <b>b</b>.  Works on integer types only. Not defined if a+b can
@@ -195,6 +186,7 @@ void tor_strlower(char *s) ATTR_NONNULL((1));
 void tor_strupper(char *s) ATTR_NONNULL((1));
 int tor_strisprint(const char *s) ATTR_NONNULL((1));
 int tor_strisnonupper(const char *s) ATTR_NONNULL((1));
+int tor_strisspace(const char *s);
 int strcmp_opt(const char *s1, const char *s2);
 int strcmpstart(const char *s1, const char *s2) ATTR_NONNULL((1,2));
 int strcmp_len(const char *s1, const char *s2, size_t len) ATTR_NONNULL((1,2));
@@ -202,7 +194,6 @@ int strcasecmpstart(const char *s1, const char *s2) ATTR_NONNULL((1,2));
 int strcmpend(const char *s1, const char *s2) ATTR_NONNULL((1,2));
 int strcasecmpend(const char *s1, const char *s2) ATTR_NONNULL((1,2));
 int fast_memcmpstart(const void *mem, size_t memlen, const char *prefix);
-void tor_strclear(char *s);
 
 void tor_strstrip(char *s, const char *strip) ATTR_NONNULL((1,2));
 long tor_parse_long(const char *s, int base, long min,
@@ -224,11 +215,15 @@ const char *find_str_at_start_of_line(const char *haystack,
                                       const char *needle);
 int string_is_C_identifier(const char *string);
 int string_is_key_value(int severity, const char *string);
+int string_is_valid_hostname(const char *string);
+int string_is_valid_ipv4_address(const char *string);
+int string_is_valid_ipv6_address(const char *string);
 
 int tor_mem_is_zero(const char *mem, size_t len);
 int tor_digest_is_zero(const char *digest);
 int tor_digest256_is_zero(const char *digest);
 char *esc_for_log(const char *string) ATTR_MALLOC;
+char *esc_for_log_len(const char *chars, size_t n) ATTR_MALLOC;
 const char *escaped(const char *string);
 
 char *tor_escape_str_for_pt_args(const char *string,
@@ -245,10 +240,7 @@ void smartlist_add_asprintf(struct smartlist_t *sl, const char *pattern, ...)
 void smartlist_add_vasprintf(struct smartlist_t *sl, const char *pattern,
                              va_list args)
   CHECK_PRINTF(2, 0);
-
-int hex_decode_digit(char c);
-void base16_encode(char *dest, size_t destlen, const char *src, size_t srclen);
-int base16_decode(char *dest, size_t destlen, const char *src, size_t srclen);
+void smartlist_add_strdup(struct smartlist_t *sl, const char *string);
 
 /* Time helpers */
 long tv_udiff(const struct timeval *start, const struct timeval *end);
@@ -264,7 +256,9 @@ void format_local_iso_time(char *buf, time_t t);
 void format_iso_time(char *buf, time_t t);
 void format_iso_time_nospace(char *buf, time_t t);
 void format_iso_time_nospace_usec(char *buf, const struct timeval *tv);
+int parse_iso_time_(const char *cp, time_t *t, int strict, int nospace);
 int parse_iso_time(const char *buf, time_t *t);
+int parse_iso_time_nospace(const char *cp, time_t *t);
 int parse_http_time(const char *buf, struct tm *tm);
 int format_time_interval(char *out, size_t out_len, long interval);
 
@@ -310,6 +304,7 @@ typedef struct ratelim_t {
 } ratelim_t;
 
 #define RATELIM_INIT(r) { (r), 0, 0 }
+#define RATELIM_TOOMANY (16*1000*1000)
 
 char *rate_limit_log(ratelim_t *lim, time_t now);
 
@@ -329,21 +324,27 @@ const char *stream_status_to_string(enum stream_status stream_status);
 
 enum stream_status get_string_from_pipe(FILE *stream, char *buf, size_t count);
 
+MOCK_DECL(int,tor_unlink,(const char *pathname));
+
 /** Return values from file_status(); see that function's documentation
  * for details. */
-typedef enum { FN_ERROR, FN_NOENT, FN_FILE, FN_DIR } file_status_t;
+typedef enum { FN_ERROR, FN_NOENT, FN_FILE, FN_DIR, FN_EMPTY } file_status_t;
 file_status_t file_status(const char *filename);
 
 /** Possible behaviors for check_private_dir() on encountering a nonexistent
  * directory; see that function's documentation for details. */
 typedef unsigned int cpd_check_t;
-#define CPD_NONE 0
-#define CPD_CREATE 1
-#define CPD_CHECK 2
-#define CPD_GROUP_OK 4
-#define CPD_CHECK_MODE_ONLY 8
-int check_private_dir(const char *dirname, cpd_check_t check,
-                      const char *effective_user);
+#define CPD_NONE                 0
+#define CPD_CREATE               (1u << 0)
+#define CPD_CHECK                (1u << 1)
+#define CPD_GROUP_OK             (1u << 2)
+#define CPD_GROUP_READ           (1u << 3)
+#define CPD_CHECK_MODE_ONLY      (1u << 4)
+#define CPD_RELAX_DIRMODE_CHECK  (1u << 5)
+MOCK_DECL(int, check_private_dir,
+    (const char *dirname, cpd_check_t check,
+     const char *effective_user));
+
 #define OPEN_FLAGS_REPLACE (O_WRONLY|O_CREAT|O_TRUNC)
 #define OPEN_FLAGS_APPEND (O_WRONLY|O_CREAT|O_APPEND)
 #define OPEN_FLAGS_DONT_REPLACE (O_CREAT|O_EXCL|O_APPEND|O_WRONLY)
@@ -355,7 +356,8 @@ FILE *start_writing_to_stdio_file(const char *fname, int open_flags, int mode,
 FILE *fdopen_file(open_file_t *file_data);
 int finish_writing_to_file(open_file_t *file_data);
 int abort_writing_to_file(open_file_t *file_data);
-int write_str_to_file(const char *fname, const char *str, int bin);
+MOCK_DECL(int,
+write_str_to_file,(const char *fname, const char *str, int bin));
 MOCK_DECL(int,
 write_bytes_to_file,(const char *fname, const char *str, size_t len,
                      int bin));
@@ -380,24 +382,24 @@ int write_bytes_to_new_file(const char *fname, const char *str, size_t len,
 #ifndef _WIN32
 struct stat;
 #endif
-char *read_file_to_str(const char *filename, int flags, struct stat *stat_out)
-  ATTR_MALLOC;
+MOCK_DECL_ATTR(char *, read_file_to_str,
+               (const char *filename, int flags, struct stat *stat_out),
+               ATTR_MALLOC);
 char *read_file_to_str_until_eof(int fd, size_t max_bytes_to_read,
                                  size_t *sz_out)
   ATTR_MALLOC;
+const char *unescape_string(const char *s, char **result, size_t *size_out);
 const char *parse_config_line_from_str_verbose(const char *line,
                                        char **key_out, char **value_out,
                                        const char **err_out);
-#define parse_config_line_from_str(line,key_out,value_out) \
-  parse_config_line_from_str_verbose((line),(key_out),(value_out),NULL)
 char *expand_filename(const char *filename);
-struct smartlist_t *tor_listdir(const char *dirname);
+MOCK_DECL(struct smartlist_t *, tor_listdir, (const char *dirname));
 int path_is_relative(const char *filename);
 
 /* Process helpers */
 void start_daemon(void);
 void finish_daemon(const char *desired_cwd);
-void write_pidfile(char *filename);
+void write_pidfile(const char *filename);
 
 /* Port forwarding */
 void tor_check_port_forwarding(const char *filename,
@@ -453,12 +455,15 @@ struct process_handle_t {
   /** One of the PROCESS_STATUS_* values */
   int status;
 #ifdef _WIN32
+  HANDLE stdin_pipe;
   HANDLE stdout_pipe;
   HANDLE stderr_pipe;
   PROCESS_INFORMATION pid;
 #else
+  int stdin_pipe;
   int stdout_pipe;
   int stderr_pipe;
+  FILE *stdin_handle;
   FILE *stdout_handle;
   FILE *stderr_handle;
   pid_t pid;
@@ -549,9 +554,9 @@ STATIC int format_helper_exit_status(unsigned char child_state,
 
 #endif
 
-const char *libor_get_digests(void);
+int size_mul_check(const size_t x, const size_t y);
 
-#define ARRAY_LENGTH(x) (sizeof(x)) / sizeof(x[0])
+#define ARRAY_LENGTH(x) ((sizeof(x)) / sizeof(x[0]))
 
 #endif
 

@@ -1,6 +1,6 @@
 /* Copyright (c) 2003, Roger Dingledine
  * Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2013, The Tor Project, Inc. */
+ * Copyright (c) 2007-2016, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -8,10 +8,6 @@
  * \brief Common functions for strings, IO, network, data structures,
  * process control.
  **/
-
-/* This is required on rh7 to make strptime not complain.
- */
-#define _GNU_SOURCE
 
 #include "orconfig.h"
 #ifdef HAVE_FCNTL_H
@@ -27,6 +23,7 @@
 #include "sandbox.h"
 #include "backtrace.h"
 #include "util_process.h"
+#include "util_format.h"
 
 #ifdef _WIN32
 #include <io.h>
@@ -82,7 +79,7 @@
 #include <malloc/malloc.h>
 #endif
 #ifdef HAVE_MALLOC_H
-#if !defined(OPENBSD) && !defined(__FreeBSD__)
+#if !defined(OpenBSD) && !defined(__FreeBSD__)
 /* OpenBSD has a malloc.h, but for our purposes, it only exists in order to
  * scold us for being so stupid as to autodetect its presence.  To be fair,
  * they've done this since 1996, when autoconf was only 5 years old. */
@@ -95,23 +92,13 @@
 #ifdef HAVE_SYS_WAIT_H
 #include <sys/wait.h>
 #endif
+#if defined(HAVE_SYS_PRCTL_H) && defined(__linux__)
+#include <sys/prctl.h>
+#endif
 
-/* =====
- * Assertion helper.
- * ===== */
-/** Helper for tor_assert: report the assertion failure. */
-void
-tor_assertion_failed_(const char *fname, unsigned int line,
-                      const char *func, const char *expr)
-{
-  char buf[256];
-  log_err(LD_BUG, "%s:%u: %s: Assertion %s failed; aborting.",
-          fname, line, func, expr);
-  tor_snprintf(buf, sizeof(buf),
-               "Assertion %s failed in %s at %s:%u",
-               expr, func, fname, line);
-  log_backtrace(LOG_ERR, LD_BUG, buf);
-}
+#ifdef __clang_analyzer__
+#undef MALLOC_ZERO_WORKS
+#endif
 
 /* =====
  * Memory management
@@ -160,15 +147,17 @@ tor_malloc_(size_t size DMALLOC_PARAMS)
 #ifdef USE_DMALLOC
   result = dmalloc_malloc(file, line, size, DMALLOC_FUNC_MALLOC, 0, 0);
 #else
-  result = malloc(size);
+  result = raw_malloc(size);
 #endif
 
   if (PREDICT_UNLIKELY(result == NULL)) {
+    /* LCOV_EXCL_START */
     log_err(LD_MM,"Out of memory on malloc(). Dying.");
     /* If these functions die within a worker process, they won't call
      * spawn_exit, but that's ok, since the parent will run out of memory soon
      * anyway. */
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   return result;
 }
@@ -191,33 +180,41 @@ tor_malloc_zero_(size_t size DMALLOC_PARAMS)
   return result;
 }
 
+/* The square root of SIZE_MAX + 1.  If a is less than this, and b is less
+ * than this, then a*b is less than SIZE_MAX.  (For example, if size_t is
+ * 32 bits, then SIZE_MAX is 0xffffffff and this value is 0x10000.  If a and
+ * b are less than this, then their product is at most (65535*65535) ==
+ * 0xfffe0001. */
+#define SQRT_SIZE_MAX_P1 (((size_t)1) << (sizeof(size_t)*4))
+
+/** Return non-zero if and only if the product of the arguments is exact,
+ * and cannot overflow. */
+int
+size_mul_check(const size_t x, const size_t y)
+{
+  /* This first check is equivalent to
+     (x < SQRT_SIZE_MAX_P1 && y < SQRT_SIZE_MAX_P1)
+
+     Rationale: if either one of x or y is >= SQRT_SIZE_MAX_P1, then it
+     will have some bit set in its most significant half.
+   */
+  return ((x|y) < SQRT_SIZE_MAX_P1 ||
+          y == 0 ||
+          x <= SIZE_MAX / y);
+}
+
 /** Allocate a chunk of <b>nmemb</b>*<b>size</b> bytes of memory, fill
  * the memory with zero bytes, and return a pointer to the result.
  * Log and terminate the process on error.  (Same as
  * calloc(<b>nmemb</b>,<b>size</b>), but never returns NULL.)
- *
- * XXXX This implementation probably asserts in cases where it could
- * work, because it only tries dividing SIZE_MAX by size (according to
- * the calloc(3) man page, the size of an element of the nmemb-element
- * array to be allocated), not by nmemb (which could in theory be
- * smaller than size).  Don't do that then.
+ * The second argument (<b>size</b>) should preferably be non-zero
+ * and a compile-time constant.
  */
 void *
 tor_calloc_(size_t nmemb, size_t size DMALLOC_PARAMS)
 {
-  /* You may ask yourself, "wouldn't it be smart to use calloc instead of
-   * malloc+memset?  Perhaps libc's calloc knows some nifty optimization trick
-   * we don't!"  Indeed it does, but its optimizations are only a big win when
-   * we're allocating something very big (it knows if it just got the memory
-   * from the OS in a pre-zeroed state).  We don't want to use tor_malloc_zero
-   * for big stuff, so we don't bother with calloc. */
-  void *result;
-  size_t max_nmemb = (size == 0) ? SIZE_MAX : SIZE_MAX/size;
-
-  tor_assert(nmemb < max_nmemb);
-
-  result = tor_malloc_zero_((nmemb * size) DMALLOC_FN_ARGS);
-  return result;
+  tor_assert(size_mul_check(nmemb, size));
+  return tor_malloc_zero_((nmemb * size) DMALLOC_FN_ARGS);
 }
 
 /** Change the size of the memory block pointed to by <b>ptr</b> to <b>size</b>
@@ -231,17 +228,40 @@ tor_realloc_(void *ptr, size_t size DMALLOC_PARAMS)
 
   tor_assert(size < SIZE_T_CEILING);
 
+#ifndef MALLOC_ZERO_WORKS
+  /* Some libc mallocs don't work when size==0. Override them. */
+  if (size==0) {
+    size=1;
+  }
+#endif
+
 #ifdef USE_DMALLOC
   result = dmalloc_realloc(file, line, ptr, size, DMALLOC_FUNC_REALLOC, 0);
 #else
-  result = realloc(ptr, size);
+  result = raw_realloc(ptr, size);
 #endif
 
   if (PREDICT_UNLIKELY(result == NULL)) {
+    /* LCOV_EXCL_START */
     log_err(LD_MM,"Out of memory on realloc(). Dying.");
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   return result;
+}
+
+/**
+ * Try to realloc <b>ptr</b> so that it takes up sz1 * sz2 bytes.  Check for
+ * overflow. Unlike other allocation functions, return NULL on overflow.
+ */
+void *
+tor_reallocarray_(void *ptr, size_t sz1, size_t sz2 DMALLOC_PARAMS)
+{
+  /* XXXX we can make this return 0, but we would need to check all the
+   * reallocarray users. */
+  tor_assert(size_mul_check(sz1, sz2));
+
+  return tor_realloc(ptr, (sz1 * sz2) DMALLOC_FN_ARGS);
 }
 
 /** Return a newly allocated copy of the NUL-terminated string s. On
@@ -251,19 +271,21 @@ tor_realloc_(void *ptr, size_t size DMALLOC_PARAMS)
 char *
 tor_strdup_(const char *s DMALLOC_PARAMS)
 {
-  char *dup;
+  char *duplicate;
   tor_assert(s);
 
 #ifdef USE_DMALLOC
-  dup = dmalloc_strdup(file, line, s, 0);
+  duplicate = dmalloc_strdup(file, line, s, 0);
 #else
-  dup = strdup(s);
+  duplicate = raw_strdup(s);
 #endif
-  if (PREDICT_UNLIKELY(dup == NULL)) {
+  if (PREDICT_UNLIKELY(duplicate == NULL)) {
+    /* LCOV_EXCL_START */
     log_err(LD_MM,"Out of memory on strdup(). Dying.");
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
-  return dup;
+  return duplicate;
 }
 
 /** Allocate and return a new string containing the first <b>n</b>
@@ -275,17 +297,17 @@ tor_strdup_(const char *s DMALLOC_PARAMS)
 char *
 tor_strndup_(const char *s, size_t n DMALLOC_PARAMS)
 {
-  char *dup;
+  char *duplicate;
   tor_assert(s);
   tor_assert(n < SIZE_T_CEILING);
-  dup = tor_malloc_((n+1) DMALLOC_FN_ARGS);
+  duplicate = tor_malloc_((n+1) DMALLOC_FN_ARGS);
   /* Performance note: Ordinarily we prefer strlcpy to strncpy.  But
    * this function gets called a whole lot, and platform strncpy is
    * much faster than strlcpy when strlen(s) is much longer than n.
    */
-  strncpy(dup, s, n);
-  dup[n]='\0';
-  return dup;
+  strncpy(duplicate, s, n);
+  duplicate[n]='\0';
+  return duplicate;
 }
 
 /** Allocate a chunk of <b>len</b> bytes, with the same contents as the
@@ -293,12 +315,12 @@ tor_strndup_(const char *s, size_t n DMALLOC_PARAMS)
 void *
 tor_memdup_(const void *mem, size_t len DMALLOC_PARAMS)
 {
-  char *dup;
+  char *duplicate;
   tor_assert(len < SIZE_T_CEILING);
   tor_assert(mem);
-  dup = tor_malloc_(len DMALLOC_FN_ARGS);
-  memcpy(dup, mem, len);
-  return dup;
+  duplicate = tor_malloc_(len DMALLOC_FN_ARGS);
+  memcpy(duplicate, mem, len);
+  return duplicate;
 }
 
 /** As tor_memdup(), but add an extra 0 byte at the end of the resulting
@@ -306,13 +328,13 @@ tor_memdup_(const void *mem, size_t len DMALLOC_PARAMS)
 void *
 tor_memdup_nulterm_(const void *mem, size_t len DMALLOC_PARAMS)
 {
-  char *dup;
+  char *duplicate;
   tor_assert(len < SIZE_T_CEILING+1);
   tor_assert(mem);
-  dup = tor_malloc_(len+1 DMALLOC_FN_ARGS);
-  memcpy(dup, mem, len);
-  dup[len] = '\0';
-  return dup;
+  duplicate = tor_malloc_(len+1 DMALLOC_FN_ARGS);
+  memcpy(duplicate, mem, len);
+  duplicate[len] = '\0';
+  return duplicate;
 }
 
 /** Helper for places that need to take a function pointer to the right
@@ -323,6 +345,7 @@ tor_free_(void *mem)
   tor_free(mem);
 }
 
+DISABLE_GCC_WARNING(aggregate-return)
 /** Call the platform malloc info function, and dump the results to the log at
  * level <b>severity</b>.  If no such function exists, do nothing. */
 void
@@ -350,6 +373,7 @@ tor_log_mallinfo(int severity)
                       );
 #endif
 }
+ENABLE_GCC_WARNING(aggregate-return)
 
 /* =====
  * Math
@@ -452,33 +476,123 @@ round_to_power_of_2(uint64_t u64)
 }
 
 /** Return the lowest x such that x is at least <b>number</b>, and x modulo
- * <b>divisor</b> == 0. */
+ * <b>divisor</b> == 0.  If no such x can be expressed as an unsigned, return
+ * UINT_MAX */
 unsigned
 round_to_next_multiple_of(unsigned number, unsigned divisor)
 {
+  tor_assert(divisor > 0);
+  if (UINT_MAX - divisor + 1 < number)
+    return UINT_MAX;
   number += divisor - 1;
   number -= number % divisor;
   return number;
 }
 
 /** Return the lowest x such that x is at least <b>number</b>, and x modulo
- * <b>divisor</b> == 0. */
+ * <b>divisor</b> == 0. If no such x can be expressed as a uint32_t, return
+ * UINT32_MAX */
 uint32_t
 round_uint32_to_next_multiple_of(uint32_t number, uint32_t divisor)
 {
+  tor_assert(divisor > 0);
+  if (UINT32_MAX - divisor + 1 < number)
+    return UINT32_MAX;
+
   number += divisor - 1;
   number -= number % divisor;
   return number;
 }
 
 /** Return the lowest x such that x is at least <b>number</b>, and x modulo
- * <b>divisor</b> == 0. */
+ * <b>divisor</b> == 0. If no such x can be expressed as a uint64_t, return
+ * UINT64_MAX */
 uint64_t
 round_uint64_to_next_multiple_of(uint64_t number, uint64_t divisor)
 {
+  tor_assert(divisor > 0);
+  if (UINT64_MAX - divisor + 1 < number)
+    return UINT64_MAX;
   number += divisor - 1;
   number -= number % divisor;
   return number;
+}
+
+/** Transform a random value <b>p</b> from the uniform distribution in
+ * [0.0, 1.0[ into a Laplace distributed value with location parameter
+ * <b>mu</b> and scale parameter <b>b</b>. Truncate the final result
+ * to be an integer in [INT64_MIN, INT64_MAX]. */
+int64_t
+sample_laplace_distribution(double mu, double b, double p)
+{
+  double result;
+  tor_assert(p >= 0.0 && p < 1.0);
+
+  /* This is the "inverse cumulative distribution function" from:
+   * http://en.wikipedia.org/wiki/Laplace_distribution */
+  if (p <= 0.0) {
+    /* Avoid taking log(0.0) == -INFINITY, as some processors or compiler
+     * options can cause the program to trap. */
+    return INT64_MIN;
+  }
+
+  result = mu - b * (p > 0.5 ? 1.0 : -1.0)
+                  * tor_mathlog(1.0 - 2.0 * fabs(p - 0.5));
+
+  return clamp_double_to_int64(result);
+}
+
+/** Add random noise between INT64_MIN and INT64_MAX coming from a Laplace
+ * distribution with mu = 0 and b = <b>delta_f</b>/<b>epsilon</b> to
+ * <b>signal</b> based on the provided <b>random</b> value in [0.0, 1.0[.
+ * The epsilon value must be between ]0.0, 1.0]. delta_f must be greater
+ * than 0. */
+int64_t
+add_laplace_noise(int64_t signal_, double random_, double delta_f,
+                  double epsilon)
+{
+  int64_t noise;
+
+  /* epsilon MUST be between ]0.0, 1.0] */
+  tor_assert(epsilon > 0.0 && epsilon <= 1.0);
+  /* delta_f MUST be greater than 0. */
+  tor_assert(delta_f > 0.0);
+
+  /* Just add noise, no further signal */
+  noise = sample_laplace_distribution(0.0,
+                                      delta_f / epsilon,
+                                      random_);
+
+  /* Clip (signal + noise) to [INT64_MIN, INT64_MAX] */
+  if (noise > 0 && INT64_MAX - noise < signal_)
+    return INT64_MAX;
+  else if (noise < 0 && INT64_MIN - noise > signal_)
+    return INT64_MIN;
+  else
+    return signal_ + noise;
+}
+
+/* Helper: return greatest common divisor of a,b */
+static uint64_t
+gcd64(uint64_t a, uint64_t b)
+{
+  while (b) {
+    uint64_t t = b;
+    b = a % b;
+    a = t;
+  }
+  return a;
+}
+
+/* Given a fraction *<b>numer</b> / *<b>denom</b>, simplify it.
+ * Requires that the denominator is greater than 0. */
+void
+simplify_fraction64(uint64_t *numer, uint64_t *denom)
+{
+  tor_assert(denom);
+  uint64_t gcd = gcd64(*numer, *denom);
+  *numer /= gcd;
+  *denom /= gcd;
 }
 
 /** Return the number of bits set in <b>v</b>. */
@@ -516,12 +630,12 @@ n_bits_set_u8(uint8_t v)
 void
 tor_strstrip(char *s, const char *strip)
 {
-  char *read = s;
-  while (*read) {
-    if (strchr(strip, *read)) {
-      ++read;
+  char *readp = s;
+  while (*readp) {
+    if (strchr(strip, *readp)) {
+      ++readp;
     } else {
-      *s++ = *read++;
+      *s++ = *readp++;
     }
   }
   *s = '\0';
@@ -584,6 +698,19 @@ tor_strisnonupper(const char *s)
 {
   while (*s) {
     if (TOR_ISUPPER(*s))
+      return 0;
+    s++;
+  }
+  return 1;
+}
+
+/** Return true iff every character in <b>s</b> is whitespace space; else
+ * return false. */
+int
+tor_strisspace(const char *s)
+{
+  while (*s) {
+    if (!TOR_ISSPACE(*s))
       return 0;
     s++;
   }
@@ -682,16 +809,6 @@ fast_memcmpstart(const void *mem, size_t memlen,
   if (memlen < plen)
     return -1;
   return fast_memcmp(mem, prefix, plen);
-}
-
-/** Given a nul-terminated string s, set every character before the nul
- * to zero. */
-void
-tor_strclear(char *s)
-{
-  while (*s) {
-    *s++ = '\0';
-  }
 }
 
 /** Return a pointer to the first char of s that is not whitespace and
@@ -932,6 +1049,77 @@ string_is_key_value(int severity, const char *string)
   return 1;
 }
 
+/** Return true if <b>string</b> represents a valid IPv4 adddress in
+ * 'a.b.c.d' form.
+ */
+int
+string_is_valid_ipv4_address(const char *string)
+{
+  struct in_addr addr;
+
+  return (tor_inet_pton(AF_INET,string,&addr) == 1);
+}
+
+/** Return true if <b>string</b> represents a valid IPv6 address in
+ * a form that inet_pton() can parse.
+ */
+int
+string_is_valid_ipv6_address(const char *string)
+{
+  struct in6_addr addr;
+
+  return (tor_inet_pton(AF_INET6,string,&addr) == 1);
+}
+
+/** Return true iff <b>string</b> matches a pattern of DNS names
+ * that we allow Tor clients to connect to.
+ *
+ * Note: This allows certain technically invalid characters ('_') to cope
+ * with misconfigured zones that have been encountered in the wild.
+ */
+int
+string_is_valid_hostname(const char *string)
+{
+  int result = 1;
+  smartlist_t *components;
+
+  components = smartlist_new();
+
+  smartlist_split_string(components,string,".",0,0);
+
+  SMARTLIST_FOREACH_BEGIN(components, char *, c) {
+    if ((c[0] == '-') || (*c == '_')) {
+      result = 0;
+      break;
+    }
+
+    /* Allow a single terminating '.' used rarely to indicate domains
+     * are FQDNs rather than relative. */
+    if ((c_sl_idx > 0) && (c_sl_idx + 1 == c_sl_len) && !*c) {
+      continue;
+    }
+
+    do {
+      if ((*c >= 'a' && *c <= 'z') ||
+          (*c >= 'A' && *c <= 'Z') ||
+          (*c >= '0' && *c <= '9') ||
+          (*c == '-') || (*c == '_'))
+        c++;
+      else
+        result = 0;
+    } while (result && *c);
+
+  } SMARTLIST_FOREACH_END(c);
+
+  SMARTLIST_FOREACH_BEGIN(components, char *, c) {
+    tor_free(c);
+  } SMARTLIST_FOREACH_END(c);
+
+  smartlist_free(components);
+
+  return result;
+}
+
 /** Return true iff the DIGEST256_LEN bytes in digest are all zero. */
 int
 tor_digest256_is_zero(const char *digest)
@@ -950,6 +1138,9 @@ tor_digest256_is_zero(const char *digest)
     goto err;                                           \
   /* Were there unexpected unconverted characters? */   \
   if (!next && *endptr)                                 \
+    goto err;                                           \
+  /* Illogical (max, min) inputs? */                    \
+  if (BUG(max < min))                                   \
     goto err;                                           \
   /* Is r within limits? */                             \
   if (r < min || r > max)                               \
@@ -1060,88 +1251,6 @@ tor_parse_uint64(const char *s, int base, uint64_t min,
   CHECK_STRTOX_RESULT();
 }
 
-/** Encode the <b>srclen</b> bytes at <b>src</b> in a NUL-terminated,
- * uppercase hexadecimal string; store it in the <b>destlen</b>-byte buffer
- * <b>dest</b>.
- */
-void
-base16_encode(char *dest, size_t destlen, const char *src, size_t srclen)
-{
-  const char *end;
-  char *cp;
-
-  tor_assert(destlen >= srclen*2+1);
-  tor_assert(destlen < SIZE_T_CEILING);
-
-  cp = dest;
-  end = src+srclen;
-  while (src<end) {
-    *cp++ = "0123456789ABCDEF"[ (*(const uint8_t*)src) >> 4 ];
-    *cp++ = "0123456789ABCDEF"[ (*(const uint8_t*)src) & 0xf ];
-    ++src;
-  }
-  *cp = '\0';
-}
-
-/** Helper: given a hex digit, return its value, or -1 if it isn't hex. */
-static INLINE int
-hex_decode_digit_(char c)
-{
-  switch (c) {
-    case '0': return 0;
-    case '1': return 1;
-    case '2': return 2;
-    case '3': return 3;
-    case '4': return 4;
-    case '5': return 5;
-    case '6': return 6;
-    case '7': return 7;
-    case '8': return 8;
-    case '9': return 9;
-    case 'A': case 'a': return 10;
-    case 'B': case 'b': return 11;
-    case 'C': case 'c': return 12;
-    case 'D': case 'd': return 13;
-    case 'E': case 'e': return 14;
-    case 'F': case 'f': return 15;
-    default:
-      return -1;
-  }
-}
-
-/** Helper: given a hex digit, return its value, or -1 if it isn't hex. */
-int
-hex_decode_digit(char c)
-{
-  return hex_decode_digit_(c);
-}
-
-/** Given a hexadecimal string of <b>srclen</b> bytes in <b>src</b>, decode it
- * and store the result in the <b>destlen</b>-byte buffer at <b>dest</b>.
- * Return 0 on success, -1 on failure. */
-int
-base16_decode(char *dest, size_t destlen, const char *src, size_t srclen)
-{
-  const char *end;
-
-  int v1,v2;
-  if ((srclen % 2) != 0)
-    return -1;
-  if (destlen < srclen/2 || destlen > SIZE_T_CEILING)
-    return -1;
-  end = src+srclen;
-  while (src<end) {
-    v1 = hex_decode_digit_(*src);
-    v2 = hex_decode_digit_(*(src+1));
-    if (v1<0||v2<0)
-      return -1;
-    *(uint8_t*)dest = (v1<<4)|v2;
-    ++dest;
-    src+=2;
-  }
-  return 0;
-}
-
 /** Allocate and return a new string representing the contents of <b>s</b>,
  * surrounded by quotes and using standard C escapes.
  *
@@ -1183,9 +1292,14 @@ esc_for_log(const char *s)
     }
   }
 
+  tor_assert(len <= SSIZE_MAX);
+
   result = outp = tor_malloc(len);
   *outp++ = '\"';
   for (cp = s; *cp; ++cp) {
+    /* This assertion should always succeed, since we will write at least
+     * one char here, and two chars for closing quote and nul later */
+    tor_assert((outp-result) < (ssize_t)len-2);
     switch (*cp) {
       case '\\':
       case '\"':
@@ -1209,6 +1323,7 @@ esc_for_log(const char *s)
         if (TOR_ISPRINT(*cp) && ((uint8_t)*cp)<127) {
           *outp++ = *cp;
         } else {
+          tor_assert((outp-result) < (ssize_t)len-4);
           tor_snprintf(outp, 5, "\\%03o", (int)(uint8_t) *cp);
           outp += 4;
         }
@@ -1216,10 +1331,25 @@ esc_for_log(const char *s)
     }
   }
 
+  tor_assert((outp-result) <= (ssize_t)len-2);
   *outp++ = '\"';
   *outp++ = 0;
 
   return result;
+}
+
+/** Similar to esc_for_log. Allocate and return a new string representing
+ * the first n characters in <b>chars</b>, surround by quotes and using
+ * standard C escapes. If a NUL character is encountered in <b>chars</b>,
+ * the resulting string will be terminated there.
+ */
+char *
+esc_for_log_len(const char *chars, size_t n)
+{
+  char *string = tor_strndup(chars, n);
+  char *string_escaped = esc_for_log(string);
+  tor_free(string);
+  return string_escaped;
 }
 
 /** Allocate and return a new string representing the contents of <b>s</b>,
@@ -1284,42 +1414,138 @@ tor_escape_str_for_pt_args(const char *string, const char *chars_to_escape)
  * Time
  * ===== */
 
+#define TOR_USEC_PER_SEC 1000000
+
+/** Return the difference between start->tv_sec and end->tv_sec.
+ * Returns INT64_MAX on overflow and underflow.
+ */
+static int64_t
+tv_secdiff_impl(const struct timeval *start, const struct timeval *end)
+{
+  const int64_t s = (int64_t)start->tv_sec;
+  const int64_t e = (int64_t)end->tv_sec;
+
+  /* This may not be the most efficient way of implemeting this check,
+   * but it's easy to see that it's correct and doesn't overflow */
+
+  if (s > 0 && e < INT64_MIN + s) {
+    /* s is positive: equivalent to e - s < INT64_MIN, but without any
+     * overflow */
+    return INT64_MAX;
+  } else if (s < 0 && e > INT64_MAX + s) {
+    /* s is negative: equivalent to e - s > INT64_MAX, but without any
+     * overflow */
+    return INT64_MAX;
+  }
+
+  return e - s;
+}
+
 /** Return the number of microseconds elapsed between *start and *end.
+ * Returns LONG_MAX on overflow and underflow.
  */
 long
 tv_udiff(const struct timeval *start, const struct timeval *end)
 {
-  long udiff;
-  long secdiff = end->tv_sec - start->tv_sec;
-
-  if (labs(secdiff+1) > LONG_MAX/1000000) {
-    log_warn(LD_GENERAL, "comparing times on microsecond detail too far "
-             "apart: %ld seconds", secdiff);
+  /* Sanity check tv_usec */
+  if (start->tv_usec > TOR_USEC_PER_SEC || start->tv_usec < 0) {
+    log_warn(LD_GENERAL, "comparing times on microsecond detail with bad "
+             "start tv_usec: " I64_FORMAT " microseconds",
+             I64_PRINTF_ARG(start->tv_usec));
     return LONG_MAX;
   }
 
-  udiff = secdiff*1000000L + (end->tv_usec - start->tv_usec);
-  return udiff;
+  if (end->tv_usec > TOR_USEC_PER_SEC || end->tv_usec < 0) {
+    log_warn(LD_GENERAL, "comparing times on microsecond detail with bad "
+             "end tv_usec: " I64_FORMAT " microseconds",
+             I64_PRINTF_ARG(end->tv_usec));
+    return LONG_MAX;
+  }
+
+  /* Some BSDs have struct timeval.tv_sec 64-bit, but time_t (and long) 32-bit
+   */
+  int64_t udiff;
+  const int64_t secdiff = tv_secdiff_impl(start, end);
+
+  /* end->tv_usec - start->tv_usec can be up to 1 second either way */
+  if (secdiff > (int64_t)(LONG_MAX/1000000 - 1) ||
+      secdiff < (int64_t)(LONG_MIN/1000000 + 1)) {
+    log_warn(LD_GENERAL, "comparing times on microsecond detail too far "
+             "apart: " I64_FORMAT " seconds", I64_PRINTF_ARG(secdiff));
+    return LONG_MAX;
+  }
+
+  /* we'll never get an overflow here, because we check that both usecs are
+   * between 0 and TV_USEC_PER_SEC. */
+  udiff = secdiff*1000000 + ((int64_t)end->tv_usec - (int64_t)start->tv_usec);
+
+  /* Some compilers are smart enough to work out this is a no-op on L64 */
+#if SIZEOF_LONG < 8
+  if (udiff > (int64_t)LONG_MAX || udiff < (int64_t)LONG_MIN) {
+    return LONG_MAX;
+  }
+#endif
+
+  return (long)udiff;
 }
 
 /** Return the number of milliseconds elapsed between *start and *end.
+ * If the tv_usec difference is 500, rounds away from zero.
+ * Returns LONG_MAX on overflow and underflow.
  */
 long
 tv_mdiff(const struct timeval *start, const struct timeval *end)
 {
-  long mdiff;
-  long secdiff = end->tv_sec - start->tv_sec;
+  /* Sanity check tv_usec */
+  if (start->tv_usec > TOR_USEC_PER_SEC || start->tv_usec < 0) {
+    log_warn(LD_GENERAL, "comparing times on millisecond detail with bad "
+             "start tv_usec: " I64_FORMAT " microseconds",
+             I64_PRINTF_ARG(start->tv_usec));
+    return LONG_MAX;
+  }
 
-  if (labs(secdiff+1) > LONG_MAX/1000) {
+  if (end->tv_usec > TOR_USEC_PER_SEC || end->tv_usec < 0) {
+    log_warn(LD_GENERAL, "comparing times on millisecond detail with bad "
+             "end tv_usec: " I64_FORMAT " microseconds",
+             I64_PRINTF_ARG(end->tv_usec));
+    return LONG_MAX;
+  }
+
+  /* Some BSDs have struct timeval.tv_sec 64-bit, but time_t (and long) 32-bit
+   */
+  int64_t mdiff;
+  const int64_t secdiff = tv_secdiff_impl(start, end);
+
+  /* end->tv_usec - start->tv_usec can be up to 1 second either way, but the
+   * mdiff calculation may add another temporary second for rounding.
+   * Whether this actually causes overflow depends on the compiler's constant
+   * folding and order of operations. */
+  if (secdiff > (int64_t)(LONG_MAX/1000 - 2) ||
+      secdiff < (int64_t)(LONG_MIN/1000 + 1)) {
     log_warn(LD_GENERAL, "comparing times on millisecond detail too far "
-             "apart: %ld seconds", secdiff);
+             "apart: " I64_FORMAT " seconds", I64_PRINTF_ARG(secdiff));
     return LONG_MAX;
   }
 
   /* Subtract and round */
-  mdiff = secdiff*1000L +
-      ((long)end->tv_usec - (long)start->tv_usec + 500L) / 1000L;
-  return mdiff;
+  mdiff = secdiff*1000 +
+      /* We add a million usec here to ensure that the result is positive,
+       * so that the round-towards-zero behavior of the division will give
+       * the right result for rounding to the nearest msec. Later we subtract
+       * 1000 in order to get the correct result.
+       * We'll never get an overflow here, because we check that both usecs are
+       * between 0 and TV_USEC_PER_SEC. */
+      ((int64_t)end->tv_usec - (int64_t)start->tv_usec + 500 + 1000000) / 1000
+      - 1000;
+
+  /* Some compilers are smart enough to work out this is a no-op on L64 */
+#if SIZEOF_LONG < 8
+  if (mdiff > (int64_t)LONG_MAX || mdiff < (int64_t)LONG_MIN) {
+    return LONG_MAX;
+  }
+#endif
+
+  return (long)mdiff;
 }
 
 /**
@@ -1338,13 +1564,15 @@ tv_to_msec(const struct timeval *tv)
 #define IS_LEAPYEAR(y) (!(y % 4) && ((y % 100) || !(y % 400)))
 /** Helper: Return the number of leap-days between Jan 1, y1 and Jan 1, y2. */
 static int
-n_leapdays(int y1, int y2)
+n_leapdays(int year1, int year2)
 {
-  --y1;
-  --y2;
-  return (y2/4 - y1/4) - (y2/100 - y1/100) + (y2/400 - y1/400);
+  --year1;
+  --year2;
+  return (year2/4 - year1/4) - (year2/100 - year1/100)
+    + (year2/400 - year1/400);
 }
-/** Number of days per month in non-leap year; used by tor_timegm. */
+/** Number of days per month in non-leap year; used by tor_timegm and
+ * parse_rfc1123_time. */
 static const int days_per_month[] =
   { 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
@@ -1356,12 +1584,44 @@ tor_timegm(const struct tm *tm, time_t *time_out)
 {
   /* This is a pretty ironclad timegm implementation, snarfed from Python2.2.
    * It's way more brute-force than fiddling with tzset().
-   */
-  time_t year, days, hours, minutes, seconds;
-  int i;
-  year = tm->tm_year + 1900;
-  if (year < 1970 || tm->tm_mon < 0 || tm->tm_mon > 11 ||
-      tm->tm_year >= INT32_MAX-1900) {
+   *
+   * We use int64_t rather than time_t to avoid overflow on multiplication on
+   * platforms with 32-bit time_t. Since year is clipped to INT32_MAX, and
+   * since 365 * 24 * 60 * 60 is approximately 31 million, it's not possible
+   * for INT32_MAX years to overflow int64_t when converted to seconds. */
+  int64_t year, days, hours, minutes, seconds;
+  int i, invalid_year, dpm;
+
+  /* Initialize time_out to 0 for now, to avoid bad usage in case this function
+     fails and the caller ignores the return value. */
+  tor_assert(time_out);
+  *time_out = 0;
+
+  /* avoid int overflow on addition */
+  if (tm->tm_year < INT32_MAX-1900) {
+    year = tm->tm_year + 1900;
+  } else {
+    /* clamp year */
+    year = INT32_MAX;
+  }
+  invalid_year = (year < 1970 || tm->tm_year >= INT32_MAX-1900);
+
+  if (tm->tm_mon >= 0 && tm->tm_mon <= 11) {
+    dpm = days_per_month[tm->tm_mon];
+    if (tm->tm_mon == 1 && !invalid_year && IS_LEAPYEAR(tm->tm_year)) {
+      dpm = 29;
+    }
+  } else {
+    /* invalid month - default to 0 days per month */
+    dpm = 0;
+  }
+
+  if (invalid_year ||
+      tm->tm_mon < 0 || tm->tm_mon > 11 ||
+      tm->tm_mday < 1 || tm->tm_mday > dpm ||
+      tm->tm_hour < 0 || tm->tm_hour > 23 ||
+      tm->tm_min < 0 || tm->tm_min > 59 ||
+      tm->tm_sec < 0 || tm->tm_sec > 60) {
     log_warn(LD_BUG, "Out-of-range argument to tor_timegm");
     return -1;
   }
@@ -1375,7 +1635,17 @@ tor_timegm(const struct tm *tm, time_t *time_out)
 
   minutes = hours*60 + tm->tm_min;
   seconds = minutes*60 + tm->tm_sec;
-  *time_out = seconds;
+  /* Check that "seconds" will fit in a time_t. On platforms where time_t is
+   * 32-bit, this check will fail for dates in and after 2038.
+   *
+   * We already know that "seconds" can't be negative because "year" >= 1970 */
+#if SIZEOF_TIME_T < 8
+  if (seconds < TIME_MIN || seconds > TIME_MAX) {
+    log_warn(LD_BUG, "Result does not fit in tor_timegm");
+    return -1;
+  }
+#endif
+  *time_out = (time_t)seconds;
   return 0;
 }
 
@@ -1425,8 +1695,9 @@ parse_rfc1123_time(const char *buf, time_t *t)
   struct tm tm;
   char month[4];
   char weekday[4];
-  int i, m;
+  int i, m, invalid_year;
   unsigned tm_mday, tm_year, tm_hour, tm_min, tm_sec;
+  unsigned dpm;
 
   if (strlen(buf) != RFC1123_TIME_LEN)
     return -1;
@@ -1439,18 +1710,6 @@ parse_rfc1123_time(const char *buf, time_t *t)
     tor_free(esc);
     return -1;
   }
-  if (tm_mday < 1 || tm_mday > 31 || tm_hour > 23 || tm_min > 59 ||
-      tm_sec > 60 || tm_year >= INT32_MAX || tm_year < 1970) {
-    char *esc = esc_for_log(buf);
-    log_warn(LD_GENERAL, "Got invalid RFC1123 time %s", esc);
-    tor_free(esc);
-    return -1;
-  }
-  tm.tm_mday = (int)tm_mday;
-  tm.tm_year = (int)tm_year;
-  tm.tm_hour = (int)tm_hour;
-  tm.tm_min = (int)tm_min;
-  tm.tm_sec = (int)tm_sec;
 
   m = -1;
   for (i = 0; i < 12; ++i) {
@@ -1467,12 +1726,37 @@ parse_rfc1123_time(const char *buf, time_t *t)
   }
   tm.tm_mon = m;
 
+  invalid_year = (tm_year >= INT32_MAX || tm_year < 1970);
+  tor_assert(m >= 0 && m <= 11);
+  dpm = days_per_month[m];
+  if (m == 1 && !invalid_year && IS_LEAPYEAR(tm_year)) {
+    dpm = 29;
+  }
+
+  if (invalid_year || tm_mday < 1 || tm_mday > dpm ||
+      tm_hour > 23 || tm_min > 59 || tm_sec > 60) {
+    char *esc = esc_for_log(buf);
+    log_warn(LD_GENERAL, "Got invalid RFC1123 time %s", esc);
+    tor_free(esc);
+    return -1;
+  }
+  tm.tm_mday = (int)tm_mday;
+  tm.tm_year = (int)tm_year;
+  tm.tm_hour = (int)tm_hour;
+  tm.tm_min = (int)tm_min;
+  tm.tm_sec = (int)tm_sec;
+
   if (tm.tm_year < 1970) {
+    /* LCOV_EXCL_START
+     * XXXX I think this is dead code; we already checked for
+     *      invalid_year above. */
+    tor_assert_nonfatal_unreached();
     char *esc = esc_for_log(buf);
     log_warn(LD_GENERAL,
              "Got invalid RFC1123 time %s. (Before 1970)", esc);
     tor_free(esc);
     return -1;
+    /* LCOV_EXCL_STOP */
   }
   tm.tm_year -= 1900;
 
@@ -1523,15 +1807,27 @@ format_iso_time_nospace_usec(char *buf, const struct timeval *tv)
 
 /** Given an ISO-formatted UTC time value (after the epoch) in <b>cp</b>,
  * parse it and store its value in *<b>t</b>.  Return 0 on success, -1 on
- * failure.  Ignore extraneous stuff in <b>cp</b> separated by whitespace from
- * the end of the time string. */
+ * failure.  Ignore extraneous stuff in <b>cp</b> after the end of the time
+ * string, unless <b>strict</b> is set. If <b>nospace</b> is set,
+ * expect the YYYY-MM-DDTHH:MM:SS format. */
 int
-parse_iso_time(const char *cp, time_t *t)
+parse_iso_time_(const char *cp, time_t *t, int strict, int nospace)
 {
   struct tm st_tm;
   unsigned int year=0, month=0, day=0, hour=0, minute=0, second=0;
-  if (tor_sscanf(cp, "%u-%2u-%2u %2u:%2u:%2u", &year, &month,
-                &day, &hour, &minute, &second) < 6) {
+  int n_fields;
+  char extra_char, separator_char;
+  n_fields = tor_sscanf(cp, "%u-%2u-%2u%c%2u:%2u:%2u%c",
+                        &year, &month, &day,
+                        &separator_char,
+                        &hour, &minute, &second, &extra_char);
+  if (strict ? (n_fields != 7) : (n_fields < 7)) {
+    char *esc = esc_for_log(cp);
+    log_warn(LD_GENERAL, "ISO time %s was unparseable", esc);
+    tor_free(esc);
+    return -1;
+  }
+  if (separator_char != (nospace ? 'T' : ' ')) {
     char *esc = esc_for_log(cp);
     log_warn(LD_GENERAL, "ISO time %s was unparseable", esc);
     tor_free(esc);
@@ -1550,14 +1846,39 @@ parse_iso_time(const char *cp, time_t *t)
   st_tm.tm_hour = hour;
   st_tm.tm_min = minute;
   st_tm.tm_sec = second;
+  st_tm.tm_wday = 0; /* Should be ignored. */
 
   if (st_tm.tm_year < 70) {
+    /* LCOV_EXCL_START
+     * XXXX I think this is dead code; we already checked for
+     *      year < 1970 above. */
+    tor_assert_nonfatal_unreached();
     char *esc = esc_for_log(cp);
     log_warn(LD_GENERAL, "Got invalid ISO time %s. (Before 1970)", esc);
     tor_free(esc);
     return -1;
+    /* LCOV_EXCL_STOP */
   }
   return tor_timegm(&st_tm, t);
+}
+
+/** Given an ISO-formatted UTC time value (after the epoch) in <b>cp</b>,
+ * parse it and store its value in *<b>t</b>.  Return 0 on success, -1 on
+ * failure. Reject the string if any characters are present after the time.
+ */
+int
+parse_iso_time(const char *cp, time_t *t)
+{
+  return parse_iso_time_(cp, t, 1, 0);
+}
+
+/**
+ * As parse_iso_time, but parses a time encoded by format_iso_time_nospace().
+ */
+int
+parse_iso_time_nospace(const char *cp, time_t *t)
+{
+  return parse_iso_time_(cp, t, 1, 1);
 }
 
 /** Given a <b>date</b> in one of the three formats allowed by HTTP (ugh),
@@ -1607,6 +1928,7 @@ parse_http_time(const char *date, struct tm *tm)
   tm->tm_hour = (int)tm_hour;
   tm->tm_min = (int)tm_min;
   tm->tm_sec = (int)tm_sec;
+  tm->tm_wday = 0; /* Leave this unset. */
 
   month[3] = '\0';
   /* Okay, now decode the month. */
@@ -1638,7 +1960,11 @@ format_time_interval(char *out, size_t out_len, long interval)
 {
   /* We only report seconds if there's no hours. */
   long sec = 0, min = 0, hour = 0, day = 0;
-  if (interval < 0)
+
+  /* -LONG_MIN is LONG_MAX + 1, which causes signed overflow */
+  if (interval < -LONG_MAX)
+    interval = LONG_MAX;
+  else if (interval < 0)
     interval = -interval;
 
   if (interval >= 86400) {
@@ -1704,7 +2030,9 @@ update_approx_time(time_t now)
 
 /** If the rate-limiter <b>lim</b> is ready at <b>now</b>, return the number
  * of calls to rate_limit_is_ready (including this one!) since the last time
- * rate_limit_is_ready returned nonzero.  Otherwise return 0. */
+ * rate_limit_is_ready returned nonzero.  Otherwise return 0.
+ * If the call number hits <b>RATELIM_TOOMANY</b> limit, drop a warning
+ * about this event and stop counting. */
 static int
 rate_limit_is_ready(ratelim_t *lim, time_t now)
 {
@@ -1714,7 +2042,10 @@ rate_limit_is_ready(ratelim_t *lim, time_t now)
     lim->n_calls_since_last_time = 0;
     return res;
   } else {
-    ++lim->n_calls_since_last_time;
+    if (lim->n_calls_since_last_time <= RATELIM_TOOMANY) {
+      ++lim->n_calls_since_last_time;
+    }
+
     return 0;
   }
 }
@@ -1731,9 +2062,12 @@ rate_limit_log(ratelim_t *lim, time_t now)
       return tor_strdup("");
     } else {
       char *cp=NULL;
+      const char *opt_over = (n >= RATELIM_TOOMANY) ? "over " : "";
+      /* XXXX this is not exactly correct: the messages could have occurred
+       * any time between the old value of lim->allowed and now. */
       tor_asprintf(&cp,
-                   " [%d similar message(s) suppressed in last %d seconds]",
-                   n-1, lim->rate);
+                   " [%s%d similar message(s) suppressed in last %d seconds]",
+                   opt_over, n-1, lim->rate);
       return cp;
     }
   } else {
@@ -1754,7 +2088,7 @@ write_all(tor_socket_t fd, const char *buf, size_t count, int isSocket)
 {
   size_t written = 0;
   ssize_t result;
-  tor_assert(count < SSIZE_T_MAX);
+  tor_assert(count < SSIZE_MAX);
 
   while (written != count) {
     if (isSocket)
@@ -1779,8 +2113,10 @@ read_all(tor_socket_t fd, char *buf, size_t count, int isSocket)
   size_t numread = 0;
   ssize_t result;
 
-  if (count > SIZE_T_CEILING || count > SSIZE_T_MAX)
+  if (count > SIZE_T_CEILING || count > SSIZE_MAX) {
+    errno = EINVAL;
     return -1;
+  }
 
   while (numread != count) {
     if (isSocket)
@@ -1820,15 +2156,34 @@ clean_name_for_stat(char *name)
 #endif
 }
 
-/** Return FN_ERROR if filename can't be read, FN_NOENT if it doesn't
- * exist, FN_FILE if it is a regular file, or FN_DIR if it's a
- * directory.  On FN_ERROR, sets errno. */
+/** Wrapper for unlink() to make it mockable for the test suite; returns 0
+ * if unlinking the file succeeded, -1 and sets errno if unlinking fails.
+ */
+
+MOCK_IMPL(int,
+tor_unlink,(const char *pathname))
+{
+  return unlink(pathname);
+}
+
+/** Return:
+ * FN_ERROR if filename can't be read, is NULL, or is zero-length,
+ * FN_NOENT if it doesn't exist,
+ * FN_FILE if it is a non-empty regular file, or a FIFO on unix-like systems,
+ * FN_EMPTY for zero-byte regular files,
+ * FN_DIR if it's a directory, and
+ * FN_ERROR for any other file type.
+ * On FN_ERROR and FN_NOENT, sets errno.  (errno is not set when FN_ERROR
+ * is returned due to an unhandled file type.) */
 file_status_t
 file_status(const char *fname)
 {
   struct stat st;
   char *f;
   int r;
+  if (!fname || strlen(fname) == 0) {
+    return FN_ERROR;
+  }
   f = tor_strdup(fname);
   clean_name_for_stat(f);
   log_debug(LD_FS, "stat()ing %s", f);
@@ -1840,82 +2195,144 @@ file_status(const char *fname)
     }
     return FN_ERROR;
   }
-  if (st.st_mode & S_IFDIR)
+  if (st.st_mode & S_IFDIR) {
     return FN_DIR;
-  else if (st.st_mode & S_IFREG)
-    return FN_FILE;
+  } else if (st.st_mode & S_IFREG) {
+    if (st.st_size > 0) {
+      return FN_FILE;
+    } else if (st.st_size == 0) {
+      return FN_EMPTY;
+    } else {
+      return FN_ERROR;
+    }
 #ifndef _WIN32
-  else if (st.st_mode & S_IFIFO)
+  } else if (st.st_mode & S_IFIFO) {
     return FN_FILE;
 #endif
-  else
+  } else {
     return FN_ERROR;
+  }
 }
 
-/** Check whether <b>dirname</b> exists and is private.  If yes return 0.  If
- * it does not exist, and <b>check</b>&CPD_CREATE is set, try to create it
- * and return 0 on success. If it does not exist, and
- * <b>check</b>&CPD_CHECK, and we think we can create it, return 0.  Else
- * return -1.  If CPD_GROUP_OK is set, then it's okay if the directory
+/** Check whether <b>dirname</b> exists and is private.  If yes return 0.
+ * If <b>dirname</b> does not exist:
+ *  - if <b>check</b>&CPD_CREATE, try to create it and return 0 on success.
+ *  - if <b>check</b>&CPD_CHECK, and we think we can create it, return 0.
+ *  - if <b>check</b>&CPD_CHECK is false, and the directory exists, return 0.
+ *  - otherwise, return -1.
+ * If CPD_GROUP_OK is set, then it's okay if the directory
  * is group-readable, but in all cases we create the directory mode 0700.
- * If CPD_CHECK_MODE_ONLY is set, then we don't alter the directory permissions
- * if they are too permissive: we just return -1.
+ * If CPD_GROUP_READ is set, existing directory behaves as CPD_GROUP_OK and
+ * if the directory is created it will use mode 0750 with group read
+ * permission. Group read privileges also assume execute permission
+ * as norm for directories. If CPD_CHECK_MODE_ONLY is set, then we don't
+ * alter the directory permissions if they are too permissive:
+ * we just return -1.
  * When effective_user is not NULL, check permissions against the given user
  * and its primary group.
  */
-int
-check_private_dir(const char *dirname, cpd_check_t check,
-                  const char *effective_user)
+MOCK_IMPL(int,
+check_private_dir,(const char *dirname, cpd_check_t check,
+                   const char *effective_user))
 {
   int r;
   struct stat st;
-  char *f;
+
+  tor_assert(dirname);
+
 #ifndef _WIN32
-  int mask;
+  int fd;
   const struct passwd *pw = NULL;
   uid_t running_uid;
   gid_t running_gid;
-#else
-  (void)effective_user;
-#endif
 
-  tor_assert(dirname);
-  f = tor_strdup(dirname);
-  clean_name_for_stat(f);
-  log_debug(LD_FS, "stat()ing %s", f);
-  r = stat(sandbox_intern_string(f), &st);
-  tor_free(f);
-  if (r) {
+  /*
+   * Goal is to harden the implementation by removing any
+   * potential for race between stat() and chmod().
+   * chmod() accepts filename as argument. If an attacker can move
+   * the file between stat() and chmod(), a potential race exists.
+   *
+   * Several suggestions taken from:
+   * https://developer.apple.com/library/mac/documentation/
+   *     Security/Conceptual/SecureCodingGuide/Articles/RaceConditions.html
+   */
+
+  /* Open directory.
+   * O_NOFOLLOW to ensure that it does not follow symbolic links */
+  fd = open(sandbox_intern_string(dirname), O_NOFOLLOW);
+
+  /* Was there an error? Maybe the directory does not exist? */
+  if (fd == -1) {
+
     if (errno != ENOENT) {
+      /* Other directory error */
       log_warn(LD_FS, "Directory %s cannot be read: %s", dirname,
                strerror(errno));
       return -1;
     }
+
+    /* Received ENOENT: Directory does not exist */
+
+    /* Should we create the directory? */
     if (check & CPD_CREATE) {
       log_info(LD_GENERAL, "Creating directory %s", dirname);
-#if defined (_WIN32) && !defined (WINCE)
-      r = mkdir(dirname);
-#else
-      r = mkdir(dirname, 0700);
-#endif
+      if (check & CPD_GROUP_READ) {
+        r = mkdir(dirname, 0750);
+      } else {
+        r = mkdir(dirname, 0700);
+      }
+
+      /* check for mkdir() error */
       if (r) {
         log_warn(LD_FS, "Error creating directory %s: %s", dirname,
             strerror(errno));
         return -1;
       }
+
+      /* we just created the directory. try to open it again.
+       * permissions on the directory will be checked again below.*/
+      fd = open(sandbox_intern_string(dirname), O_NOFOLLOW);
+
+      if (fd == -1) {
+        log_warn(LD_FS, "Could not reopen recently created directory %s: %s",
+                 dirname,
+                 strerror(errno));
+        return -1;
+      } else {
+        close(fd);
+      }
+
     } else if (!(check & CPD_CHECK)) {
       log_warn(LD_FS, "Directory %s does not exist.", dirname);
       return -1;
     }
+
     /* XXXX In the case where check==CPD_CHECK, we should look at the
      * parent directory a little harder. */
     return 0;
   }
+
+  tor_assert(fd >= 0);
+
+  //f = tor_strdup(dirname);
+  //clean_name_for_stat(f);
+  log_debug(LD_FS, "stat()ing %s", dirname);
+  //r = stat(sandbox_intern_string(f), &st);
+  r = fstat(fd, &st);
+  if (r == -1) {
+      log_warn(LD_FS, "fstat() on directory %s failed.", dirname);
+      close(fd);
+      return -1;
+  }
+  //tor_free(f);
+
+  /* check that dirname is a directory */
   if (!(st.st_mode & S_IFDIR)) {
     log_warn(LD_FS, "%s is not a directory", dirname);
+    close(fd);
     return -1;
   }
-#ifndef _WIN32
+
   if (effective_user) {
     /* Look up the user and group information.
      * If we have a problem, bail out. */
@@ -1923,6 +2340,7 @@ check_private_dir(const char *dirname, cpd_check_t check,
     if (pw == NULL) {
       log_warn(LD_CONFIG, "Error setting configured user: %s not found",
                effective_user);
+      close(fd);
       return -1;
     }
     running_uid = pw->pw_uid;
@@ -1931,15 +2349,15 @@ check_private_dir(const char *dirname, cpd_check_t check,
     running_uid = getuid();
     running_gid = getgid();
   }
-
   if (st.st_uid != running_uid) {
-    const struct passwd *pw = NULL;
+    const struct passwd *pw_uid = NULL;
     char *process_ownername = NULL;
 
-    pw = tor_getpwuid(running_uid);
-    process_ownername = pw ? tor_strdup(pw->pw_name) : tor_strdup("<unknown>");
+    pw_uid = tor_getpwuid(running_uid);
+    process_ownername = pw_uid ? tor_strdup(pw_uid->pw_name) :
+      tor_strdup("<unknown>");
 
-    pw = tor_getpwuid(st.st_uid);
+    pw_uid = tor_getpwuid(st.st_uid);
 
     log_warn(LD_FS, "%s is not owned by this user (%s, %d) but by "
         "%s (%d). Perhaps you are running Tor as the wrong user?",
@@ -1947,9 +2365,11 @@ check_private_dir(const char *dirname, cpd_check_t check,
                          pw ? pw->pw_name : "<unknown>", (int)st.st_uid);
 
     tor_free(process_ownername);
+    close(fd);
     return -1;
   }
-  if ((check & CPD_GROUP_OK) && st.st_gid != running_gid) {
+  if ( (check & (CPD_GROUP_OK|CPD_GROUP_READ))
+       && (st.st_gid != running_gid) && (st.st_gid != 0)) {
     struct group *gr;
     char *process_groupname = NULL;
     gr = getgrgid(running_gid);
@@ -1962,32 +2382,79 @@ check_private_dir(const char *dirname, cpd_check_t check,
              gr ?  gr->gr_name : "<unknown>", (int)st.st_gid);
 
     tor_free(process_groupname);
+    close(fd);
     return -1;
   }
-  if (check & CPD_GROUP_OK) {
-    mask = 0027;
+  unsigned unwanted_bits = 0;
+  if (check & (CPD_GROUP_OK|CPD_GROUP_READ)) {
+    unwanted_bits = 0027;
   } else {
-    mask = 0077;
+    unwanted_bits = 0077;
   }
-  if (st.st_mode & mask) {
+  unsigned check_bits_filter = ~0;
+  if (check & CPD_RELAX_DIRMODE_CHECK) {
+    check_bits_filter = 0022;
+  }
+  if ((st.st_mode & unwanted_bits & check_bits_filter) != 0) {
     unsigned new_mode;
     if (check & CPD_CHECK_MODE_ONLY) {
       log_warn(LD_FS, "Permissions on directory %s are too permissive.",
                dirname);
+      close(fd);
       return -1;
     }
     log_warn(LD_FS, "Fixing permissions on directory %s", dirname);
     new_mode = st.st_mode;
     new_mode |= 0700; /* Owner should have rwx */
-    new_mode &= ~mask; /* Clear the other bits that we didn't want set...*/
-    if (chmod(dirname, new_mode)) {
+    if (check & CPD_GROUP_READ) {
+      new_mode |= 0050; /* Group should have rx */
+    }
+    new_mode &= ~unwanted_bits; /* Clear the bits that we didn't want set...*/
+    if (fchmod(fd, new_mode)) {
       log_warn(LD_FS, "Could not chmod directory %s: %s", dirname,
-          strerror(errno));
+               strerror(errno));
+      close(fd);
       return -1;
     } else {
+      close(fd);
       return 0;
     }
   }
+  close(fd);
+#else
+  /* Win32 case: we can't open() a directory. */
+  (void)effective_user;
+
+  char *f = tor_strdup(dirname);
+  clean_name_for_stat(f);
+  log_debug(LD_FS, "stat()ing %s", f);
+  r = stat(sandbox_intern_string(f), &st);
+  tor_free(f);
+  if (r) {
+    if (errno != ENOENT) {
+      log_warn(LD_FS, "Directory %s cannot be read: %s", dirname,
+               strerror(errno));
+      return -1;
+    }
+    if (check & CPD_CREATE) {
+      log_info(LD_GENERAL, "Creating directory %s", dirname);
+      r = mkdir(dirname);
+      if (r) {
+        log_warn(LD_FS, "Error creating directory %s: %s", dirname,
+                 strerror(errno));
+        return -1;
+      }
+    } else if (!(check & CPD_CHECK)) {
+      log_warn(LD_FS, "Directory %s does not exist.", dirname);
+      return -1;
+    }
+    return 0;
+  }
+  if (!(st.st_mode & S_IFDIR)) {
+    log_warn(LD_FS, "%s is not a directory", dirname);
+    return -1;
+  }
+
 #endif
   return 0;
 }
@@ -1999,8 +2466,8 @@ check_private_dir(const char *dirname, cpd_check_t check,
  * function, and all other functions in util.c that create files, create them
  * with mode 0600.
  */
-int
-write_str_to_file(const char *fname, const char *str, int bin)
+MOCK_IMPL(int,
+write_str_to_file,(const char *fname, const char *str, int bin))
 {
 #ifdef _WIN32
   if (!bin && strchr(str, '\r')) {
@@ -2161,19 +2628,20 @@ finish_writing_to_file_impl(open_file_t *file_data, int abort_write)
 
   if (file_data->rename_on_close) {
     tor_assert(file_data->tempname && file_data->filename);
+    if (!abort_write) {
+      tor_assert(strcmp(file_data->filename, file_data->tempname));
+      if (replace_file(file_data->tempname, file_data->filename)) {
+        log_warn(LD_FS, "Error replacing \"%s\": %s", file_data->filename,
+                 strerror(errno));
+        abort_write = r = -1;
+      }
+    }
     if (abort_write) {
       int res = unlink(file_data->tempname);
       if (res != 0) {
         /* We couldn't unlink and we'll leave a mess behind */
         log_warn(LD_FS, "Failed to unlink %s: %s",
                  file_data->tempname, strerror(errno));
-        r = -1;
-      }
-    } else {
-      tor_assert(strcmp(file_data->filename, file_data->tempname));
-      if (replace_file(file_data->tempname, file_data->filename)) {
-        log_warn(LD_FS, "Error replacing \"%s\": %s", file_data->filename,
-                 strerror(errno));
         r = -1;
       }
     }
@@ -2312,8 +2780,10 @@ read_file_to_str_until_eof(int fd, size_t max_bytes_to_read, size_t *sz_out)
   char *string = NULL;
   size_t string_max = 0;
 
-  if (max_bytes_to_read+1 >= SIZE_T_CEILING)
+  if (max_bytes_to_read+1 >= SIZE_T_CEILING) {
+    errno = EINVAL;
     return NULL;
+  }
 
   do {
     /* XXXX This "add 1K" approach is a little goofy; if we care about
@@ -2325,13 +2795,16 @@ read_file_to_str_until_eof(int fd, size_t max_bytes_to_read, size_t *sz_out)
     string = tor_realloc(string, string_max);
     r = read(fd, string + pos, string_max - pos - 1);
     if (r < 0) {
+      int save_errno = errno;
       tor_free(string);
+      errno = save_errno;
       return NULL;
     }
 
     pos += r;
   } while (r > 0 && pos < max_bytes_to_read);
 
+  tor_assert(pos < string_max);
   *sz_out = pos;
   string[pos] = '\0';
   return string;
@@ -2354,8 +2827,8 @@ read_file_to_str_until_eof(int fd, size_t max_bytes_to_read, size_t *sz_out)
  * the call to stat and the call to read_all: the resulting string will
  * be truncated.
  */
-char *
-read_file_to_str(const char *filename, int flags, struct stat *stat_out)
+MOCK_IMPL(char *,
+read_file_to_str, (const char *filename, int flags, struct stat *stat_out))
 {
   int fd; /* router file */
   struct stat statbuf;
@@ -2392,17 +2865,21 @@ read_file_to_str(const char *filename, int flags, struct stat *stat_out)
   if (S_ISFIFO(statbuf.st_mode)) {
     size_t sz = 0;
     string = read_file_to_str_until_eof(fd, FIFO_READ_MAX, &sz);
+    int save_errno = errno;
     if (string && stat_out) {
       statbuf.st_size = sz;
       memcpy(stat_out, &statbuf, sizeof(struct stat));
     }
     close(fd);
+    if (!string)
+      errno = save_errno;
     return string;
   }
 #endif
 
   if ((uint64_t)(statbuf.st_size)+1 >= SIZE_T_CEILING) {
     close(fd);
+    errno = EINVAL;
     return NULL;
   }
 
@@ -2459,7 +2936,7 @@ read_file_to_str(const char *filename, int flags, struct stat *stat_out)
  * provided), and return a pointer to the position in <b>s</b> immediately
  * after the string.  On failure, return NULL.
  */
-static const char *
+const char *
 unescape_string(const char *s, char **result, size_t *size_out)
 {
   const char *cp;
@@ -2506,9 +2983,11 @@ unescape_string(const char *s, char **result, size_t *size_out)
         if (size_out) *size_out = out - *result;
         return cp+1;
       case '\0':
+        /* LCOV_EXCL_START -- we caught this in parse_config_from_line. */
         tor_fragile_assert();
         tor_free(*result);
         return NULL;
+        /* LCOV_EXCL_STOP */
       case '\\':
         switch (cp[1])
           {
@@ -2522,8 +3001,12 @@ unescape_string(const char *s, char **result, size_t *size_out)
               x1 = hex_decode_digit(cp[2]);
               x2 = hex_decode_digit(cp[3]);
               if (x1 == -1 || x2 == -1) {
-                  tor_free(*result);
-                  return NULL;
+                /* LCOV_EXCL_START */
+                /* we caught this above in the initial loop. */
+                tor_assert_nonfatal_unreached();
+                tor_free(*result);
+                return NULL;
+                /* LCOV_EXCL_STOP */
               }
 
               *out++ = ((x1<<4) + x2);
@@ -2549,7 +3032,11 @@ unescape_string(const char *s, char **result, size_t *size_out)
             cp += 2;
             break;
           default:
+            /* LCOV_EXCL_START */
+            /* we caught this above in the initial loop. */
+            tor_assert_nonfatal_unreached();
             tor_free(*result); return NULL;
+            /* LCOV_EXCL_STOP */
           }
         break;
       default:
@@ -2572,38 +3059,9 @@ parse_config_line_from_str_verbose(const char *line, char **key_out,
                                    char **value_out,
                                    const char **err_out)
 {
-  /* I believe the file format here is supposed to be:
-     FILE = (EMPTYLINE | LINE)* (EMPTYLASTLINE | LASTLINE)?
-
-     EMPTYLASTLINE = SPACE* | COMMENT
-     EMPTYLINE = EMPTYLASTLINE NL
-     SPACE = ' ' | '\r' | '\t'
-     COMMENT = '#' NOT-NL*
-     NOT-NL = Any character except '\n'
-     NL = '\n'
-
-     LASTLINE = SPACE* KEY SPACE* VALUES
-     LINE = LASTLINE NL
-     KEY = KEYCHAR+
-     KEYCHAR = Any character except ' ', '\r', '\n', '\t', '#', "\"
-
-     VALUES = QUOTEDVALUE | NORMALVALUE
-     QUOTEDVALUE = QUOTE QVCHAR* QUOTE EOLSPACE?
-     QUOTE = '"'
-     QVCHAR = KEYCHAR | ESC ('n' | 't' | 'r' | '"' | ESC |'\'' | OCTAL | HEX)
-     ESC = "\\"
-     OCTAL = ODIGIT (ODIGIT ODIGIT?)?
-     HEX = ('x' | 'X') HEXDIGIT HEXDIGIT
-     ODIGIT = '0' .. '7'
-     HEXDIGIT = '0'..'9' | 'a' .. 'f' | 'A' .. 'F'
-     EOLSPACE = SPACE* COMMENT?
-
-     NORMALVALUE = (VALCHAR | ESC ESC_IGNORE | CONTINUATION)* EOLSPACE?
-     VALCHAR = Any character except ESC, '#', and '\n'
-     ESC_IGNORE = Any character except '#' or '\n'
-     CONTINUATION = ESC NL ( COMMENT NL )*
+  /*
+    See torrc_format.txt for a description of the (silly) format this parses.
    */
-
   const char *key, *val, *cp;
   int continuation = 0;
 
@@ -2650,6 +3108,8 @@ parse_config_line_from_str_verbose(const char *line, char **key_out,
       return NULL;
     }
     while (*line == ' ' || *line == '\t')
+      ++line;
+    if (*line == '\r' && *(++line) == '\n')
       ++line;
     if (*line && *line != '#' && *line != '\n') {
       if (err_out)
@@ -2723,6 +3183,10 @@ expand_filename(const char *filename)
 {
   tor_assert(filename);
 #ifdef _WIN32
+  /* Might consider using GetFullPathName() as described here:
+   * http://etutorials.org/Programming/secure+programming/
+   *     Chapter+3.+Input+Validation/3.7+Validating+Filenames+and+Paths/
+   */
   return tor_strdup(filename);
 #else
   if (*filename == '~') {
@@ -2755,7 +3219,7 @@ expand_filename(const char *filename)
       tor_free(username);
       rest = slash ? (slash+1) : "";
 #else
-      log_warn(LD_CONFIG, "Couldn't expend homedir on system without pwd.h");
+      log_warn(LD_CONFIG, "Couldn't expand homedir on system without pwd.h");
       return tor_strdup(filename);
 #endif
     }
@@ -2790,7 +3254,7 @@ digit_to_num(char d)
  * success, store the result in <b>out</b>, advance bufp to the next
  * character, and return 0.  On failure, return -1. */
 static int
-scan_unsigned(const char **bufp, unsigned long *out, int width, int base)
+scan_unsigned(const char **bufp, unsigned long *out, int width, unsigned base)
 {
   unsigned long result = 0;
   int scanned_so_far = 0;
@@ -2803,11 +3267,15 @@ scan_unsigned(const char **bufp, unsigned long *out, int width, int base)
 
   while (**bufp && (hex?TOR_ISXDIGIT(**bufp):TOR_ISDIGIT(**bufp))
          && scanned_so_far < width) {
-    int digit = hex?hex_decode_digit(*(*bufp)++):digit_to_num(*(*bufp)++);
-    unsigned long new_result = result * base + digit;
-    if (new_result < result)
-      return -1; /* over/underflow. */
-    result = new_result;
+    unsigned digit = hex?hex_decode_digit(*(*bufp)++):digit_to_num(*(*bufp)++);
+    // Check for overflow beforehand, without actually causing any overflow
+    // This preserves functionality on compilers that don't wrap overflow
+    // (i.e. that trap or optimise away overflow)
+    // result * base + digit > ULONG_MAX
+    // result * base > ULONG_MAX - digit
+    if (result > (ULONG_MAX - digit)/base)
+      return -1; /* Processing this digit would overflow */
+    result = result * base + digit;
     ++scanned_so_far;
   }
 
@@ -2842,10 +3310,18 @@ scan_signed(const char **bufp, long *out, int width)
   if (scan_unsigned(bufp, &result, width, 10) < 0)
     return -1;
 
-  if (neg) {
+  if (neg && result > 0) {
     if (result > ((unsigned long)LONG_MAX) + 1)
       return -1; /* Underflow */
-    *out = -(long)result;
+    else if (result == ((unsigned long)LONG_MAX) + 1)
+      *out = LONG_MIN;
+    else {
+      /* We once had a far more clever no-overflow conversion here, but
+       * some versions of GCC apparently ran it into the ground.  Now
+       * we just check for LONG_MIN explicitly.
+       */
+      *out = -(long)result;
+    }
   } else {
     if (result > LONG_MAX)
       return -1; /* Overflow */
@@ -2991,8 +3467,10 @@ tor_vsscanf(const char *buf, const char *pattern, va_list ap)
           *out = lng;
         } else {
           int *out = va_arg(ap, int *);
+#if LONG_MAX > INT_MAX
           if (lng < INT_MIN || lng > INT_MAX)
             return n_matched;
+#endif
           *out = (int)lng;
         }
         ++pattern;
@@ -3084,11 +3562,22 @@ smartlist_add_vasprintf(struct smartlist_t *sl, const char *pattern,
   smartlist_add(sl, str);
 }
 
+/** Append a copy of string to sl */
+void
+smartlist_add_strdup(struct smartlist_t *sl, const char *string)
+{
+  char *copy;
+
+  copy = tor_strdup(string);
+
+  smartlist_add(sl, copy);
+}
+
 /** Return a new list containing the filenames in the directory <b>dirname</b>.
  * Return NULL on error or if <b>dirname</b> is not a directory.
  */
-smartlist_t *
-tor_listdir(const char *dirname)
+MOCK_IMPL(smartlist_t *,
+tor_listdir, (const char *dirname))
 {
   smartlist_t *result;
 #ifdef _WIN32
@@ -3117,7 +3606,7 @@ tor_listdir(const char *dirname)
 #endif
     if (strcmp(name, ".") &&
         strcmp(name, "..")) {
-      smartlist_add(result, tor_strdup(name));
+      smartlist_add_strdup(result, name);
     }
     if (!FindNextFile(handle, &findData)) {
       DWORD err;
@@ -3143,7 +3632,7 @@ tor_listdir(const char *dirname)
     if (!strcmp(de->d_name, ".") ||
         !strcmp(de->d_name, ".."))
       continue;
-    smartlist_add(result, tor_strdup(de->d_name));
+    smartlist_add_strdup(result, de->d_name);
   }
   closedir(d);
 #endif
@@ -3195,13 +3684,17 @@ start_daemon(void)
   start_daemon_called = 1;
 
   if (pipe(daemon_filedes)) {
+    /* LCOV_EXCL_START */
     log_err(LD_GENERAL,"pipe failed; exiting. Error was %s", strerror(errno));
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   pid = fork();
   if (pid < 0) {
+    /* LCOV_EXCL_START */
     log_err(LD_GENERAL,"fork failed. Exiting.");
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   if (pid) {  /* Parent */
     int ok;
@@ -3263,8 +3756,10 @@ finish_daemon(const char *desired_cwd)
 
   nullfd = tor_open_cloexec("/dev/null", O_RDWR, 0);
   if (nullfd < 0) {
+    /* LCOV_EXCL_START */
     log_err(LD_GENERAL,"/dev/null can't be opened. Exiting.");
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   /* close fds linking to invoking terminal, but
    * close usual incoming fds, but redirect them somewhere
@@ -3273,8 +3768,10 @@ finish_daemon(const char *desired_cwd)
   if (dup2(nullfd,0) < 0 ||
       dup2(nullfd,1) < 0 ||
       dup2(nullfd,2) < 0) {
+    /* LCOV_EXCL_START */
     log_err(LD_GENERAL,"dup2 failed. Exiting.");
     exit(1);
+    /* LCOV_EXCL_STOP */
   }
   if (nullfd > 2)
     close(nullfd);
@@ -3300,7 +3797,7 @@ finish_daemon(const char *cp)
 /** Write the current process ID, followed by NL, into <b>filename</b>.
  */
 void
-write_pidfile(char *filename)
+write_pidfile(const char *filename)
 {
   FILE *pidfile;
 
@@ -3378,8 +3875,9 @@ format_win_cmdline_argument(const char *arg)
     smartlist_add(arg_chars, (void*)&backslash);
 
   /* Allocate space for argument, quotes (if needed), and terminator */
-  formatted_arg = tor_malloc(sizeof(char) *
-      (smartlist_len(arg_chars) + (need_quotes?2:0) + 1));
+  const size_t formatted_arg_len = smartlist_len(arg_chars) +
+    (need_quotes ? 2 : 0) + 1;
+  formatted_arg = tor_malloc_zero(formatted_arg_len);
 
   /* Add leading quote */
   i=0;
@@ -3387,9 +3885,9 @@ format_win_cmdline_argument(const char *arg)
     formatted_arg[i++] = '"';
 
   /* Add characters */
-  SMARTLIST_FOREACH(arg_chars, char*, c,
+  SMARTLIST_FOREACH(arg_chars, char*, ch,
   {
-    formatted_arg[i++] = *c;
+    formatted_arg[i++] = *ch;
   });
 
   /* Add trailing quote */
@@ -3470,7 +3968,7 @@ format_number_sigsafe(unsigned long x, char *buf, int buf_len,
 
   /* NOT tor_assert; see above. */
   if (cp != buf) {
-    abort();
+    abort(); // LCOV_EXCL_LINE
   }
 
   return len;
@@ -3544,7 +4042,13 @@ format_helper_exit_status(unsigned char child_state, int saved_errno,
 
   /* Convert errno to be unsigned for hex conversion */
   if (saved_errno < 0) {
-    unsigned_errno = (unsigned int) -saved_errno;
+    // Avoid overflow on the cast to unsigned int when result is INT_MIN
+    // by adding 1 to the signed int negative value,
+    // then, after it has been negated and cast to unsigned,
+    // adding the original 1 back (the double-addition is intentional).
+    // Otherwise, the cast to signed could cause a temporary int
+    // to equal INT_MAX + 1, which is undefined.
+    unsigned_errno = ((unsigned int) -(saved_errno + 1)) + 1;
   } else {
     unsigned_errno = (unsigned int) saved_errno;
   }
@@ -3623,8 +4127,13 @@ format_helper_exit_status(unsigned char child_state, int saved_errno,
 /* Maximum number of file descriptors, if we cannot get it via sysconf() */
 #define DEFAULT_MAX_FD 256
 
-/** Terminate the process of <b>process_handle</b>.
- *  Code borrowed from Python's os.kill. */
+/** Terminate the process of <b>process_handle</b>, if that process has not
+ * already exited.
+ *
+ * Return 0 if we succeeded in terminating the process (or if the process
+ * already exited), and -1 if we tried to kill the process but failed.
+ *
+ * Based on code originally borrowed from Python's os.kill. */
 int
 tor_terminate_process(process_handle_t *process_handle)
 {
@@ -3644,7 +4153,7 @@ tor_terminate_process(process_handle_t *process_handle)
   }
 #endif
 
-  return -1;
+  return 0; /* We didn't need to kill the process, so report success */
 }
 
 /** Return the Process ID of <b>process_handle</b>. */
@@ -3680,9 +4189,11 @@ process_handle_new(void)
   process_handle_t *out = tor_malloc_zero(sizeof(process_handle_t));
 
 #ifdef _WIN32
+  out->stdin_pipe = INVALID_HANDLE_VALUE;
   out->stdout_pipe = INVALID_HANDLE_VALUE;
   out->stderr_pipe = INVALID_HANDLE_VALUE;
 #else
+  out->stdin_pipe = -1;
   out->stdout_pipe = -1;
   out->stderr_pipe = -1;
 #endif
@@ -3722,7 +4233,7 @@ process_handle_waitpid_cb(int status, void *arg)
 #define CHILD_STATE_FORK 3
 #define CHILD_STATE_DUPOUT 4
 #define CHILD_STATE_DUPERR 5
-#define CHILD_STATE_REDIRECT 6
+#define CHILD_STATE_DUPIN 6
 #define CHILD_STATE_CLOSEFD 7
 #define CHILD_STATE_EXEC 8
 #define CHILD_STATE_FAILEXEC 9
@@ -3756,6 +4267,8 @@ tor_spawn_background(const char *const filename, const char **argv,
   HANDLE stdout_pipe_write = NULL;
   HANDLE stderr_pipe_read = NULL;
   HANDLE stderr_pipe_write = NULL;
+  HANDLE stdin_pipe_read = NULL;
+  HANDLE stdin_pipe_write = NULL;
   process_handle_t *process_handle;
   int status;
 
@@ -3801,6 +4314,20 @@ tor_spawn_background(const char *const filename, const char **argv,
     return status;
   }
 
+  /* Set up pipe for stdin */
+  if (!CreatePipe(&stdin_pipe_read, &stdin_pipe_write, &saAttr, 0)) {
+    log_warn(LD_GENERAL,
+      "Failed to create pipe for stdin communication with child process: %s",
+      format_win32_error(GetLastError()));
+    return status;
+  }
+  if (!SetHandleInformation(stdin_pipe_write, HANDLE_FLAG_INHERIT, 0)) {
+    log_warn(LD_GENERAL,
+      "Failed to configure pipe for stdin communication with child "
+      "process: %s", format_win32_error(GetLastError()));
+    return status;
+  }
+
   /* Create the child process */
 
   /* Windows expects argv to be a whitespace delimited string, so join argv up
@@ -3815,7 +4342,7 @@ tor_spawn_background(const char *const filename, const char **argv,
   siStartInfo.cb = sizeof(STARTUPINFO);
   siStartInfo.hStdError = stderr_pipe_write;
   siStartInfo.hStdOutput = stdout_pipe_write;
-  siStartInfo.hStdInput = NULL;
+  siStartInfo.hStdInput = stdin_pipe_read;
   siStartInfo.dwFlags |= STARTF_USESTDHANDLES;
 
   /* Create the child process */
@@ -3845,6 +4372,7 @@ tor_spawn_background(const char *const filename, const char **argv,
     /* TODO: Close hProcess and hThread in process_handle->pid? */
     process_handle->stdout_pipe = stdout_pipe_read;
     process_handle->stderr_pipe = stderr_pipe_read;
+    process_handle->stdin_pipe = stdin_pipe_write;
     status = process_handle->status = PROCESS_STATUS_RUNNING;
   }
 
@@ -3855,6 +4383,7 @@ tor_spawn_background(const char *const filename, const char **argv,
   pid_t pid;
   int stdout_pipe[2];
   int stderr_pipe[2];
+  int stdin_pipe[2];
   int fd, retval;
   ssize_t nbytes;
   process_handle_t *process_handle;
@@ -3879,7 +4408,7 @@ tor_spawn_background(const char *const filename, const char **argv,
 
   child_state = CHILD_STATE_PIPE;
 
-  /* Set up pipe for redirecting stdout and stderr of child */
+  /* Set up pipe for redirecting stdout, stderr, and stdin of child */
   retval = pipe(stdout_pipe);
   if (-1 == retval) {
     log_warn(LD_GENERAL,
@@ -3896,6 +4425,20 @@ tor_spawn_background(const char *const filename, const char **argv,
 
     close(stdout_pipe[0]);
     close(stdout_pipe[1]);
+
+    return status;
+  }
+
+  retval = pipe(stdin_pipe);
+  if (-1 == retval) {
+    log_warn(LD_GENERAL,
+      "Failed to set up pipe for stdin communication with child process: %s",
+       strerror(errno));
+
+    close(stdout_pipe[0]);
+    close(stdout_pipe[1]);
+    close(stderr_pipe[0]);
+    close(stderr_pipe[1]);
 
     return status;
   }
@@ -3921,6 +4464,15 @@ tor_spawn_background(const char *const filename, const char **argv,
   if (0 == pid) {
     /* In child */
 
+#if defined(HAVE_SYS_PRCTL_H) && defined(__linux__)
+    /* Attempt to have the kernel issue a SIGTERM if the parent
+     * goes away. Certain attributes of the binary being execve()ed
+     * will clear this during the execve() call, but it's better
+     * than nothing.
+     */
+    prctl(PR_SET_PDEATHSIG, SIGTERM);
+#endif
+
     child_state = CHILD_STATE_DUPOUT;
 
     /* Link child stdout to the write end of the pipe */
@@ -3935,13 +4487,11 @@ tor_spawn_background(const char *const filename, const char **argv,
     if (-1 == retval)
         goto error;
 
-    child_state = CHILD_STATE_REDIRECT;
+    child_state = CHILD_STATE_DUPIN;
 
-    /* Link stdin to /dev/null */
-    fd = open("/dev/null", O_RDONLY); /* NOT cloexec, obviously. */
-    if (fd != -1)
-      dup2(fd, STDIN_FILENO);
-    else
+    /* Link child stdin to the read end of the pipe */
+    retval = dup2(stdin_pipe[0], STDIN_FILENO);
+    if (-1 == retval)
       goto error;
 
     child_state = CHILD_STATE_CLOSEFD;
@@ -3950,7 +4500,8 @@ tor_spawn_background(const char *const filename, const char **argv,
     close(stderr_pipe[1]);
     close(stdout_pipe[0]);
     close(stdout_pipe[1]);
-    close(fd);
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
 
     /* Close all other fds, including the read end of the pipe */
     /* XXX: We should now be doing enough FD_CLOEXEC setting to make
@@ -3966,8 +4517,10 @@ tor_spawn_background(const char *const filename, const char **argv,
        does not modify the arguments */
     if (env)
       execve(filename, (char *const *) argv, env->unixoid_environment_block);
-    else
-      execvp(filename, (char *const *) argv);
+    else {
+      static char *new_env[] = { NULL };
+      execve(filename, (char *const *) argv, new_env);
+    }
 
     /* If we got here, the exec or open(/dev/null) failed */
 
@@ -3993,13 +4546,15 @@ tor_spawn_background(const char *const filename, const char **argv,
 
     _exit(255);
     /* Never reached, but avoids compiler warning */
-    return status;
+    return status; // LCOV_EXCL_LINE
   }
 
   /* In parent */
 
   if (-1 == pid) {
     log_warn(LD_GENERAL, "Failed to fork child process: %s", strerror(errno));
+    close(stdin_pipe[0]);
+    close(stdin_pipe[1]);
     close(stdout_pipe[0]);
     close(stdout_pipe[1]);
     close(stderr_pipe[0]);
@@ -4036,13 +4591,28 @@ tor_spawn_background(const char *const filename, const char **argv,
             strerror(errno));
   }
 
+  /* Return write end of the stdin pipe to caller, and close the read end */
+  process_handle->stdin_pipe = stdin_pipe[1];
+  retval = close(stdin_pipe[0]);
+
+  if (-1 == retval) {
+    log_warn(LD_GENERAL,
+            "Failed to close read end of stdin pipe in parent process: %s",
+            strerror(errno));
+  }
+
   status = process_handle->status = PROCESS_STATUS_RUNNING;
-  /* Set stdout/stderr pipes to be non-blocking */
-  fcntl(process_handle->stdout_pipe, F_SETFL, O_NONBLOCK);
-  fcntl(process_handle->stderr_pipe, F_SETFL, O_NONBLOCK);
+  /* Set stdin/stdout/stderr pipes to be non-blocking */
+  if (fcntl(process_handle->stdout_pipe, F_SETFL, O_NONBLOCK) < 0 ||
+      fcntl(process_handle->stderr_pipe, F_SETFL, O_NONBLOCK) < 0 ||
+      fcntl(process_handle->stdin_pipe, F_SETFL, O_NONBLOCK) < 0) {
+    log_warn(LD_GENERAL, "Failed to set stderror/stdout/stdin pipes "
+             "nonblocking in parent process: %s", strerror(errno));
+  }
   /* Open the buffered IO streams */
   process_handle->stdout_handle = fdopen(process_handle->stdout_pipe, "r");
   process_handle->stderr_handle = fdopen(process_handle->stderr_pipe, "r");
+  process_handle->stdin_handle = fdopen(process_handle->stdin_pipe, "r");
 
   *process_handle_out = process_handle;
   return process_handle->status;
@@ -4085,12 +4655,18 @@ tor_process_handle_destroy,(process_handle_t *process_handle,
 
   if (process_handle->stderr_pipe)
     CloseHandle(process_handle->stderr_pipe);
+
+  if (process_handle->stdin_pipe)
+    CloseHandle(process_handle->stdin_pipe);
 #else
   if (process_handle->stdout_handle)
     fclose(process_handle->stdout_handle);
 
   if (process_handle->stderr_handle)
     fclose(process_handle->stderr_handle);
+
+  if (process_handle->stdin_handle)
+    fclose(process_handle->stdin_handle);
 
   clear_waitpid_callback(process_handle->waitpid_cb);
 #endif
@@ -4169,13 +4745,13 @@ tor_get_exit_code(process_handle_t *process_handle,
     return PROCESS_EXIT_RUNNING;
   } else if (retval != process_handle->pid) {
     log_warn(LD_GENERAL, "waitpid() failed for PID %d: %s",
-             process_handle->pid, strerror(errno));
+             (int)process_handle->pid, strerror(errno));
     return PROCESS_EXIT_ERROR;
   }
 
   if (!WIFEXITED(stat_loc)) {
     log_warn(LD_GENERAL, "Process %d did not exit normally",
-             process_handle->pid);
+             (int)process_handle->pid);
     return PROCESS_EXIT_ERROR;
   }
 
@@ -4189,7 +4765,7 @@ tor_get_exit_code(process_handle_t *process_handle,
 /** Helper: return the number of characters in <b>s</b> preceding the first
  * occurrence of <b>ch</b>. If <b>ch</b> does not occur in <b>s</b>, return
  * the length of <b>s</b>. Should be equivalent to strspn(s, "ch"). */
-static INLINE size_t
+static inline size_t
 str_num_before(const char *s, char ch)
 {
   const char *cp = strchr(s, ch);
@@ -4327,7 +4903,7 @@ get_current_process_environment_variables(void)
 
   char **environ_tmp; /* Not const char ** ? Really? */
   for (environ_tmp = get_environment(); *environ_tmp; ++environ_tmp) {
-    smartlist_add(sl, tor_strdup(*environ_tmp));
+    smartlist_add_strdup(sl, *environ_tmp);
   }
 
   return sl;
@@ -4373,7 +4949,7 @@ tor_read_all_handle(HANDLE h, char *buf, size_t count,
   DWORD byte_count;
   BOOL process_exited = FALSE;
 
-  if (count > SIZE_T_CEILING || count > SSIZE_T_MAX)
+  if (count > SIZE_T_CEILING || count > SSIZE_MAX)
     return -1;
 
   while (numread != count) {
@@ -4439,7 +5015,7 @@ tor_read_all_handle(FILE *h, char *buf, size_t count,
   if (eof)
     *eof = 0;
 
-  if (count > SIZE_T_CEILING || count > SSIZE_T_MAX)
+  if (count > SIZE_T_CEILING || count > SSIZE_MAX)
     return -1;
 
   while (numread != count) {
@@ -4710,7 +5286,7 @@ tor_get_lines_from_handle, (FILE *handle,
       goto done;
 
     if (!lines) lines = smartlist_new();
-    smartlist_add(lines, tor_strdup(stdout_buf));
+    smartlist_add_strdup(lines, stdout_buf);
   }
 
  done:
@@ -5008,7 +5584,7 @@ tor_check_port_forwarding(const char *filename,
        for each smartlist element (one for "-p" and one for the
        ports), and one for the final NULL. */
     args_n = 1 + 2*smartlist_len(ports_to_forward) + 1;
-    argv = tor_malloc_zero(sizeof(char*)*args_n);
+    argv = tor_calloc(args_n, sizeof(char *));
 
     argv[argv_index++] = filename;
     SMARTLIST_FOREACH_BEGIN(ports_to_forward, const char *, port) {
@@ -5148,5 +5724,61 @@ tor_weak_random_range(tor_weak_rng_t *rng, int32_t top)
     result = (int32_t)(tor_weak_random(rng) / divisor);
   } while (result >= top);
   return result;
+}
+
+/** Cast a given double value to a int64_t. Return 0 if number is NaN.
+ * Returns either INT64_MIN or INT64_MAX if number is outside of the int64_t
+ * range. */
+int64_t
+clamp_double_to_int64(double number)
+{
+  int exponent;
+
+  /* NaN is a special case that can't be used with the logic below. */
+  if (isnan(number)) {
+    return 0;
+  }
+
+  /* Time to validate if result can overflows a int64_t value. Fun with
+   * float! Find that exponent exp such that
+   *    number == x * 2^exp
+   * for some x with abs(x) in [0.5, 1.0). Note that this implies that the
+   * magnitude of number is strictly less than 2^exp.
+   *
+   * If number is infinite, the call to frexp is legal but the contents of
+   * are exponent unspecified. */
+  frexp(number, &exponent);
+
+  /* If the magnitude of number is strictly less than 2^63, the truncated
+   * version of number is guaranteed to be representable. The only
+   * representable integer for which this is not the case is INT64_MIN, but
+   * it is covered by the logic below. */
+  if (isfinite(number) && exponent <= 63) {
+    return (int64_t)number;
+  }
+
+  /* Handle infinities and finite numbers with magnitude >= 2^63. */
+  return signbit(number) ? INT64_MIN : INT64_MAX;
+}
+
+/** Return a uint64_t value from <b>a</b> in network byte order. */
+uint64_t
+tor_htonll(uint64_t a)
+{
+#ifdef WORDS_BIGENDIAN
+  /* Big endian. */
+  return a;
+#else /* WORDS_BIGENDIAN */
+  /* Little endian. The worst... */
+  return htonl((uint32_t)(a>>32)) |
+    (((uint64_t)htonl((uint32_t)a))<<32);
+#endif /* WORDS_BIGENDIAN */
+}
+
+/** Return a uint64_t value from <b>a</b> in host byte order. */
+uint64_t
+tor_ntohll(uint64_t a)
+{
+  return tor_htonll(a);
 }
 

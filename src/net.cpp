@@ -23,6 +23,8 @@
 #include <miniupnpc/upnperrors.h>
 #endif
 
+extern unsigned short onion_port;
+
 using namespace std;
 using namespace boost;
 
@@ -52,8 +54,7 @@ struct LocalServiceInfo {
 // Global state variables
 //
 bool fClient = false;
-
-// bool fUseUPnP = GetBoolArg("-upnp", USE_UPNP);
+bool fDiscover = true;
 bool fUseUPnP = false;
 
 uint64 nLocalServices = (fClient ? 0 : NODE_NETWORK);
@@ -94,6 +95,11 @@ unsigned short GetListenPort()
     return (unsigned short)(GetArg("-port", GetDefaultPort()));
 }
 
+unsigned short GetTorPort()
+{
+    return onion_port;
+}
+
 void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
 {
     // Filter out duplicate requests
@@ -108,6 +114,9 @@ void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
 // find 'best' local address for a particular peer
 bool GetLocal(CService& addr, const CNetAddr *paddrPeer)
 {
+    if (fNoListen)
+        return false;
+
     int nBestScore = -1;
     int nBestReachability = -1;
     {
@@ -192,6 +201,14 @@ bool RecvLine(SOCKET hSocket, string& strLine)
     }
 }
 
+// Is our peer's addrLocal potentially useful as an external IP source?
+bool IsPeerAddrLocalGood(CNode *pnode)
+{
+    return fDiscover && pnode->addr.IsRoutable() && pnode->addrLocal.IsRoutable() &&
+           !IsLimited(pnode->addrLocal.GetNetwork());
+}
+
+
 // used when scores of local addresses may have changed
 // pushes better local address to peers
 void static AdvertizeLocal()
@@ -225,7 +242,7 @@ bool AddLocal(const CService& addr, int nScore)
     if (!addr.IsRoutable())
         return false;
 
-    if (nScore < LOCAL_MANUAL)
+    if (!fDiscover && nScore < LOCAL_MANUAL)
         return false;
 
     if (IsLimited(addr))
@@ -1103,6 +1120,22 @@ void ThreadMapPort2(void* parg)
     r = UPNP_GetValidIGD(devlist, &urls, &data, lanaddr, sizeof(lanaddr));
     if (r == 1)
     {
+        if (fDiscover) {
+            char externalIPAddress[40];
+            r = UPNP_GetExternalIPAddress(urls.controlURL, data.first.servicetype, externalIPAddress);
+            if(r != UPNPCOMMAND_SUCCESS)
+                printf("UPnP: GetExternalIPAddress() returned %d\n", r);
+            else
+            {
+                if(externalIPAddress[0])
+                {
+                    printf("UPnP: ExternalIPAddress = %s\n", externalIPAddress);
+                    AddLocal(CNetAddr(externalIPAddress), LOCAL_UPNP);
+                }
+                else
+                    printf("UPnP: GetExternalIPAddress failed.\n");
+            }
+        }
 
         string strDesc = "StealthCoin " + FormatFullVersion();
 #ifndef UPNPDISCOVER_SUCCESS
@@ -1217,6 +1250,14 @@ void ThreadOnionSeed(void* parg)
 
 unsigned int pnSeed[] =
 {
+    0xdf4bd379, 0x7934d29b, 0x26bc02ad, 0x7ab743ad, 0x0ab3a7bc,
+    0x375ab5bc, 0xc90b1617, 0x5352fd17, 0x5efc6c18, 0xccdc7d18,
+    0x443d9118, 0x84031b18, 0x347c1e18, 0x86512418, 0xfcfe9031,
+    0xdb5eb936, 0xef8d2e3a, 0xcf51f23c, 0x18ab663e, 0x36e0df40,
+    0xde48b641, 0xad3e4e41, 0xd0f32b44, 0x09733b44, 0x6a51f545,
+    0xe593ef48, 0xc5f5ef48, 0x96f4f148, 0xd354d34a, 0x36206f4c,
+    0xceefe953, 0x50468c55, 0x89d38d55, 0x65e61a5a, 0x16b1b95d,
+    0x702b135e, 0x0f57245e, 0xdaab5f5f, 0xba15ef63,
 };
 
 void DumpAddresses()
@@ -1467,8 +1508,11 @@ void ThreadOpenAddedConnections2(void* parg)
 {
     printf("ThreadOpenAddedConnections2 started\n");
 
-    if (mapArgs.count("-addnode") == 0)
+    if (mapMultiArgs["-addnode"].size() == 0)
+    {
+        printf("ThreadOpenAddedConnections: found no nodes to add\n");
         return;
+    }
 
     if (HaveNameProxy()) {
         while(!fShutdown) {
@@ -1488,6 +1532,7 @@ void ThreadOpenAddedConnections2(void* parg)
     vector<vector<CService> > vservAddressesToAdd(0);
     BOOST_FOREACH(string& strAddNode, mapMultiArgs["-addnode"])
     {
+        printf("ThreadOpenAddedConnections: found addnode \"%s\"\n", strAddNode.c_str());
         vector<CService> vservNode(0);
         if(Lookup(strAddNode.c_str(), vservNode, GetDefaultPort(), fNameLookup, 0))
         {
@@ -1766,6 +1811,9 @@ bool BindListenPort(const CService &addrBind, string& strError)
 
     vhListenSocket.push_back(hListenSocket);
 
+    if (addrBind.IsRoutable() && fDiscover)
+        AddLocal(addrBind, LOCAL_BIND);
+
     return true;
 }
 
@@ -1775,17 +1823,16 @@ void static Discover()
 }
 
 static void run_tor() {
-    printf("TOR thread started.\n");
+    fprintf(stdout, "TOR thread started.\n");
 
     std::string logDecl = "notice file " + GetDataDir().string() + "/tor/tor.log";
-    char *argvLogDecl = (char*) logDecl.c_str();
 
-    char* argv[] = {
-        "tor",
-        "--hush",
-        "--Log",
-        argvLogDecl
-    };
+    char* argv[4];
+
+    argv[0] = (char*)"tor";
+    argv[1] = (char*)"--hush";
+    argv[2] = (char*)"--Log";
+    argv[3] = (char*)logDecl.c_str();
 
     tor_main(4, argv);
 }
@@ -1869,12 +1916,12 @@ void StartNode(void* parg)
 
 
     // make sure conf allows it (stake=0 in conf)
-    if (GetBoolArg("-stake", true)) {
+    if (GetBoolArg("-stake", true) && GetBoolArg("-staking", true)) {
         printf("Stake minting enabled at startup.\n");
         if (!NewThread(ThreadStakeMinter, pwalletMain))
             printf("Error: NewThread(ThreadStakeMinter) failed\n");
     } else {
-        printf("Stake minting disabled at startup (stake=0).\n");
+        printf("Stake minting disabled at startup (staking=0).\n");
     }
 
     // Generate coins in the background
@@ -1947,6 +1994,7 @@ public:
     }
 }
 instance_of_cnetcleanup;
+
 void RelayTransaction(const CTransaction& tx, const uint256& hash)
 {
     CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);

@@ -24,6 +24,10 @@ class CTransaction;
 static const unsigned int MAX_SCRIPT_ELEMENT_SIZE = 520;
 static const unsigned int MAX_OP_RETURN_RELAY = 48;
 
+// Threshold for nLockTime: below this value it is interpreted as block number,
+// otherwise as UNIX timestamp.
+static const unsigned int LOCKTIME_THRESHOLD = 500000000; // Tue Nov  5 00:53:20 1985 UTC
+
 
 /** Signature hash types/flags */
 enum
@@ -34,6 +38,53 @@ enum
     SIGHASH_ANYONECANPAY = 0x80,
 };
 
+/** Script verification flags */
+enum
+{
+    SCRIPT_VERIFY_NONE      = 0,
+    SCRIPT_VERIFY_NOCACHE   = (1U << 0), // do not store results in signature cache (but do query it)
+    SCRIPT_VERIFY_NULLDUMMY = (1U << 1), // verify dummy stack item consumed by CHECKMULTISIG is of zero-length
+
+    // Discourage use of NOPs reserved for upgrades (NOP1-10)
+    //
+    // Provided so that nodes can avoid accepting or mining transactions
+    // containing executed NOP's whose meaning may change after a soft-fork,
+    // thus rendering the script invalid; with this flag set executing
+    // discouraged NOPs fails the script. This verification flag will never be
+    // a mandatory flag applied to scripts in a block. NOPs that are not
+    // executed, e.g. within an unexecuted IF ENDIF block, are *not* rejected.
+    SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS = (1U << 2),
+
+    SCRIPT_VERIFY_STRICTENC = (1U << 3),
+
+    // Breakout: added to MANDATORY_SCRIPT_VERIFY_FLAGS from BLK V3 fork
+    SCRIPT_VERIFY_ALLOW_EMPTY_SIG = (1U << 4),
+    SCRIPT_VERIFY_FIX_HASHTYPE = (1U << 5),
+
+    // Verify CHECKLOCKTIMEVERIFY (BIP65)
+    //
+    SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY = (1U << 6),
+};
+
+// Mandatory script verification flags that all new blocks must comply with for
+// them to be valid. (but old blocks may not comply with)
+//
+// Failing one of these tests may trigger a DoS ban - see ConnectInputs() for
+// details.
+static const unsigned int MANDATORY_SCRIPT_VERIFY_FLAGS = SCRIPT_VERIFY_NULLDUMMY |
+                                                          SCRIPT_VERIFY_STRICTENC |
+                                                          SCRIPT_VERIFY_ALLOW_EMPTY_SIG |
+                                                          SCRIPT_VERIFY_FIX_HASHTYPE |
+                                                          SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
+
+// Standard script verification flags that standard transactions will comply
+// with. However scripts violating these flags may still be present in valid
+// blocks and we must accept those blocks.
+static const unsigned int STANDARD_SCRIPT_VERIFY_FLAGS = MANDATORY_SCRIPT_VERIFY_FLAGS |
+                                                         SCRIPT_VERIFY_DISCOURAGE_UPGRADABLE_NOPS;
+
+// For convenience, standard but not mandatory verify flags.
+static const unsigned int STANDARD_NOT_MANDATORY_VERIFY_FLAGS = STANDARD_SCRIPT_VERIFY_FLAGS & ~MANDATORY_SCRIPT_VERIFY_FLAGS;
 
 enum txnouttype
 {
@@ -43,7 +94,7 @@ enum txnouttype
     TX_PUBKEYHASH,
     TX_SCRIPTHASH,
     TX_MULTISIG,
-    TX_NULL_DATA,
+    TX_NULL_DATA
 };
 
 class CNoDestination {
@@ -188,6 +239,7 @@ enum opcodetype
     // expansion
     OP_NOP1 = 0xb0,
     OP_NOP2 = 0xb1,
+    OP_CHECKLOCKTIMEVERIFY = OP_NOP2,
     OP_NOP3 = 0xb2,
     OP_NOP4 = 0xb3,
     OP_NOP5 = 0xb4,
@@ -531,7 +583,7 @@ public:
 
     bool IsPayToScriptHash() const;
 
-    // Called by CTransaction::IsStandard
+    // Called by CTransaction::IsStandard and P2SH VerifyScript (which makes it consensus-critical).
     bool IsPushOnly() const
     {
         const_iterator pc = begin();
@@ -546,9 +598,8 @@ public:
         return true;
     }
 
-    //Called by CTransaction::IsStandard.
-
-
+    // Called by CTransaction::IsStandard.
+    bool HasCanonicalPushes() const;
 
     void SetDestination(const CTxDestination& address);
     void SetMultisig(int nRequired, const std::vector<CKey>& keys);
@@ -591,13 +642,18 @@ public:
     {
         return CScriptID(Hash160(*this));
     }
+
+    void clear()
+    {
+        // The default std::vector::clear() does not release memory.
+        std::vector<unsigned char>().swap(*this);
+    }
 };
 
 
-
-
-
-bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, const CTransaction& txTo, unsigned int nIn, int nHashType);
+bool IsDERSignature(const valtype &vchSig, bool haveHashType = true);
+bool IsCompressedOrUncompressedPubKey(const valtype &vchPubKey);
+bool EvalScript(std::vector<std::vector<unsigned char> >& stack, const CScript& script, const CTransaction& txTo, unsigned int nIn, unsigned int flags, int nHashType);
 bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<std::vector<unsigned char> >& vSolutionsRet);
 int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned char> >& vSolutions);
 bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType);
@@ -606,11 +662,12 @@ bool IsMine(const CKeyStore& keystore, const CTxDestination &dest);
 void ExtractAffectedKeys(const CKeyStore &keystore, const CScript& scriptPubKey, std::vector<CKeyID> &vKeys);
 bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet);
 bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, std::vector<CTxDestination>& addressRet, int& nRequiredRet);
-bool SignSignature(const CKeyStore& keystore, const CScript& fromPubKey, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
-bool SignSignature(const CKeyStore& keystore, const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
+uint8_t SignSignature(const CKeyStore& keystore, const CScript& fromPubKey, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
+uint8_t SignSignature(const CKeyStore& keystore, const CTransaction& txFrom, CTransaction& txTo, unsigned int nIn, int nHashType=SIGHASH_ALL);
 bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const CTransaction& txTo, unsigned int nIn,
-                  bool fValidatePayToScriptHash, int nHashType);
-bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, bool fValidatePayToScriptHash, int nHashType);
+                   unsigned int flags, int nHashType);
+bool VerifySignature(const CTransaction& txFrom, const CTransaction& txTo, unsigned int nIn, unsigned int flags, int nHashType);
+
 // Given two sets of signatures for scriptPubKey, possibly with OP_0 placeholders,
 // combine them intelligently and return the result.
 CScript CombineSignatures(CScript scriptPubKey, const CTransaction& txTo, unsigned int nIn, const CScript& scriptSig1, const CScript& scriptSig2);

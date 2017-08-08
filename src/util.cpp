@@ -76,6 +76,8 @@ bool fServer = false;
 bool fCommandLine = false;
 string strMiscWarning;
 bool fTestNet = false;
+bool nTestNet = 0;
+bool fNoListen = false;
 bool fLogTimestamps = false;
 CMedianFilter<int64> vTimeOffsets(200,0);
 bool fReopenDebugLog = false;
@@ -497,7 +499,7 @@ static const long hextable[] =
 };
 
 
-long hex2long(const char* hexString)
+long hex2long(const unsigned char* hexString)
 {
 	long ret = 0; 
 

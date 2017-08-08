@@ -1,5 +1,5 @@
 /* <MIT License>
- Copyright (c) 2013  Marek Majkowski <marek@popcount.org>
+ Copyright (c) 2013-2014  Marek Majkowski <marek@popcount.org>
 
  Permission is hereby granted, free of charge, to any person obtaining a copy
  of this software and associated documentation files (the "Software"), to deal
@@ -53,7 +53,7 @@
 #else
 
 /* See: http://sourceforge.net/p/predef/wiki/Endianness/ */
-#  if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__)
+#  if defined(__FreeBSD__) || defined(__NetBSD__) || defined(OpenBSD)
 #    include <sys/endian.h>
 #  else
 #    include <endian.h>
@@ -62,7 +62,7 @@
 	__BYTE_ORDER == __LITTLE_ENDIAN
 #    define _le64toh(x) ((uint64_t)(x))
 #  else
-#    if defined(__OpenBSD__)
+#    if defined(OpenBSD)
 #      define _le64toh(x) letoh64(x)
 #    else
 #      define _le64toh(x) le64toh(x)
@@ -97,55 +97,48 @@
 #endif
 
 uint64_t siphash24(const void *src, unsigned long src_sz, const struct sipkey *key) {
+	const uint8_t *m = src;
 	uint64_t k0 = key->k0;
 	uint64_t k1 = key->k1;
-	uint64_t b = (uint64_t)src_sz << 56;
-	const uint64_t *in = (uint64_t*)src;
-
-        uint64_t t;
-        uint8_t *pt, *m;
+	uint64_t last7 = (uint64_t)(src_sz & 0xff) << 56;
+	size_t i, blocks;
 
 	uint64_t v0 = k0 ^ 0x736f6d6570736575ULL;
 	uint64_t v1 = k1 ^ 0x646f72616e646f6dULL;
 	uint64_t v2 = k0 ^ 0x6c7967656e657261ULL;
 	uint64_t v3 = k1 ^ 0x7465646279746573ULL;
 
-	while (src_sz >= 8) {
+	for (i = 0, blocks = (src_sz & ~7); i < blocks; i+= 8) {
 #ifdef UNALIGNED_OK
-		uint64_t mi = _le64toh(*in);
+		uint64_t mi = _le64toh(*(m + i));
 #else
 		uint64_t mi;
-		memcpy(&mi, in, 8);
+		memcpy(&mi, m + i, 8);
 		mi = _le64toh(mi);
 #endif
-		in += 1; src_sz -= 8;
 		v3 ^= mi;
 		DOUBLE_ROUND(v0,v1,v2,v3);
 		v0 ^= mi;
 	}
 
-	t = 0; pt = (uint8_t*)&t; m = (uint8_t*)in;
-	switch (src_sz) {
-	case 7: pt[6] = m[6];
-	case 6: pt[5] = m[5];
-	case 5: pt[4] = m[4];
-#ifdef UNALIGNED_OK
-	case 4: *((uint32_t*)&pt[0]) = *((uint32_t*)&m[0]); break;
-#else
-	case 4: pt[3] = m[3];
-#endif
-	case 3: pt[2] = m[2];
-	case 2: pt[1] = m[1];
-	case 1: pt[0] = m[0];
+	switch (src_sz - blocks) {
+		case 7: last7 |= (uint64_t)m[i + 6] << 48;
+		case 6: last7 |= (uint64_t)m[i + 5] << 40;
+		case 5: last7 |= (uint64_t)m[i + 4] << 32;
+		case 4: last7 |= (uint64_t)m[i + 3] << 24;
+		case 3: last7 |= (uint64_t)m[i + 2] << 16;
+		case 2: last7 |= (uint64_t)m[i + 1] <<  8;
+		case 1: last7 |= (uint64_t)m[i + 0]      ;
+		case 0:
+		default:;
 	}
-	b |= _le64toh(t);
-
-	v3 ^= b;
+	v3 ^= last7;
 	DOUBLE_ROUND(v0,v1,v2,v3);
-	v0 ^= b; v2 ^= 0xff;
+	v0 ^= last7;
+	v2 ^= 0xff;
 	DOUBLE_ROUND(v0,v1,v2,v3);
 	DOUBLE_ROUND(v0,v1,v2,v3);
-	return (v0 ^ v1) ^ (v2 ^ v3);
+	return v0 ^ v1 ^ v2 ^ v3;
 }
 
 

@@ -12,9 +12,9 @@ using std::endl;
 #include <vector>
 
 // crypto++ headers
-#include "cryptopp/cryptlib.h"
+#include "libcryptopp/cryptlib.h"
 
-#include "cryptopp/aes.h"
+#include "libcryptopp/aes.h"
 using CryptoPP::AES;
 
 
