@@ -400,7 +400,7 @@ HEADERS += \
     src/qt/qstealthpage.h \
     src/qt/qstealthtableview.h \
     src/qt/common/mymodel.h \
-    src/qt/qpagetransactions.h
+    src/qt/qpagetransactions.h \
     src/tor/or/circuitmux_ewma.h \
     src/tor/or/parsecommon.h \
     src/tor/or/hs_circuitmap.h \
@@ -479,7 +479,7 @@ HEADERS += \
     src/tor/adapter/orconfig_linux.h \
     src/tor/adapter/orconfig_apple.h \
     src/tor/adapter/orconfig.h \
-    src/tor/adapter/breakout.h \
+    src/tor/adapter/toradapter.h \
     src/tor/trunnel/hs/cell_establish_intro.h \
     src/tor/trunnel/hs/cell_introduce1.h \
     src/tor/trunnel/hs/cell_common.h \
@@ -595,6 +595,7 @@ SOURCES += \
     src/qt/aboutdialog.cpp \
     src/qt/editaddressdialog.cpp \
     src/qt/bitcoinaddressvalidator.cpp \
+    src/tor/adapter/toradapter.cpp \
     src/tor/or/connection.c \
     src/tor/or/rendcache.c \
     src/tor/or/microdesc.c \
@@ -1026,7 +1027,7 @@ win32 {
     LIBS += -L"C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin"
     LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin/libeay32.dll"
     LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/opt/bin/ssleay32.dll"
-    // LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/i686-w64-mingw32/lib/libpthread.dll.a"
+    # LIBS += "C:/Qt/Qt5.4.0/Tools/mingw491_32/i686-w64-mingw32/lib/libpthread.dll.a"
   }
 }
 

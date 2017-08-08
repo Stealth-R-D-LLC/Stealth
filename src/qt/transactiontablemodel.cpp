@@ -386,7 +386,6 @@ QVariant TransactionTableModel::txAddressDecoration(const TransactionRecord *wtx
     case TransactionRecord::StakeMint:
         {
             QString str = BitcoinUnits::format(walletModel->getOptionsModel()->getDisplayUnit(), wtx->credit + wtx->debit);
-            float dd = str.toFloat();
             // printf("TransactionTableModel(): stake: %f\n", dd);
             return QIcon(":/icons/tx_mined");
         }
