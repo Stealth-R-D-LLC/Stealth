@@ -31,7 +31,7 @@ extern const std::string CLIENT_DATE;
 // 62010 : New rule to accept duplicate stake on bootstrap (only!)
 //         Technically not a network protocol difference
 // 62020 : Fixes signature malleability
-// 62200 : Clockdrift improvements & Checklocktimeverify (forking)
+// 62100 : Clockdrift improvements & Checklocktimeverify (forking)
 static const int PROTOCOL_VERSION = 62100;
 
 // intial proto version, to be increased after version/verack negotiation
