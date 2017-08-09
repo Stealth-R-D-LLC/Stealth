@@ -32,6 +32,7 @@ extern const std::string CLIENT_DATE;
 //         Technically not a network protocol difference
 // 62020 : Fixes signature malleability
 // 62100 : Clockdrift improvements & Checklocktimeverify (forking)
+//         Client version: 2.1.0
 static const int PROTOCOL_VERSION = 62100;
 
 // intial proto version, to be increased after version/verack negotiation
@@ -64,6 +65,6 @@ static const int DATABASE_VERSION = 61201;
 #define DISPLAY_VERSION_MAJOR       2
 #define DISPLAY_VERSION_MINOR       1
 #define DISPLAY_VERSION_REVISION    0
-#define DISPLAY_VERSION_BUILD       0
+#define DISPLAY_VERSION_BUILD       1
 
 #endif
