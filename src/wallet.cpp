@@ -1518,8 +1518,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64> >& vecSend, CW
 
                 int nIn = 0;
                 BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                if (!SignSignature(*this, *coin.first, wtxNew, nIn++))
+                if (SignSignature(*this, *coin.first, wtxNew, nIn++) != 0)
+                {
                     return false;
+                }
 
                 unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew, SER_NETWORK, PROTOCOL_VERSION);
                 if (nBytes >= MAX_BLOCK_SIZE_GEN/5)
@@ -2525,8 +2527,10 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore, unsigned int nBits, int
         int nIn = 0;
         BOOST_FOREACH(const CWalletTx* pcoin, vwtxPrev)
         {
-            if (!SignSignature(*this, *pcoin, txNew, nIn++))
+            if (SignSignature(*this, *pcoin, txNew, nIn++) != 0)
+            {
                 return error("CreateCoinStake : failed to sign coinstake");
+            }
         }
 
         // Limit size
