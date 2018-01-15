@@ -3063,7 +3063,7 @@ bool LoadExternalBlockFile(FILE* fileIn)
         }
     }
     printf("Loaded %i blocks from external file in %"PRI64d"ms\n", nLoaded, GetTimeMillis() - nStart);
-    if (GetBoolArg("-quitonbootstrap"))
+    if (GetBoolArg("-quitonbootstrap", false))
     {
        exit(EXIT_SUCCESS);
     }
