@@ -68,7 +68,9 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json"
 
-CFLAGS += $(INCLUDEPATHS) -std=gnu99
+DEBUGFLAGS=-g
+
+CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
 
 USE_UPNP:=-
 USE_IPV6:=-
@@ -155,8 +157,6 @@ LIBS+= \
     HARDENING+=-D_FORTIFY_SOURCE=2
 #
 
-
-DEBUGFLAGS=-g
 
 ifdef DEBUG
     OPTIFLAGS=-O0

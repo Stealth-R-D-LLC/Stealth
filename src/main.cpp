@@ -3063,6 +3063,10 @@ bool LoadExternalBlockFile(FILE* fileIn)
         }
     }
     printf("Loaded %i blocks from external file in %"PRI64d"ms\n", nLoaded, GetTimeMillis() - nStart);
+    if (GetBoolArg("-quitonbootstrap"))
+    {
+       exit(EXIT_SUCCESS);
+    }
     return nLoaded > 0;
 }
 
@@ -3984,7 +3988,16 @@ bool ProcessMessages(CNode* pfrom)
 
         // Copy message to its own buffer
         CDataStream vMsg(vRecv.begin(), vRecv.begin() + nMessageSize, vRecv.nType, vRecv.nVersion);
-        vRecv.ignore(nMessageSize);
+
+        try
+        {
+            vRecv.ignore(nMessageSize);
+        }
+        catch (std::ios_base::failure& e)
+        {
+            // can only be end of data, should cause failure in processing below
+            printf("ProcessMessages() : Exception '%s' caught, caused by unexpectedly reaching end of buffer\n", e.what());
+        }
 
         // Process message
         bool fRet = false;

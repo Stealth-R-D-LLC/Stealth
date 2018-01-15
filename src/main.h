@@ -276,7 +276,7 @@ public:
 
     std::string ToString() const
     {
-        return strprintf("COutPoint(%s, %u)", hash.ToString().substr(0,10).c_str(), n);
+        return strprintf("COutPoint(%s, %u)", hash.ToString().c_str(), n);
     }
 
     void print() const
@@ -355,7 +355,7 @@ public:
         if (prevout.IsNull())
             str += strprintf(", coinbase %s", HexStr(scriptSig).c_str());
         else
-            str += strprintf(", scriptSig=%s", scriptSig.ToString().substr(0,24).c_str());
+            str += strprintf(", scriptSig=%s", scriptSig.ToString().c_str());
         if (nSequence != std::numeric_limits<unsigned int>::max())
             str += strprintf(", nSequence=%u", nSequence);
         str += ")";
@@ -509,11 +509,14 @@ public:
     (
         READWRITE(this->nVersion);
         nVersion = this->nVersion;
-        READWRITE(nTime);
+        if (this->nVersion < 2)
+        {
+            READWRITE(nTime);
+        }
         READWRITE(vin);
         READWRITE(vout);
         READWRITE(nLockTime);
-	)
+    )
 
     void SetNull()
     {
