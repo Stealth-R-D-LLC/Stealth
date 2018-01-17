@@ -9,16 +9,16 @@
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleGetInfoString</key>
-        <string>StealthCoin [XST] Complete Anonymity 2.1.0.1</string>
+        <string>StealthCoin [XST] Complete Anonymity 2.1.0.2</string>
         <key>CFBundleExecutable</key>
         <string>Stealth Qt</string>
         <key>CFBundleIdentifier</key>
         <string>com.stealth-coin.stealthcoin-qt</string>
         <key>CFBundleShortVersionString</key>
-        <string>2.1.0.1</string>
+        <string>2.1.0.2</string>
         <key>CFBundleSignature</key>
         <string>oXST</string>
         <key>CFBundleVersion</key>
-        <string>2.1.0.1</string>
+        <string>2.1.0.2</string>
 </dict>
 </plist>
