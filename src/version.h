@@ -22,6 +22,12 @@ extern const std::string CLIENT_BUILD;
 extern const std::string CLIENT_NUMBERS;
 extern const std::string CLIENT_DATE;
 
+// display version
+#define DISPLAY_VERSION_MAJOR       2
+#define DISPLAY_VERSION_MINOR       1
+#define DISPLAY_VERSION_REVISION    0
+#define DISPLAY_VERSION_BUILD       2
+
 //
 // network protocol versioning
 //
@@ -61,10 +67,5 @@ static const int BIP0031_VERSION = 60000;
 static const int MEMPOOL_GD_VERSION = 60002;
 
 static const int DATABASE_VERSION = 61201;
-
-#define DISPLAY_VERSION_MAJOR       2
-#define DISPLAY_VERSION_MINOR       1
-#define DISPLAY_VERSION_REVISION    0
-#define DISPLAY_VERSION_BUILD       1
 
 #endif
