@@ -23,6 +23,16 @@ Value getconnectioncount(const Array& params, bool fHelp)
     return (int)vNodes.size();
 }
 
+Value getadjustedtime(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+        throw runtime_error(
+            "getadjustedtime\n"
+            "Returns the StealthCoin network adjusted time.");
+
+    return (boost::int64_t)GetAdjustedTime();
+}
+
 static void CopyNodeStats(std::vector<CNodeStats>& vstats)
 {
     vstats.clear();
