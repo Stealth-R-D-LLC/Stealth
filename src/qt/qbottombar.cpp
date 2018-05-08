@@ -88,7 +88,7 @@ QBottomBar::QBottomBar(QWidget *parent) :
 
     QString qstrVersion = tr("stealth") +
                           "<span style=\"color:" + QString(SC_MAIN_COLOR_BLUE) +
-                          ";\">" + tr("client") + "</span> " +
+                          ";\">" + "</span> " +
                           "<span style=\"color:" + QString(SC_MAIN_COLOR_GREY) +
                           ";\"> V " + QString::fromStdString(FormatVersionNumbers()) +
                           "</span>";

@@ -1,5 +1,6 @@
 // Copyright (c) 2010 Satoshi Nakamoto
 // Copyright (c) 2009-2012 The Bitcoin developers
+// Copyright (c) 2014-2018 Stealth R&D LLC
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -127,7 +128,7 @@ Value getnewaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getnewaddress [account]\n"
-            "Returns a new StealthCoin address for receiving payments.  "
+            "Returns a new XST address for receiving payments.  "
             "If [account] is specified (recommended), it is added to the address book "
             "so payments received with the address will be credited to [account].");
 
@@ -194,7 +195,7 @@ Value getaccountaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() != 1)
         throw runtime_error(
             "getaccountaddress <account>\n"
-            "Returns the current StealthCoin address for receiving payments to this account.");
+            "Returns the current XST address for receiving payments to this account.");
 
     // Parse the account first so we don't generate a key if there's an error
     string strAccount = AccountFromValue(params[0]);
@@ -212,12 +213,12 @@ Value setaccount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "setaccount <StealthCoinaddress> <account>\n"
+            "setaccount <XSTaddress> <account>\n"
             "Sets the account associated with the given address.");
 
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid StealthCoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
 
 
     string strAccount;
@@ -242,12 +243,12 @@ Value getaccount(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getaccount <StealthCoinaddress>\n"
+            "getaccount <XSTaddress>\n"
             "Returns the account associated with the given address.");
 
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid StealthCoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
 
     string strAccount;
     map<CTxDestination, string>::iterator mi = pwalletMain->mapAddressBook.find(address.Get());
@@ -282,13 +283,13 @@ Value sendtoaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-        "sendtoaddress <StealthCoinaddress> <amount> [comment] [comment-to]\n"
+        "sendtoaddress <XSTaddress> <amount> [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.000001"
             + HelpRequiringPassphrase());
 
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid StealthCoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
 
     // Amount
     int64 nAmount = AmountFromValue(params[1]);
@@ -348,7 +349,7 @@ Value signmessage(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 2)
         throw runtime_error(
-            "signmessage <StealthCoinaddress> <message>\n"
+            "signmessage <XSTaddress> <message>\n"
             "Sign a message with the private key of an address");
 
     EnsureWalletIsUnlocked();
@@ -383,7 +384,7 @@ Value verifymessage(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 3)
         throw runtime_error(
-            "verifymessage <StealthCoinaddress> <signature> <message>\n"
+            "verifymessage <XSTaddress> <signature> <message>\n"
             "Verify a signed message");
 
     string strAddress  = params[0].get_str();
@@ -420,14 +421,14 @@ Value getreceivedbyaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getreceivedbyaddress <StealthCoinaddress> [minconf=1]\n"
-            "Returns the total amount received by <StealthCoinaddress> in transactions with at least [minconf] confirmations.");
+            "getreceivedbyaddress <XSTaddress> [minconf=1]\n"
+            "Returns the total amount received by <XSTaddress> in transactions with at least [minconf] confirmations.");
 
     // Bitcoin address
     CBitcoinAddress address = CBitcoinAddress(params[0].get_str());
     CScript scriptPubKey;
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid StealthCoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
     scriptPubKey.SetDestination(address.Get());
     if (!IsMine(*pwalletMain,scriptPubKey))
         return (double)0.0;
@@ -658,14 +659,14 @@ Value sendfrom(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 3 || params.size() > 6)
         throw runtime_error(
-        "sendfrom <fromaccount> <toStealthCoinaddress> <amount> [minconf=1] [comment] [comment-to]\n"
+        "sendfrom <fromaccount> <toXSTaddress> <amount> [minconf=1] [comment] [comment-to]\n"
             "<amount> is a real and is rounded to the nearest 0.000001"
             + HelpRequiringPassphrase());
 
     string strAccount = AccountFromValue(params[0]);
     CBitcoinAddress address(params[1].get_str());
     if (!address.IsValid())
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid StealthCoin address");
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
     int64 nAmount = AmountFromValue(params[2]);
 
     if (nAmount < MIN_TXOUT_AMOUNT)
@@ -726,7 +727,7 @@ Value sendmany(const Array& params, bool fHelp)
     {
         CBitcoinAddress address(s.name_);
         if (!address.IsValid())
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid StealthCoin address: ")+s.name_);
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid XST address: ")+s.name_);
 
         if (setAddress.count(address))
             throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+s.name_);
@@ -774,7 +775,7 @@ Value addmultisigaddress(const Array& params, bool fHelp)
     {
         string msg = "addmultisigaddress <nrequired> <'[\"key\",\"key\"]'> [account]\n"
             "Add a nrequired-to-sign multisignature address to the wallet\"\n"
-            "each key is a StealthCoin address or hex-encoded public key\n"
+            "each key is an XST address or hex-encoded public key\n"
             "If [account] is specified, assign address to [account].";
         throw runtime_error(msg);
     }
@@ -1573,7 +1574,7 @@ Value encryptwallet(const Array& params, bool fHelp)
     // slack space in .dat files; that is bad if the old data is
     // unencrypted private keys. So:
     StartShutdown();
-    return "wallet encrypted; StealthCoin server stopping, restart to run with encrypted wallet.  The keypool has been flushed, you need to make a new backup.";
+    return "wallet encrypted; Stealth server stopping, restart to run with encrypted wallet.  The keypool has been flushed, you need to make a new backup.";
 }
 
 class DescribeAddressVisitor : public boost::static_visitor<Object>
@@ -1622,8 +1623,8 @@ Value validateaddress(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "validateaddress <StealthCoinaddress>\n"
-            "Return information about <StealthCoinaddress>.");
+            "validateaddress <XSTaddress>\n"
+            "Return information about <XSTaddress>.");
 
     CBitcoinAddress address(params[0].get_str());
     bool isValid = address.IsValid();
@@ -1651,8 +1652,8 @@ Value validatepubkey(const Array& params, bool fHelp)
 {
     if (fHelp || !params.size() || params.size() > 2)
         throw runtime_error(
-            "validatepubkey <StealthCoinpubkey>\n"
-            "Return information about <StealthCoinpubkey>.");
+            "validatepubkey <XSTpubkey>\n"
+            "Return information about <XSTpubkey>.");
 
     std::vector<unsigned char> vchPubKey = ParseHex(params[0].get_str());
     CPubKey pubKey(vchPubKey);
@@ -1771,7 +1772,7 @@ Value repairwallet(const Array& params, bool fHelp)
     return result;
 }
 
-// StealthCoin: resend unconfirmed wallet transactions
+// Stealth: resend unconfirmed wallet transactions
 Value resendtx(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -1813,7 +1814,7 @@ Value getnewstealthaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "getnewstealthaddress [label]\n"
-            "Returns a new Stealth Address for receiving payments anonymously.  ");
+            "Returns a new StealthAddress for receiving payments anonymously.  ");
 
     if (pwalletMain->IsLocked())
         throw runtime_error("Failed: Wallet must be unlocked.");
@@ -1825,7 +1826,7 @@ Value getnewstealthaddress(const Array& params, bool fHelp)
     CStealthAddress sxAddr;
     std::string sError;
     if (!pwalletMain->NewStealthAddress(sError, sLabel, sxAddr))
-        throw runtime_error(std::string("Could get new Stealth Address: ") + sError);
+        throw runtime_error(std::string("Could get new StealthAddress: ") + sError);
 
     if (!pwalletMain->AddStealthAddress(sxAddr))
         throw runtime_error("Could not save to wallet.");
@@ -1838,7 +1839,7 @@ Value liststealthaddresses(const Array& params, bool fHelp)
     if (fHelp || params.size() > 1)
         throw runtime_error(
             "liststealthaddresses [show_secrets=0]\n"
-            "List owned Stealth addresses.");
+            "List owned StealthAddresses.");
 
     bool fShowSecrets = false;
 
@@ -1864,7 +1865,7 @@ Value liststealthaddresses(const Array& params, bool fHelp)
     for (it = pwalletMain->stealthAddresses.begin(); it != pwalletMain->stealthAddresses.end(); ++it)
     {
         if (it->scan_secret.size() < 1)
-            continue; // Stealth Address is not owned
+            continue; // StealthAddress is not owned
 
         if (fShowSecrets)
         {
@@ -1873,10 +1874,10 @@ Value liststealthaddresses(const Array& params, bool fHelp)
             objA.push_back(Pair("Address      ", it->Encoded()));
             objA.push_back(Pair("Scan Secret  ", HexStr(it->scan_secret.begin(), it->scan_secret.end())));
             objA.push_back(Pair("Spend Secret ", HexStr(it->spend_secret.begin(), it->spend_secret.end())));
-            result.push_back(Pair("Stealth Addres", objA));
+            result.push_back(Pair("StealthAddress", objA));
         } else
         {
-            result.push_back(Pair("Stealth Address", it->Encoded() + " - " + it->label));
+            result.push_back(Pair("StealthAddress", it->Encoded() + " - " + it->label));
         };
     };
 
@@ -1888,7 +1889,7 @@ Value importstealthaddress(const Array& params, bool fHelp)
     if (fHelp || params.size() < 2)
         throw runtime_error(
             "importstealthaddress <scan_secret> <spend_secret> [label]\n"
-            "Import an owned Stealth Addresses.");
+            "Import an owned StealthAddresses.");
 
     std::string sScanSecret  = params[0].get_str();
     std::string sSpendSecret = params[1].get_str();
@@ -1963,11 +1964,11 @@ Value importstealthaddress(const Array& params, bool fHelp)
             {
                 sxAddrIt.scan_secret = sxAddr.scan_secret;
                 sxAddrIt.spend_secret = sxAddr.spend_secret;
-                fFound = true; // update Stealth Address with secrets
+                fFound = true; // update StealthAddress with secrets
                 break;
             };
 
-            result.push_back(Pair("result", "Import failed - Stealth Address exists."));
+            result.push_back(Pair("result", "Import failed - StealthAddress exists."));
             return result;
         };
     };
@@ -2015,7 +2016,7 @@ Value sendtostealthaddress(const Array& params, bool fHelp)
 
     if (!sxAddr.SetEncoded(sEncoded))
     {
-        result.push_back(Pair("result", "Invalid StealthCoin Stealth Address."));
+        result.push_back(Pair("result", "Invalid XST StealthAddress."));
         return result;
     };
 

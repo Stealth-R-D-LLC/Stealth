@@ -82,10 +82,10 @@ QStealthBlueInfo::QStealthBlueInfo(STEALTH_PAGE_ID pageID, QWidget *parent) :
             << QRect(50, 58, 780, 30)
         ;
         arrText
-            // << "These are your <strong>STEALTHCOIN | XST</strong> addresses for receiving payments."
+            // << "These are your <strong>STEALTH | XST</strong> addresses for receiving payments."
             << "<span style=\"font-size:18px\">These are your <span style=\"font-family:" +
                QString(SC_BOLD_FONT_NAME) +
-               ";\">STEALTHCOIN | XST</span> addresses for receiving payments.</span>"
+               ";\">STEALTH | XST</span> addresses for receiving payments.</span>"
             << "<span style=\"font-size:18px;font-family:Open Sans\">You want to give a different to each sender so you can keep track of who is paying you.</span>"
         ;
         arrFSize << 13 << 13;
@@ -149,7 +149,7 @@ QStealthBlueInfo::QStealthBlueInfo(STEALTH_PAGE_ID pageID, QWidget *parent) :
             << QRect(50, 58, 780, 30)
         ;
         arrText
-            << "Enjoy the <strong>STEALTHCOIN | XST</strong> social network, get the latest news about your"
+            << "Enjoy the <strong>STEALTH | XST</strong> social network, get the latest news about your"
             << "favourite crypotcurrency and join our great community."
         ;
         arrFSize << 14 << 14;

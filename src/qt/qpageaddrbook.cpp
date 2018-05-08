@@ -40,8 +40,8 @@ QPageAddrBook::QPageAddrBook(Mode mode, Tabs tab, QWidget *parent) :
         "Create a new address",
         "Copy the currently selected address to the system clipboard",
         "Show QR code",
-        "Sign a message to prove you own a StealthCoin address",
-        "Verify a message to ensure it was signed with a specified StealthCoin address",
+        "Sign a message to prove you own an XST address",
+        "Verify a message to ensure it was signed with a specified XST address",
         "Delete the currently selected address from the list"
     };
 

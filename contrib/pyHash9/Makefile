@@ -1,4 +1,4 @@
-# (c) Copyright The StealthCoin Developers, 2016
+# (c) Copyright 2016-2018 Stealth R&D LLC
 
 # specify PYINCDIR if using non-system python
 PYINCDIR = -I/usr/include/python2.7

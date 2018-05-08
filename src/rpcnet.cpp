@@ -1,4 +1,5 @@
 // Copyright (c) 2009-2012 Bitcoin Developers
+// Copyright (c) 2014-2018 Stealth R&D LLC
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -28,7 +29,7 @@ Value getadjustedtime(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getadjustedtime\n"
-            "Returns the StealthCoin network adjusted time.");
+            "Returns the Stealth network adjusted time.");
 
     return (boost::int64_t)GetAdjustedTime();
 }

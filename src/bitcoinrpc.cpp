@@ -224,7 +224,7 @@ Value stop(const Array& params, bool fHelp)
     if (params.size() > 0)
         bitdb.SetDetach(params[0].get_bool());
     StartShutdown();
-    return "StealthCoin server stopping";
+    return "Stealth server stopping";
 }
 
 

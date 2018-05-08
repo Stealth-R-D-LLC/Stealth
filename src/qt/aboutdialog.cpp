@@ -31,7 +31,7 @@ AboutDialog::AboutDialog(QWidget *parent) :
     QString qstrVersion = "<span style=\"font-family:" + QString(SC_BOLD_FONT_NAME) + "\">" +
                           tr("stealth") +
                           "<span style=\"color:" + QString(SC_MAIN_COLOR_BLUE) +
-                          ";\">" + tr("client") + "</span> " +
+                          ";\">" + "</span> " +
                           "<span style=\"color:" + QString(SC_MAIN_COLOR_GREY) +
                           ";\"> V " + QString::fromStdString(FormatVersionNumbers()) +
                           "</span></span>";
@@ -48,7 +48,7 @@ AboutDialog::AboutDialog(QWidget *parent) :
     lblVersion->setStyleSheet("QLabel {color: white;}");
 
     QString qstrCopy = QString::fromUtf8(
-      "\u00A9 2014 STEALTHCOIN Developers\n"
+      "\u00A9 2014-2018 STEALTH Developers\n"
       "This is experimental software.\n"
       "If you don't treat it as such,\n"
       "you're likely to put an eye out.");

@@ -94,7 +94,7 @@ QPageStatistics::QPageStatistics(QWidget *parent) :
     qss += "ico_stealth";
     qss += ".png); background-repeat: no-repeat; background-position: center; }";
     lblSubTitle->lblIcon->setStyleSheet(qss);
-    lblSubTitle->lblText->setText("STEALTHCOIN VALUE IN SATOSHI");
+    lblSubTitle->lblText->setText("XST VALUE IN SATOSHI");
 
     QGraph *graph = new QGraph(this);
     graph->setGeometry(20, 250, 785, 300);

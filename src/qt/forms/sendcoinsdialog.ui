@@ -978,7 +978,7 @@
         <string>Confirm the send action</string>
        </property>
        <property name="text">
-        <string>SEND STEALTHCOIN</string>
+        <string>SEND STEALTH</string>
        </property>
        <property name="default">
         <bool>true</bool>

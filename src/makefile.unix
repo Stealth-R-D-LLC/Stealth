@@ -18,7 +18,7 @@
 #    sudo apt-get install git
 #    git clone https://github.com/StealthSend/Stealth.git
 #
-# As of StealthCoin version 1.3.0.0, the Qt clients are built
+# As of Stealth version 1.3.0.0, the Qt clients are built
 # against Berkeley DB (BDB) 4.8. So you should build BDB from the
 # archive at http://download.oracle.com/berkeley-db/db-4.8.30.tar.gz
 # Install BDB to the default location (/usr/local/BerkeleyDB.4.8/).

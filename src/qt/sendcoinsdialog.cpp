@@ -46,7 +46,7 @@ SendCoinsDialog::SendCoinsDialog(QWidget *parent) :
 
 #if QT_VERSION >= 0x040700
      /* Do not move this to the XML file, Qt before 4.7 will choke on it */
-     ui->lineEditCoinControlChange->setPlaceholderText(tr("Enter a StealthCoin address (e.g. SGVQhkwomS9tEDhwakwZC9aVqFtzEF1ZVG)"));
+     ui->lineEditCoinControlChange->setPlaceholderText(tr("Enter a Stealth address (e.g. SGVQhkwomS9tEDhwakwZC9aVqFtzEF1ZVG)"));
 #endif
 
     addEntry();

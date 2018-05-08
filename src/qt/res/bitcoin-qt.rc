@@ -19,14 +19,14 @@ BEGIN
     BEGIN
         BLOCK "040904E4" // U.S. English - multilingual (hex)
         BEGIN
-            VALUE "CompanyName",        "StealthCoin"
-            VALUE "FileDescription",    "StealthCoin-Qt (OSS GUI client for StealthCoin)"
+            VALUE "CompanyName",        "Stealth R&D LLC"
+            VALUE "FileDescription",    "Stealth-Qt (OSS GUI client for Stealth)"
             VALUE "FileVersion",        VER_FILEVERSION_STR
-            VALUE "InternalName",       "StealthCoin-qt"
-            VALUE "LegalCopyright",     "2009-2012 The Bitcoin developers, 2012-2013 The StealthCoin & PPCoin developers"
+            VALUE "InternalName",       "Stealth-qt"
+            VALUE "LegalCopyright",     "2009-2012 The Bitcoin developers, 2012-2013 ThePPCoin developers, 2014-2018 Stealth R&D LLC"
             VALUE "LegalTrademarks1",   "Distributed under the MIT/X11 software license, see the accompanying file COPYING or http://www.opensource.org/licenses/mit-license.php."
-            VALUE "OriginalFilename",   "StealthCoin-qt.exe"
-            VALUE "ProductName",        "StealthCoin-Qt"
+            VALUE "OriginalFilename",   "Stealth-qt.exe"
+            VALUE "ProductName",        "Stealth-Qt"
             VALUE "ProductVersion",     VER_PRODUCTVERSION_STR
         END
     END
