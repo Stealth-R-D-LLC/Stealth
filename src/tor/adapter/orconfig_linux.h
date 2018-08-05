@@ -1,6 +1,8 @@
 /* orconfig.h.  Generated from orconfig.h.in by configure.  */
 /* orconfig.h.in.  Generated from configure.ac by autoheader.  */
 
+#include <openssl/opensslv.h>
+
 /* Define if building universal (internal helper macro) */
 /* #undef AC_APPLE_UNIVERSAL_BUILD */
 
