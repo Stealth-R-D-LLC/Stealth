@@ -314,15 +314,27 @@
 
 /* Define to 1 if you have the `SSL_get_client_ciphers' function. */
 /* #undef HAVE_SSL_GET_CLIENT_CIPHERS */
+#if OPENSSL_VERSION_NUMBER > 0x1000ffffL
+#define HAVE_SSL_GET_CLIENT_CIPHERS 1
+#endif
 
 /* Define to 1 if you have the `SSL_get_client_random' function. */
 /* #undef HAVE_SSL_GET_CLIENT_RANDOM */
+#if OPENSSL_VERSION_NUMBER > 0x1000ffffL
+#define HAVE_SSL_GET_CLIENT_RANDOM 1
+#endif
 
 /* Define to 1 if you have the `SSL_get_server_random' function. */
 /* #undef HAVE_SSL_GET_SERVER_RANDOM */
+#if OPENSSL_VERSION_NUMBER > 0x1000ffffL
+#define HAVE_SSL_GET_SERVER_RANDOM 1
+#endif
 
 /* Define to 1 if you have the `SSL_SESSION_get_master_key' function. */
 /* #undef HAVE_SSL_SESSION_GET_MASTER_KEY */
+#if OPENSSL_VERSION_NUMBER > 0x1000ffffL
+#define HAVE_SSL_SESSION_GET_MASTER_KEY 1
+#endif
 
 /* Define to 1 if you have the `statvfs' function. */
 #define HAVE_STATVFS 1
@@ -380,7 +392,9 @@
 
 /* Define to 1 if `get_cipher_by_char' is a member of `struct ssl_method_st'.
    */
+#if OPENSSL_VERSION_NUMBER <= 0x1000ffffL
 #define HAVE_STRUCT_SSL_METHOD_ST_GET_CIPHER_BY_CHAR 1
+#endif
 
 /* Define to 1 if `tv_sec' is a member of `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL_TV_SEC 1

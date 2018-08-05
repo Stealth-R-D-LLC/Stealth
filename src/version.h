@@ -26,7 +26,7 @@ extern const std::string CLIENT_DATE;
 #define DISPLAY_VERSION_MAJOR       2
 #define DISPLAY_VERSION_MINOR       1
 #define DISPLAY_VERSION_REVISION    0
-#define DISPLAY_VERSION_BUILD       3
+#define DISPLAY_VERSION_BUILD       4
 
 //
 // network protocol versioning
@@ -39,6 +39,7 @@ extern const std::string CLIENT_DATE;
 // 62020 : Fixes signature malleability
 // 62100 : Clockdrift improvements & Checklocktimeverify (forking)
 //         Client version: 2.1.0
+//         2.1.0.4 : OpenSSL v1.1 compatibility
 static const int PROTOCOL_VERSION = 62100;
 
 // intial proto version, to be increased after version/verack negotiation
