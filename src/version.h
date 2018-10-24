@@ -24,23 +24,31 @@ extern const std::string CLIENT_DATE;
 
 // display version
 #define DISPLAY_VERSION_MAJOR       2
-#define DISPLAY_VERSION_MINOR       1
+#define DISPLAY_VERSION_MINOR       2
 #define DISPLAY_VERSION_REVISION    0
-#define DISPLAY_VERSION_BUILD       4
+#define DISPLAY_VERSION_BUILD       0
 
 //
 // network protocol versioning
 //
 
-// 62009 : New alerts with easier clearing
-//         Different keys for alerts and hash sync checkpoints
-// 62010 : New rule to accept duplicate stake on bootstrap (only!)
-//         Technically not a network protocol difference
-// 62020 : Fixes signature malleability
-// 62100 : Clockdrift improvements & Checklocktimeverify (forking)
-//         Client version: 2.1.0
+// 61001 : [Genesis]
+// 61011 : fork 1
+//         1.0.1.1 : Fix PoS difficulty adjustment during PoW period
+// 61021 : fork 2
+//         1.0.2.1 : Kill PoW at 5460 to deal with forks on pools
+// 61040 : fork 3
+//         1.0.4.0 : Adjust max bits computation for 60s block times
+// 61300 : fork 4
+//         1.3.0.0 : Stealth Addresses
+// 62100 : fork 5
+//         2.1.0.0 : Clockdrift improvements & Checklocktimeverify (forking)
+//         2.1.0.1 : SignSignature fix
 //         2.1.0.4 : OpenSSL v1.1 compatibility
-static const int PROTOCOL_VERSION = 62100;
+// 62200 : fork 6
+//         2.2.0.0 : Removing all traces of tx timestamp
+//                   Immaleable transaction IDs
+static const int PROTOCOL_VERSION = 62200;
 
 // intial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 61300;

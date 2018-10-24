@@ -509,7 +509,7 @@ CNode* ConnectNode(CAddress addrConnect, const char *pszDest, int64 nTimeout)
     if (fDebug) {
          printf("ConnectNode(): pszDest: %s\n", pszDest);
     }
-    
+
 
     /// debug print
     printf("trying connection %s lastseen=%.1fhrs\n",
@@ -802,8 +802,8 @@ void ThreadSocketHandler2(void* parg)
                     vNodesUnsecure.push_back(pnode);
                 }
             }
-            if (
-                0 > 2 * secured - 3 * unsecured
+            if (// don't remove unsecure nodes if no secure nodes
+                (secured > 0) && (0 > 2 * secured - 3 * unsecured)
             ) {
                 random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
                 printf("removing unsecured connection %s\n", (*vNodesUnsecure.begin())->addr.ToString().c_str());
@@ -894,8 +894,10 @@ void ThreadSocketHandler2(void* parg)
             int nInbound = 0;
 
             if (hSocket != INVALID_SOCKET)
+            {
                 if (!addr.SetSockAddr((const struct sockaddr*)&sockaddr))
                     printf("Warning: Unknown socket family\n");
+            }
 
             {
                 LOCK(cs_vNodes);
@@ -914,6 +916,7 @@ void ThreadSocketHandler2(void* parg)
             {
                 {
                     LOCK(cs_setservAddNodeAddresses);
+                    printf("max connections reached\n");
                     if (!setservAddNodeAddresses.count(addr))
                         closesocket(hSocket);
                 }
@@ -961,7 +964,7 @@ void ThreadSocketHandler2(void* parg)
 
                     if (nPos > ReceiveBufferSize()) {
                         if (!pnode->fDisconnect)
-                            printf("socket recv flood control disconnect (%"PRIszu" bytes)\n", vRecv.size());
+                            printf("socket recv flood control disconnect (%" PRIszu " bytes)\n", vRecv.size());
                         pnode->CloseSocketDisconnect();
                     }
                     else {
@@ -1268,7 +1271,7 @@ void DumpAddresses()
     CAddrDB adb;
     adb.Write(addrman);
 
-    printf("Flushed %d addresses to peers.dat  %"PRI64d"ms\n",
+    printf("Flushed %d addresses to peers.dat  %" PRI64d "ms\n",
            addrman.size(), GetTimeMillis() - nStart);
 }
 
@@ -1347,7 +1350,7 @@ void static ThreadStakeMinter(void* parg)
     try
     {
         vnThreadsRunning[THREAD_STEALTHER]++;
-        BitcoinMiner(pwallet, true);
+        StealthMinter(pwallet, true);
         vnThreadsRunning[THREAD_STEALTHER]--;
     }
     catch (std::exception& e) {
@@ -1926,7 +1929,7 @@ void StartNode(void* parg)
     }
 
     // Generate coins in the background
-    GenerateBitcoins(GetBoolArg("-gen", false), pwalletMain);
+    GenerateXST(GetBoolArg("-gen", false), pwalletMain);
 }
 
 
@@ -1954,7 +1957,7 @@ bool StopNode()
     if (vnThreadsRunning[THREAD_SOCKETHANDLER] > 0) printf("ThreadSocketHandler still running\n");
     if (vnThreadsRunning[THREAD_OPENCONNECTIONS] > 0) printf("ThreadOpenConnections still running\n");
     if (vnThreadsRunning[THREAD_MESSAGEHANDLER] > 0) printf("ThreadMessageHandler still running\n");
-    if (vnThreadsRunning[THREAD_MINER] > 0) printf("ThreadBitcoinMiner still running\n");
+    if (vnThreadsRunning[THREAD_MINTER] > 0) printf("ThreadStealthMinter still running\n");
     if (vnThreadsRunning[THREAD_RPCLISTENER] > 0) printf("ThreadRPCListener still running\n");
     if (vnThreadsRunning[THREAD_RPCHANDLER] > 0) printf("ThreadsRPCServer still running\n");
 #ifdef USE_UPNP

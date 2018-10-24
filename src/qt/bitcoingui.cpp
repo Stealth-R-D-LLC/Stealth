@@ -922,7 +922,8 @@ void BitcoinGUI::unlockWalletForTxn() {
        return;
   }
   // Unlock wallet when requested by wallet model
-  if((walletModel->getEncryptionStatus() == WalletModel::Locked) || fWalletUnlockMintOnly)
+  if ((walletModel->getEncryptionStatus() == WalletModel::Locked) ||
+       fWalletUnlockMintOnly)
   {
       AskPassphraseDialog::Mode mode = AskPassphraseDialog::UnlockTxn;
       AskPassphraseDialog dlg(mode, this);

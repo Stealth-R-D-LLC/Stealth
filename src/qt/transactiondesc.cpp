@@ -40,7 +40,7 @@ QString TransactionDesc::toHTML(CWallet *wallet, CWalletTx &wtx)
         strHTML.reserve(4000);
         strHTML += "<html><font face='verdana, arial, helvetica, sans-serif'>";
 
-        int64 nTime = wtx.GetTxTime();
+        int64 nTime = wtx.GetWTxTime();
         int64 nCredit = wtx.GetCredit();
         int64 nDebit = wtx.GetDebit();
         int64 nNet = nCredit - nDebit;

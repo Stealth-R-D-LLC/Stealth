@@ -45,7 +45,7 @@ Value setgenerate(const Array& params, bool fHelp)
     }
     mapArgs["-gen"] = (fGenerate ? "1" : "0");
 
-    GenerateBitcoins(fGenerate, pwalletMain);
+    GenerateXST(fGenerate, pwalletMain);
     return Value::null;
 }
 
@@ -434,11 +434,14 @@ Value getblocktemplate(const Array& params, bool fHelp)
     static CBlockIndex* pindexPrev;
     static int64 nStart;
     static CBlock* pblock;
+    int64 nTxTime = pblock->vtx[0].HasTimestamp() ?
+                       (int64) pblock->vtx[0].GetTxTime() :
+                       (int64) pblock->GetBlockTime();
     if ((pindexPrev != pindexBest) ||
         (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 5) ||
         ((GetFork(pindexBest->nHeight + 1) >= XST_FORK005) &&
          // give it 12 seconds for a new getwork (because future drift is only 15 s)
-         (pblock->GetBlockTime() >= FutureDrift((int64)pblock->vtx[0].nTime) + 12)))
+         (pblock->GetBlockTime() >= FutureDrift(nTxTime) + 12)))
     {
         // Clear pindexPrev so future calls make a new block, despite any failures from here on
         pindexPrev = NULL;

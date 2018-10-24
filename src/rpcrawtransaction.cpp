@@ -54,7 +54,10 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
 {
     entry.push_back(Pair("txid", tx.GetHash().GetHex()));
     entry.push_back(Pair("version", tx.nVersion));
-    entry.push_back(Pair("time", (boost::int64_t)tx.nTime));
+    if (tx.HasTimestamp())
+    {
+        entry.push_back(Pair("time", (boost::int64_t)tx.GetTxTime()));
+    }
     entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
     Array vin;
     BOOST_FOREACH(const CTxIn& txin, tx.vin)
@@ -127,7 +130,8 @@ Value getrawtransaction(const Array& params, bool fHelp)
 
     CTransaction tx;
     uint256 hashBlock = 0;
-    if (!GetTransaction(hash, tx, hashBlock))
+    unsigned int nTimeBlock;
+    if (!GetTransaction(hash, tx, hashBlock, nTimeBlock))
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
 
     CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
@@ -504,7 +508,13 @@ string sendtoaddresswithtime(string sAddress, int64 nAmount, unsigned int nTime)
         throw JSONRPCError(-101, "Send amount too small");
 
     CWalletTx wtx;
-    wtx.nTime = nTime;
+
+    if (!wtx.HasTimestamp())
+	{
+        throw JSONRPCError(RPC_WALLET_ERROR, "Transactions no longer have timestamps.");
+    }
+
+    wtx.SetTxTime(nTime);
 
     if (pwalletMain->IsLocked())
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED,
@@ -574,13 +584,22 @@ Value decryptsend(const Array& params, bool fHelp)
             return string("<<Bad Timestamp>>");
     }
 
+    // StealthText is going to be unsupported upon FORK006
+    // because replay prevention relies on timestamps for uids.
+    // If there seems to be demand, I will work out replay attacks
+    // probably by including a uid in OP_RETURN.
+    if (GetFork(nBestHeight) >= XST_FORK006)
+    {
+        return string("<<StealthTextUnsupported>>");
+    }
+
     // look for existing matching timestamps in wallet (ghetto uid)
     // should handle replay with scriptsig in future (version 2)
     LOCK(pwalletMain->cs_wallet);
     for (map<uint256, CWalletTx>::const_iterator it = pwalletMain->mapWallet.begin();
          it != pwalletMain->mapWallet.end(); ++it) {
              const CWalletTx* pcoin = &(*it).second;
-             if (pcoin->nTime == nTime) {
+             if (pcoin->GetTxTime() == nTime) {
                    return string("<<Replay>>");
              }
     }
@@ -616,7 +635,8 @@ Value sendrawtransaction(const Array& params, bool fHelp)
     // or in the memory pool:
     CTransaction existingTx;
     uint256 hashBlock = 0;
-    if (GetTransaction(hashTx, existingTx, hashBlock))
+    unsigned int nTimeBlock;
+    if (GetTransaction(hashTx, existingTx, hashBlock, nTimeBlock))
     {
         if (hashBlock != 0)
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,

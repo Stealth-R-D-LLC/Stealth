@@ -43,7 +43,11 @@ int check_interrupted(
 
 static boost::mutex initializing;
 
+#if __cplusplus >= 201103L
+static std::unique_ptr<boost::unique_lock<boost::mutex> > uninitialized(
+#else
 static std::auto_ptr<boost::unique_lock<boost::mutex> > uninitialized(
+#endif
     new boost::unique_lock<boost::mutex>(
         initializing
     )

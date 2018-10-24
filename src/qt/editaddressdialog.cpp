@@ -25,9 +25,12 @@ EditAddressDialog::EditAddressDialog(Mode mode, QWidget *parent) :
         setWindowTitle(tr("New receiving address"));
         ui->addressEdit->setEnabled(false);
         ui->addressEdit->setVisible(false);
-        if(fTestNet || (pindexBest->nTime >= STEALTH_ADDR_KICK_IN)){
+        if (GetFork(pindexBest->nHeight) >= XST_FORK004)
+        {
            ui->stealthCB->setEnabled(true);
-        }else{
+        }
+        else
+        {
            ui->stealthCB->setEnabled(false);
         }
         ui->stealthCB->setVisible(true);

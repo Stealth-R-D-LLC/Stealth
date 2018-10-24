@@ -379,9 +379,9 @@ bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
         sig_s_new = BN_new();
         // enforce low S values, by negating the value (modulo the order) if above order/2.
         BN_sub(sig_s_new, order, sig_s);
+        BN_copy(sig_r_new, sig_r);
         // no need to free sig_*_new according to OpenSSL docs
         // https://www.openssl.org/docs/man1.1.0/crypto/ECDSA_SIG_set0.html
-        BN_copy(sig_r_new, sig_r);
         ECDSA_SIG_set0(sig, sig_r_new, sig_s_new);
     }
 #else
