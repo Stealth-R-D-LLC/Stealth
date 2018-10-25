@@ -9,7 +9,7 @@
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleGetInfoString</key>
-        <string>StealthCoin [XST] Complete Anonymity 2.2.0.0</string>
+        <string>Stealth [XST] Complete Anonymity 2.2.0.0</string>
         <key>CFBundleExecutable</key>
         <string>Stealth Qt</string>
         <key>CFBundleIdentifier</key>
