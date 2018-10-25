@@ -703,7 +703,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 case OP_DEPTH:
                 {
                     // -- stacksize
-                    CBigNum bn(stack.size());
+                    CBigNum bn((unsigned int)stack.size());
                     stack.push_back(bn.getvch());
                 }
                 break;
@@ -859,7 +859,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // (in -- in size)
                     if (stack.size() < 1)
                         return false;
-                    CBigNum bn(stacktop(-1).size());
+                    CBigNum bn((unsigned int)stacktop(-1).size());
                     stack.push_back(bn.getvch());
                 }
                 break;
