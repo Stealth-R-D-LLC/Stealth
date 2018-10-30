@@ -1,6 +1,7 @@
 /*
  * W.J. van der Laan 2011-2012
  */
+
 #include "bitcoingui.h"
 #include "clientmodel.h"
 #include "walletmodel.h"

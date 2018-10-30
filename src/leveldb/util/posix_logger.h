@@ -63,7 +63,7 @@ class PosixLogger : public Logger {
       // Print the message
       if (p < limit) {
         va_list backup_ap;
-        va_copy(backup_ap, ap);
+        __va_copy(backup_ap, ap);
         p += vsnprintf(p, limit - p, format, backup_ap);
         va_end(backup_ap);
       }

@@ -160,6 +160,7 @@ ifneq ($(IS_DARWIN),0)
 AR = libtool
 ARFLAGS = -static -o
 CXX ?= c++
+CXXFLAGS += -m64 -stdlib=libc++ -std=c++98
 ifeq ($(IS_GCC_29),1)
 CXXFLAGS += -fno-coalesce-templates -fno-coalesce-static-vtables
 LDLIBS += -lstdc++

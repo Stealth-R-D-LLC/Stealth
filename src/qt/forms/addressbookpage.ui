@@ -15,7 +15,7 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
-    <widget class="QWebView" name="labelExplanation">
+    <widget class="QWebEngineView" name="labelExplanation">
      <property name="html">
       <string>These are your XST addresses for receiving payments. You may want to give a different one to each sender so you can keep track of who is paying you.</string>
      </property>

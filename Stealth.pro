@@ -25,14 +25,26 @@ INCLUDEPATH += src/tor/ext/curve25519_donna src/tor/ext/ed25519/donna
 INCLUDEPATH += src/tor/ext/ed25519/ref10 src/tor/ext/keccak-tiny
 INCLUDEPATH += src/tor/ext/trunnel src/tor/or src/tor/trunnel
 INCLUDEPATH += src/tor/trunnel/hs
-# INCLUDEPATH += src/libcryptopp
-QT += core gui network webkit
-greaterThan(QT_MAJOR_VERSION, 4): QT += widgets printsupport webkitwidgets
+
+QT += core gui network
+greaterThan(QT_MAJOR_VERSION, 4) {
+   QT += widgets printsupport webenginewidgets
+} else {
+   QT += webkit
+}
+
 CONFIG += no_include_pwd
 CONFIG += thread
+
 QMAKE_CFLAGS += -std=gnu99
 QMAKE_CFLAGS_RELEASE += -std=gnu99
 
+macx {
+  greaterThan(QT_MAJOR_VERSION, 4) {
+    CONFIG -= gnu++1 c++11
+    CONFIG += c++98
+  }
+}
 
 win32 {
   contains(WINBITS, 32) {
@@ -42,8 +54,12 @@ win32 {
 
 !macx:!win32:CONFIG += static
 
-
-macx:INCLUDEPATH += /opt/local/include/db48
+macx {
+  INCLUDEPATH += /usr/local/ssl/include
+  INCLUDEPATH += /usr/local/include
+  LIBS += -L"/usr/local/ssl/lib"
+  LIBS += -L"/usr/local/lib"
+}
 
 !macx:!win32 {
    # debian
@@ -113,17 +129,6 @@ contains(RELEASE, 1) {
     }
 }
 
-
-# OS X is never static
-# macx:mystaticconfig {
-#   QMAKE_LIBS_QT =
-#   QMAKE_LIBS_QT_THREAD =
-#   LIBS += $(QTDIR)/lib/libqt.a -lz -framework Carbon
-#   LIBS += /usr/local/lib/libqrencode.3.dylib
-#   CONFIG += mystaticconfig
-# }
-
-
 # bug in gcc 4.4 breaks some pointer code
 # QMAKE_CXXFLAGS += -fno-strict-aliasing
     win32:contains(WINBITS, 32) {
@@ -138,7 +143,7 @@ USE_QRCODE=1
 contains(USE_QRCODE, 1) {
     message(Building with QRCode support)
     DEFINES += USE_QRCODE
-    macx:LIBS += /opt/local/lib/libqrencode.3.dylib
+    macx:LIBS += /usr/local/lib/libqrencode.4.dylib
     LIBS += -lqrencode
 } else {
     message(Building without QRCode support)
@@ -232,7 +237,6 @@ LIBS += $$PWD/src/leveldb/out-static/libleveldb.a $$PWD/src/leveldb/out-static/l
 # QMAKE_CLEAN += ; cd $$PWD/src/libcryptopp ; $(MAKE) clean
 
 LIBS += $$PWD/src/libcryptopp/libcryptopp.a
-
 
 !win32 {
     # for extra security against potential buffer overflows
@@ -924,7 +928,7 @@ OTHER_FILES += \
 
 # platform specific defaults, if not overridden on command line
 isEmpty(BOOST_LIB_SUFFIX) {
-    macx:BOOST_LIB_SUFFIX = -mt
+    macx:BOOST_LIB_SUFFIX =
     win32 {
       contains(WINBITS, 32) {
          BOOST_LIB_SUFFIX = -mgw49-mt-s-1_57
@@ -939,7 +943,7 @@ isEmpty(BOOST_THREAD_LIB_SUFFIX) {
 }
 
 isEmpty(BDB_LIB_PATH) {
-    macx:BDB_LIB_PATH = /opt/local/lib/db48
+    macx:BDB_LIB_PATH = /usr/local/lib
 }
 
 isEmpty(BDB_LIB_SUFFIX) {
@@ -947,17 +951,17 @@ isEmpty(BDB_LIB_SUFFIX) {
 }
 
 isEmpty(BDB_INCLUDE_PATH) {
-    macx:BDB_INCLUDE_PATH = /opt/local/include/db48
+    macx:BDB_INCLUDE_PATH = /usr/local/include
 }
 
 isEmpty(BOOST_LIB_PATH) {
-    macx:BOOST_LIB_PATH = /opt/local/lib
+    macx:BOOST_LIB_PATH = /usr/local/lib
     # custom linux
     # !macx:!win32:BOOST_LIB_PATH = /usr/local/boost/stage/lib
 }
 
 isEmpty(BOOST_INCLUDE_PATH) {
-    macx:BOOST_INCLUDE_PATH = /opt/local/include
+    macx:BOOST_INCLUDE_PATH = /usr/local/include
 }
 
 win32:DEFINES += WIN32
@@ -1050,7 +1054,7 @@ macx | win32 {
 
 macx {
     LIBS += -ldb_cxx-4.8
-    LIBS += /opt/local/lib/db48/libdb_cxx-4.8.a
+    LIBS += /usr/local/lib/libdb_cxx-4.8.a
 }
 
 !macx:!win32 {
