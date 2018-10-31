@@ -148,7 +148,7 @@ BitcoinGUI::BitcoinGUI(QWidget *parent):
 
     //bottomBar->progressBar->hide();
 
-    syncIconMovie = new QMovie(":/movies/update_spinner", "mng", this);
+    syncIconMovie = new QMovie(":/movies/update_spinner", "gif", this);
     // this->setStyleSheet("background-color: #effbef;");
 
     // Clicking on a transaction on the overview page simply sends you to transaction history page
