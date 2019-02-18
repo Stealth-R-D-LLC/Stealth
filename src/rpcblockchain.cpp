@@ -293,6 +293,7 @@ Value gettxout(const Array& params, bool fHelp)
     CTransaction tx;
 
     CBlockIndex* pindex = pindexBest;
+    CBlockIndex* pindexBestBlock = pindex;
     uint256 hashBlock = 0;
     int confirmations = 0;
 
@@ -329,7 +330,8 @@ Value gettxout(const Array& params, bool fHelp)
         return Value::null;
     }
 
-    ret.push_back(Pair("bestblock", pindex->GetBlockHash().GetHex()));
+    ret.push_back(Pair("bestblock", pindexBestBlock->GetBlockHash().GetHex()));
+    ret.push_back(Pair("txblock", pindex->GetBlockHash().GetHex()));
     ret.push_back(Pair("confirmations", confirmations));
     ret.push_back(Pair("value", ValueFromAmount(tx.vout[n].nValue)));
     Object o;
