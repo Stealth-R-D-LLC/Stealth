@@ -249,7 +249,7 @@ Value getcheckpoint(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getcheckpoint\n"
-            "Show info of synchronized checkpoint.\n");
+            "Show info of synchronized checkpoint.");
 
     Object result;
     CBlockIndex* pindexCheckpoint;
@@ -262,4 +262,81 @@ Value getcheckpoint(const Array& params, bool fHelp)
         result.push_back(Pair("checkpointmaster", true));
 
     return result;
+}
+
+Value gettxout(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 2 || params.size() > 3)
+    {
+        throw runtime_error(
+            "gettxout <txid> <n> [includemempool]\n"
+            "Returns details about an unspent transaction output.\n"
+            "<txid> is th transaction id\n"
+            "<n> is the vout index\n"
+            "[includemempool] whether to included the mempool (default: true)");
+    }
+
+    Object ret;
+
+    std::string strHash = params[0].get_str();
+    uint256 hash(strHash);
+    int n = params[1].get_int();
+    bool fMempool = true;
+    if (params.size() > 2)
+    {
+        fMempool = params[2].get_bool();
+    }
+
+    LOCK(cs_main);
+
+    bool fFoundInMemPool = false;
+    CTransaction tx;
+
+    CBlockIndex* pindex = pindexBest;
+    uint256 hashBlock = 0;
+    int confirmations = 0;
+
+    if (fMempool)
+    {
+        LOCK(mempool.cs);
+
+        if (mempool.lookup(hash, tx))
+        {
+            fFoundInMemPool = true;
+        }
+    }
+
+    if (!fFoundInMemPool)
+    {
+        unsigned int nTimeBlock;
+        if (!GetTransaction(hash, tx, hashBlock, nTimeBlock))
+        {
+            return Value::null;
+        }
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if ((mi != mapBlockIndex.end()) && (*mi).second)
+        {
+            pindex = (*mi).second;
+            if (pindex->IsInMainChain())
+            {
+                confirmations = nBestHeight + 1 - pindex->nHeight;
+            }
+        }
+    }
+
+    if (n < 0 || (unsigned int)n >= tx.vout.size() || tx.vout[n].IsNull())
+    {
+        return Value::null;
+    }
+
+    ret.push_back(Pair("bestblock", pindex->GetBlockHash().GetHex()));
+    ret.push_back(Pair("confirmations", confirmations));
+    ret.push_back(Pair("value", ValueFromAmount(tx.vout[n].nValue)));
+    Object o;
+    ScriptPubKeyToJSON(tx.vout[n].scriptPubKey, o);
+    ret.push_back(Pair("scriptPubKey", o));
+    ret.push_back(Pair("version", tx.nVersion));
+    ret.push_back(Pair("coinbase", tx.IsCoinBase()));
+
+    return ret;
 }
