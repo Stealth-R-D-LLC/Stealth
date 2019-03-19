@@ -581,6 +581,9 @@
 #if defined(__arm__)
   #define PC_FROM_UCONTEXT uc_mcontext.arm_r0
 #else
+  #ifdef HAVE_UCONTEXT_H
+    #include <ucontext.h>
+  #endif
   #ifdef REG_RIP
     #define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP]
   #else
