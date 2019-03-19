@@ -579,9 +579,13 @@
 
 /* How to access the PC from a struct ucontext */
 #if defined(__arm__)
-#define PC_FROM_UCONTEXT uc_mcontext.arm_r0
+  #define PC_FROM_UCONTEXT uc_mcontext.arm_r0
 #else
-#define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP]
+  #ifdef REG_RIP
+    #define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP]
+  #else
+    #define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_EIP]
+  #endif
 #endif
 
 /* Define to 1 iff right-shifting a negative value performs sign-extension */
