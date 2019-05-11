@@ -285,7 +285,6 @@ static inline uint32_t LE_LOAD32(const uint8_t *p) {
   return DecodeFixed32(reinterpret_cast<const char*>(p));
 }
 
-#if !defined(LEVELDB_PLATFORM_WINDOWS)
 // Determine if the CPU running this program can accelerate the CRC32C
 // calculation.
 static bool CanAccelerateCRC32C() {
@@ -296,15 +295,12 @@ static bool CanAccelerateCRC32C() {
 
   return port::AcceleratedCRC32C(0, kTestCRCBuffer, kBufSize) == kTestCRCValue;
 }
-#endif
 
 uint32_t Extend(uint32_t crc, const char* buf, size_t size) {
-#if !defined(LEVELDB_PLATFORM_WINDOWS)
   static bool accelerate = CanAccelerateCRC32C();
   if (accelerate) {
     return port::AcceleratedCRC32C(crc, buf, size);
   }
-#endif
 
   const uint8_t *p = reinterpret_cast<const uint8_t *>(buf);
   const uint8_t *e = p + size;

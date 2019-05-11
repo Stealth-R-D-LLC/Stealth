@@ -95,104 +95,18 @@ void RPCTypeCheck(const Object& o,
     }
 }
 
-
-void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
-{
-    txnouttype type;
-    vector<CTxDestination> addresses;
-    int nRequired;
-
-    out.push_back(Pair("asm", scriptPubKey.ToString()));
-    out.push_back(Pair("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
-
-    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired))
-    {
-        out.push_back(Pair("type", GetTxnOutputType(TX_NONSTANDARD)));
-        return;
-    }
-
-    out.push_back(Pair("reqSigs", nRequired));
-    out.push_back(Pair("type", GetTxnOutputType(type)));
-
-    Array a;
-    BOOST_FOREACH(const CTxDestination& addr, addresses)
-        a.push_back(CBitcoinAddress(addr).ToString());
-    out.push_back(Pair("addresses", a));
-}
-
-void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
-{
-    entry.push_back(Pair("txid", tx.GetHash().GetHex()));
-    entry.push_back(Pair("version", tx.nVersion));
-    if (tx.HasTimestamp())
-    {
-        entry.push_back(Pair("time", (boost::int64_t)tx.GetTxTime()));
-    }
-    entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
-    Array vin;
-    BOOST_FOREACH(const CTxIn& txin, tx.vin)
-    {
-        Object in;
-        if (tx.IsCoinBase())
-            in.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
-        else
-        {
-            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
-            in.push_back(Pair("vout", (boost::int64_t)txin.prevout.n));
-            Object o;
-            o.push_back(Pair("asm", txin.scriptSig.ToString()));
-            o.push_back(Pair("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
-            in.push_back(Pair("scriptSig", o));
-        }
-        in.push_back(Pair("sequence", (boost::int64_t)txin.nSequence));
-        vin.push_back(in);
-    }
-    entry.push_back(Pair("vin", vin));
-    Array vout;
-    for (unsigned int i = 0; i < tx.vout.size(); i++)
-    {
-        const CTxOut& txout = tx.vout[i];
-        Object out;
-        out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-        out.push_back(Pair("n", (boost::int64_t)i));
-        Object o;
-        ScriptPubKeyToJSON(txout.scriptPubKey, o);
-        out.push_back(Pair("scriptPubKey", o));
-        vout.push_back(out);
-    }
-    entry.push_back(Pair("vout", vout));
-
-    if (hashBlock != 0)
-    {
-        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-        if (mi != mapBlockIndex.end() && (*mi).second)
-        {
-            CBlockIndex* pindex = (*mi).second;
-            if (pindex->IsInMainChain())
-            {
-                entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                entry.push_back(Pair("blocktime", (boost::int64_t)pindex->nTime));
-            }
-            else
-                entry.push_back(Pair("confirmations", 0));
-        }
-    }
-}
-
-int64 AmountFromValue(const Value& value)
+int64_t AmountFromValue(const Value& value)
 {
     double dAmount = value.get_real();
     if (dAmount <= 0.0 || dAmount > MAX_MONEY)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
-    int64 nAmount = roundint64(dAmount * COIN);
+    int64_t nAmount = roundint64(dAmount * COIN);
     if (!MoneyRange(nAmount))
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
     return nAmount;
 }
 
-Value ValueFromAmount(int64 amount)
+Value ValueFromAmount(int64_t amount)
 {
     return (double)amount / (double)COIN;
 }
@@ -323,16 +237,18 @@ Value stop(const Array& params, bool fHelp)
 static const CRPCCommand vRPCCommands[] =
 { //  name                      function                 safemd  unlocked
   //  ------------------------  -----------------------  ------  --------
-    { "help",                   &help,                   true,   true },
-    { "stop",                   &stop,                   true,   true },
+    { "help",                   &help,                   true,   true  },
+    { "stop",                   &stop,                   true,   true  },
     { "getbestblockhash",       &getbestblockhash,       true,   false },
     { "getblockcount",          &getblockcount,          true,   false },
     { "getconnectioncount",     &getconnectioncount,     true,   false },
     { "getadjustedtime",        &getadjustedtime,        true,   false },
     { "getpeerinfo",            &getpeerinfo,            true,   false },
     { "getdifficulty",          &getdifficulty,          true,   false },
+#ifdef WITH_MINER
     { "getgenerate",            &getgenerate,            true,   false },
     { "setgenerate",            &setgenerate,            true,   false },
+#endif  /* WITH_MINER */
     { "gethashespersec",        &gethashespersec,        true,   false },
     { "getinfo",                &getinfo,                true,   false },
     { "getsubsidy",             &getsubsidy,             true,   false },
@@ -370,12 +286,16 @@ static const CRPCCommand vRPCCommands[] =
     { "listaddressgroupings",   &listaddressgroupings,   false,  false },
     { "signmessage",            &signmessage,            false,  false },
     { "verifymessage",          &verifymessage,          false,  false },
+#ifdef WITH_MINER
     { "getwork",                &getwork,                true,   false },
     { "getworkex",              &getworkex,              true,   false },
+#endif  /* WITH_MINER */
     { "listaccounts",           &listaccounts,           false,  false },
     { "settxfee",               &settxfee,               false,  false },
+#ifdef WITH_MINER
     { "getblocktemplate",       &getblocktemplate,       true,   false },
     { "submitblock",            &submitblock,            false,  false },
+#endif  /* WITH_MINER */
     { "listsinceblock",         &listsinceblock,         false,  false },
     { "dumpprivkey",            &dumpprivkey,            false,  false },
     { "importprivkey",          &importprivkey,          false,  false },
@@ -387,20 +307,32 @@ static const CRPCCommand vRPCCommands[] =
     { "sendrawtransaction",     &sendrawtransaction,     false,  false },
     { "decryptsend",            &decryptsend,            false,  false },
     { "getcheckpoint",          &getcheckpoint,          true,   false },
-    { "gettxout",               &gettxout,               false,  false },
-    { "reservebalance",         &reservebalance,         false,  true},
-    { "checkwallet",            &checkwallet,            false,  true},
-    { "repairwallet",           &repairwallet,           false,  true},
-    { "resendtx",               &resendtx,               false,  true},
-    { "makekeypair",            &makekeypair,            false,  true},
-    { "sendalert",              &sendalert,              false,  false},
-    { "getnewstealthaddress",   &getnewstealthaddress,   false,  false},
-    { "liststealthaddresses",   &liststealthaddresses,   false,  false},
-    { "importstealthaddress",   &importstealthaddress,   false,  false},
-    { "sendtostealthaddress",   &sendtostealthaddress,   false,  false},
-    { "clearwallettransactions",&clearwallettransactions,false,  false},
-    { "scanforalltxns",         &scanforalltxns,         false,  false},
-    { "scanforstealthtxns",     &scanforstealthtxns,     false,  false},
+    { "reservebalance",         &reservebalance,         false,  true  },
+    { "checkwallet",            &checkwallet,            false,  true  },
+    { "repairwallet",           &repairwallet,           false,  true  },
+    { "resendtx",               &resendtx,               false,  true  },
+    { "makekeypair",            &makekeypair,            false,  true  },
+    { "sendalert",              &sendalert,              false,  false },
+    { "getnewstealthaddress",   &getnewstealthaddress,   false,  false },
+    { "liststealthaddresses",   &liststealthaddresses,   false,  false },
+    { "importstealthaddress",   &importstealthaddress,   false,  false },
+    { "sendtostealthaddress",   &sendtostealthaddress,   false,  false },
+    { "clearwallettransactions",&clearwallettransactions,false,  false },
+    { "scanforalltxns",         &scanforalltxns,         false,  false },
+    { "scanforstealthtxns",     &scanforstealthtxns,     false,  false },
+    { "getstakerprice",         &getstakerprice,         false,  false },
+    { "getstakerid",            &getstakerid,            false,  false },
+    { "purchasestaker",         &purchasestaker,         false,  true  },
+    { "setstakerowner",         &setstakerowner,         false,  true  },
+    { "setstakerdelegate",      &setstakerdelegate,      false,  true  },
+    { "setstakercontroller",    &setstakercontroller,    false,  true  },
+    { "enablestaker",           &enablestaker,           false,  true  },
+    { "disablestaker",          &disablestaker,          false,  true  },
+    { "claimqposbalance",       &claimqposbalance,       false,  true  },
+    { "getstakerinfo",          &getstakerinfo,          false,  false },
+    { "getqposinfo",            &getqposinfo,            false,  false },
+    { "getqposbalance",         &getqposbalance,         false,  false },
+    { "exitreplay",             &exitreplay,             false,  false }
 };
 
 CRPCTable::CRPCTable()
@@ -1111,7 +1043,7 @@ void ThreadRPCServer3(void* parg)
                If this results in a DOS the user really
                shouldn't have their RPC port exposed.*/
             if (mapArgs["-rpcpassword"].size() < 20)
-                Sleep(250);
+                MilliSleep(250);
 
             conn->stream() << HTTPReply(HTTP_UNAUTHORIZED, "", false) << std::flush;
             break;
@@ -1184,8 +1116,11 @@ json_spirit::Value CRPCTable::execute(const std::string &strMethod, const json_s
         Value result;
         {
             if (pcmd->unlocked)
+            {
                 result = pcmd->actor(params, false);
-            else {
+            }
+            else
+            {
                 LOCK2(cs_main, pwalletMain->cs_wallet);
                 result = pcmd->actor(params, false);
             }
@@ -1315,10 +1250,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "listsinceblock"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "sendmany"               && n > 1) ConvertTo<Object>(params[1]);
     if (strMethod == "sendmany"               && n > 2) ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "gettxout"               && n > 1) ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "gettxout"               && n > 2) ConvertTo<bool>(params[2]);
-    if (strMethod == "reservebalance"          && n > 0) ConvertTo<bool>(params[0]);
-    if (strMethod == "reservebalance"          && n > 1) ConvertTo<double>(params[1]);
+    if (strMethod == "reservebalance"         && n > 0) ConvertTo<bool>(params[0]);
+    if (strMethod == "reservebalance"         && n > 1) ConvertTo<double>(params[1]);
     if (strMethod == "addmultisigaddress"     && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "addmultisigaddress"     && n > 1) ConvertTo<Array>(params[1]);
     if (strMethod == "listunspent"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
@@ -1330,6 +1263,17 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
     if (strMethod == "signrawtransaction"     && n > 2) ConvertTo<Array>(params[2], true);
     if (strMethod == "sendtostealthaddress"   && n > 1) ConvertTo<double>(params[1]);
+    if (strMethod == "purchasestaker"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "purchasestaker"         && n > 4) ConvertTo<double>(params[4]);
+    if (strMethod == "purchasestaker"         && n > 7) ConvertTo<double>(params[7]);
+    if (strMethod == "setstakerowner"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "setstakerdelegate"      && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "setstakerdelegate"      && n > 4) ConvertTo<double>(params[4]);
+    if (strMethod == "setstakercontroller"    && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "enablestaker"           && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "disablestaker"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "claimqposbalance"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "claimqposbalance"       && n > 2) ConvertTo<double>(params[2]);
 
     return params;
 }

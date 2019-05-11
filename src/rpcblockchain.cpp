@@ -9,6 +9,8 @@
 using namespace json_spirit;
 using namespace std;
 
+extern QPRegistry *pregistryMain;
+
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, json_spirit::Object& entry);
 
 double GetDifficulty(const CBlockIndex* blockindex)
@@ -18,9 +20,18 @@ double GetDifficulty(const CBlockIndex* blockindex)
     if (blockindex == NULL)
     {
         if (pindexBest == NULL)
+        {
             return 1.0;
+        }
         else
+        {
             blockindex = GetLastBlockIndex(pindexBest, false);
+        }
+    }
+
+    if (GetFork(blockindex->nHeight) >= XST_FORKASDF)
+    {
+        return 0.0;
     }
 
     int nShift = (blockindex->nBits >> 24) & 0xff;
@@ -71,13 +82,36 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
 {
     Object result;
     result.push_back(Pair("hash", block.GetHash().GetHex()));
-    CMerkleTx txGen(block.vtx[0]);
-    txGen.SetMerkleBranch(&block);
-    result.push_back(Pair("confirmations", (int)txGen.GetDepthInMainChain()));
+    
+    if (block.IsQuantumProofOfStake())
+    {
+        int nConfs = pindexBest->nHeight + 1 - blockindex->nHeight;
+        result.push_back(Pair("confirmations", nConfs));
+    }
+    else
+    {
+        CMerkleTx txGen(block.vtx[0]);
+        txGen.SetMerkleBranch(&block);
+        result.push_back(Pair("confirmations", (int)txGen.GetDepthInMainChain()));
+    }
     result.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION)));
     result.push_back(Pair("height", blockindex->nHeight));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
+    if (blockindex->IsQuantumProofOfStake())
+    {
+        result.push_back(Pair("staker_id", (boost::int64_t)block.nStakerID));
+        string sAlias;
+        if (pregistryMain->GetAliasForID(block.nStakerID, sAlias))
+        {
+            result.push_back(Pair("staker_alias", sAlias));
+        }
+        if (blockindex->pprev != NULL)
+        {
+            result.push_back(Pair("block_reward",
+              ValueFromAmount(GetQPoSReward(blockindex->pprev))));
+        }
+    }
     result.push_back(Pair("mint", ValueFromAmount(blockindex->nMint)));
     result.push_back(Pair("time", (boost::int64_t)block.GetBlockTime()));
     result.push_back(Pair("nonce", (boost::uint64_t)block.nNonce));
@@ -88,12 +122,27 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
         result.push_back(Pair("previousblockhash", blockindex->pprev->GetBlockHash().GetHex()));
     if (blockindex->pnext)
         result.push_back(Pair("nextblockhash", blockindex->pnext->GetBlockHash().GetHex()));
-
-    result.push_back(Pair("flags", strprintf("%s%s", blockindex->IsProofOfStake()? "proof-of-stake" : "proof-of-work", blockindex->GeneratedStakeModifier()? " stake-modifier": "")));
+    string sFlags;
+    if (blockindex->IsQuantumProofOfStake())
+    {
+        sFlags = "quantum-proof-of-stake";
+    }
+    else if (blockindex->IsProofOfStake())
+    {
+        sFlags = "proof-of-stake";
+    }
+    else
+    {
+        sFlags = "proof-of-work";
+    }
+    result.push_back(Pair("flags", strprintf("%s%s", sFlags.c_str(), blockindex->GeneratedStakeModifier()? " stake-modifier": "")));
     result.push_back(Pair("proofhash", blockindex->IsProofOfStake()? blockindex->hashProofOfStake.GetHex() : blockindex->GetBlockHash().GetHex()));
-    result.push_back(Pair("entropybit", (int)blockindex->GetStakeEntropyBit()));
-    result.push_back(Pair("modifier", strprintf("%016" PRI64x, blockindex->nStakeModifier)));
-    result.push_back(Pair("modifierchecksum", strprintf("%08x", blockindex->nStakeModifierChecksum)));
+    if (blockindex->IsProofOfStake())
+    {
+        result.push_back(Pair("entropybit", (int)blockindex->GetStakeEntropyBit()));
+        result.push_back(Pair("modifier", strprintf("%016" PRIx64, blockindex->nStakeModifier)));
+        result.push_back(Pair("modifierchecksum", strprintf("%08x", blockindex->nStakeModifierChecksum)));
+    }
     Array txinfo;
     BOOST_FOREACH (const CTransaction& tx, block.vtx)
     {
@@ -132,7 +181,6 @@ Value getblockcount(const Array& params, bool fHelp)
         throw runtime_error(
             "getblockcount\n"
             "Returns the number of blocks in the longest block chain.");
-
     return nBestHeight;
 }
 
@@ -249,7 +297,7 @@ Value getcheckpoint(const Array& params, bool fHelp)
     if (fHelp || params.size() != 0)
         throw runtime_error(
             "getcheckpoint\n"
-            "Show info of synchronized checkpoint.");
+            "Show info of synchronized checkpoint.\n");
 
     Object result;
     CBlockIndex* pindexCheckpoint;
@@ -262,83 +310,4 @@ Value getcheckpoint(const Array& params, bool fHelp)
         result.push_back(Pair("checkpointmaster", true));
 
     return result;
-}
-
-Value gettxout(const Array& params, bool fHelp)
-{
-    if (fHelp || params.size() < 2 || params.size() > 3)
-    {
-        throw runtime_error(
-            "gettxout <txid> <n> [includemempool]\n"
-            "Returns details about an unspent transaction output.\n"
-            "<txid> is th transaction id\n"
-            "<n> is the vout index\n"
-            "[includemempool] whether to included the mempool (default: true)");
-    }
-
-    Object ret;
-
-    std::string strHash = params[0].get_str();
-    uint256 hash(strHash);
-    int n = params[1].get_int();
-    bool fMempool = true;
-    if (params.size() > 2)
-    {
-        fMempool = params[2].get_bool();
-    }
-
-    LOCK(cs_main);
-
-    bool fFoundInMemPool = false;
-    CTransaction tx;
-
-    CBlockIndex* pindex = pindexBest;
-    CBlockIndex* pindexBestBlock = pindex;
-    uint256 hashBlock = 0;
-    int confirmations = 0;
-
-    if (fMempool)
-    {
-        LOCK(mempool.cs);
-
-        if (mempool.lookup(hash, tx))
-        {
-            fFoundInMemPool = true;
-        }
-    }
-
-    if (!fFoundInMemPool)
-    {
-        unsigned int nTimeBlock;
-        if (!GetTransaction(hash, tx, hashBlock, nTimeBlock))
-        {
-            return Value::null;
-        }
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-        if ((mi != mapBlockIndex.end()) && (*mi).second)
-        {
-            pindex = (*mi).second;
-            if (pindex->IsInMainChain())
-            {
-                confirmations = nBestHeight + 1 - pindex->nHeight;
-            }
-        }
-    }
-
-    if (n < 0 || (unsigned int)n >= tx.vout.size() || tx.vout[n].IsNull())
-    {
-        return Value::null;
-    }
-
-    ret.push_back(Pair("bestblock", pindexBestBlock->GetBlockHash().GetHex()));
-    ret.push_back(Pair("txblock", pindex->GetBlockHash().GetHex()));
-    ret.push_back(Pair("confirmations", confirmations));
-    ret.push_back(Pair("value", ValueFromAmount(tx.vout[n].nValue)));
-    Object o;
-    ScriptPubKeyToJSON(tx.vout[n].scriptPubKey, o);
-    ret.push_back(Pair("scriptPubKey", o));
-    ret.push_back(Pair("version", tx.nVersion));
-    ret.push_back(Pair("coinbase", tx.IsCoinBase()));
-
-    return ret;
 }

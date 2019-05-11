@@ -10,8 +10,7 @@
 
 #include "base58.h"
 #include "bitcoinrpc.h"
-//#include "db.h"
-#include "txdb.h"
+#include "txdb-leveldb.h"
 #include "init.h"
 #include "main.h"
 #include "net.h"
@@ -25,6 +24,98 @@ using namespace json_spirit;
 
 // SSend: Externally constructed transactions have a 10 minute window
 const int MaxTxnTimeDrift = 5 * 60;
+
+void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
+{
+    txnouttype type;
+    vector<CTxDestination> addresses;
+    int nRequired;
+
+    out.push_back(Pair("asm", scriptPubKey.ToString()));
+    out.push_back(Pair("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
+
+    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired))
+    {
+        if ((type >= TX_PURCHASE1) && (type <= TX_CLAIM))
+        {
+            out.push_back(Pair("type", GetTxnOutputType(type)));
+        }
+        else
+        {
+            out.push_back(Pair("type", GetTxnOutputType(TX_NONSTANDARD)));
+        }
+        return;
+    }
+
+    out.push_back(Pair("reqSigs", nRequired));
+    out.push_back(Pair("type", GetTxnOutputType(type)));
+
+    Array a;
+    BOOST_FOREACH(const CTxDestination& addr, addresses)
+        a.push_back(CBitcoinAddress(addr).ToString());
+    out.push_back(Pair("addresses", a));
+}
+
+void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
+{
+    entry.push_back(Pair("txid", tx.GetHash().GetHex()));
+    entry.push_back(Pair("version", tx.nVersion));
+    if (tx.HasTimestamp())
+    {
+        entry.push_back(Pair("time", (boost::int64_t)tx.GetTxTime()));
+    }
+    entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+    Array vin;
+    BOOST_FOREACH(const CTxIn& txin, tx.vin)
+    {
+        Object in;
+        if (tx.IsCoinBase())
+            in.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        else
+        {
+            in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
+            in.push_back(Pair("vout", (boost::int64_t)txin.prevout.n));
+            Object o;
+            o.push_back(Pair("asm", txin.scriptSig.ToString()));
+            o.push_back(Pair("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+            in.push_back(Pair("scriptSig", o));
+        }
+        in.push_back(Pair("sequence", (boost::int64_t)txin.nSequence));
+        vin.push_back(in);
+    }
+    entry.push_back(Pair("vin", vin));
+    Array vout;
+    for (unsigned int i = 0; i < tx.vout.size(); i++)
+    {
+        const CTxOut& txout = tx.vout[i];
+        Object out;
+        out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
+        out.push_back(Pair("n", (boost::int64_t)i));
+        Object o;
+        ScriptPubKeyToJSON(txout.scriptPubKey, o);
+        out.push_back(Pair("scriptPubKey", o));
+        vout.push_back(out);
+    }
+    entry.push_back(Pair("vout", vout));
+
+    if (hashBlock != 0)
+    {
+        entry.push_back(Pair("blockhash", hashBlock.GetHex()));
+        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        if (mi != mapBlockIndex.end() && (*mi).second)
+        {
+            CBlockIndex* pindex = (*mi).second;
+            if (pindex->IsInMainChain())
+            {
+                entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
+                entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
+                entry.push_back(Pair("blocktime", (boost::int64_t)pindex->nTime));
+            }
+            else
+                entry.push_back(Pair("confirmations", 0));
+        }
+    }
+}
 
 Value getrawtransaction(const Array& params, bool fHelp)
 {
@@ -116,7 +207,7 @@ Value listunspent(const Array& params, bool fHelp)
                 continue;
         }
 
-        int64 nValue = out.tx->vout[out.i].nValue;
+        int64_t nValue = out.tx->vout[out.i].nValue;
         const CScript& pk = out.tx->vout[out.i].scriptPubKey;
         Object entry;
         entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
@@ -184,7 +275,7 @@ Value createrawtransaction(const Array& params, bool fHelp)
 
         CScript scriptPubKey;
         scriptPubKey.SetDestination(address.Get());
-        int64 nAmount = AmountFromValue(s.value_);
+        int64_t nAmount = AmountFromValue(s.value_);
 
         CTxOut out(nAmount, scriptPubKey);
         rawTx.vout.push_back(out);
@@ -413,7 +504,7 @@ Value signrawtransaction(const Array& params, bool fHelp)
 }
 
 
-string sendtoaddresswithtime(string sAddress, int64 nAmount, unsigned int nTime) {
+string sendtoaddresswithtime(string sAddress, int64_t nAmount, unsigned int nTime) {
 
     CBitcoinAddress address(sAddress);
     if (!address.IsValid())
@@ -486,7 +577,7 @@ Value decryptsend(const Array& params, bool fHelp)
     }
 
     string sAddress = txdescr[0];
-    int64 nAmount = roundint64(atof(txdescr[1].c_str()) * COIN);
+    int64_t nAmount = roundint64(atof(txdescr[1].c_str()) * COIN);
 
     // want seconds, not milliseconds (better than int division)
     string sTimeStamp = txdescr[2].substr(0, txdescr[2].size() - 3);

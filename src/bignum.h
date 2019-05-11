@@ -7,9 +7,11 @@
 
 #include <stdexcept>
 #include <vector>
+#include <cstdint>
+
 #include <openssl/bn.h>
 
-#include "util.h" // for uint64
+#include "util.h"
 
 /** Errors thrown by the bignum class */
 class bignum_error : public std::runtime_error
@@ -92,17 +94,17 @@ public:
     }
 
     //CBigNum(char n) is not portable.  Use 'signed char' or 'unsigned char'.
-    CBigNum(signed char n)      { init(); if (n >= 0) setulong(n); else setint64(n); }
-    CBigNum(short n)            { init(); if (n >= 0) setulong(n); else setint64(n); }
-    CBigNum(int n)              { init(); if (n >= 0) setulong(n); else setint64(n); }
-    // CBigNum(long n)             { init(); if (n >= 0) setulong(n); else setint64(n); }
-    CBigNum(int64 n)            { init(); setint64(n); }
+    CBigNum(signed char n)      { init(); if (n >= 0) setulong(n); else setint64_t(n); }
+    CBigNum(short n)            { init(); if (n >= 0) setulong(n); else setint64_t(n); }
+    CBigNum(int n)              { init(); if (n >= 0) setulong(n); else setint64_t(n); }
+    // CBigNum(long n)             { init(); if (n >= 0) setulong(n); else setint64_t(n); }
+    CBigNum(int64_t n)            { init(); setint64_t(n); }
     CBigNum(unsigned char n)    { init(); setulong(n); }
     CBigNum(unsigned short n)   { init(); setulong(n); }
     CBigNum(unsigned int n)     { init(); setulong(n); }
     // CBigNum(size_t n)           { init(); setulong((unsigned int) n); }
     // CBigNum(unsigned long n)    { init(); setulong(n); }
-    CBigNum(uint64 n)           { init(); setuint64(n); }
+    CBigNum(uint64_t n)           { init(); setuint64_t(n); }
     explicit CBigNum(uint256 n) { init(); setuint256(n); }
 
     explicit CBigNum(const std::vector<unsigned char>& vch)
@@ -169,14 +171,14 @@ public:
             return (n > (unsigned long)std::numeric_limits<int>::max() ? std::numeric_limits<int>::min() : -(int)n);
     }
 
-    void setint64(int64 sn)
+    void setint64_t(int64_t sn)
     {
         unsigned char pch[sizeof(sn) + 6];
         unsigned char* p = pch + 4;
         bool fNegative;
-        uint64 n;
+        uint64_t n;
 
-        if (sn < (int64)0)
+        if (sn < (int64_t)0)
         {
             // Since the minimum signed integer cannot be represented as positive so long as its type is signed,
             // and it's not well-defined what happens if you make it unsigned before negating it,
@@ -214,7 +216,7 @@ public:
         BN_mpi2bn(pch, p - pch, bn);
     }
 
-    uint64 getuint64()
+    uint64_t getuint64()
     {
         unsigned int nSize = BN_bn2mpi(bn, NULL);
         if (nSize < 4)
@@ -223,13 +225,13 @@ public:
         BN_bn2mpi(bn, &vch[0]);
         if (vch.size() > 4)
             vch[4] &= 0x7f;
-        uint64 n = 0;
+        uint64_t n = 0;
         for (unsigned int i = 0, j = vch.size()-1; i < sizeof(n) && j >= 4; i++, j--)
             ((unsigned char*)&n)[i] = vch[j];
         return n;
     }
 
-    void setuint64(uint64 n)
+    void setuint64_t(uint64_t n)
     {
         unsigned char pch[sizeof(n) + 6];
         unsigned char* p = pch + 4;

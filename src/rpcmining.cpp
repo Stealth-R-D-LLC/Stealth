@@ -6,13 +6,14 @@
 
 #include "main.h"
 #include "db.h"
-#include "txdb.h"
+#include "txdb-leveldb.h"
 #include "init.h"
 #include "bitcoinrpc.h"
 
 using namespace json_spirit;
 using namespace std;
 
+#ifdef WITH_MINER
 Value getgenerate(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
@@ -22,7 +23,6 @@ Value getgenerate(const Array& params, bool fHelp)
 
     return GetBoolArg("-gen");
 }
-
 
 Value setgenerate(const Array& params, bool fHelp)
 {
@@ -48,7 +48,7 @@ Value setgenerate(const Array& params, bool fHelp)
     GenerateXST(fGenerate, pwalletMain);
     return Value::null;
 }
-
+#endif  /* WITH_MINER */
 
 Value gethashespersec(const Array& params, bool fHelp)
 {
@@ -75,7 +75,7 @@ Value getsubsidy(const Array& params, bool fHelp)
     else
         nShowHeight = nBestHeight+1; // block currently being solved
 
-    return (uint64_t)GetProofOfWorkReward(nShowHeight, 0, 0);
+    return (uint64_t)GetProofOfWorkReward(nShowHeight, 0);
 }
 
 Value getmininginfo(const Array& params, bool fHelp)
@@ -134,7 +134,7 @@ Value getnetworkhashps(const Array& params, bool fHelp)
     return GetNetworkHashPS(params.size() > 0 ? params[0].get_int() : 120);
 }
 
-
+#ifdef WITH_MINER
 Value getworkex(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 2)
@@ -159,8 +159,9 @@ Value getworkex(const Array& params, bool fHelp)
         // Update block
         static unsigned int nTransactionsUpdatedLast;
         static CBlockIndex* pindexPrev;
-        static int64 nStart;
+        static int64_t nStart;
         static CBlock* pblock;
+
         if (pindexPrev != pindexBest ||
             (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
         {
@@ -168,8 +169,10 @@ Value getworkex(const Array& params, bool fHelp)
             {
                 // Deallocate old blocks since they're obsolete now
                 mapNewBlock.clear();
-                BOOST_FOREACH(CBlock* pblock, vNewBlock)
-                    delete pblock;
+                BOOST_FOREACH(CBlock* pblockDel, vNewBlock)
+                {
+                    delete pblockDel;
+                }
                 vNewBlock.clear();
             }
             nTransactionsUpdatedLast = nTransactionsUpdated;
@@ -177,10 +180,22 @@ Value getworkex(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            pblock = CreateNewBlock(pwalletMain);
-            if (!pblock)
-                throw JSONRPCError(-7, "Out of memory");
+            AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+            if (!pblockCreate.get())
+            {
+                throw JSONRPCError(-7, "out of memory for new block");
+            }
+            BlockCreationResult nResult = CreateNewBlock(pwalletMain,
+                                                         PROOFTYPE_POW,
+                                                         pblockCreate);
+            if (nResult != BLOCKCREATION_OK)
+            {
+                // asdf need to rethrow the error
+                throw JSONRPCError(-7, "block creation fail");
+            }
+            pblock = &(*pblockCreate);
             vNewBlock.push_back(pblock);
+            pblockCreate = NULL;
         }
 
         // Update nTime
@@ -260,7 +275,11 @@ Value getworkex(const Array& params, bool fHelp)
         //if (!pblock->SignBlock(*pwalletMain))
         //    throw JSONRPCError(-100, "Unable to sign block, wallet locked?");
 
-        return CheckWork(pblock, *pwalletMain, reservekey);
+        {
+            boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
+
+            return CheckWork(pblock, *pwalletMain, reservekey, pindexBest);
+        }
     }
 }
 
@@ -293,8 +312,9 @@ Value getwork(const Array& params, bool fHelp)
         // Update block
         static unsigned int nTransactionsUpdatedLast;
         static CBlockIndex* pindexPrev;
-        static int64 nStart;
+        static int64_t nStart;
         static CBlock* pblock;
+
         if (pindexPrev != pindexBest ||
             (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 60))
         {
@@ -316,10 +336,23 @@ Value getwork(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            pblock = CreateNewBlock(pwalletMain);
-            if (!pblock)
-                throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+            AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+            if (!pblockCreate.get())
+            {
+                throw JSONRPCError(-7, "out of memory for new block");
+            }
+            BlockCreationResult nResult = CreateNewBlock(pwalletMain,
+                                                         PROOFTYPE_POW,
+                                                         pblockCreate);
+            if (nResult != BLOCKCREATION_OK)
+            {
+                // asdf need to rethrow the error
+                throw JSONRPCError(-7, "block creation fail:");
+            }
+
+            pblock = &(*pblockCreate);
             vNewBlock.push_back(pblock);
+            pblockCreate = NULL;
 
             // Need to update only after we know CreateNewBlock succeeded
             pindexPrev = pindexPrevNew;
@@ -376,7 +409,11 @@ Value getwork(const Array& params, bool fHelp)
        // if (!pblock->SignBlock(*pwalletMain))
        //     throw JSONRPCError(-100, "Unable to sign block, wallet locked?");
 
-        return CheckWork(pblock, *pwalletMain, reservekey);
+        {
+            boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
+
+            return CheckWork(pblock, *pwalletMain, reservekey, pindexBest);
+        {
     }
 }
 
@@ -432,11 +469,28 @@ Value getblocktemplate(const Array& params, bool fHelp)
     // Update block
     static unsigned int nTransactionsUpdatedLast;
     static CBlockIndex* pindexPrev;
-    static int64 nStart;
+    static int64_t nStart;
     static CBlock* pblock;
-    int64 nTxTime = pblock->vtx[0].HasTimestamp() ?
-                       (int64) pblock->vtx[0].GetTxTime() :
-                       (int64) pblock->GetBlockTime();
+
+    int64_t nTxTime;
+    if (pblock)
+    {
+        if (pblock->vtx.empty())
+        {
+            nTxTime = (int64_t) pblock->GetBlockTime();
+        }
+        else
+        {
+            nTxTime = pblock->vtx[0].HasTimestamp() ?
+                       (int64_t)(pblock->vtx[0].GetTxTime()) :
+                       (int64_t)(pblock->GetBlockTime());
+        }
+    }
+    else
+    {
+        nTxTime = GetAdjustedTime();
+    }
+
     if ((pindexPrev != pindexBest) ||
         (nTransactionsUpdated != nTransactionsUpdatedLast && GetTime() - nStart > 5) ||
         ((GetFork(pindexBest->nHeight + 1) >= XST_FORK005) &&
@@ -457,9 +511,24 @@ Value getblocktemplate(const Array& params, bool fHelp)
             delete pblock;
             pblock = NULL;
         }
-        pblock = CreateNewBlock(pwalletMain);
-        if (!pblock)
-            throw JSONRPCError(RPC_OUT_OF_MEMORY, "Out of memory");
+
+        // Create new block
+         AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+        if (!pblockCreate.get())
+        {
+            throw JSONRPCError(-7, "out of memory for new block");
+        }
+        BlockCreationResult nResult = CreateNewBlock(pwalletMain,
+                                                     PROOFTYPE_POW,
+                                                     pblockCreate);
+        if (nResult != BLOCKCREATION_OK)
+        {
+            // asdf need to rethrow the error
+            throw JSONRPCError(-7, "block creation fail:");
+        }
+
+        pblock = &(*pblockCreate);
+        pblockCreate = NULL;
 
         // Need to update only after we know CreateNewBlock succeeded
         pindexPrev = pindexPrevNew;
@@ -566,10 +635,14 @@ Value submitblock(const Array& params, bool fHelp)
     //if (!block.SignBlock(*pwalletMain))
     //    throw JSONRPCError(-100, "Unable to sign block, wallet locked?");
 
-    bool fAccepted = ProcessBlock(NULL, &block);
+    {
+        boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
+
+        bool fAccepted = ProcessBlock(NULL, &block);
+    }
     if (!fAccepted)
         return "rejected";
 
     return Value::null;
 }
-
+#endif  /* WITH_MINER */

@@ -23,8 +23,8 @@ extern const std::string CLIENT_NUMBERS;
 extern const std::string CLIENT_DATE;
 
 // display version
-#define DISPLAY_VERSION_MAJOR       2
-#define DISPLAY_VERSION_MINOR       2
+#define DISPLAY_VERSION_MAJOR       3
+#define DISPLAY_VERSION_MINOR       0
 #define DISPLAY_VERSION_REVISION    0
 #define DISPLAY_VERSION_BUILD       0
 
@@ -37,6 +37,7 @@ extern const std::string CLIENT_DATE;
 //         1.0.1.1 : Fix PoS difficulty adjustment during PoW period
 // 61021 : fork 2
 //         1.0.2.1 : Kill PoW at 5460 to deal with forks on pools
+//                   Was block 20421
 // 61040 : fork 3
 //         1.0.4.0 : Adjust max bits computation for 60s block times
 // 61300 : fork 4
@@ -47,8 +48,10 @@ extern const std::string CLIENT_DATE;
 //         2.1.0.4 : OpenSSL v1.1 compatibility
 // 62200 : fork 6
 //         2.2.0.0 : Removing all traces of tx timestamp
+// 63000 : fork 7
+//         3.0.0.0 : Staker purchasing and qPoS
 //                   Immaleable transaction IDs
-static const int PROTOCOL_VERSION = 62200;
+static const int PROTOCOL_VERSION = 63000;
 
 // intial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 61300;

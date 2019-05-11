@@ -10,6 +10,7 @@
 #include "toradapter.h"
 
 extern CWallet* pwalletMain;
+extern QPRegistry* pregistryMain;
 
 void StartShutdown();
 void Shutdown(void* parg);

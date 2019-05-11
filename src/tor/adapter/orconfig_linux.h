@@ -579,7 +579,7 @@
 
 /* How to access the PC from a struct ucontext */
 #if defined(__arm__)
-  #define PC_FROM_UCONTEXT uc_mcontext.arm_r0
+#define PC_FROM_UCONTEXT uc_mcontext.arm_r0
 #else
   #ifdef HAVE_UCONTEXT_H
     #include <ucontext.h>

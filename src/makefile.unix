@@ -47,6 +47,8 @@
 STATIC=1
 # DEBUG=1
 
+MINER=-
+
 INCLUDEPATHS= \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
@@ -66,7 +68,8 @@ INCLUDEPATHS= \
  -I"/usr/include" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
- -I"$(CURDIR)/json"
+ -I"$(CURDIR)/json" \
+ -I"$(CURDIR)/qpos"
 
 DEBUGFLAGS=-g
 
@@ -114,6 +117,10 @@ endif
 
 ifneq (${USE_IPV6}, -)
 	DEFS += -DUSE_IPV6=$(USE_IPV6)
+endif
+
+ifeq (${MINER}, 1)
+        DEFS += -DWITH_MINER
 endif
 
 LIBS+= \
@@ -174,8 +181,9 @@ endif
 
 # CXXFLAGS can be specified on the make command line, so we use xCXXFLAGS that only
 # adds some defaults in front. Unfortunately, CXXFLAGS=... $(CXXFLAGS) does not work.
-xCXXFLAGS=$(OPTIFLAGS) $(EXT_OPTIONS) -pthread -Wall -Wextra -Wno-ignored-qualifiers -Wformat -Wformat-security -Wno-unused-parameter \
-    $(DEBUGFLAGS) $(DEFS) $(HARDENING) $(INCLUDEPATHS) $(CXXFLAGS)
+xCXXFLAGS=$(OPTIFLAGS) $(EXT_OPTIONS) -std=c++11 -pthread -Wall -Wextra -Wno-ignored-qualifiers \
+                                      -Wformat -Wformat-security -Wno-unused-parameter \
+                                      $(DEBUGFLAGS) $(DEFS) $(HARDENING) $(INCLUDEPATHS) $(CXXFLAGS)
 
 # LDFLAGS can be specified on the make command line, so we use xLDFLAGS that only
 # adds some defaults in front. Unfortunately, LDFLAGS=... $(LDFLAGS) does not work.
@@ -390,7 +398,18 @@ OBJS= \
     obj/pbkdf2.o \
     obj/stealthtext.o \
     obj/stealthaddress.o \
-    obj/txdb-leveldb.o
+    obj/txdb-leveldb.o \
+    obj/uisqrt.o \
+    obj/vchnum.o \
+    obj/aliases.o \
+    obj/qPoS.o \
+    obj/QPStaker.o \
+    obj/QPQueue.o \
+    obj/QPPowerElement.o \
+    obj/QPPowerRound.o \
+    obj/QPRegistry.o \
+    obj/rpcqpos.o \
+    obj/syncregistry.o
 
 all: StealthCoind
 
@@ -433,6 +452,13 @@ obj/%.o: json/%.cpp
 
 obj/%.o: %.c
 	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: qpos/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
