@@ -1,0 +1,14 @@
+#!/bin/bash
+
+set -ex
+
+# Generate StealthCoin.conf
+stealth_init
+
+if [ $# -gt 0 ]; then
+    args=("$@")
+else
+    args=("-rpcallowip=::/0")
+fi
+
+exec StealthCoind "${args[@]}"
