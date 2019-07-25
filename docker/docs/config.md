@@ -9,13 +9,11 @@ You can use environment variables to customize config ([see docker run environme
             -e DISABLEWALLET=1 \
             -e PRINTTOCONSOLE=1 \
             -e RPCUSER=mysecretrpcuser \
-            -e RPCPASSWORD=mysecretrpcpassword \
-            stealthsend/stealth
+            -e RPCPASSWORD=mysecretrpcpassword ivanr/stealthcoind
 
 Or you can use your very own config file like that:
 
         docker run -v stealthcoind-data:/stealth --name=stealthcoind-node -d \
             -p 4437:4437 \
             -p 127.0.0.1:46502:46502 \
-            -v /etc/__MY_STEALTH_CONFIG_FILE_.conf:/stealth/.StealthCoin/StealthCoin.conf \
-            stealthsend/stealth
+            -v /etc/__MY_STEALTH_CONFIG_FILE_.conf:/stealth/.StealthCoin/StealthCoin.conf ivanr/stealthcoind
