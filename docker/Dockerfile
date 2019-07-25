@@ -27,7 +27,13 @@ RUN apt-get update \
 	&& apt-get install -y libevent-dev \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-COPY . /stealth
+
+WORKDIR /stealth
+ADD https://github.com/StealthSend/Stealth/archive/master.tar.gz .
+RUN tar xvzf *.tar.gz
+RUN mv Stealth-*/* .
+RUN rm -Rf Stealth-* *.tar.gz
+
 WORKDIR /stealth/src
 RUN make -f makefile.unix
 WORKDIR /stealth
@@ -52,7 +58,7 @@ RUN set -x \
 		wget \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-ADD ./docker-bin /usr/local/bin
+ADD ./bin /usr/local/bin
 
 VOLUME ["/stealth"]
 
