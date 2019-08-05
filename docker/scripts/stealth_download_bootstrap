@@ -1,0 +1,16 @@
+#!/bin/bash
+
+set -ex
+
+GREEN='\033[0;32m'
+NC='\033[0m' # No Color
+
+export BOOTSTRAP_ID=0B8rWObF4xz1YRzd1VVNXM0JrWEE \
+	&& echo -e "${GREEN}1. Downloading bootstrap file${NC}" \
+	&& wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id='${BOOTSTRAP_ID} -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=${BOOTSTRAP_ID}" -O xst-bootstrap.7z && rm -rf /tmp/cookies.txt \
+	&& echo -e "${GREEN}2. Extracting bootstrap file to .StealthCoin directory${NC}" \
+	&& 7z x xst-bootstrap.7z -o/stealth/.StealthCoin \
+	&& echo -e "${GREEN}3. Removing bootstrap zip file${NC}" \
+	&& rm -Rf xst-bootstrap.7z \
+	&& echo "${GREEN}4. changing ownership of bootstrap file${NC}" \
+	&& chown -R stealth:stealth /stealth/.StealthCoin/bootstrap.dat

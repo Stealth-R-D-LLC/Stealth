@@ -67,7 +67,7 @@ RUN set -x \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # move repo binaries to local bin directory
-COPY ./bin /usr/local/bin
+COPY ./scripts /usr/local/bin
 COPY docker-entrypoint.sh /usr/local/bin/
 
 # make them executable
@@ -91,8 +91,14 @@ RUN groupadd -g ${GROUP_ID} stealth \
 
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-	libevent-dev \
+		libevent-dev \
+		ca-certificates \
+		wget \
+		p7zip-full \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# change to main workspace
+WORKDIR /stealth
 
 # copy binaries from build stage
 COPY --from=build /usr/local/bin /bin
@@ -100,11 +106,11 @@ COPY --from=build /usr/local/bin /bin
 # create a volume for external configuration and blockchain data
 VOLUME ["/stealth"]
 
+# change ownership of the working directory
+RUN chown -R stealth:stealth /stealth
+
 # expose p2p and rpc ports
 EXPOSE 4437 4438 46502 46503
-
-# change to main workspace
-WORKDIR /stealth
 
 # leave entrypoint for extra commands to run
 ENTRYPOINT ["docker-entrypoint.sh"]
