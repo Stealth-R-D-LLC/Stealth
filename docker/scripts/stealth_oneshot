@@ -11,4 +11,9 @@ else
     args=("-rpcallowip=::/0")
 fi
 
+# Download and extract bootstrap file if requested
+if [ 1 = $DOWNLOAD_BOOTSTRAP ]; then
+	stealth_download_bootstrap
+fi
+
 exec StealthCoind "${args[@]}"

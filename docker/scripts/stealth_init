@@ -21,12 +21,6 @@ EOF
 
 fi
 
-# Download and extract bootstrap file on first run
-if [ ! -e "$HOME/.StealthCoin/bootstrap.dat" ]; then
-	echo $(whoami)
-	stealth_download_bootstrap
-fi
-
 cat $HOME/.StealthCoin/StealthCoin.conf
 
 echo "Initialization completed successfully"
