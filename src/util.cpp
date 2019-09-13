@@ -68,6 +68,7 @@ bool fStaking = true;
 bool fDebug = false;
 bool fDebugNet = false;
 bool fDebugQPoS = false;
+bool fDebugBlockCreation = false;
 bool fPrintToConsole = false;
 bool fPrintToDebugger = false;
 bool fRequestShutdown = false;
@@ -1265,7 +1266,7 @@ static int64_t nTimeOffset = 0;
 
 int64_t GetAdjustedTime()
 {
-    if (GetFork(nBestHeight + 1) >= XST_FORKASDF)
+    if (GetFork(nBestHeight + 1) >= XST_FORKQPOS)
     {
         return GetTime();
     }

@@ -9,6 +9,7 @@
 #include "QPQueue.hpp"
 #include "QPPowerRound.hpp"
 #include "aliases.hpp"
+#include "meta.hpp"
 
 #include <boost/random.hpp>
 #include <boost/thread/mutex.hpp>
@@ -30,6 +31,7 @@ private:
     // persistent
     int nVersion;
     unsigned int nRound;
+    uint32_t nRoundSeed;
     std::map<unsigned int, QPStaker> mapStakers;
     std::map<CPubKey, int64_t> mapBalances;
     std::map<CPubKey, int64_t> mapLastClaim;
@@ -43,7 +45,9 @@ private:
     int nBlockHeight;
     uint256 hashBlock;
     uint256 hashBlockLastSnapshot;
-    uint256 hashLastBlockPrevQueue;
+    uint256 hashLastBlockPrev1Queue;
+    uint256 hashLastBlockPrev2Queue;
+    uint256 hashLastBlockPrev3Queue;
     QPPowerRound powerRoundPrev;
     QPPowerRound powerRoundCurrent;
 
@@ -73,6 +77,7 @@ private:
     bool ApplySetKey(const QPoSTxDetails &deet);
     bool ApplySetState(const QPoSTxDetails &deet);
     bool ApplyClaim(const QPoSTxDetails &deet, int64_t nBlockTime);
+    bool ApplySetMeta(const QPoSTxDetails &deet);
 public:
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;
@@ -82,14 +87,18 @@ public:
     void SetNull();
     bool IsInReplayMode() const;
     unsigned int GetRound() const;
+    unsigned int GetRoundSeed() const;
     int GetBlockHeight() const;
     uint256 GetBlockHash() const;
-    uint256 GetHashLastBlockPrevQueue() const;
+    uint256 GetHashLastBlockPrev1Queue() const;
+    uint256 GetHashLastBlockPrev2Queue() const;
+    uint256 GetHashLastBlockPrev3Queue() const;
     unsigned int GetNumberQualified() const;
     bool IsQualifiedStaker(unsigned int nStakerID) const;
     bool TimestampIsValid(unsigned int nStakerID, unsigned int nTime) const;
     bool TimeIsInCurrentSlotWindow(unsigned int nTime) const;
-    unsigned int GetCurrentRound() const;
+    unsigned int GetQueueMinTime() const;
+    unsigned int GetCurrentSlot() const;
     unsigned int GetCurrentSlotStart() const;
     unsigned int GetCurrentSlotEnd() const;
     bool CurrentBlockWasProduced() const;
@@ -123,10 +132,10 @@ public:
     bool HasEnoughPower() const;
     bool ShouldRollback() const;
 
+    void GetCertifiedNodes(std::vector<std::string> &vNodesRet) const;
+    bool IsCertifiedNode(const std::string &sNodeAddress) const;
 
     bool GetStaker(unsigned int nID, QPStaker &StakerRet) const;
-
-    // asdf use pointers in most cases
     bool GetStaker(unsigned int nID, QPStaker* &pStakerRet);
 
     void CheckSynced();
@@ -138,17 +147,20 @@ public:
     bool DockInactiveBalances();
 
     bool UpdateOnNewBlock(const CBlockIndex *const pindex,
-                          bool fWriteSnapshot);
+                          bool fWriteSnapshot,
+                          bool fWriteLog=false);
     bool UpdateOnNewTime(unsigned int nTime,
                          const CBlockIndex *const pindex,
-                         bool fWriteSnapshot);
+                         bool fWriteSnapshot,
+                         bool fWriteLog=false);
 
     void ApplyOps(const CBlockIndex *const pindex);
 
     void ExitReplayMode();
 
     bool GetIDForCurrentTime(CBlockIndex *pindex,
-                             unsigned int &nIDRet);
+                             unsigned int &nIDRet,
+                             unsigned int &nTimeRet);
 
     IMPLEMENT_SERIALIZE
     (
@@ -156,17 +168,21 @@ public:
         nVersion = this->nVersion;
 
         READWRITE(nRound);
+        READWRITE(nRoundSeed);
         READWRITE(mapStakers);
         READWRITE(mapBalances);
         READWRITE(mapAliases);
         READWRITE(queue);
         READWRITE(nIDCounter);
         READWRITE(nIDSlotPrev);
+        READWRITE(fCurrentBlockWasProduced);
         READWRITE(fPrevBlockWasProduced);
         READWRITE(nBlockHeight);
         READWRITE(hashBlock);
         READWRITE(hashBlockLastSnapshot);
-        READWRITE(hashLastBlockPrevQueue);
+        READWRITE(hashLastBlockPrev1Queue);
+        READWRITE(hashLastBlockPrev2Queue);
+        READWRITE(hashLastBlockPrev3Queue);
         READWRITE(powerRoundPrev);
         READWRITE(powerRoundCurrent);
     )

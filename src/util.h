@@ -32,9 +32,9 @@ typedef int pid_t; /* define for Windows compatibility */
 #include "netbase.h" // for AddTimeData
 
 #if __cplusplus >= 201103L
-    #define AUTO_POINTER std::unique_ptr
+    #define AUTO_PTR std::unique_ptr
 #else
-    #define AUTO_POINTER std::auto_ptr
+    #define AUTO_PTR std::auto_ptr
 #endif
 
 
@@ -154,7 +154,7 @@ enum ForkNumbers
     XST_FORK005,
     XST_FORK006,
     XST_FORKPURCHASE,
-    XST_FORKASDF,
+    XST_FORKQPOS,
     TOTAL_FORKS
 };
 
@@ -177,6 +177,7 @@ extern bool fNoListen;
 extern bool fLogTimestamps;
 extern bool fReopenDebugLog;
 extern bool fDebugQPoS;
+extern bool fDebugBlockCreation;
 
 extern int nBestHeight;
 extern int GetFork(int nHeight);

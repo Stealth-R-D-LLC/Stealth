@@ -104,19 +104,29 @@ unsigned short GetTorPort()
 
 void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
 {
-    printf("asdf 3.0.1.0\n");
-    // Filter out duplicate requests
+    // Filter out duplicate requests less then 30 seconds since last
     if (pindexBegin == pindexLastGetBlocksBegin && hashEnd == hashLastGetBlocksEnd)
-        return;
+    {
+        if (nLastGetBlocks < (GetTime() - 30))
+        {
+            nLastGetBlocks = GetTime();
+        }
+        else
+        {
+            return;
+        }
+    }
     pindexLastGetBlocksBegin = pindexBegin;
     hashLastGetBlocksEnd = hashEnd;
-    printf("PushGetBlocks(): %s:\n    %s to \n    %s\n",    // asdf
-           addrName.c_str(),                                // asdf
-           pindexBegin->phashBlock->ToString().c_str(),     // asdf
-           hashEnd.ToString().c_str());                     // asdf
+    if (fDebugNet)
+    {
+        printf("PushGetBlocks(): %s:\n    %s to \n    %s\n",
+               addrName.c_str(),
+               pindexBegin->phashBlock->ToString().c_str(),
+               hashEnd.ToString().c_str());
+    }
 
     PushMessage("getblocks", CBlockLocator(pindexBegin), hashEnd);
-    printf("asdf 3.0.5.0\n");
 }
 
 // find 'best' local address for a particular peer
@@ -816,8 +826,27 @@ void ThreadSocketHandler2(void* parg)
                 (2 * secured - 3 * unsecured < 0))
             {
                 random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
-                printf("removing unsecured connection %s\n", (*vNodesUnsecure.begin())->addr.ToString().c_str());
-                (*vNodesUnsecure.begin())->fDisconnect = true;
+
+                CNode *pUnsecure = (CNode *)*vNodesUnsecure.begin();
+                string sAddrName = pUnsecure->addrName;
+                string sIP;
+                for (unsigned int i = 0; i < sAddrName.size(); ++i)
+                {
+                    char c = sAddrName[i];
+                    if (c == ':')
+                    {
+                        break;
+                    }
+                    sIP.push_back(c);
+                }
+                if (IsInitialBlockDownload() ||
+                    !pregistryMain->IsCertifiedNode(sIP))
+                {
+                    printf("removing unsecured connection %s (%s)\n",
+                           sAddrName.c_str(),
+                           pUnsecure->addr.ToString().c_str());
+                    pUnsecure->fDisconnect = true;
+                }
             }
         }
         if (vNodes.size() != nPrevNodeCount)

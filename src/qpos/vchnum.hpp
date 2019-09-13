@@ -9,7 +9,7 @@
 
 typedef std::vector<unsigned char> valtype;
 
-// platform independent storage of <=64 bit unsigned integers
+// platform independent storage of <= 64 bit unsigned integers
 // storage is big endian for compatibility
 class vchnum
 {

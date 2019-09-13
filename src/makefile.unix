@@ -402,6 +402,7 @@ OBJS= \
     obj/uisqrt.o \
     obj/vchnum.o \
     obj/aliases.o \
+    obj/meta.o \
     obj/qPoS.o \
     obj/QPStaker.o \
     obj/QPQueue.o \

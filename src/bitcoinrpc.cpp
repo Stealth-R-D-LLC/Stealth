@@ -328,6 +328,7 @@ static const CRPCCommand vRPCCommands[] =
     { "setstakercontroller",    &setstakercontroller,    false,  true  },
     { "enablestaker",           &enablestaker,           false,  true  },
     { "disablestaker",          &disablestaker,          false,  true  },
+    { "setstakermeta",          &setstakermeta,          false,  true  },
     { "claimqposbalance",       &claimqposbalance,       false,  true  },
     { "getstakerinfo",          &getstakerinfo,          false,  false },
     { "getqposinfo",            &getqposinfo,            false,  false },
@@ -1274,6 +1275,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "disablestaker"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "claimqposbalance"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "claimqposbalance"       && n > 2) ConvertTo<double>(params[2]);
+    if (strMethod == "setstakermeta"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
 
     return params;
 }

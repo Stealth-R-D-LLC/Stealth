@@ -29,7 +29,7 @@ double GetDifficulty(const CBlockIndex* blockindex)
         }
     }
 
-    if (GetFork(blockindex->nHeight) >= XST_FORKASDF)
+    if (GetFork(blockindex->nHeight) >= XST_FORKQPOS)
     {
         return 0.0;
     }
@@ -86,7 +86,18 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
     if (block.IsQuantumProofOfStake())
     {
         int nConfs = pindexBest->nHeight + 1 - blockindex->nHeight;
-        result.push_back(Pair("confirmations", nConfs));
+        if (blockindex->IsInMainChain())
+        {
+            result.push_back(Pair("isinmainchain", true));
+            result.push_back(Pair("confirmations", nConfs));
+        }
+        else
+        {
+
+            result.push_back(Pair("isinmainchain", false));
+            result.push_back(Pair("confirmations", 0));
+            result.push_back(Pair("depth", nConfs));
+        }
     }
     else
     {

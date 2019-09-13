@@ -18,6 +18,7 @@ using namespace boost;
 #include "sync.h"
 #include "util.h"
 #include "stealthaddress.h"
+#include "qpos/QPConstants.hpp"
 
 #define OP(x) static_cast<opcodetype>(x)
 
@@ -117,6 +118,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_ENABLE: return "enable";
     case TX_DISABLE: return "disable";
     case TX_CLAIM: return "claim";
+    case TX_SETMETA: return "setmeta";
     case TX_NULL_DATA: return "nulldata";
     }
     return NULL;
@@ -263,6 +265,7 @@ const char* GetOpName(opcodetype opcode)
     case OP_ENABLE                 : return "OP_ENABLE";
     case OP_DISABLE                : return "OP_DISABLE";
     case OP_CLAIM                  : return "OP_CLAIM";
+    case OP_SETMETA                : return "OP_SETMETA";
 
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
 
@@ -448,7 +451,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
             // Read instruction
             //
             if (!script.GetOp(pc, opcode, vchPushValue))
+            {
                 return false;
+            }
             if (vchPushValue.size() > MAX_SCRIPT_ELEMENT_SIZE)
                 return false;
             if (opcode > OP_16 && ++nOpCount > 201)
@@ -565,6 +570,7 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 case OP_PURCHASE1: case OP_PURCHASE3:
                 case OP_SETOWNER: case OP_SETDELEGATE: case OP_SETCONTROLLER:
                 case OP_ENABLE: case OP_DISABLE:
+                case OP_SETMETA:
                 {
                     return false;
                 }
@@ -572,14 +578,15 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 // qPoS OP_CLAIM pops 41 bytes of the amount off the stack
                 case OP_CLAIM:
                 {
-                    if (stack.size() < 41)
+                    if (stack.size() != 3)
                     {
                         return false;
                     }
-                    for (int i = 0; i < 41; ++i)
+                    if (stack.back().size() != 41)
                     {
-                        popstack(stack);
+                        return false;
                     }
+                    popstack(stack);
                     break;
                 }
 
@@ -623,12 +630,16 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // (true -- ) or
                     // (false -- false) and return
                     if (stack.size() < 1)
+                    {
                         return false;
+                    }
                     bool fValue = CastToBool(stacktop(-1));
                     if (fValue)
                         popstack(stack);
                     else
+                    {
                         return false;
+                    }
                 }
                 break;
 
@@ -763,7 +774,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 {
                     // (x -- x x)
                     if (stack.size() < 1)
+                    {
                         return false;
+                    }
                     valtype vch = stacktop(-1);
                     stack.push_back(vch);
                 }
@@ -961,7 +974,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 {
                     // (x1 x2 - bool)
                     if (stack.size() < 2)
+                    {
                         return false;
+                    }
                     valtype& vch1 = stacktop(-2);
                     valtype& vch2 = stacktop(-1);
                     bool fEqual = (vch1 == vch2);
@@ -978,7 +993,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         if (fEqual)
                             popstack(stack);
                         else
+                        {
                             return false;
+                        }
                     }
                 }
                 break;
@@ -1134,7 +1151,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 {
                     // (in -- hash)
                     if (stack.size() < 1)
+                    {
                         return false;
+                    }
                     valtype& vch = stacktop(-1);
                     valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
                     if (opcode == OP_RIPEMD160)
@@ -1170,7 +1189,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 {
                     // (sig pubkey -- bool)
                     if (stack.size() < 2)
+                    {
                         return false;
+                    }
 
                     valtype& vchSig    = stacktop(-2);
                     valtype& vchPubKey = stacktop(-1);
@@ -1181,8 +1202,12 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     // Drop the signature, since there's no way for a signature to sign itself
                     scriptCode.FindAndDelete(CScript(vchSig));
 
-                    if ((flags & SCRIPT_VERIFY_STRICTENC) && (!CheckSignatureEncoding(vchSig, flags) || !CheckPubKeyEncoding(vchPubKey)))
+                    if ((flags & SCRIPT_VERIFY_STRICTENC) &&
+                        (!CheckSignatureEncoding(vchSig, flags) ||
+                        !CheckPubKeyEncoding(vchPubKey)))
+                    {
                         return false;
+                    }
 
                     bool fSuccess = CheckSignatureEncoding(vchSig, flags) && CheckPubKeyEncoding(vchPubKey) &&
                         CheckSig(vchSig, vchPubKey, scriptCode, txTo, nIn, nHashType, flags);
@@ -1195,7 +1220,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         if (fSuccess)
                             popstack(stack);
                         else
+                        {
                             return false;
+                        }
                     }
                 }
                 break;
@@ -1493,6 +1520,7 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
         if (vSolutions.size() < 1)
         {
             // this should never happen
+            printf("TxTypeIsStandard(): TSNH vSolutions size < 1\n");
             return false;
         }
         valtype v = vSolutions.front();
@@ -1535,6 +1563,56 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
             return false;
         }
         break;
+    case TX_SETMETA:
+      {
+        if (vSolutions.size() < 1)
+        {
+            // this should never happen
+            printf("TxTypeIsStandard(): TSNH vSolutions size < 1\n");
+            return false;
+        }
+        valtype v = vSolutions.front();
+        unsigned int nSizeFront = v.size();
+        if (nSizeFront != 60)
+        {
+            return false;
+        }
+        // first 4 bytes are ID
+        valtype::const_iterator b = v.begin() + 4;
+        valtype::const_iterator e;
+        unsigned int nKeyLength = 0;
+        for (e = b; e != v.end(); ++e)
+        {
+            if (*e == static_cast<unsigned char>(0))
+            {
+                break;
+            }
+            ++nKeyLength;
+            if (nKeyLength == QP_MAX_META_KEY_LENGTH)
+            {
+                break;
+            }
+        }
+        string sKey(b, e);
+        if (CheckMetaKey(sKey) == QPKEY_NONE)
+        {
+            return false;
+        }
+        b = v.begin() + 20;
+        for (e = b; e != v.end(); ++e)
+        {
+            if (*e == static_cast<unsigned char>(0))
+            {
+                break;
+            }
+        }
+        string sValue(b, e);
+        if (!CheckMetaValue(sValue))
+        {
+            return false;
+        }
+        break;
+      }
     case TX_NONSTANDARD:
         return false;
     default:
@@ -1604,6 +1682,17 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         mTemplates.insert(make_pair(TX_CLAIM, CScript() << OP(0x29) << OP_CLAIM << OP_DUP << OP_HASH160 <<
                                                  OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
 
+        // Set metadata for staker (signatory of input must match owner of stakerID)
+        // key is <= 16 bytes, with significant other constraints
+        // value is a string length <= 40, matching egrep of:
+        //            [a-zA-Z._: <>/@#,+-]+
+        // both key and value are 0x0 terminated if end-padded (to comply with canonical pushes)
+        // 0 length value (before padding) is empty string and means to delete the key/value pair
+        // additional key/value constraints may be enforced by the protocol elsewhere
+        // size = 60 (0x3c) = 4 bytes of ID + 16 bytes of key + 40 bytes of value
+        // [size, data(stakerID, key, value), OP_SETMETA]
+        mTemplates.insert(make_pair(TX_SETMETA, CScript() << OP(0x3c) << OP_SETMETA));
+
 
         // Empty, provably prunable, data-carrying output
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN));
@@ -1621,13 +1710,17 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         return true;
     }
 
-    bool asdfd = 0;
+    static const bool fDebugSolver = false;  // asdf
 
     // Scan templates
     const CScript& script1 = scriptPubKey;
     BOOST_FOREACH(const PAIRTYPE(txnouttype, CScript)& tplate, mTemplates)
     {
-        if (asdfd) printf("asdf whichtype is '%s' (%d)\n", GetTxnOutputType(tplate.first), (int)tplate.first);
+        if (fDebugSolver)
+        {
+            printf("debug solver: whichtype is '%s' (%d)\n",
+                    GetTxnOutputType(tplate.first), (int)tplate.first);
+        }
         const CScript& script2 = tplate.second;
         vSolutionsRet.clear();
 
@@ -1648,17 +1741,31 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             }
             if (!script1.GetOp(pc1, opcode1, vch1))
             {
-                if (asdfd) printf("asdf cant' get op 1 (%d)\n", (int)opcode1);
+                if (fDebugSolver)
+                {
+                    printf("debug solver: cant' get op 1 (%d)\n", (int)opcode1);
+                }
                 break;
             }
-                if (asdfd) printf("asdf op 1 is %s (%d)\n", GetOpName(opcode1), (int)opcode1);
+                if (fDebugSolver)
+                {
+                    printf("debug solver: op 1 is %s (%d)\n",
+                           GetOpName(opcode1), (int)opcode1);
+                }
             // get op for template, so last arg (fTemplate) is true
             if (!script2.GetOp(pc2, opcode2, vch2, true))
             {
-                if (asdfd) printf("asdf cant' get op 2 (%d)\n", (int)opcode2);
+                if (fDebugSolver)
+                {
+                    printf("debug solver: cant' get op 2 (%d)\n",(int)opcode2);
+                }
                 break;
             }
-            if (asdfd) printf("asdf op 2 is %s (%d)\n", GetOpName(opcode2), (int)opcode2);
+            if (fDebugSolver)
+            {
+                printf("debug solver: op 2 is %s (%d)\n",
+                       GetOpName(opcode2), (int)opcode2);
+            }
 
             // Template matching opcodes:
             if (opcode2 == OP_PUBKEYS)
@@ -1668,14 +1775,20 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                     vSolutionsRet.push_back(vch1);
                     if (!script1.GetOp(pc1, opcode1, vch1))
                     {
-                        if (asdfd) printf("asdf cant' get op 1 for pubkeys\n");
+                        if (fDebugSolver)
+                        {
+                            printf("debug solver: cant' get op 1 for pubkeys\n");
+                        }
                         break;
                     }
                 }
                 // get op for template, so last arg (fTemplate) is true
                 if (!script2.GetOp(pc2, opcode2, vch2, true))
                 {
-                    if (asdfd) printf("asdf cant' get op 2 for pubkeys\n");
+                    if (fDebugSolver)
+                    {
+                        printf("debug solver: cant' get op 2 for pubkeys\n");
+                    }
                     break;
                 }
                 // Normal situation is to fall through
@@ -1686,7 +1799,10 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             {
                 if (vch1.size() < 33 || vch1.size() > 120)
                 {
-                    if (asdfd) printf("asdf size wrong for pubkey\n");
+                    if (fDebugSolver)
+                    {
+                        printf("debug solver: size wrong for pubkey\n");
+                    }
                     break;
                 }
                 vSolutionsRet.push_back(vch1);
@@ -1695,7 +1811,10 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             {
                 if (vch1.size() != sizeof(uint160))
                 {
-                    if (asdfd) printf("asdf size wrong for pubkeyhash\n");
+                    if (fDebugSolver)
+                    {
+                        printf("debug solver: size wrong for pubkeyhash\n");
+                    }
                     break;
                 }
                 vSolutionsRet.push_back(vch1);
@@ -1710,7 +1829,10 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                 }
                 else
                 {
-                    if (asdfd) printf("asdf small integer missmatch\n");
+                    if (fDebugSolver)
+                    {
+                        printf("debug solver: small integer missmatch\n");
+                    }
                     break;
                 }
             }
@@ -1719,14 +1841,21 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                 // small pushdata,  <= MAX_OP_RETURN_RELAY bytes
                 if (vch1.size() > MAX_OP_RETURN_RELAY)
                 {
-                    if (asdfd) printf("asdf vch1 too big for smalldata\n");
+                    if (fDebugSolver)
+                    {
+                        printf("debug solver: vch1 too big for smalldata\n");
+                    }
                     break;
                 }
             }
             else if ((opcode1 != opcode2) ||
                      ((opcode2 > OP_PUSHDATA4) && (vch1 != vch2)))
             {
-                if (asdfd) printf("asdf opcode1 is %d, opcode2 is %d\n", (int)opcode1, (int)opcode2);
+                if (fDebugSolver)
+                {
+                    printf("debug solver: opcode1 is %d, opcode2 is %d\n",
+                           (int)opcode1, (int)opcode2);
+                }
                 // Others must match exactly, except for push vch
                 // Exempting push vch allows for templating pushes
                 break;
@@ -1833,6 +1962,7 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
     case TX_SETCONTROLLER:
     case TX_ENABLE:
     case TX_DISABLE:
+    case TX_SETMETA:
     case TX_NONSTANDARD:
     case TX_NULL_DATA:
         return -1;
@@ -1929,7 +2059,6 @@ bool IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
             vector<valtype> keys(vSolutions.begin()+1, vSolutions.begin()+vSolutions.size()-1);
             return HaveKeys(keys, keystore) == keys.size();
         }
-        // asdf should there be matches for qPoS commands? here or elsewhere?
         default:
             break;
     }
@@ -2047,17 +2176,29 @@ bool VerifyScript(const CScript& scriptSig, const CScript& scriptPubKey, const C
 {
     vector<vector<unsigned char> > stack, stackCopy;
     if (!EvalScript(stack, scriptSig, txTo, nIn, flags, nHashType))
+    {
+        printf("VerifyScript(): signature script does not evaluate\n");
         return false;
+    }
 
     stackCopy = stack;
 
     if (!EvalScript(stack, scriptPubKey, txTo, nIn, flags, nHashType))
+    {
+        printf("VerifyScript(): pubkey script does not evaluate\n");
         return false;
+    }
     if (stack.empty())
+    {
+        printf("VerifyScript(): stack is empty\n");
         return false;
+    }
 
     if (CastToBool(stack.back()) == false)
+    {
+        printf("VerifyScript(): back of stack is false\n");
         return false;
+    }
 
     // Additional validation for spend-to-script-hash transactions:
     if (scriptPubKey.IsPayToScriptHash())
@@ -2093,6 +2234,7 @@ uint8_t SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTra
     txnouttype whichType;
     if (!Solver(keystore, fromPubKey, hash, nHashType, txin.scriptSig, whichType))
     {
+        printf("SignSignature(): input script matches no template\n");
         return 1;
     }
 
@@ -2113,6 +2255,7 @@ uint8_t SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTra
         txin.scriptSig << static_cast<valtype>(subscript);
         if (!fSolved)
         {
+            printf("SignSignature(): script hash matches no template\n");
             return 2;
         }
     }
@@ -2124,6 +2267,7 @@ uint8_t SignSignature(const CKeyStore &keystore, const CScript& fromPubKey, CTra
     }
     else
     {
+        printf("SignSignature(): solution does not verify\n");
         return 3;
     }
 }

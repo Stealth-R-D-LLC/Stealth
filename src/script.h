@@ -102,8 +102,9 @@ enum txnouttype
     TX_ENABLE,          // 10
     TX_DISABLE,         // 11
     TX_CLAIM,           // 12
+    TX_SETMETA,         // 13
     // prunable
-    TX_NULL_DATA        // 13
+    TX_NULL_DATA        // 14
 };
 
 class CNoDestination {
@@ -267,6 +268,7 @@ enum opcodetype
     OP_ENABLE        = 0xc6,  /* enable staker */
     OP_DISABLE       = 0xc7,  /* disable staker */
     OP_CLAIM         = 0xc8,  /* claim earnings, spendable */
+    OP_SETMETA       = 0xc9,  /* set a metadata key-value pair */
 
     // template matching params
     OP_SMALLDATA = 0xf9,

@@ -206,6 +206,7 @@ public:
     uint256 hashContinue;
     CBlockIndex* pindexLastGetBlocksBegin;
     uint256 hashLastGetBlocksEnd;
+    int64_t nLastGetBlocks;
     int nStartingHeight;
 
     // flood relay
@@ -248,6 +249,7 @@ public:
         hashContinue = 0;
         pindexLastGetBlocksBegin = 0;
         hashLastGetBlocksEnd = 0;
+        nLastGetBlocks = 0;
         nStartingHeight = -1;
         fGetAddr = false;
         nMisbehavior = 0;
@@ -332,26 +334,31 @@ public:
     {
         // We're using mapAskFor as a priority queue,
         // the key is the earliest time the request can be sent
-        int64_t& nRequestTime = mapAlreadyAskedFor[inv];
-        if (fDebugNet)
-        {
-            printf("askfor %s: %s   %" PRId64 " (%s)\n",
-                   addr.ToString().c_str(),
-                   inv.ToString().c_str(),
-                   nRequestTime,
-                   DateTimeStrFormat("%H:%M:%S",
-                                     nRequestTime/1000000).c_str());
-        }
-
+        int64_t nRequestTime = mapAlreadyAskedFor[inv];
         // Make sure not to reuse time indexes to keep things in the same order
+        // Wait at least 1 second
         int64_t nNow = (GetTime() - 1) * 1000000;
         static int64_t nLastTime;
         ++nLastTime;
         nNow = std::max(nNow, nLastTime);
         nLastTime = nNow;
 
-        // Each retry is 2 minutes after the last
-        nRequestTime = std::max(nRequestTime + 2 * 60 * 1000000, nNow);
+        if (fDebugNet)
+        {
+            printf("AskFor(): %s %s @%" PRId64 " (%s)\n   request %" PRId64 " (%s)\n",
+                   addrName.c_str(),
+                   inv.ToString().c_str(),
+                   nNow,
+                   DateTimeStrFormat("%H:%M:%S",
+                                     nNow/1000000).c_str(),
+                   nRequestTime,
+                   DateTimeStrFormat("%H:%M:%S",
+                                     nRequestTime/1000000).c_str());
+        }
+
+        // asdf: query target interval and adjust here
+        // Each retry is 2 seconds
+        nRequestTime = std::max(nRequestTime + (2 * 1000000), nNow);
         mapAskFor.insert(std::make_pair(nRequestTime, inv));
     }
 
@@ -365,7 +372,7 @@ public:
         nHeaderStart = vSend.size();
         vSend << CMessageHeader(pszCommand, 0);
         nMessageStart = vSend.size();
-        if (fDebug)
+        if (fDebugNet)
             printf("sending: %s ", pszCommand);
     }
 
@@ -378,7 +385,7 @@ public:
         nMessageStart = -1;
         LEAVE_CRITICAL_SECTION(cs_vSend);
 
-        if (fDebug)
+        if (fDebugNet)
             printf("(aborted)\n");
     }
 

@@ -321,7 +321,7 @@ std::string HelpMessage()
         "  -quitonbootstrap       " + _("Quit the client immediatley upon processing a bootstrap") + "\n" +
         "  -permitdirtybootstrap  " + _("Allow duplicate stake for bootstrap from block***.dat file") + "\n" +
 
-        "  -rollbackstale         " + _("Reject own blocks on a stale chain (default: true)") + "\n" +
+        "  -rollbackdeadend         " + _("Reject own blocks on a deadend chain (default: true)") + "\n" +
 
         "";  // KEEP THIS LINE
 
@@ -439,6 +439,7 @@ bool AppInit2()
     {
         fDebugNet = GetBoolArg("-debugnet");
         fDebugQPoS = GetBoolArg("-debugqpos");
+        fDebugBlockCreation = GetBoolArg("-debugblockcreation");
     }
 
     bitdb.SetDetach(GetBoolArg("-detachdb", false));

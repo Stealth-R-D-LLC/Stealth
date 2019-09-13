@@ -47,12 +47,14 @@ namespace Checkpoints
         (      347000, uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb"))
         (      769000, uint256("0x7424eff7b5800cfc59e1420c4c32611bceaebb34959a1df93ca678bb5c614582"))
         (     2107000, uint256("0x3e1be0deee5db79f2de34ccdea3b3891cfb158902b1f8f8215c69c616d719eb1"))
-		;
+           ;
+
 
     static MapCheckpoints mapCheckpointsTestnet =
         boost::assign::map_list_of
-        ( 0, hashGenesisBlockTestNet )
-        ;
+        (           0, hashGenesisBlockTestNet )
+        (        8974, uint256("0x00cd9141d0dedc9ed68739c4d0ff98367edafee810e9be8835a71523928e5908"))
+           ;
 
     bool CheckHardened(int nHeight, const uint256& hash)
     {

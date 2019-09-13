@@ -424,6 +424,62 @@ Value claimqposbalance(const Array& params, bool fHelp)
     return wtx.GetHash().GetHex();
 }
 
+Value setstakermeta(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 5)
+    {
+        throw runtime_error(
+            "setstakermeta <txid> <vout> <alias> <key> <value>\n"
+            "    <txid> is the transaction ID of the input\n"
+            "    <vout> is the prevout index of the input\n"
+            "    <alias> is a non-case sensitive staker alias\n"
+            "    <key> is the metadata key\n"
+            "    <value> is the metatdata value" +
+            HelpRequiringPassphrase());
+    }
+
+    string sKey = params[3].get_str();
+    if (CheckMetaKey(sKey) == QPKEY_NONE)
+    {
+        throw JSONRPCError(RPC_QPOS_META_KEY_NOT_VALID,
+                           "Meta key is not valid");
+    }
+
+    string sValue = params[4].get_str();
+    if (!CheckMetaValue(sValue))
+    {
+            throw JSONRPCError(RPC_QPOS_META_VALUE_NOT_VALID,
+                           "Meta value is not valid");
+    }
+                   
+    string txid, sAlias;
+    unsigned int nOut;
+    valtype vchPubKey;
+    unsigned int nID;
+
+    Array a;
+    for (int i = 0; i < 3; ++i)
+    {
+        a.push_back(params[i]);
+    }
+
+    ExtractQPoSRPCEssentials(a, txid, nOut, sAlias, vchPubKey, nID, true);
+
+    CWalletTx wtx;
+
+    // SetMeta
+    string strError = pwalletMain->SetStakerMeta(txid, nOut,
+                                                 nID, vchPubKey,
+                                                 sKey, sValue, wtx);
+
+    if (strError != "")
+    {
+        throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
+
+    return wtx.GetHash().GetHex();
+}
+
 Value getstakerinfo(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)

@@ -43,7 +43,6 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
         return;
     }
     prchsRet.value = GETUINT64(first, last);
-    printf("asdf vaule is %" PRIu64 "\n", prchsRet.value);
     first = last;
     prchsRet.keys.clear();
     while (true)
@@ -55,7 +54,6 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
         prchsRet.keys.push_back(CPubKey(valtype(first, last)));
         first = last;
     }
-    printf ("asdf keys size is %d\n", (int)prchsRet.keys.size());
     last = first;
     if (prchsRet.keys.size() == 3)
     {
@@ -84,6 +82,7 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
 
 void ExtractPurchase(const valtype &vch, QPoSTxDetails &deetsRet)
 {
+    deetsRet.Clear();
     qpos_purchase purchase;
     ExtractPurchase(vch, purchase);
     deetsRet.alias = purchase.alias;
@@ -125,6 +124,7 @@ void ExtractSetKey(const valtype &vch, qpos_setkey &setkeyRet)
 
 void ExtractSetKey(const valtype &vch, QPoSTxDetails &deetsRet)
 {
+    deetsRet.Clear();
     qpos_setkey setkey;
     if (mapQPoSKeyTypes.count(static_cast<txnouttype>(deetsRet.t)))
     {
@@ -150,6 +150,7 @@ void ExtractSetState(const valtype &vch, qpos_setstate &setstateRet)
 
 void ExtractSetState(const valtype &vch, QPoSTxDetails &deetsRet)
 {
+    deetsRet.Clear();
     qpos_setstate setstate;
     ExtractSetState(vch, setstate);
     deetsRet.id = setstate.id;
@@ -174,6 +175,7 @@ void ExtractClaim(const valtype &vch, qpos_claim &claimRet)
 
 void ExtractClaim(const valtype &vch, QPoSTxDetails &deetsRet)
 {
+    deetsRet.Clear();
     qpos_claim claim;
     ExtractClaim(vch, claim);
     deetsRet.keys.clear();
@@ -181,5 +183,54 @@ void ExtractClaim(const valtype &vch, QPoSTxDetails &deetsRet)
     deetsRet.value = claim.value;
 }
 
+void ExtractSetMeta(const valtype &vch, qpos_setmeta &setmetaRet)
+{
+    valtype::const_iterator first = vch.begin();
+    valtype::const_iterator last = first;
+    if (!IncrementN(vch, last, 4))
+    {
+        return;
+    }
+    setmetaRet.id = GETUINT(first, last);
 
+    first = last;
+    if (!IncrementN(vch, last, 16))
+    {
+        return;
+    }
 
+    valtype::const_iterator e;
+    for (e = first; e != last; ++e)
+    {
+        if (*e == static_cast<unsigned char>(0))
+        {
+            break;
+        }
+    }
+    setmetaRet.key = string(first, e);
+
+    first = last;
+    if (!IncrementN(vch, last, 40))
+    {
+        return;
+    }
+
+    for (e = first; e != last; ++e)
+    {
+        if (*e == static_cast<unsigned char>(0))
+        {
+            break;
+        }
+    }
+    setmetaRet.value = string(first, e);
+}
+
+void ExtractSetMeta(const valtype &vch, QPoSTxDetails &deetsRet)
+{
+    deetsRet.Clear();
+    qpos_setmeta setmeta;
+    ExtractSetMeta(vch, setmeta);
+    deetsRet.id = setmeta.id;
+    deetsRet.meta_key = setmeta.key;
+    deetsRet.meta_value = setmeta.value;
+}

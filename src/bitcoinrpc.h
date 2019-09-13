@@ -66,14 +66,17 @@ enum RPCErrorCode
     RPC_WALLET_ALREADY_UNLOCKED     = -17, // Wallet is already unlocked
 
     // qPoS errors
-    RPC_QPOS_ALIAS_NOT_AVAILABLE       = -101, // asdf
-    RPC_QPOS_INVALID_QPOS_PUBKEY       = -102, // asdf
-    RPC_QPOS_INVALID_PAYOUT            = -103, // asdf
-    RPC_QPOS_STAKER_NONEXISTENT        = -104, // asdf
-    RPC_QPOS_STAKER_PRICE_TOO_LOW      = -105, // asdf
-    RPC_QPOS_STAKER_PRICE_TOO_HIGH     = -106, // asdf
-    RPC_QPOS_TRANSFER_UNACKNOWLEDGED   = -107, // asdf
-    RPC_QPOS_KEY_NOT_IN_LEDGER         = -108  // asdf
+    RPC_QPOS_ALIAS_NOT_AVAILABLE       = -101,
+    RPC_QPOS_INVALID_QPOS_PUBKEY       = -102,
+    RPC_QPOS_INVALID_PAYOUT            = -103,
+    RPC_QPOS_STAKER_NONEXISTENT        = -104,
+    RPC_QPOS_STAKER_PRICE_TOO_LOW      = -105,
+    RPC_QPOS_STAKER_PRICE_TOO_HIGH     = -106,
+    RPC_QPOS_TRANSFER_UNACKNOWLEDGED   = -107,
+    RPC_QPOS_KEY_NOT_IN_LEDGER         = -108,
+    RPC_QPOS_META_KEY_NOT_VALID        = -109,
+    RPC_QPOS_META_VALUE_NOT_VALID      = -110
+
 };
 
 json_spirit::Object JSONRPCError(int code, const std::string& message);
@@ -241,6 +244,7 @@ extern json_spirit::Value setstakercontroller(const json_spirit::Array& params, 
 extern json_spirit::Value enablestaker(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value disablestaker(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value claimqposbalance(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value setstakermeta(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakerinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);

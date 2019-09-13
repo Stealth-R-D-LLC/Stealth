@@ -453,7 +453,7 @@ bool CTxDB::LoadBlockIndex()
 
         int nFork = GetFork(pidx->nHeight);
         
-        if (nFork < XST_FORKASDF)
+        if (nFork < XST_FORKQPOS)
         {
             // NovaCoin: calculate stake modifier checksum
             pidx->nStakeModifierChecksum = GetStakeModifierChecksum(pidx);
@@ -469,7 +469,6 @@ bool CTxDB::LoadBlockIndex()
             (pidx->nHeight > pregistryMain->GetBlockHeight()) &&
             (pidx->IsInMainChain()))
         {
-            printf("asdf load index replaying block %d\n", pidx->nHeight);
             if (!pregistryMain->UpdateOnNewBlock(pidx, false))
             {
                 return error("CTxDB::LoadBlockIndex() : "
@@ -550,22 +549,21 @@ bool CTxDB::LoadBlockIndex()
     }
 
     // replay from snapshot height to start
-    QPRegistry *pregistryCheck = new QPRegistry(pregistryMain);
+    QPRegistry registryCheck(pregistryMain);
+    QPRegistry *pregistryCheck = &registryCheck;
     CTxDB txdb = *this;
     GetRegistrySnapshot(txdb, nStartHeight - 1, pregistryCheck);
-    // asdf asdf refactor, see about 4714 of main.cpp
+    // TODO: refactor (see main.cpp)
     uint256 blockHash = pregistryCheck->GetBlockHash();
-    printf("asdf secondary empty replay registry from %s\n", blockHash.ToString().c_str());
     CBlockIndex *pindexCurrent = mapBlockIndex[blockHash];
     while ((pindexCurrent->pnext != NULL) && (pindexCurrent != pindexStart->pprev))
     {
         pindexCurrent = pindexCurrent->pnext;
-        printf("asdf 9.0.6.0 not null pindexcurrent nHeight is %d\n", pindexCurrent->nHeight);
         pregistryCheck->UpdateOnNewBlock(pindexCurrent, true);
         if ((pindexCurrent->pnext != NULL) && (!pindexCurrent->pnext->IsInMainChain()))
         {
            // this should never happen because we just backtracked from best
-           printf("asdf 9.0.6.1 pindexcurrent->next (%s) not in main chain\n",
+           printf("LoadBlockIndex(): TSNH pindexcurrent->next (%s) not in main chain\n",
                   pindexCurrent->pnext->GetBlockHash().ToString().c_str());
            break;
         }
@@ -690,14 +688,11 @@ bool CTxDB::LoadBlockIndex()
                               }
                      }
                 }
-                // asdf is there a check level for qpos?
+                // FIXME: is there a check level for qpos?
             }
         }
         pregistryCheck->UpdateOnNewBlock(pindex, false);
     }
-
-    delete pregistryCheck;
-    pregistryCheck = NULL;
 
     if (pindexFork && !fRequestShutdown)
     {
@@ -736,13 +731,14 @@ bool CTxDB::WriteRegistrySnapshot(int nHeight, const QPRegistry& registry)
 
 bool CTxDB::ReadRegistrySnapshot(int nHeight, QPRegistry &registry)
 {
-   if (!Read(make_pair(string("registrySnapshot"), nHeight), registry))
+    if (!Read(make_pair(string("registrySnapshot"), nHeight), registry))
     {
-        return error("ReadRegistrySnapshot(): could not read registry");
+        return error("ReadRegistrySnapshot(): could not read registry at %d", nHeight);
     }
     if (registry.GetBlockHeight() != nHeight)
     {
-        return error("ReadRegistrySnapshot(): registry height mismatch");
+        return error("ReadRegistrySnapshot(): registry height mismatch:"
+                     "want=%d, registry=%d\n", nHeight, registry.GetBlockHeight());
     }
     return true;
 }

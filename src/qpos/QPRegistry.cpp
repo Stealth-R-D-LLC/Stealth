@@ -13,6 +13,8 @@
 using namespace std;
 using namespace json_spirit;
 
+extern bool fDebugQPoS;
+extern bool fDebugBlockCreation;
 extern Value ValueFromAmount(int64_t amount);
 
 QPRegistry::QPRegistry()
@@ -29,6 +31,7 @@ void QPRegistry::SetNull()
 {
     nVersion = QPRegistry::CURRENT_VERSION;
     nRound = 0;
+    nRoundSeed = 0;
     mapStakers.clear();
     mapBalances.clear();
     mapLastClaim.clear();
@@ -42,7 +45,9 @@ void QPRegistry::SetNull()
     nBlockHeight = 0;
     hashBlock = (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet);
     hashBlockLastSnapshot = hashBlock;
-    hashLastBlockPrevQueue = hashBlock;
+    hashLastBlockPrev1Queue = hashBlock;
+    hashLastBlockPrev2Queue = hashBlock;
+    hashLastBlockPrev3Queue = hashBlock;
     fIsInReplayMode = true;
     queue.SetNull();
     powerRoundPrev.SetNull();
@@ -53,6 +58,11 @@ void QPRegistry::SetNull()
 unsigned int QPRegistry::GetRound() const
 {
     return nRound;
+}
+
+uint32_t QPRegistry::GetRoundSeed() const
+{
+    return nRoundSeed;
 }
 
 unsigned int QPRegistry::Size() const
@@ -75,9 +85,20 @@ uint256 QPRegistry::GetBlockHash() const
     return hashBlock;
 }
 
-uint256 QPRegistry::GetHashLastBlockPrevQueue() const
+uint256 QPRegistry::GetHashLastBlockPrev1Queue() const
 {
-    return hashLastBlockPrevQueue;
+    return hashLastBlockPrev1Queue;
+}
+
+
+uint256 QPRegistry::GetHashLastBlockPrev2Queue() const
+{
+    return hashLastBlockPrev2Queue;
+}
+
+uint256 QPRegistry::GetHashLastBlockPrev3Queue() const
+{
+    return hashLastBlockPrev3Queue;
 }
 
 unsigned int QPRegistry::GetNumberQualified() const
@@ -127,16 +148,28 @@ bool QPRegistry::TimestampIsValid(unsigned int nStakerID,
     }
     if (!fIsValid)
     {
-        printf("TimestampIsValid(): window: %u-%u, time: %u "
-                                   "staker: %u, round: %u\n",
-               window.start, window.end, nTime, nStakerID, nRound);
+        unsigned int slot;
+        queue.GetSlotForID(nStakerID, slot);
+        if (fDebugQPoS)
+        {
+            printf("TimestampIsValid(): staker: %u, staker_slot: %u\n"
+                   "  staker_window: %u-%u, time: %u, round: %u, seed: %u\n"
+                   "  Queue: %s\n",
+                   nStakerID, slot, window.start, window.end, nTime,
+                   nRound, nRoundSeed, queue.ToString().c_str());
+        }
     }
     return fIsValid;
 }
 
-unsigned int QPRegistry::GetCurrentRound() const
+unsigned int QPRegistry::GetQueueMinTime() const
 {
-    return nRound;
+    return queue.GetMinTime();
+}
+
+unsigned int QPRegistry::GetCurrentSlot() const
+{
+    return queue.GetCurrentSlot();
 }
 
 unsigned int QPRegistry::GetCurrentSlotStart() const
@@ -219,14 +252,14 @@ bool QPRegistry::CanClaim(const CPubKey &key,
     }
     if (nValue > it->second)
     {
-        return false;
+        return error("CanClaim(): claim exceeds balance");
     }
     it = mapLastClaim.find(key);
     if (it != mapLastClaim.end())
     {
-        if (nClaimTime < (it->second + QP_MIN_SECS_PER_CLAIM))
+        if ((!fTestNet) && (nClaimTime < (it->second + QP_MIN_SECS_PER_CLAIM)))
         {
-            return false;
+            return error("CanClaim(): too soon to claim");
         }
     }
     return true;
@@ -274,7 +307,11 @@ bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
     {
         return error("GetKeyForID() : no staker for ID %d", nStakerID);
     }
-    nWeightRet = staker.GetWeight();
+    // sanity assertion, should never fail
+    assert ((nIDCounter + 1) > nStakerID);
+    // higher number equates to more seniority
+    unsigned int nSeniority = (nIDCounter + 1) - nStakerID;
+    nWeightRet = staker.GetWeight(nSeniority);
     return true;
 }
 
@@ -309,7 +346,8 @@ void QPRegistry::AsJSON(Object &objRet) const
     for (vit = vIDs.begin(); vit != vIDs.end(); ++vit)
     {
         Object objStkr;
-        vit->second->AsJSON(vit->first, objStkr);
+        unsigned int nSeniority = (nIDCounter + 1) - vit->first;
+        vit->second->AsJSON(vit->first, nSeniority, objStkr);
         string sID = to_string(vit->first);
         objStakers.push_back(Pair(sID, objStkr));
     }
@@ -325,14 +363,14 @@ void QPRegistry::AsJSON(Object &objRet) const
 
         objBal.push_back(Pair("balance", ValueFromAmount(amt)));
 
-        std::map<CPubKey, int64_t>::const_iterator it;
+        map<CPubKey, int64_t>::const_iterator it;
         it = mapLastClaim.find(key);
         if (it != mapLastClaim.end())
         {
             objBal.push_back(Pair("last_claim", it->second));
         }
 
-        std::map<CPubKey, int>::const_iterator jt;
+        map<CPubKey, int>::const_iterator jt;
         jt = mapActive.find(key);
         if (jt != mapActive.end())
         {
@@ -344,10 +382,15 @@ void QPRegistry::AsJSON(Object &objRet) const
 
     objRet.push_back(Pair("version", nVersion));
     objRet.push_back(Pair("round", static_cast<int64_t>(nRound)));
+    objRet.push_back(Pair("round_seed", static_cast<int64_t>(nRoundSeed)));
     objRet.push_back(Pair("block_height", nBlockHeight));
     objRet.push_back(Pair("block_hash", hashBlock.GetHex()));
-    objRet.push_back(Pair("last_block_hash_prev_queue",
-                           hashLastBlockPrevQueue.GetHex()));
+    objRet.push_back(Pair("last_block_hash_prev_1_queue",
+                           hashLastBlockPrev1Queue.GetHex()));
+    objRet.push_back(Pair("last_block_hash_prev_2_queue",
+                           hashLastBlockPrev2Queue.GetHex()));
+    objRet.push_back(Pair("last_block_hash_prev_3_queue",
+                           hashLastBlockPrev3Queue.GetHex()));
     objRet.push_back(Pair("in_replay", fIsInReplayMode));
     objRet.push_back(Pair("should_roll_back", fShouldRollback));
     objRet.push_back(Pair("counter_next",
@@ -373,7 +416,8 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
     QPStaker staker;
     if (GetStaker(nID, staker))
     {
-        staker.AsJSON(nID, objRet, true);
+        unsigned int nSeniority = (nIDCounter + 1) - nID;
+        staker.AsJSON(nID, nSeniority, objRet, true);
     }
 }
 
@@ -394,6 +438,7 @@ void QPRegistry::Copy(const QPRegistry *const pother)
 {
     nVersion = pother->nVersion;
     nRound = pother->nRound;
+    nRoundSeed = pother->nRoundSeed;
     mapStakers = pother->mapStakers;
     mapBalances = pother->mapBalances;
     mapLastClaim = pother->mapLastClaim;
@@ -407,7 +452,9 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     nBlockHeight = pother->nBlockHeight;
     hashBlock = pother->hashBlock;
     hashBlockLastSnapshot = pother->hashBlockLastSnapshot;
-    hashLastBlockPrevQueue = pother->hashLastBlockPrevQueue;
+    hashLastBlockPrev1Queue = pother->hashLastBlockPrev1Queue;
+    hashLastBlockPrev2Queue = pother->hashLastBlockPrev2Queue;
+    hashLastBlockPrev3Queue = pother->hashLastBlockPrev3Queue;
     powerRoundPrev = pother->powerRoundPrev;
     powerRoundCurrent = pother->powerRoundCurrent;
 
@@ -460,7 +507,7 @@ bool QPRegistry::GetStaker(unsigned int nID, QPStaker* &pstakerRet)
     bool result = false;
     if ((nID > 0) && (nID <= nIDCounter))
     {
-        std::map<unsigned int, QPStaker>::iterator iter;
+        map<unsigned int, QPStaker>::iterator iter;
         for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
         {
             if (iter->first == nID)
@@ -479,7 +526,7 @@ bool QPRegistry::GetStaker(unsigned int nID, QPStaker &stakerRet) const
     bool result = false;
     if ((nID > 0) && (nID <= nIDCounter))
     {
-        std::map<unsigned int, QPStaker>::const_iterator iter;
+        map<unsigned int, QPStaker>::const_iterator iter;
         for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
         {
             if (iter->first == nID)
@@ -559,40 +606,76 @@ bool QPRegistry::ShouldRollback() const
     return fShouldRollback;
 }
 
+void QPRegistry::GetCertifiedNodes(vector<string> &vNodesRet) const
+{
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        string sValue;
+        if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
+        {
+            vNodesRet.push_back(sValue);
+        }
+    }
+}
+
+bool QPRegistry::IsCertifiedNode(const string &sNodeAddress) const
+{
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        string sValue;
+        if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
+        {
+            if (sValue == sNodeAddress)
+            {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 // returns true if the current block should be produced
 // this is the key procedure for keeping the registry
 //   synced when not in replay
 bool QPRegistry::GetIDForCurrentTime(CBlockIndex *pindex,
-                                     unsigned int &nIDRet)
+                                     unsigned int &nIDRet,
+                                     unsigned int &nTimeRet)
 {
-    unsigned int nTime = GetAdjustedTime();
+    nTimeRet = static_cast<unsigned int>(GetAdjustedTime());
 
     // queue has gotten ahead some how
-    if (nTime < queue.GetCurrentSlotStart())
+    if (nTimeRet < queue.GetCurrentSlotStart())
     {
-        // should never happen
-        printf("GetIDForCurrentTime(): queue has gotten ahead\n");
+        // this should never happen
+        printf("GetIDForCurrentTime(): TSNH queue has gotten ahead\n");
         nIDRet = queue.GetCurrentID();
         return false;
     }
 
-    if (nTime <= queue.GetMaxTime())
+    if (nTimeRet <= queue.GetMaxTime())
     {
         unsigned int nSlot;
-        if (queue.GetSlotForTime(nTime, nSlot))
+        if (queue.GetSlotForTime(nTimeRet, nSlot))
         {
+            nIDRet = queue.GetCurrentID();
             unsigned int nCurrentSlot = queue.GetCurrentSlot();
             // return the current ID if the queue is up to date
             if (nSlot == nCurrentSlot)
             {
-                nIDRet = queue.GetCurrentID();
                 return !fCurrentBlockWasProduced;
+            }
+            else if (nSlot < nCurrentSlot)
+            {
+                printf("GetIDForCurrentTime(): queue is ahead of time\n");
+                return false;
             }
         }
         else
         {
-            // should never happen
-            printf("GetIDForCurrentTime(): queue state is inconsistent\n");
+            // this should never happen
+            printf("GetIDForCurrentTime(): TSNH queue state is inconsistent\n");
             nIDRet = 0;
             return false;
         }
@@ -606,8 +689,19 @@ bool QPRegistry::GetIDForCurrentTime(CBlockIndex *pindex,
     // of missing blocks, where they suddenly arrive and are on a chain
     // with greater trust.
     QPRegistry *pregistryTemp = new QPRegistry(this);
+    if (fDebugBlockCreation)
+    {
+        printf("GetIDForCurrentTime(): advancing temp registry at %d\n"
+               "   this height=%d, current_slot: %u\n"
+               "   temp height=%d, current_slot: %u\n",
+               pindex->nHeight,
+               this->nBlockHeight,
+               this->GetCurrentSlot(),
+               pregistryTemp->GetBlockHeight(),
+               pregistryTemp->GetCurrentSlot());
+    }
     // don't take snapshots of the temp registry
-    pregistryTemp->UpdateOnNewTime(nTime, pindex, false);
+    pregistryTemp->UpdateOnNewTime(nTimeRet, pindex, false);
     nIDRet = pregistryTemp->GetIDForCurrentSlot();
     delete pregistryTemp;
     return true;
@@ -617,13 +711,6 @@ unsigned int QPRegistry::GetIDForPrevSlot() const
 {
     return nIDSlotPrev;
 }
-
-// asdf
-// bool QPRegistry::GetKeyForCurrentSlot(CKeyID &keyRet) const
-// {
-//     unsigned int nID = queue.GetCurrentID();
-//     return GetKeyForID(nID, keyRet);
-// }
 
 bool QPRegistry::GetPrevRecentBlocksMissedMax(unsigned int nID,
                                               uint32_t &nMaxRet) const
@@ -671,11 +758,9 @@ bool QPRegistry::AliasIsAvailable(const string &sAlias,
 {
     if (!AliasIsValid(sAlias))
     {
-        printf("asdf alias %s isn't valid\n", sAlias.c_str());
         return false;
     }
     sKeyRet = ToLowercaseSafe(sAlias);
-    printf("asdf map aliases count of %s is %d\n", sKeyRet.c_str(), (int)mapAliases.count(sKeyRet));
     return (mapAliases.count(sKeyRet) == 0);
 }
 
@@ -707,7 +792,7 @@ bool QPRegistry::GetAliasForID(unsigned int nID,
     return true;
 }
 
-std::string QPRegistry::GetAliasForID(unsigned int nID)
+string QPRegistry::GetAliasForID(unsigned int nID)
 {
     if (nID == 0)
     {
@@ -733,7 +818,7 @@ bool QPRegistry::GetStakerForAlias(const string &sAlias,
     QPStaker staker;
     if (!GetStaker(nID, staker))
     {
-            return error("GetStakerForAlias(): alias and ID mismatch");
+        return error("GetStakerForAlias(): alias and ID mismatch");
     }
     qStakerRet = staker;
     return true;
@@ -751,7 +836,8 @@ bool QPRegistry::StakerProducedBlock(unsigned int nID, int64_t nReward)
         return error("StakerProducedBlock(): unknown ID %d", nID);
     }
     pstaker = &(mapStakers[nID]);
-    powerRoundCurrent.PushBack(nID, pstaker->GetWeight(), true);
+    unsigned int nSeniority = (nIDCounter + 1) - nID;
+    powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), true);
     int64_t nOwnerReward, nDelegateReward;
     pstaker->ProducedBlock(nReward,
                            fPrevBlockWasProduced,
@@ -776,8 +862,22 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID)
         return error("StakerMissedBlock(): unknown ID %d", nID);
     }
     pstaker = &(mapStakers[nID]);
-    powerRoundCurrent.PushBack(nID, pstaker->GetWeight(), false);
+    unsigned int nSeniority = (nIDCounter + 1) - nID;
+    powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), false);
     pstaker->MissedBlock(fPrevBlockWasProduced);
+    if (!fIsInReplayMode && fDebugBlockCreation)
+    {
+        printf("StakerMissedBlock(): staker=%s, round=%d, seed=%u, slot=%d, "
+               "window=%d-%d, picopower=%" PRIu64 ", registryheight=%d\n",
+               GetAliasForID(nID).c_str(),
+               nRound,
+               nRoundSeed,
+               queue.GetCurrentSlot(),
+               queue.GetCurrentSlotStart(),
+               queue.GetCurrentSlotEnd(),
+               GetPicoPower(),
+               nBlockHeight);
+    }
     DisqualifyStakerIfNecessary(nID, pstaker);
     fPrevBlockWasProduced = false;
     return true;
@@ -845,16 +945,19 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
     {
         return error("NewQueue(): No qualified stakers");
     }
-asdfjkl; sort
+    sort(vIDs.begin(), vIDs.end());
     uint256 hash(prevHash);
-#ifdef ASDF
-    for (int i = 0; i < QP_ROUNDS; ++i)
+    if (fTestNet)
     {
-       hash = Hash9(hash.begin(), hash.end());
+        hash = SerializeHash(hash);
     }
-#else
-    hash = SerializeHash(hash);
-#endif
+    else
+    {
+        for (int i = 0; i < QP_ROUNDS; ++i)
+        {
+           hash = Hash9(hash.begin(), hash.end());
+        }
+    }
     valtype vch;
     for (unsigned int i = 0; i < 4; ++i)
     {
@@ -867,9 +970,12 @@ asdfjkl; sort
     random_shuffle(vIDs.begin(), vIDs.end(), shuffler);
     queue = QPQueue(nTime0, vIDs);
     nRound += 1;
+    nRoundSeed = seed;
     powerRoundPrev.Copy(powerRoundCurrent);
     powerRoundCurrent.SetNull();
-    hashLastBlockPrevQueue = prevHash;
+    hashLastBlockPrev3Queue = hashLastBlockPrev2Queue;
+    hashLastBlockPrev2Queue = hashLastBlockPrev1Queue;
+    hashLastBlockPrev1Queue = prevHash;
     return true;
 }
 
@@ -944,10 +1050,48 @@ void QPRegistry::PurgeLowBalances(int64_t nMoneySupply)
 
 bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                                  const CBlockIndex *const pindex,
-                                 bool fWriteSnapshot)
+                                 bool fWriteSnapshot,
+                                 bool fWriteLog)
 {
     uint256 hash = *(pindex->phashBlock);
-    if (GetFork(pindex->nHeight + 1) >= XST_FORKASDF)
+
+    // take snapshot here because the registry should be fully caught up
+    // with the best (previous) block
+    if (((pindex->nHeight % BLOCKS_PER_SNAPSHOT) == 0) &&
+        fWriteSnapshot &&
+        (hash != hashBlockLastSnapshot))
+    {
+        CTxDB txdb;
+        hashBlockLastSnapshot = hash;
+        txdb.WriteRegistrySnapshot(pindex->nHeight, *this);
+
+        unsigned int nStakerSlot = 0;
+        queue.GetSlotForID(pindex->nStakerID, nStakerSlot);
+
+        printf("UpdateOnTime(): writing snapshot at %d\n"
+               "   hash=%s\n"
+               "   height=%d, time=%" PRId64 ", "
+                  "staker_id=%d, staker_slot=%d\n"
+               "   round=%d, seed=%u, window=%d-%d, picopower=%" PRIu64 "\n"
+               "   %s\n",
+               pindex->nHeight,
+               hash.ToString().c_str(),
+               pindex->nHeight,
+               pindex->GetBlockTime(),
+               pindex->nStakerID,
+               nStakerSlot,
+               nRound,
+               nRoundSeed,
+               queue.GetCurrentSlotStart(),
+               queue.GetCurrentSlotEnd(),
+               GetPicoPower(),
+               queue.ToString().c_str());
+
+        unsigned int n = BLOCKS_PER_SNAPSHOT * SNAPSHOTS_TO_KEEP;
+        txdb.EraseRegistrySnapshot(pindex->nHeight - n);
+    }
+
+    if (GetFork(pindex->nHeight + 1) >= XST_FORKQPOS)
     {
         unsigned int nNewQueues = 0;
         if (queue.IsEmpty())
@@ -994,65 +1138,82 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                 }
                 if (!fIsInReplayMode)
                 {
-                    printf("UpdateOnNewTime(): entering replay mode\n");
                     fIsInReplayMode = true;
                 }
             }
         }
         if (nNewQueues > 0)
         {
-            printf("UpdateOnNewTime: %u new queues with %s\n",
-                   nNewQueues, hashBlock.ToString().c_str());
-            printf("   newest queue starts at %d\n", queue.GetMinTime());
-            printf("asdf staker produced block = %d\n", fCurrentBlockWasProduced);
+            if (fWriteLog)
+            {
+                printf("UpdateOnNewTime(): %u new queues with %s\n",
+                       nNewQueues, hashBlock.ToString().c_str());
+                printf("   newest queue starts at %d\n", queue.GetMinTime());
+            }
         }
     }
 
-    // take snapshot here because it gives the registry time to catch up
-    // with the best block (registry state will be ready for next block)
-    if (((pindex->nHeight % BLOCKS_PER_SNAPSHOT) == 0) &&
-        fWriteSnapshot &&
-        (hash != hashBlockLastSnapshot))
-    {
-        CTxDB txdb;
-        hashBlockLastSnapshot = hash;
-        txdb.WriteRegistrySnapshot(pindex->nHeight, *this);
-        printf("UpdateOnNewTime(): writing snapshot %d\n",
-                (int)pindex->nHeight);
-        unsigned int n = BLOCKS_PER_SNAPSHOT * SNAPSHOTS_TO_KEEP;
-        txdb.EraseRegistrySnapshot(pindex->nHeight - n);
-    }
     return true;
 }
 
 bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
-                                  bool fWriteSnapshot)
+                                  bool fWriteSnapshot,
+                                  bool fWriteLog)
 {
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
-    if (!UpdateOnNewTime(pindex->nTime, pindexPrev, fWriteSnapshot))
+    if (!UpdateOnNewTime(pindex->nTime, pindexPrev, fWriteSnapshot, fWriteLog))
     {
-        return error("UpdateOnNewBlock: could not update on new time for %s",
+        return error("UpdateOnNewBlock(): could not update on new time for %s",
                      pindex->phashBlock->ToString().c_str());
     }
     if (GetFork(pindex->nHeight) >= XST_FORKPURCHASE)
     {
         if (!pindex->vDeets.empty())
         {
-            printf("asdf apply ops for block %d\n", pindex->nHeight);
+            if (fWriteLog)
+            {
+                printf("UpdateOnNewBlock(): apply ops for block %d\n",
+                       pindex->nHeight);
+            }
             ApplyOps(pindex);
         }
     }
-    if (GetFork(pindex->nHeight) >= XST_FORKASDF)
+    if (GetFork(pindex->nHeight) >= XST_FORKQPOS)
     {
-        printf("UpdateOnNewBlock(): round=%d, slot=%d, window=%d-%d, "
-                  "picopower=%" PRIu64 "\n   hash=%s, height=%d\n",
-               nRound,
-               queue.GetCurrentSlot(),
-               queue.GetCurrentSlotStart(),
-               queue.GetCurrentSlotEnd(),
-               GetPicoPower(),
-               pindex->phashBlock->ToString().c_str(),
-               pindex->nHeight);
+        unsigned int nStakerSlot = 0;
+        if (!queue.GetSlotForID(pindex->nStakerID, nStakerSlot))
+        {
+            return error("UpdateOnNewBlock(): no such staker ID %u",
+                         pindex->nStakerID);
+        }
+
+        if (fWriteLog)
+        {
+            printf("UpdateOnNewBlock(): hash=%s\n"
+                   "   height=%d, time=%" PRId64 ", "
+                   "staker_id=%d, staker_slot=%d\n"
+                   "   round=%d, seed=%u, window=%d-%d, picopower=%" PRIu64 "\n"
+                   "   %s\n",
+                   pindex->phashBlock->ToString().c_str(),
+                   pindex->nHeight,
+                   pindex->GetBlockTime(),
+                   pindex->nStakerID,
+                   nStakerSlot,
+                   nRound,
+                   nRoundSeed,
+                   queue.GetCurrentSlotStart(),
+                   queue.GetCurrentSlotEnd(),
+                   GetPicoPower(),
+                   queue.ToString().c_str());
+        }
+
+        if (nStakerSlot != queue.GetCurrentSlot())
+        {
+            return error("UpdateOnNewBlock(): staker slot (%d) "
+                         "is not current slot (%d)",
+                         nStakerSlot,
+                         queue.GetCurrentSlot());
+        }
 
         if (fCurrentBlockWasProduced && !fIsInReplayMode)
         {
@@ -1066,7 +1227,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                          pindex->nStakerID);
         }
 
-        std::map<unsigned int, QPStaker>::iterator it;
+        map<unsigned int, QPStaker>::iterator it;
         for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
         {
             it->second.SawBlock();
@@ -1200,13 +1361,27 @@ bool QPRegistry::ApplyClaim(const QPoSTxDetails &deet, int64_t nBlockTime)
     CPubKey key = deet.keys[0];
     if (!CanClaim(key, deet.value, nBlockTime))
     {
-        return error("ApplyClaim(): key can't claim value");
+        return error("ApplyClaim(): key %s can't claim %" PRIu64,
+                     HexStr(key.Raw()).c_str(), deet.value);
     }
     mapLastClaim[key] = nBlockTime;
     mapBalances[key] -= deet.value;
     return true;
 }
 
+bool QPRegistry::ApplySetMeta(const QPoSTxDetails &deet)
+{
+    if (deet.t != TX_SETMETA)
+    {
+        return error("ApplySetMeta(): not a setmeta");
+    }
+    if (!mapStakers.count(deet.id))
+    {
+        return error("ApplySetMeta(): no such staker");
+    }
+    mapStakers[deet.id].SetMeta(deet.meta_key, deet.meta_value);
+    return true;
+}
 
 
 // any failed ops terminate with an assertion because there is no good
@@ -1232,6 +1407,9 @@ void QPRegistry::ApplyOps(const CBlockIndex *const pindex)
             break;
         case TX_CLAIM:
             assert (ApplyClaim(deet, pindex->nTime));
+            break;
+        case TX_SETMETA:
+            assert (ApplySetMeta(deet));
             break;
         default:
             assert (error("ApplyQPoSOps(): No such operation"));

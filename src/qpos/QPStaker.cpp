@@ -38,6 +38,7 @@ void QPStaker::Reset()
     fDisqualified = false;
     nTotalEarned = 0;
     sAlias = "";
+    mapMeta.clear();
 }
 
 uint32_t QPStaker::GetRecentBlocksProduced() const
@@ -96,10 +97,10 @@ uint32_t QPStaker::GetNetBlocks() const
 // MissedBlock() deactivates any who have a net 0 blocks after
 // seeing at least 4x QP_RECENT_BLOCKS (QP_NOOB_BLOCKS), so the
 // opportunity to miss a lot of blocks is limited.
-unsigned int QPStaker::GetWeight() const
+unsigned int QPStaker::GetWeight(unsigned int nSeniority) const
 {
     uint32_t net = GetNetBlocks();
-    return (net > 0) ? uisqrt(net) : 1;
+    return (net > 0) ? uisqrt(net + (nSeniority * nSeniority)) : nSeniority;
 }
 
 uint32_t QPStaker::GetDelegatePayout() const
@@ -136,7 +137,36 @@ string QPStaker::GetAlias() const
     return sAlias;
 }
 
+bool QPStaker::HasMeta(const string &key) const
+{
+    return (mapMeta.count(key) != 0);
+}
+
+bool QPStaker::GetMeta(const string &key, string &valueRet) const
+{
+    bool fResult;
+    map<string, string>::const_iterator it = mapMeta.find(key);
+    if (it == mapMeta.end())
+    {
+        valueRet.clear();
+        fResult = false;
+    }
+    else
+    {
+        valueRet = it->second;
+        fResult = true;
+    }
+    return fResult;
+}
+
+void QPStaker::CopyMeta(map<string, string> &mapRet) const
+{
+    mapRet = mapMeta;
+}
+
+
 void QPStaker::AsJSON(unsigned int nID,
+                      unsigned int nSeniority,
                       Object &objRet,
                       bool fWithRecentBlocks) const
 {
@@ -145,12 +175,20 @@ void QPStaker::AsJSON(unsigned int nID,
     objKeys.push_back(Pair("delegate_key", HexStr(pubkeyDelegate.Raw())));
     objKeys.push_back(Pair("controller_key", HexStr(pubkeyController.Raw())));
 
+    Object objMeta;
+    map<string, string>::const_iterator mit;
+    for (mit = mapMeta.begin(); mit != mapMeta.end(); ++mit)
+    {
+        objMeta.push_back(Pair(mit->first, mit->second));
+    }
+
     objRet.push_back(Pair("alias", sAlias));
     objRet.push_back(Pair("id", static_cast<int64_t>(nID)));
     objRet.push_back(Pair("version", nVersion));
     objRet.push_back(Pair("qualified", !fDisqualified));
     objRet.push_back(Pair("enabled", fEnabled));
-    objRet.push_back(Pair("weight", static_cast<int64_t>(GetWeight())));
+    objRet.push_back(Pair("weight",
+                          static_cast<int64_t>(GetWeight(nSeniority))));
     objRet.push_back(Pair("keys", objKeys));
     objRet.push_back(Pair("delegate_payout_pcm",
                           static_cast<int64_t>(nPcmDelegatePayout)));
@@ -165,6 +203,12 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nBlocksSeen)));
     objRet.push_back(Pair("prev_blocks_missed",
                           static_cast<int64_t>(nPrevBlocksMissed)));
+
+    if (!objMeta.empty())
+    {
+        objRet.push_back(Pair("meta", objMeta));
+    }
+
     if (fWithRecentBlocks)
     {
         Array aryRecentBlocks, aryPrevRecentBlocks;
@@ -185,8 +229,8 @@ void QPStaker::ProducedBlock(int64_t nBlockReward,
 {
     nBlocksProduced += 1;
     nBlocksAssigned += 1;
-    bRecentBlocks <<= 1;      // asdf use modular
-    bRecentBlocks[0] = true;    // asdf use modular
+    bRecentBlocks <<= 1;        // FIXME: use modular
+    bRecentBlocks[0] = true;    // FIXME: use modular
 
     nPcmDelegatePayout = min(100000u, nPcmDelegatePayout);
 
@@ -208,7 +252,7 @@ void QPStaker::MissedBlock(bool fPrevDidProduceBlock)
 {
     nBlocksAssigned += 1;
     nBlocksMissed += 1;
-    bRecentBlocks <<= 1;  // asdf use modular
+    bRecentBlocks <<= 1;  // FIXME: use modular
     UpdatePrevRecentBlocks(fPrevDidProduceBlock);
 }
 
@@ -219,7 +263,7 @@ void QPStaker::SawBlock()
 
 void QPStaker::UpdatePrevRecentBlocks(bool fPrevDidProduceBlock)
 {
-    bPrevRecentBlocks <<= 1;  // asdf use modular
+    bPrevRecentBlocks <<= 1;  // FIXME: use modular
     if (fPrevDidProduceBlock)
     {
         bPrevRecentBlocks[0] = true;
@@ -274,4 +318,16 @@ bool QPStaker::SetAlias(const string &sAliasIn)
     }
     sAlias = sAliasIn;
     return true;
+}
+
+void QPStaker::SetMeta(const string &key, const string &value)
+{
+    if (value.empty())
+    {
+        mapMeta.erase(key);
+    }
+    else
+    {
+        mapMeta[key] = value;
+    }
 }

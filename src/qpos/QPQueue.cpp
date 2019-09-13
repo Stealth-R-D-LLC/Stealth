@@ -3,6 +3,9 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "QPQueue.hpp"
+#include "util.h"
+
+#include <sstream>
 
 using namespace std;
 
@@ -183,6 +186,24 @@ unsigned int QPQueue::Size() const
 bool QPQueue::IsEmpty() const
 {
     return vStakerIDs.empty();
+}
+
+string QPQueue::ToString() const
+{
+    int n = vStakerIDs.size();
+    int last = n - 1;
+    ostringstream ss;
+    for (int i = 0; i < n; ++i)
+    {
+        ss << i << ":" << vStakerIDs[i];
+        if (i < last)
+        {
+            ss << ",";
+        }
+    }
+    string sSlots = ss.str();
+    return strprintf("QPQueue: start=%u, current_slot=%u,\n     slots=%s",
+                     nSlotTime0, nCurrentSlot, sSlots.c_str());
 }
 
 bool QPQueue::IncrementSlot()

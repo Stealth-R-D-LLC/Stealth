@@ -25,7 +25,7 @@ extern const std::string CLIENT_DATE;
 // display version
 #define DISPLAY_VERSION_MAJOR       3
 #define DISPLAY_VERSION_MINOR       0
-#define DISPLAY_VERSION_REVISION    0
+#define DISPLAY_VERSION_REVISION    1
 #define DISPLAY_VERSION_BUILD       0
 
 //
@@ -49,8 +49,11 @@ extern const std::string CLIENT_DATE;
 // 62200 : fork 6
 //         2.2.0.0 : Removing all traces of tx timestamp
 // 63000 : fork 7
-//         3.0.0.0 : Staker purchasing and qPoS
+//         3.0.0.0 : Testnet version
+//                   Staker purchasing and qPoS
 //                   Immaleable transaction IDs
+//         3.0.1.0 : Testnet version
+//                   Fixing many qPoS consensus issues
 static const int PROTOCOL_VERSION = 63000;
 
 // intial proto version, to be increased after version/verack negotiation

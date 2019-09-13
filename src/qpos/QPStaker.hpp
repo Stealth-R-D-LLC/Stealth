@@ -30,6 +30,7 @@ private:
     bool fDisqualified;
     int64_t nTotalEarned;
     std::string sAlias;
+    std::map<std::string, std::string> mapMeta;
 public:
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;
@@ -49,14 +50,19 @@ public:
     uint32_t GetBlocksAssigned() const;
     uint32_t GetBlocksSeen() const;
     uint32_t GetNetBlocks() const;
-    unsigned int GetWeight() const;
+    unsigned int GetWeight(unsigned int nSeniority) const;
     uint32_t GetDelegatePayout() const;
     bool IsEnabled() const;
     bool IsDisqualified() const;
     bool ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const;
     int64_t GetTotalEarned() const;
     std::string GetAlias() const;
+    bool HasMeta(const std::string &key) const;
+    bool GetMeta(const std::string &key, std::string &valueRet) const;
+    void CopyMeta(std::map<std::string, std::string> &mapRet) const;
+
     void AsJSON(unsigned int nID,
+                unsigned int nSeniority,
                 json_spirit::Object &objRet,
                 bool fWithRecentBlocks=false) const;
 
@@ -72,6 +78,8 @@ public:
     void Disable();
     void Disqualify();
     bool SetAlias(const std::string &sAliasIn);
+    void SetMeta(const std::string &key, const std::string &value);
+
 
     IMPLEMENT_SERIALIZE
     (
@@ -92,6 +100,7 @@ public:
         READWRITE(pubkeyOwner);
         READWRITE(pubkeyDelegate);
         READWRITE(pubkeyController);
+        READWRITE(mapMeta);
     )
 };
 

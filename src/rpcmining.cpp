@@ -180,7 +180,7 @@ Value getworkex(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+            AUTO_PTR<CBlock> pblockCreate(new CBlock());
             if (!pblockCreate.get())
             {
                 throw JSONRPCError(-7, "out of memory for new block");
@@ -190,7 +190,6 @@ Value getworkex(const Array& params, bool fHelp)
                                                          pblockCreate);
             if (nResult != BLOCKCREATION_OK)
             {
-                // asdf need to rethrow the error
                 throw JSONRPCError(-7, "block creation fail");
             }
             pblock = &(*pblockCreate);
@@ -336,7 +335,7 @@ Value getwork(const Array& params, bool fHelp)
             nStart = GetTime();
 
             // Create new block
-            AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+            AUTO_PTR<CBlock> pblockCreate(new CBlock());
             if (!pblockCreate.get())
             {
                 throw JSONRPCError(-7, "out of memory for new block");
@@ -346,7 +345,6 @@ Value getwork(const Array& params, bool fHelp)
                                                          pblockCreate);
             if (nResult != BLOCKCREATION_OK)
             {
-                // asdf need to rethrow the error
                 throw JSONRPCError(-7, "block creation fail:");
             }
 
@@ -513,7 +511,7 @@ Value getblocktemplate(const Array& params, bool fHelp)
         }
 
         // Create new block
-         AUTO_POINTER<CBlock> pblockCreate(new CBlock());
+         AUTO_PTR<CBlock> pblockCreate(new CBlock());
         if (!pblockCreate.get())
         {
             throw JSONRPCError(-7, "out of memory for new block");
@@ -523,7 +521,6 @@ Value getblocktemplate(const Array& params, bool fHelp)
                                                      pblockCreate);
         if (nResult != BLOCKCREATION_OK)
         {
-            // asdf need to rethrow the error
             throw JSONRPCError(-7, "block creation fail:");
         }
 

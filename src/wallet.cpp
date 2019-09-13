@@ -2630,13 +2630,13 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
 bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 {
     mapValue_t mapNarr;
-        FindStealthTransactions(wtxNew, mapNarr);
+    FindStealthTransactions(wtxNew, mapNarr);
 
-        if (!mapNarr.empty())
-        {
-            BOOST_FOREACH(const PAIRTYPE(string,string)& item, mapNarr)
-                wtxNew.mapValue[item.first] = item.second;
-        };
+    if (!mapNarr.empty())
+    {
+        BOOST_FOREACH(const PAIRTYPE(string,string)& item, mapNarr)
+            wtxNew.mapValue[item.first] = item.second;
+    }
     {
         LOCK2(cs_main, cs_wallet);
         printf("CommitTransaction:\n%s", wtxNew.ToString().c_str());
@@ -2779,7 +2779,8 @@ string CWallet::CheckQPoSEssentials(const string &txid,
 string CWallet::CreateQPoSTx(const string &txid,
                              unsigned int nOut,
                              const CScript &scriptQPoS,
-                             int64_t nPrice,
+                             int64_t nValue,
+                             txnouttype typetxo,
                              CWalletTx &wtxNew)
 {
     uint256 hash;
@@ -2788,7 +2789,7 @@ string CWallet::CreateQPoSTx(const string &txid,
     // return change to originator
     if (mapWallet.count(hash) == 0)
     {
-        return _("CreateQPosTx(): Wallet has no such transaction.");
+        return _("CreateQPoSTx(): Wallet has no such transaction.");
     }
 
     const CWalletTx& wtxPrev = mapWallet[hash];
@@ -2802,33 +2803,64 @@ string CWallet::CreateQPoSTx(const string &txid,
 
     wtxNew.BindWallet(this);
 
+    bool fIsPurchase = ((typetxo == TX_PURCHASE1) || (typetxo == TX_PURCHASE3));
+    bool fIsClaim = (typetxo == TX_CLAIM);
+
+    int64_t nValueOut0 = 0;
+    int64_t nPrice = 0;
+
+    if (fIsPurchase)
+    {
+        nPrice = nValue;
+        // pointless check, but could be useful info for the buyer
+        if (prevout.nValue <= nPrice)
+        {
+            return _("CreateQPoSTx(): Price exceeds funds");
+        }
+        if (prevout.nValue < (nPrice + nTransactionFee))
+        {
+            return _("CreateQPoSTx(): Insufficient funds to cover price + min fees");
+        }
+    }
+    else if (fIsClaim)
+    {
+        // no use to claim something where you don't get the min output value
+        if ((prevout.nValue + nValue) < (nTransactionFee + CENT))
+        {
+            return _("CreateQPoSTx(): Insufficient claim + funds for min fees");
+        }
+        nValueOut0 = nValue + prevout.nValue - nTransactionFee;
+    }
+    else
+    {
+        if (prevout.nValue < nTransactionFee)
+        {
+            return _("CreateQPoSTx(): Insufficient funds to cover min fees");
+        }
+    }
+
     {
         LOCK2(cs_main, cs_wallet);
 
         // txdb must be opened before the mapWallet lock
         CTxDB txdb("r");
-        // pointless check, but could be useful info for the buyer
-        if (prevout.nValue < nPrice)
-        {
-            return _("CreateQPoSTx(): Price exceeds funds");
-        }
-
-        if (prevout.nValue < (nPrice + nTransactionFee))
-        {
-            return _("CreateQPoSTx(): Insufficient funds to cover min fees");
-        }
 
         wtxNew.vout.clear();
         wtxNew.vin.clear();
 
-        CTxOut txoutQPoS(0, scriptQPoS);
+        CTxOut txoutQPoS(nValueOut0, scriptQPoS);
         wtxNew.vout.push_back(txoutQPoS);
 
-        int64_t nChange = prevout.nValue - (nPrice + nTransactionFee);
-        if (nChange >= CENT)
+        // change is already added to claim output
+        if (typetxo != TX_CLAIM)
         {
-            CTxOut txoutChange(nChange, prevout.scriptPubKey);
-            wtxNew.vout.push_back(txoutChange);
+            // price is 0 for non-purchases
+            int64_t nChange = prevout.nValue - (nPrice + nTransactionFee);
+            if (nChange >= CENT)
+            {
+                CTxOut txoutChange(nChange, prevout.scriptPubKey);
+                wtxNew.vout.push_back(txoutChange);
+            }
         }
 
         // works for any scriptPubKey:
@@ -2859,19 +2891,44 @@ string CWallet::CreateQPoSTx(const string &txid,
         int64_t nMinFee = wtxNew.GetMinFee(1, false, GMF_SEND, nBytes);
         int64_t nFee = max(nPayFee, nMinFee);
 
-        if (nPrice + nFee > prevout.nValue)
+        // check fees again now that they are properly estimated
+        if (fIsPurchase)
         {
-            return _("CreateQPoSTx(): insufficient funds to cover fees");
+            if (prevout.nValue < (nPrice + nFee))
+            {
+                return _("CreateQPoSTx(): Insufficient funds to cover price + min fees");
+            }
+        }
+        else if (fIsClaim)
+        {
+            if ((prevout.nValue + nValue) < (nFee + CENT))
+            {
+                return _("CreateQPoSTx(): Insufficient claim + funds for min fees");
+            }
+            nValueOut0 = nValue + prevout.nValue - nFee;
+            txoutQPoS.nValue = nValueOut0;
+        }
+        else
+        {
+            if (prevout.nValue < nFee)
+            {
+                return _("CreateQPoSTx(): Insufficient funds to cover min fees");
+            }
         }
 
         wtxNew.vout.clear();
-        wtxNew.vout.push_back(txoutQPoS);  // hasn't changed
+        wtxNew.vout.push_back(txoutQPoS);  // hasn't changed except maybe for claim
 
-        nChange = prevout.nValue - (nPrice + nFee);
-        if (nChange >= CENT)
+        // change is already added to claim output
+        if (typetxo != TX_CLAIM)
         {
-            CTxOut txoutChange(nChange, prevout.scriptPubKey);
-            wtxNew.vout.push_back(txoutChange);
+            // price is 0 for non-purchases
+            int64_t nChange = prevout.nValue - (nPrice + nFee);
+            if (nChange >= CENT)
+            {
+                CTxOut txoutChange(nChange, prevout.scriptPubKey);
+                wtxNew.vout.push_back(txoutChange);
+            }
         }
 
         wtxNew.vin.clear();
@@ -2887,6 +2944,37 @@ string CWallet::CreateQPoSTx(const string &txid,
         CReserveKey reservekeyUnused(this);
         // explicitly ensure unused because change goes back to funding source
         reservekeyUnused.ReturnKey();
+
+        std::vector<QPoSTxDetails> vDeets;
+        wtxNew.GetQPoSTxDetails(vDeets);
+        if (vDeets.empty())
+        {
+            return _("CreateQPoSTx(): no qPoS details gotten");
+        }
+        MapPrevTx mapInputs;
+        CTxIndex txIndexUnused;
+        mapInputs[hash] = make_pair(txIndexUnused, wtxPrev);
+
+        map<string, qpos_purchase> mapPurchasesTx;
+        map<unsigned int, vector<qpos_setkey> > mapSetKeysTx;
+        map<CPubKey, vector<qpos_claim> > mapClaimsTx;
+        map<unsigned int, vector<qpos_setmeta> > mapSetMetasTx;
+        std::vector<QPoSTxDetails> vDeetsTx;
+
+        if (!wtxNew.CheckQPoS(pregistryMain,
+                              mapInputs,
+                              GetAdjustedTime(),
+                              vDeets,
+                              pindexBest,
+                              mapPurchasesTx,
+                              mapSetKeysTx,
+                              mapClaimsTx,
+                              mapSetMetasTx,
+                              vDeetsTx))
+        {
+            return _("CreateQPoSTx(): checking qPoS failed");
+        }
+
         if (!CommitTransaction(wtxNew, reservekeyUnused))
         {
             return _("CreateQPoSTx(): The qPoS transaction was rejected.\n"
@@ -2977,22 +3065,25 @@ string CWallet::PurchaseStaker(const string &txid,
 
     if (vchPurchase.size() != nSize)
     {
-        // should never happen
-        return _("PurchaseStaker(): scriptPurchase length mismatch");
+        // this should never happen
+        return _("PurchaseStaker(): TSNH scriptPurchase length mismatch");
     }
+
+    txnouttype typetxo = TX_PURCHASE1;
 
     CScript scriptPurchase;
     scriptPurchase << vchPurchase;
     if (fIsPurchase3)
     {
         scriptPurchase << OP_PURCHASE3;
+        typetxo = TX_PURCHASE3;
     }
     else
     {
         scriptPurchase << OP_PURCHASE1;
     }
 
-    return CreateQPoSTx(txid, nOut, scriptPurchase, nPrice, wtxNew);
+    return CreateQPoSTx(txid, nOut, scriptPurchase, nPrice, typetxo, wtxNew);
 }
 
 
@@ -3010,7 +3101,17 @@ string CWallet::SetStakerKey(const string &txid,
         return sError;
     }
 
-    bool fIsSetDelegate = (opSetKey == OP_SETDELEGATE);
+    txnouttype typetxo = TX_SETOWNER;
+    bool fIsSetDelegate = false;
+    if (opSetKey == OP_SETDELEGATE)
+    {
+        typetxo = TX_SETDELEGATE;
+        fIsSetDelegate = true;
+    }
+    else if (opSetKey == OP_SETCONTROLLER)
+    {
+        typetxo = TX_SETCONTROLLER;
+    }
 
     if (fIsSetDelegate)
     {
@@ -3043,14 +3144,14 @@ string CWallet::SetStakerKey(const string &txid,
 
     if (vchSetKey.size() != nSize)
     {
-        // should never happen
-        return _("SetStakerKey(): scriptSetKey length mismatch");
+        // this should never happen
+        return _("SetStakerKey(): TSNH scriptSetKey length mismatch");
     }
 
     CScript scriptSetKey;
     scriptSetKey << vchSetKey << opSetKey;
 
-    return CreateQPoSTx(txid, nOut, scriptSetKey, 0, wtxNew);
+    return CreateQPoSTx(txid, nOut, scriptSetKey, 0, typetxo, wtxNew);
 }
 
 
@@ -3080,18 +3181,18 @@ string CWallet::SetStakerState(const string &txid,
 
     if (vchSetState.size() != nSize)
     {
-        // should never happen
-        return _("SetStakerState(): scriptSetState length mismatch");
+        // this should never happen
+        return _("SetStakerState(): TSNH scriptSetState length mismatch");
     }
 
+    txnouttype typetxo = fEnable ? TX_ENABLE : TX_DISABLE;
     opcodetype opSetState = fEnable ? OP_ENABLE : OP_DISABLE;
 
     CScript scriptSetState;
     scriptSetState << vchSetState << opSetState;
 
-    return CreateQPoSTx(txid, nOut, scriptSetState, 0, wtxNew);
+    return CreateQPoSTx(txid, nOut, scriptSetState, 0, typetxo, wtxNew);
 }
-
 
 // works roughly like to SendMoneyToDestination
 string CWallet::ClaimQPoSBalance(const string &txid,
@@ -3165,11 +3266,11 @@ string CWallet::ClaimQPoSBalance(const string &txid,
     EXTEND(vchClaim, vchValue);
 
     // value + pubkey
-    unsigned int nSize = 47;  // 47 = 4 + 33
+    unsigned int nSize = 41;  // 41 = 8 + 33
     if (vchClaim.size() != nSize)
     {
         // should never happen
-        return _("ClaimQPoSBalance(): scriptClaim length mismatch");
+        return _("ClaimQPoSBalance(): TSNH scriptClaim length mismatch");
     }
 
     CScript scriptClaim;
@@ -3177,7 +3278,58 @@ string CWallet::ClaimQPoSBalance(const string &txid,
                 << OP_DUP << OP_HASH160 << keyIDClaimant
                 << OP_EQUALVERIFY << OP_CHECKSIG;
 
-    return CreateQPoSTx(txid, nOut, scriptClaim, 0, wtxNew);
+    return CreateQPoSTx(txid, nOut, scriptClaim, nValue, TX_CLAIM, wtxNew);
+}
+
+
+
+// works roughly like to SendMoneyToDestination
+string CWallet::SetStakerMeta(const string &txid,
+                              unsigned int nOut,
+                              unsigned int nID,
+                              const valtype &vchPubKey,
+                              const string &sKey,
+                              const string &sValue,
+                              CWalletTx &wtxNew)
+{
+    string sError = CheckQPoSEssentials(txid, nOut, nID, vchPubKey);
+    if (sError != "")
+    {
+        return sError;
+    }
+
+    valtype vchSetMeta(0);
+
+    valtype vchID = vchnum(static_cast<uint32_t>(nID)).Get();
+    EXTEND(vchSetMeta, vchID);
+
+    EXTEND(vchSetMeta, vchPubKey);
+
+    EXTEND(vchSetMeta, sKey);
+    for (unsigned int i = sKey.size(); i < 16; ++i)
+    {
+        vchSetMeta.push_back(static_cast<unsigned char>(0));
+    }
+
+    EXTEND(vchSetMeta, sValue);
+    for (unsigned int i = sValue.size(); i < 40; ++i)
+    {
+        vchSetMeta.push_back(static_cast<unsigned char>(0));
+    }
+
+    // staker id
+    static const unsigned int nSize = 60;  // 4 + 16 + 40
+
+    if (vchSetMeta.size() != nSize)
+    {
+        // should never happen
+        return _("SetStakerMeta(): TSNH scriptSetMeta length mismatch");
+    }
+
+    CScript scriptSetMeta;
+    scriptSetMeta << vchSetMeta << OP_SETMETA;
+
+    return CreateQPoSTx(txid, nOut, scriptSetMeta, 0, TX_SETMETA, wtxNew);
 }
 
 

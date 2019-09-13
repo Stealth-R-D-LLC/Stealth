@@ -65,31 +65,14 @@ static const uint256 hashGenesisBlockOfficial(
 static const uint256 hashGenesisBlockTestNet (
    "0x3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634");
 
-static const int CUTOFF_POW_M = 5460;
-static const int CUTOFF_POW_T = 120;
+static const int CUTOFF_POW_M = 5460;  // asdf
+static const int CUTOFF_POW_T = 120;  // asdf
 
 static const int START_PURCHASE_M = 4204204;  // asdf
-static const int START_PURCHASE_T = 4204;     // asdf
+static const int START_PURCHASE_T = 4204;  // asdf
 
 static const int CUTOFF_POS_M = 4420420;  // asdf
-static const int CUTOFF_POS_T = 8975;    // asdf
-
-/* asdf
-// cloners: add your new forks higher than highest here
-//          keep existing
-//          also, rewrite GetFork
-enum ForkNumbers
-{
-    XST_GENESIS = 0,
-    XST_FORK002,
-    XST_FORK004,
-    XST_FORK005,
-    XST_FORK006,
-    XST_FORKPURCHASE,
-    XST_FORKASDF,
-    TOTAL_FORKS
-};
-*/
+static const int CUTOFF_POS_T = 17400;  // asdf
 
 // cloners: edit aForks
 int GetFork(int nHeight);
@@ -180,7 +163,7 @@ void RegisterWallet(CWallet* pwalletIn);
 void UnregisterWallet(CWallet* pwalletIn);
 void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool fUpdate = false, bool fConnect = true);
 bool ProcessBlock(CNode* pfrom, CBlock* pblock,
-                  bool fIsBootstrap=false, bool fJustCheck=false);
+                  bool fIsBootstrap=false, bool fJustCheck=false, bool fIsMine=false);
 bool CheckDiskSpace(uint64_t nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
 FILE* AppendBlockFile(unsigned int& nFileRet);
@@ -192,7 +175,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle);
 bool LoadExternalBlockFile(FILE* fileIn);
 BlockCreationResult CreateNewBlock(CWallet* pwallet,
                               ProofTypes fTypeOfProof,
-                              AUTO_POINTER<CBlock> &pblockRet);
+                              AUTO_PTR<CBlock> &pblockRet);
 // CBlock* CreateNewBlock(CWallet* pwallet, bool fProofOfStake=false);
 #ifdef WITH_MINER
 void GenerateXST(bool fGenerate, CWallet* pwallet);
@@ -206,7 +189,7 @@ int64_t GetProofOfWorkReward(int nHeight, int64_t nFees);
 int64_t GetProofOfStakeReward(int64_t nCoinAge, unsigned int nBits);
 int64_t GetQPoSReward(const CBlockIndex *pindexPrev);
 int64_t GetStakerPrice(const QPRegistry *pregistry,
-                       CBlockIndex *pindexPrev,
+                       const CBlockIndex *pindexPrev,
                        bool fPurchase=false);
 unsigned int ComputeMinWork(unsigned int nBase, int64_t nTime);
 unsigned int ComputeMinStake(unsigned int nBase, int64_t nTime, unsigned int nBlockTime);
@@ -220,7 +203,14 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
 void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof);
 void ResendWalletTransactions();
 
-void GetRegistrySnapshot(CTxDB &txdb, int nReplay, QPRegistry *pregistryTemp);
+void GetRegistrySnapshot(CTxDB &txdb,
+                         int nReplay,
+                         QPRegistry *pregistryTemp);
+
+bool RewindRegistry(CTxDB &txdb,
+                    CBlockIndex *pindexRewind,
+                    QPRegistry *pregistry,
+                    CBlockIndex* &pindexCurrentRet);
 
 /** Position on disk for a particular transaction. */
 class CDiskTxPos
@@ -863,10 +853,13 @@ public:
     bool GetSignatory(const MapPrevTx &mapInputs,
                       unsigned int idx, CPubKey &keyRet) const;
     bool ValidateSignatory(const MapPrevTx &mapInputs,
-                           int idx, const CPubKey &keyOwner) const;
+                           int idx, CPubKey &key) const;
+    bool ValidateSignatory(const MapPrevTx &mapInputs,
+                           int idx, std::vector<CPubKey> &vKeys) const;
     bool ValidateSignatory(const QPRegistry *pregistry,
                            const MapPrevTx &mapInputs,
-                           int idx, unsigned int nStakerID) const;
+                           int idx, unsigned int nStakerID,
+                           QPKeyType fKeyTypes) const;
     // Check* procedures not only validate, but also return operational data
     bool CheckPurchases(const QPRegistry *pregistry,
                         int64_t nStakerPrice,
@@ -880,6 +873,22 @@ public:
     bool CheckClaim(const QPRegistry *pregistry,
                     const MapPrevTx &mapInputs,
                     qpos_claim &claimRet) const;
+    bool CheckSetMetas(const QPRegistry *pregistry,
+                       const MapPrevTx &mapInputs,
+                       std::vector<qpos_setmeta> &vRet) const;
+
+    // Checks all qPoS operations
+    bool CheckQPoS(const QPRegistry *pregistryTemp,
+                   const MapPrevTx &mapInputs,
+                   unsigned int nTime,
+                   const std::vector<QPoSTxDetails> &vDeets,
+                   const CBlockIndex *pindexPrev,
+                   std::map<string, qpos_purchase> &mapPurchasesRet,
+                   std::map<unsigned int, std::vector<qpos_setkey> > &mapSetKeysRet,
+                   std::map<CPubKey, std::vector<qpos_claim> > &mapClaimsRet,
+                   std::map<unsigned int, std::vector<qpos_setmeta> > &mapSetMetasRet,
+                   std::vector<QPoSTxDetails> &vDeetsRet) const;
+
     // faster, returns operational data only, not for validation
     bool GetQPoSTxDetails(std::vector<QPoSTxDetails> &vDeets) const;
 
@@ -1135,7 +1144,7 @@ public:
         {
             nVersion = CBlock::GENESIS_VERSION;
         }
-        else if (nFork < XST_FORKASDF)
+        else if (nFork < XST_FORKQPOS)
         {
             nVersion = CBlock::PURCHASE_VERSION;
         }
@@ -1373,10 +1382,18 @@ public:
 
 
     bool DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex);
-    bool ConnectBlock(CTxDB& txdb, CBlockIndex* pindex, bool fJustCheck=false);
+    bool ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
+                      QPRegistry *pregistryTemp, bool fJustCheck=false);
     bool ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions=true);
+    bool SetBestChain(CTxDB& txdb,
+                      CBlockIndex* pindexNew,
+                      QPRegistry *pregistryTemp,
+                      bool &fReorganizedRet);
     bool SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew);
-    bool AddToBlockIndex(unsigned int nFile, unsigned int nBlockPos, const uint256& hashProof);
+    bool AddToBlockIndex(unsigned int nFile,
+                         unsigned int nBlockPos,
+                         const uint256& hashProof,
+                         QPRegistry *pregistryTemp);
     bool CheckBlock(QPRegistry *pregistryTemp,
                     std::vector<QPoSTxDetails> &vDeetsRet,
                     CBlockIndex* pindexPrev,
@@ -1384,13 +1401,15 @@ public:
                     bool fCheckMerkleRoot=true,
                     bool fCheckSig=true,
                     bool fCheckQPoS=true) const;
-    bool AcceptBlock();
+    bool AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine=false);
     bool GetCoinAge(uint64_t& nCoinAge) const; // ppcoin: calculate total coin age spent in block
-    bool SignBlock(const CKeyStore& keystore, const QPRegistry *pregistry=NULL);
+    bool SignBlock(const CKeyStore& keystore, const QPRegistry *pregistry);
     bool CheckBlockSignature(const QPRegistry *pregistry) const;
 
 private:
-    bool SetBestChainInner(CTxDB& txdb, CBlockIndex *pindexNew);
+    bool SetBestChainInner(CTxDB& txdb,
+                           CBlockIndex *pindexNew,
+                           QPRegistry *pregistryTemp);
 };
 
 

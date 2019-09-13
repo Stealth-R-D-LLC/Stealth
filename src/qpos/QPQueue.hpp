@@ -58,6 +58,7 @@ public:
     QPQueueIterator Begin() const;
     QPQueueIterator End() const;
     unsigned int Size() const;
+    std::string ToString() const;
     bool IsEmpty() const;
     bool IncrementSlot();
     void Reset();

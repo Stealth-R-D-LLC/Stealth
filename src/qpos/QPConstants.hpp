@@ -22,12 +22,16 @@ static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_TIME;
 // fraction of money supply (stealthtoshis) to dock per round for inactive keys
 static const int64_t DOCK_INACTIVE_FRACTION = 310000000000;
 // number of blocks between snapshots
-static const unsigned int BLOCKS_PER_SNAPSHOT = 720;
+static const unsigned int BLOCKS_PER_SNAPSHOT = 24;
 // number of snapshots to keep
-static const unsigned int SNAPSHOTS_TO_KEEP = 48;
+static const unsigned int SNAPSHOTS_TO_KEEP = 180;
 // min and max staker alias lengths
 static const unsigned int QP_MIN_ALIAS_LENGTH = 3;
 static const unsigned int QP_MAX_ALIAS_LENGTH = 16;
+// max staker metadata key length
+static const unsigned int QP_MAX_META_KEY_LENGTH = 16;
+// max staker metadata value length
+static const unsigned int QP_MAX_META_VALUE_LENGTH = 40;
 // minimum number of seconds between claims (prevents claim spam)
 static const unsigned int QP_MIN_SECS_PER_CLAIM = 60 * 60 * 24;  // 1 day
 // minimum pico power of a chain that will produce blocks
@@ -35,6 +39,17 @@ static const unsigned int QP_MIN_SECS_PER_CLAIM = 60 * 60 * 24;  // 1 day
 static const uint64_t QP_MIN_PICO_POWER = 510000000000u;
 // return string when no alias or name exists for a staker
 static const std::string STRING_NO_ALIAS = "*";
+
+enum QPKeyType
+{
+    QPKEY_NONE       = 0,
+    QPKEY_OWNER      = 1 << 0,
+    QPKEY_DELEGATE   = 1 << 1,
+    QPKEY_CONTROLLER = 1 << 2,
+    QPKEY_OD         = QPKEY_OWNER | QPKEY_DELEGATE,
+    QPKEY_OC         = QPKEY_OWNER | QPKEY_CONTROLLER,
+    QPKEY_ANY        = QPKEY_OWNER | QPKEY_DELEGATE | QPKEY_CONTROLLER
+};
 
 enum ProofTypes
 {

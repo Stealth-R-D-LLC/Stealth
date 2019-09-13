@@ -210,7 +210,8 @@ public:
     std::string CreateQPoSTx(const std::string &txid,
                              unsigned int nOut,
                              const CScript &scriptQPoS,
-                             int64_t nPrice,
+                             int64_t nValue,
+                             txnouttype typetxo,
                              CWalletTx &wtxNew);
     std::string PurchaseStaker(const std::string &txid,
                                unsigned int nOut,
@@ -232,6 +233,13 @@ public:
                                const valtype &vchPubKey,
                                bool fEnable,
                                CWalletTx &wtxNew);
+    std::string SetStakerMeta(const std::string &txid,
+                              unsigned int nOut,
+                              unsigned int nID,
+                              const valtype &vchPubKey,
+                              const std::string &sKey,
+                              const std::string &sValue,
+                              CWalletTx &wtxNew);
     std::string ClaimQPoSBalance(const std::string &txid,
                                  unsigned int nOut,
                                  int64_t nValue,
