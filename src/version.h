@@ -25,7 +25,7 @@ extern const std::string CLIENT_DATE;
 // display version
 #define DISPLAY_VERSION_MAJOR       3
 #define DISPLAY_VERSION_MINOR       0
-#define DISPLAY_VERSION_REVISION    1
+#define DISPLAY_VERSION_REVISION    2
 #define DISPLAY_VERSION_BUILD       0
 
 //
@@ -54,7 +54,8 @@ extern const std::string CLIENT_DATE;
 //                   Immaleable transaction IDs
 //         3.0.1.0 : Testnet version
 //                   Fixing many qPoS consensus issues
-static const int PROTOCOL_VERSION = 63000;
+// 63200 : 3.0.2.0 : Fixed qPoS transaction authority checking
+static const int PROTOCOL_VERSION = 63200;
 
 // intial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 61300;
