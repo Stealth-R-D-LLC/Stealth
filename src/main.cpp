@@ -151,7 +151,7 @@ int GetMinPeerProtoVersion(int nHeight)
                    {               XST_FORK005,         62100 },
                    {               XST_FORK006,         62200 },
                    {          XST_FORKPURCHASE,         63000 },
-                   {              XST_FORKQPOS,         63000 }
+                   {              XST_FORKQPOS,         63000 },
                    {             XST_FORKQPOSB,         63300 }
                                           };
 
