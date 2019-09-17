@@ -12,7 +12,10 @@ static const char *strMainNetAddedNodes[][1] = {
 };
 
 static const char *strTestNetAddedNodes[][1] = {
-    // {""},
+    {"63.142.252.123"},
+    {"80.208.225.225"},
+    {"134.209.225.254"},
+    {"80.208.225.215"},
     {NULL}
 };
 

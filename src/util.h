@@ -155,6 +155,7 @@ enum ForkNumbers
     XST_FORK006,
     XST_FORKPURCHASE,
     XST_FORKQPOS,
+    XST_FORKQPOSB
     TOTAL_FORKS
 };
 

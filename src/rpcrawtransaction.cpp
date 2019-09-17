@@ -36,7 +36,7 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
 
     if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired))
     {
-        if ((type >= TX_PURCHASE1) && (type <= TX_CLAIM))
+        if ((type >= TX_PURCHASE1) && (type <= TX_SETMETA))
         {
             out.push_back(Pair("type", GetTxnOutputType(type)));
         }

@@ -103,7 +103,8 @@ int GetFork(int nHeight)
     /* Aug 16 10:23:28 MST 2017 */       {      1732201, XST_FORK005 },
     /* Nov 14 08:09:53 MDT 2018 */       {      2378000, XST_FORK006 },
     /* Approx ????????????????  */       { START_PURCHASE_M, XST_FORKPURCHASE },
-    /* Approx ????????????????  */       { CUTOFF_POS_M, XST_FORKQPOS }
+    /* Approx ????????????????  */       { CUTOFF_POS_M, XST_FORKQPOS },
+    /* Approx ????????????????  */       { CUTOFF_POS_M, XST_FORKQPOSB }
                                        },
     /* TEST NET */                     {      // Height, Fork Number
                                          {            0, XST_GENESIS },
@@ -112,7 +113,8 @@ int GetFork(int nHeight)
                                          {          140, XST_FORK005 },
                                          {          145, XST_FORK006 },
                                          { START_PURCHASE_T, XST_FORKPURCHASE },
-                                         { CUTOFF_POS_T, XST_FORKQPOS }
+                                         { CUTOFF_POS_T, XST_FORKQPOS },
+                                         {        28640, XST_FORKQPOSB }
                                        }
                                      };
 
@@ -554,7 +556,54 @@ bool CTransaction::GetSignatory(const MapPrevTx &mapInputs,
     {
         return false;
     }
+
     CTxIn input = vin[idx];
+
+    if (GetFork(pindexBest->nHeight) >= XST_FORKQPOSB)
+    {
+        // the input should be in the main chain so that the registry isn't
+        // changed, leaving the input with an obsolete signatory
+        CTransaction tx;
+        uint256 hashBlock = 0;
+        unsigned int nTimeBlock;
+        if (GetTransaction(input.prevout.hash, tx, hashBlock, nTimeBlock))
+        {
+            if (hashBlock == 0)
+            {
+                // block of input transaction unknown
+                return false;
+            }
+            map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+            if (mi != mapBlockIndex.end())
+            {
+                if ((*mi).second)
+                {
+                    CBlockIndex* pindex = (*mi).second;
+                    if (!pindex->IsInMainChain())
+                    {
+                        // block containing input transaction not in main chain
+                        return false;
+                    }
+                }
+                else
+                {
+                    // block index is null for input transaction
+                    return false;
+                }
+            }
+            else
+            {
+                // block containing input transaction not in block index
+                return false;
+            }
+        }
+        else
+        {
+            // input transaction unknown
+            return false;
+        }
+    }
+
     CTxOut prevout = GetOutputFor(input, mapInputs);
     if (!Solver(prevout.scriptPubKey, typetxo, vSolutions))
     {
@@ -7259,18 +7308,27 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
         int nHeight = pindexPrev->nHeight + 1;
 
         // QPoS doesn't start until XST_FORKQPOS, so loop until ready
-        if (fQuantumPoS && (GetFork(nHeight) < XST_FORKQPOS))
+        if (fQuantumPoS)
         {
-            if (GetFork(nHeight + 2) < XST_FORKQPOS)
+            if (GetFork(nHeight) < XST_FORKQPOS)
             {
-                // save some CPUs until almost time
-                MilliSleep(1000);
+                if (GetFork(nHeight + 2) < XST_FORKQPOS)
+                {
+                    // save some CPUs until almost time
+                    MilliSleep(1000);
+                }
+                else
+                {
+                    MilliSleep(100);
+                }
+                continue;
             }
-            else
+            else if ((GetFork(nHeight - 1) < XST_FORKQPOS) &&
+                     (pregistryMain->GetRound() == 0))
             {
-                MilliSleep(100);
+                pregistryMain->UpdateOnNewTime(GetAdjustedTime(),
+                                               pindexPrev, false, fDebugQPoS);
             }
-            continue;
         }
 
         // PoS ends with XST_FORKQPOS, so kill the PoS minter thread
