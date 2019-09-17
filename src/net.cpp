@@ -1446,10 +1446,10 @@ void static ThreadQPoSMinter(void* parg)
     }
     catch (std::exception& e) {
         vnThreadsRunning[THREAD_QPOSMINTER]--;
-        PrintException(&e, "ThreadStakeMinter()");
+        PrintException(&e, "ThreadQPosMinter()");
     } catch (...) {
         vnThreadsRunning[THREAD_QPOSMINTER]--;
-        PrintException(NULL, "ThreadStakeMinter()");
+        PrintException(NULL, "ThreadQPoSMinter()");
     }
     printf("ThreadQPoSMinter exiting, %d threads remaining\n",
                                   vnThreadsRunning[THREAD_QPOSMINTER]);

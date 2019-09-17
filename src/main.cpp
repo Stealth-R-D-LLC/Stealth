@@ -4079,7 +4079,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                 {
                     if (fInvalid)
                     {
-                        printf("CheckBlock(): invalid qPoS inputs\n");
+                        return DoS(50, error("CheckBlock(): invalid qPoS inputs\n"));
                     }
                     else
                     {
