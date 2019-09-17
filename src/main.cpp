@@ -114,7 +114,7 @@ int GetFork(int nHeight)
                                          {          145, XST_FORK006 },
                                          { START_PURCHASE_T, XST_FORKPURCHASE },
                                          { CUTOFF_POS_T, XST_FORKQPOS },
-                                         {        28640, XST_FORKQPOSB }
+                                         {        22500, XST_FORKQPOSB }
                                        }
                                      };
 
@@ -142,7 +142,7 @@ int GetFork(int nHeight)
 int GetMinPeerProtoVersion(int nHeight)
 {
     // helps to prevent buffer overrun
-    static const int nVersions = 5;
+    static const int nVersions = 6;
 
     // Make sure forks are ascending!
     const int aVersions[nVersions][2] = {
@@ -152,6 +152,7 @@ int GetMinPeerProtoVersion(int nHeight)
                    {               XST_FORK006,         62200 },
                    {          XST_FORKPURCHASE,         63000 },
                    {              XST_FORKQPOS,         63000 }
+                   {             XST_FORKQPOSB,         63300 }
                                           };
 
     int nFork = GetFork(nHeight);
