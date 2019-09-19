@@ -820,10 +820,10 @@ void ThreadSocketHandler2(void* parg)
                 }
             }
             // don't remove unsecure nodes if no secure nodes
-            // don't make peer count smaller than 3 on purpose
+            // don't purposefully make peer count smaller than five
             if ((secured > 0) &&
-                (secured + unsecured > 3) &&
-                (2 * secured - 3 * unsecured < 0))
+                (secured + unsecured > 5) &&
+                ((2 * secured - 3 * unsecured) < 0))
             {
                 random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
 

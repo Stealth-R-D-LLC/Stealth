@@ -471,9 +471,32 @@ bool CTxDB::LoadBlockIndex()
         {
             if (!pregistryMain->UpdateOnNewBlock(pidx, false))
             {
-                return error("CTxDB::LoadBlockIndex() : "
-                                 "Failed registry update height=%d",
-                              pidx->nHeight);
+                printf("CTxDB::LoadBlockIndex() : "
+                           "Failed registry update from snapshot height=%d\n",
+                           pidx->nHeight);
+                // something was wrong with the snapshot, start from 0
+                pregistryMain->SetNull();
+                BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item2,
+                              vSortedByHeight)
+                {
+                    CBlockIndex* pidx2 = item2.second;
+                    int nFork2 = GetFork(pidx2->nHeight);
+                    if ((nFork2 >= XST_FORKPURCHASE) &&
+                        (pidx2->nHeight > pregistryMain->GetBlockHeight()) &&
+                        (pidx2->IsInMainChain()))
+                    {
+                        if (!pregistryMain->UpdateOnNewBlock(pidx2, false))
+                        {
+                            return error("CTxDB::LoadBlockIndex() : "
+                                            "Failed registry update on replay height=%d",
+                                            pidx2->nHeight);
+                        }
+                    }
+                    if (pidx2 == pidx)
+                    {
+                        break;
+                    }
+                }
             }
             pindexBestReplay = pidx;
         }
@@ -498,10 +521,10 @@ bool CTxDB::LoadBlockIndex()
         (pindexBest == pindexBestReplay->pnext))
     {
         printf("Updating on best block: %d\n", pindexBest->nHeight);
-        if (!pregistryMain->UpdateOnNewBlock(pindexBest, false))
+        if (!pregistryMain->UpdateOnNewBlock(pindexBest, false, true))
         {
             return error("CTxDB::LoadBlockIndex() : "
-                             "Failed registry update height=%d",
+                             "Failed registry update best block height=%d",
                           pindexBest->nHeight);
         }
     }
