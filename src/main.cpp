@@ -4272,7 +4272,6 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
           pregistryTemp->ShouldRollback() &&
           GetBoolArg("-rollbackdeadend", true)))
     {
-        int nBlockEstimate = Checkpoints::GetTotalBlocksEstimate();
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
         {
