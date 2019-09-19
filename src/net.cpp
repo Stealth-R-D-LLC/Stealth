@@ -1630,7 +1630,7 @@ void ThreadOpenAddedConnections2(void* parg)
     {
         printf("ThreadOpenAddedConnections: found addnode \"%s\"\n", strAddNode.c_str());
         vector<CService> vservNode(0);
-        if(Lookup(strAddNode.c_str(), vservNode, GetDefaultPort(), fNameLookup, 0))
+        if (Lookup(strAddNode.c_str(), vservNode, GetDefaultPort(), fNameLookup, 0))
         {
             vservAddressesToAdd.push_back(vservNode);
             {
@@ -1643,6 +1643,16 @@ void ThreadOpenAddedConnections2(void* parg)
     while (true)
     {
         vector<vector<CService> > vservConnectAddresses = vservAddressesToAdd;
+        vector<string> vCertIPs(0);
+        pregistryMain->GetCertifiedNodes(vCertIPs);
+        BOOST_FOREACH(string strCertIP, vCertIPs)
+        {
+            vector<CService> vservCertNode(0);
+            if (Lookup(strCertIP.c_str(), vservCertNode, GetDefaultPort(), fNameLookup, 0))
+            {
+                vservConnectAddresses.push_back(vservCertNode);
+            }
+        }
         // Attempt to connect to each IP for each addnode entry until at least one is successful per addnode entry
         // (keeping in mind that addnode entries can have many IPs if fNameLookup)
         {

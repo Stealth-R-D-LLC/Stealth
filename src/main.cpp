@@ -4275,8 +4275,18 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
         int nBlockEstimate = Checkpoints::GetTotalBlocksEstimate();
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
-            if (nBestHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : nBlockEstimate))
+        {
+            if (nBestHeight > (pnode->nStartingHeight - 2000))
+            {
+                if (fDebugNet)
+                {
+                    printf("AcceptBlock(): pushing accepted block to %s\n  :%s",
+                           pnode->addrName.c_str(),
+                           hash.ToString().c_str());
+                }
                 pnode->PushInventory(CInv(MSG_BLOCK, hash));
+            }
+        }
     }
 
     // ppcoin: check pending sync-checkpoint
