@@ -4279,7 +4279,7 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
             {
                 if (fDebugNet)
                 {
-                    printf("AcceptBlock(): pushing accepted block to %s\n  :%s",
+                    printf("AcceptBlock(): pushing accepted block to %s\n  :%s\n",
                            pnode->addrName.c_str(),
                            hash.ToString().c_str());
                 }
