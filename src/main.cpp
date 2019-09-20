@@ -3280,6 +3280,10 @@ bool static Reorganize(CTxDB& txdb,
     pindexReplayRet = pfork;
 
     AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry());
+    if (!pregistryTemp.get())
+    {
+        return error("Reorganize() : creating temp registry failed");
+    }
     CBlockIndex *pindexCurrent;
     RewindRegistry(txdb, pfork, pregistryTemp.get(), pindexCurrent);
 
@@ -3426,6 +3430,10 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         }
 
         AUTO_PTR<QPRegistry> pregistryTempTemp(new QPRegistry());
+        if (!pregistryTempTemp.get())
+        {
+            return error("SetBestChain() : creating temp temp registry failed");
+        }
 
         // FIXME: this could use refactoring with RewindRegistry
 
@@ -3569,9 +3577,13 @@ bool CBlock::SetBestChain(CTxDB& txdb,
 
 bool CBlock::SetBestChain(CTxDB &txdb, CBlockIndex *pindexNew)
 {
-   AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry(pregistryMain));
-   bool fReorganized;
-   return SetBestChain(txdb, pindexNew, pregistryTemp.get(), fReorganized);
+    AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry(pregistryMain));
+    if (!pregistryTemp.get())
+    {
+        return error("SetBestChain() : creating new temp registry failed");
+    }
+    bool fReorganized;
+    return SetBestChain(txdb, pindexNew, pregistryTemp.get(), fReorganized);
 }
 
 
@@ -3737,6 +3749,10 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
     if (pindexNew->bnChainTrust > bnBestChainTrust)
     {
         AUTO_PTR<QPRegistry> pregistryTempTemp(new QPRegistry(pregistryTemp));
+        if (!pregistryTempTemp.get())
+        {
+            return error("AddToBlockIndex() : creating temp temp registry failed");
+        }
         pregistryTempTemp->CheckSynced();
         if (!pregistryTempTemp->UpdateOnNewBlock(pindexNew,
                                                  !IsInitialBlockDownload(),
@@ -4386,6 +4402,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     // block. If the block is valid using this registry, then the local
     // clock can be advanced when the block is added to the growing chain.
     AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry(pregistryMain));
+    if (!pregistryTemp.get())
+    {
+        return error("ProcessBlock() : creating temp registry failed");
+    }
     bool fCheckOK;
     if (fJustCheck)
     {
@@ -4575,7 +4595,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         return error("ProcessBlock() : AcceptBlock FAILED %s", hash.ToString().c_str());
     }
 
-    // Only recursively process orphans and update pregistryMain if on best chain
+    // Only recursively process orphans and update main registry if on best chain
     if (hashBestChain == pregistryTemp->GetBlockHash())
     {
         // Recursively process any orphan blocks that depended on this one
@@ -4606,7 +4626,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
             }
             mapOrphanBlocksByPrev.erase(hashPrev);
         }
-        // Update pregistryMain with pregistryTemp
+        // Update main registry with pregistryTemp
         bool fExitReplay = !pregistryMain->IsInReplayMode();
         pregistryMain->Copy(pregistryTemp.get());
         if (fExitReplay)
@@ -5303,6 +5323,10 @@ bool Rollback()
 
     // Get snapshot for temp registry and replay it to pindexRollback
     AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry());
+    if (!pregistryTemp.get())
+    {
+        return error("Rollback() : creating temp registry failed");
+    }
     CBlockIndex *pindexCurrent;
     if (!RewindRegistry(txdb, pindexRollback, pregistryTemp.get(), pindexCurrent))
     {
@@ -5964,7 +5988,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         if (tx.nDoS) pfrom->Misbehaving(tx.nDoS);
     }
 
-
     else if (strCommand == "block")
     {
         CBlock block;
@@ -6053,7 +6076,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             pfrom->Misbehaving(100);
         }
     }
-
 
     else if (strCommand == "getaddr")
     {
@@ -6300,9 +6322,6 @@ bool ProcessMessages(CNode* pfrom)
         try
         {
             {
-                // order is important here to prevent deadlocks:
-                //   first lock the registry, then cs_main
-                boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
                 LOCK(cs_main);
                 fRet = ProcessMessage(pfrom, strCommand, vMsg);
             }
@@ -7162,7 +7181,7 @@ bool CheckWork(CBlock* pblock, CWallet& wallet,
     uint256 hash = pblock->GetHash();
     if (pblock->IsQuantumProofOfStake())
     {
-        printf("  new qPoS block found\n  hash: %s\n", hash.GetHex().c_str());
+        // printf("  new qPoS block found\n  hash: %s\n", hash.GetHex().c_str());
         int64_t nReward = GetQPoSReward(pindexPrev);
         printf("  generated %s\n", FormatMoney(nReward).c_str());
     }
@@ -7244,7 +7263,6 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
 {
     bool fProofOfWork = false;
     bool fProofOfStake = false;
-    bool fQuantumPoS = false;
 
     uint64_t nSleepInterval = 0;
     switch (fTypeOfProof)
@@ -7260,12 +7278,6 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
             RenameThread("stealth-minter-pos");
             printf("CPUMinter started for proof-of-stake\n");
             break;
-        case PROOFTYPE_QPOS :
-            nSleepInterval = 100;
-            fQuantumPoS = true;
-            RenameThread("stealth-minter-qpos");
-            printf("CPUMinter started for qPoS\n");
-            break;
         default:
             printf("StealthMinter(): bad proof type\n");
             return;
@@ -7278,7 +7290,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
     unsigned int nExtraNonce = 0;
 
 
-    while (fGenerateXST || fProofOfStake || fQuantumPoS)
+    while (fGenerateXST || fProofOfStake)
     {
         if (fShutdown)
         {
@@ -7286,7 +7298,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
         }
 
         // rollbacks mean qPoS can keep producing even with 0 connections
-        while ((vNodes.empty() && !fQuantumPoS) ||
+        while (vNodes.empty() ||
                IsInitialBlockDownload() ||
                pwallet->IsLocked())
         {
@@ -7296,7 +7308,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
             {
                 return;
             }
-            if (!fGenerateXST && !fProofOfStake && !fQuantumPoS)
+            if (!fGenerateXST && !fProofOfStake)
             {
                 return;
             }
@@ -7317,30 +7329,6 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
 
         int nHeight = pindexPrev->nHeight + 1;
 
-        // QPoS doesn't start until XST_FORKQPOS, so loop until ready
-        if (fQuantumPoS)
-        {
-            if (GetFork(nHeight) < XST_FORKQPOS)
-            {
-                if (GetFork(nHeight + 2) < XST_FORKQPOS)
-                {
-                    // save some CPUs until almost time
-                    MilliSleep(1000);
-                }
-                else
-                {
-                    MilliSleep(100);
-                }
-                continue;
-            }
-            else if ((GetFork(nHeight - 1) < XST_FORKQPOS) &&
-                     (pregistryMain->GetRound() == 0))
-            {
-                pregistryMain->UpdateOnNewTime(GetAdjustedTime(),
-                                               pindexPrev, false, fDebugQPoS);
-            }
-        }
-
         // PoS ends with XST_FORKQPOS, so kill the PoS minter thread
         if (fProofOfStake && (GetFork(nHeight) >= XST_FORKQPOS))
         {
@@ -7360,29 +7348,10 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
              return;
         }
 
-        {  // lock registry
-            boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
-
+        {  // FIXME: asdf move PoS to ThreadMessageHandler2
             BlockCreationResult nResult = CreateNewBlock(pwallet,
                                                          fTypeOfProof,
                                                          pblock);
-
-            if (nResult == BLOCKCREATION_QPOS_IN_REPLAY)
-            {
-                MilliSleep(nSleepInterval);
-                continue;
-            }
-            if ((nResult == BLOCKCREATION_NOT_CURRENTSTAKER) ||
-                (nResult == BLOCKCREATION_QPOS_BLOCK_EXISTS))
-            {
-                if (fDebugBlockCreation)
-                {
-                    printf("block creation abandoned with \"%s\"\n",
-                           DescribeBlockCreationResult(nResult));
-                }
-                MilliSleep(nSleepInterval);
-                continue;
-            }
 
             if (nResult == BLOCKCREATION_INSTANTIATION_FAIL ||
                 nResult == BLOCKCREATION_REGISTRY_FAIL)
@@ -7397,26 +7366,6 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
 
             IncrementExtraNonce(pblock.get(), pindexPrev, nExtraNonce);
 
-            if (fQuantumPoS)
-            {
-                // Stealth: process qPoS block
-                if (fQuantumPoS)
-                {
-                    if (!pblock->SignBlock(*pwalletMain, pregistryMain))
-                    {
-                        continue;
-                    }
-
-                    printf("StealthMinter : qPoS block found %s\n",
-                           pblock->GetHash().ToString().c_str());
-                    pblock->print();
-                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
-                    CheckWork(pblock.get(), *pwalletMain, reservekey, pindexPrev);
-                    SetThreadPriority(THREAD_PRIORITY_LOWEST);
-                }
-                MilliSleep(nSleepInterval);
-                continue;
-            }
             if (fProofOfStake)
             {
                 // ppcoin: if proof-of-stake block found then process block
@@ -7434,7 +7383,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
                     SetThreadPriority(THREAD_PRIORITY_LOWEST);
                 }
             }
-        }  // end lock registry
+        }  // asdf    unscope this
 
         // space blocks better, sleep 1 minute after PoS mint, etc
         MilliSleep(nSleepInterval);

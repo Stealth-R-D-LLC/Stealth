@@ -26,7 +26,7 @@ extern const std::string CLIENT_DATE;
 #define DISPLAY_VERSION_MAJOR       3
 #define DISPLAY_VERSION_MINOR       0
 #define DISPLAY_VERSION_REVISION    3
-#define DISPLAY_VERSION_BUILD       0
+#define DISPLAY_VERSION_BUILD       1
 
 //
 // network protocol versioning
@@ -54,8 +54,9 @@ extern const std::string CLIENT_DATE;
 //                   Immaleable transaction IDs
 //         3.0.1.0 : Testnet version
 //                   Fixing many qPoS consensus issues
-// 63200 : 3.0.2.0 : Fixed qPoS transaction authority checking
-// 63300 : 3.0.3.0 : Forking the tx authority check earlier
+// 63200 : 3.0.2.0 : Fixed qPoS transaction authority checking (forking)
+// 63300 : 3.0.3.0 : Forking the tx authority check earlier (forking)
+//         3.0.3.1 : Combining message handling and qPoS
 static const int PROTOCOL_VERSION = 63300;
 
 // intial proto version, to be increased after version/verack negotiation

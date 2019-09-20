@@ -1432,29 +1432,6 @@ void static ThreadStakeMinter(void* parg)
                                   vnThreadsRunning[THREAD_STAKEMINTER]);
 }
 
-
-// stealth: qpos minter thread
-void static ThreadQPoSMinter(void* parg)
-{
-    printf("ThreadQPoSMinter started\n");
-    CWallet* pwallet = (CWallet*)parg;
-    try
-    {
-        vnThreadsRunning[THREAD_QPOSMINTER]++;
-        StealthMinter(pwallet, PROOFTYPE_QPOS);
-        vnThreadsRunning[THREAD_QPOSMINTER]--;
-    }
-    catch (std::exception& e) {
-        vnThreadsRunning[THREAD_QPOSMINTER]--;
-        PrintException(&e, "ThreadQPosMinter()");
-    } catch (...) {
-        vnThreadsRunning[THREAD_QPOSMINTER]--;
-        PrintException(NULL, "ThreadQPoSMinter()");
-    }
-    printf("ThreadQPoSMinter exiting, %d threads remaining\n",
-                                  vnThreadsRunning[THREAD_QPOSMINTER]);
-}
-
 void ThreadOpenConnections2(void* parg)
 {
     printf("ThreadOpenConnections started\n");
@@ -1751,6 +1728,16 @@ void ThreadMessageHandler(void* parg)
 void ThreadMessageHandler2(void* parg)
 {
     printf("ThreadMessageHandler2 started\n");
+    CWallet* pwallet = (CWallet*)parg;
+
+    // allow conf to disable qPoS minting
+    bool fQPoSActive = GetBoolArg("-qposminting", true);
+
+    // qPoS (asdf and PoS)
+    // Each block production thread has its own key and counter
+    CReserveKey reservekey(pwallet);
+    // unsigned int nExtraNonce = 0;  // asdf  needed for PoS
+
     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
     while (!fShutdown)
     {
@@ -1793,22 +1780,96 @@ void ThreadMessageHandler2(void* parg)
                 pnode->Release();
         }
 
+        // avoid multithreading issues by combining
+        // message handling and stake minting
+        SetThreadPriority(THREAD_PRIORITY_LOWEST);
+
+        CBlockIndex* pindexPrev = pindexBest;
+        int nHeight = pindexPrev->nHeight + 1;
+
+        // rollbacks mean qPoS can keep producing even with 0 connections
+        if ((GetFork(nHeight) >= XST_FORKQPOS) && fQPoSActive)   // asdf  && (!vNodes.empty()))
+        {
+           /*******************************************************************
+            ** qPoS
+            *******************************************************************/
+            if ((GetFork(nHeight - 1) < XST_FORKQPOS) &&
+                (pregistryMain->GetRound() == 0))
+            {
+                pregistryMain->UpdateOnNewTime(GetAdjustedTime(),
+                                               pindexPrev, false, fDebugQPoS);
+            }
+
+            AUTO_PTR<CBlock> pblock(new CBlock());
+            if (!pblock.get())
+            {
+                 return;
+            }
+
+            BlockCreationResult nResult = CreateNewBlock(pwallet,
+                                                         PROOFTYPE_QPOS,
+                                                         pblock);
+
+            bool fFinalizeBlock = true;
+            if (nResult == BLOCKCREATION_QPOS_IN_REPLAY)
+            {
+                fFinalizeBlock = false;
+            }
+            if ((nResult == BLOCKCREATION_NOT_CURRENTSTAKER) ||
+                (nResult == BLOCKCREATION_QPOS_BLOCK_EXISTS))
+            {
+                if (fDebugBlockCreation)
+                {
+                    printf("block creation abandoned with \"%s\"\n",
+                           DescribeBlockCreationResult(nResult));
+                }
+                fFinalizeBlock = false;
+            }
+
+            if (nResult == BLOCKCREATION_INSTANTIATION_FAIL ||
+                nResult == BLOCKCREATION_REGISTRY_FAIL)
+            {
+                if (fDebugBlockCreation)
+                {
+                    printf("block creation catastrophic fail with \"%s\"\n",
+                           DescribeBlockCreationResult(nResult));
+                }
+                fFinalizeBlock = false;
+                fQPoSActive = false;
+            }
+
+            if (fFinalizeBlock)
+            {
+                pblock->hashMerkleRoot = pblock->BuildMerkleTree();
+                if (pblock->SignBlock(*pwallet, pregistryMain))
+                {
+                    printf("QPoS block found %s\n",
+                           pblock->GetHash().ToString().c_str());
+                    pblock->print();
+                    SetThreadPriority(THREAD_PRIORITY_NORMAL);
+                    CheckWork(pblock.get(), *pwallet, reservekey, pindexPrev);
+                    SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
+                }
+            }
+        }
+
         // Wait and allow messages to bunch up.
         // Reduce vnThreadsRunning so StopNode has permission to exit while
         // we're sleeping, but we must always check fShutdown after doing this.
         vnThreadsRunning[THREAD_MESSAGEHANDLER]--;
         MilliSleep(100);
         if (fRequestShutdown)
+        {
             StartShutdown();
+        }
         vnThreadsRunning[THREAD_MESSAGEHANDLER]++;
         if (fShutdown)
+        {
             return;
+        }
     }
     printf("ThreadMessageHandler2 exited\n");
 }
-
-
-
 
 
 
@@ -2012,8 +2073,8 @@ void StartNode(void* parg)
     if (!NewThread(ThreadOpenConnections, NULL))
         printf("Error: NewThread(ThreadOpenConnections) failed\n");
 
-    // Process messages
-    if (!NewThread(ThreadMessageHandler, NULL))
+    // Process messages and mint PoS and qPoS blocks     asdf
+    if (!NewThread(ThreadMessageHandler, pwalletMain))
         printf("Error: NewThread(ThreadMessageHandler) failed\n");
 
     // Dump network addresses
@@ -2031,16 +2092,6 @@ void StartNode(void* parg)
     } else {
         printf("Stake minting disabled at startup (staking=0).\n");
     }
-
-    // make sure conf allows it (qposminting=0 in conf will disallow)
-    if (GetBoolArg("-qposminting", true)) {
-        printf("QPoS minting enabled at startup.\n");
-        if (!NewThread(ThreadQPoSMinter, pwalletMain))
-            printf("Error: NewThread(ThreadQPoSMinter) failed\n");
-    } else {
-        printf("QPoS minting disabled at startup (staking=0).\n");
-    }
-
 
 #ifdef WITH_MINER
     // Generate coins in the background

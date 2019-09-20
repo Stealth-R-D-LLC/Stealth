@@ -159,6 +159,9 @@ class CReserveKey;
 class CTxDB;
 class CTxIndex;
 
+
+const char* DescribeBlockCreationResult(BlockCreationResult r);
+
 void RegisterWallet(CWallet* pwalletIn);
 void UnregisterWallet(CWallet* pwalletIn);
 void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool fUpdate = false, bool fConnect = true);

@@ -4,14 +4,15 @@
 
 #include "main.h"
 
-// extern std::map<uint256, CBlockIndex*> mapBlockIndex;
-
 void SyncRegistry(QPRegistry *pregistry)
 {
     while (!fShutdown)
     {
         {
+// asdf
+# if 0
             boost::lock_guard<QPRegistry> guardRegistry(*pregistry);
+# endif
             if (pregistry->IsInReplayMode())
             {
                 pregistry->CheckSynced();

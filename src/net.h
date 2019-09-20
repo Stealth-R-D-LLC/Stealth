@@ -373,7 +373,9 @@ public:
         vSend << CMessageHeader(pszCommand, 0);
         nMessageStart = vSend.size();
         if (fDebugNet)
-            printf("sending: %s ", pszCommand);
+        {
+            printf("sending: %s\n", pszCommand);
+        }
     }
 
     void AbortMessage()
