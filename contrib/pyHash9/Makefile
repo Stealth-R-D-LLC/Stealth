@@ -1,7 +1,7 @@
 # (c) Copyright 2016-2018 Stealth R&D LLC
 
 # specify PYINCDIR if using non-system python
-PYINCDIR = -I/usr/include/python2.7
+PYINCDIR = -I/usr/local/include/python2.7
 INCDIRS = $(PYINCDIR) -I../../src
 # CFLAGS = -g -Wall -pedantic -dynamiclib -fPIC
 CFLAGS = -g -Wall -fPIC
