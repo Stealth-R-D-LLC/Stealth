@@ -43,6 +43,7 @@ PyObject* hash(PyObject *self, PyObject *args)
     char bytes[HASHLEN + 1];
     bytes[HASHLEN] = 0x00;
 
+    // uint256 internal representation is reversed
     int i = HASHLEN - 1;
     for (unsigned char *c = h.begin(); c != h.end(); ++c)
     {
