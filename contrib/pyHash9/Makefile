@@ -6,6 +6,8 @@ PYLIBDIR = -L/usr/local/lib
 
 INCDIRS = $(PYINCDIR) -I../../src
 CFLAGS = -g -Wall -fPIC
+CXXFLAGS = -g -Wall -fPIC -std=c++11
+
 VPATH = ../../src
 
 CC = gcc
@@ -24,15 +26,15 @@ OBJS = blake.o bmw.o groestl.o jh.o \
 	${CC} ${CFLAGS} ${INCDIRS} -c $<
 
 %.o: %.cpp
-	${CXX} ${CFLAGS} ${INCDIRS} -c $<
+	${CXX} ${CXXFLAGS} ${INCDIRS} -c $<
 
 %.o: %.cpp
-	${CXX} ${CFLAGS} ${INCDIRS} -c $<
+	${CXX} ${CXXFLAGS} ${INCDIRS} -c $<
 
 all: $(PROGS)
 
 ${PROGS}: %: %.o $(OBJS)
-	${CXX} ${CFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython2.7
+	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython2.7
 
 clean:
 	rm -f *.so *.o
