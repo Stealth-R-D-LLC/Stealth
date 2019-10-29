@@ -6,6 +6,8 @@
 
 #include <Python.h>
 
+static const int HASHLEN = 32;
+
 PyObject* hash9(PyObject *self, PyObject *args)
 {
     char* stringIn;
@@ -37,13 +39,18 @@ PyObject* hash(PyObject *self, PyObject *args)
 
     uint256 h = Hash9(stringIn, stringIn + size);
 
-    std::string b;
-    for (unsigned char *c = h.end(); c != h.begin(); --c)
+
+    char bytes[HASHLEN + 1];
+    bytes[HASHLEN] = 0x00;
+
+    int i = HASHLEN - 1;
+    for (unsigned char *c = h.begin(); c != h.end(); ++c)
     {
-        b.push_back(*(c - 1));
+        bytes[i] = (char)*c;
+        i -= 1;
     }
 
-    return PyString_FromString(b.c_str());
+    return PyString_FromStringAndSize(bytes, HASHLEN);
 }
 
 
