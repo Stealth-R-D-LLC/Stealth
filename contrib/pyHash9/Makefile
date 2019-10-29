@@ -1,18 +1,16 @@
-# (c) Copyright 2016-2019 Stealth R&D LLC
+# Copyright (c) 2016-2019 Stealth R&D LLC
 
-# specify PYINCDIR if using non-system python
-PYINCDIR = -I/usr/include/python2.7
+# specify PYINCDIR and PYLIBDIR if using non-system python
+PYINCDIR = -I/usr/local/include/python2.7
+PYLIBDIR = -L/usr/local/lib
+
 INCDIRS = $(PYINCDIR) -I../../src
-# CFLAGS = -g -Wall -pedantic -dynamiclib -fPIC
 CFLAGS = -g -Wall -fPIC
-CXXFLAGS = -g -Wall -fPIC -std=c++11
-
 VPATH = ../../src
-
 
 CC = gcc
 CXX = g++
-LDFLAGS = -shared -fpic
+LDFLAGS = -shared -fpic ${PYLIBDIR}
 
 PROGS = pyHash9
 
@@ -26,15 +24,15 @@ OBJS = blake.o bmw.o groestl.o jh.o \
 	${CC} ${CFLAGS} ${INCDIRS} -c $<
 
 %.o: %.cpp
-	${CXX} ${CXXFLAGS} ${INCDIRS} -c $<
+	${CXX} ${CFLAGS} ${INCDIRS} -c $<
 
 %.o: %.cpp
-	${CXX} ${CXXFLAGS} ${INCDIRS} -c $<
+	${CXX} ${CFLAGS} ${INCDIRS} -c $<
 
 all: $(PROGS)
 
 ${PROGS}: %: %.o $(OBJS)
-	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS}
+	${CXX} ${CFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython2.7
 
 clean:
 	rm -f *.so *.o
