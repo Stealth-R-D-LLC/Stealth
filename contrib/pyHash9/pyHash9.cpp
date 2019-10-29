@@ -1,4 +1,4 @@
-// Copyright (c) 2016-2018, Stealth R&D LLC
+// Copyright (c) 2016-2019 Stealth R&D LLC
 
 #include <stddef.h>
 
@@ -38,7 +38,6 @@ PyObject* hash(PyObject *self, PyObject *args)
     }
 
     uint256 h = Hash9(stringIn, stringIn + size);
-
 
     char bytes[HASHLEN + 1];
     bytes[HASHLEN] = 0x00;
