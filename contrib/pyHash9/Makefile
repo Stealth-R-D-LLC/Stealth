@@ -4,6 +4,11 @@
 PYINCDIR = -I/usr/local/include/python2.7
 PYLIBDIR = -L/usr/local/lib
 
+<<<<<<< HEAD
+=======
+# specify PYINCDIR if using non-system python
+PYINCDIR = -I/usr/local/include/python2.7
+>>>>>>> 507b6d8293d5cd32c094ecfaf1382aba6d22cab1
 INCDIRS = $(PYINCDIR) -I../../src
 CFLAGS = -g -Wall -fPIC
 VPATH = ../../src
