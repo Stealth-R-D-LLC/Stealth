@@ -11,7 +11,7 @@ VPATH = ../../src
 
 CC = gcc
 CXX = g++
-LDFLAGS = -shared -fpic
+LDFLAGS = -shared -fpic -L/usr/local/lib
 
 PROGS = pyHash9
 
@@ -33,7 +33,7 @@ OBJS = blake.o bmw.o groestl.o jh.o \
 all: $(PROGS)
 
 ${PROGS}: %: %.o $(OBJS)
-	${CXX} ${CFLAGS} ${LDFLAGS} -o $@.so ${OBJS}
+	${CXX} ${CFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython2.7
 
 clean:
 	rm -f *.so *.o
