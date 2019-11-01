@@ -1,7 +1,7 @@
 # Copyright (c) 2016-2019 Stealth R&D LLC
 
 # specify PYINCDIR and PYLIBDIR if using non-system python
-PYINCDIR = -I/usr/local/include/python2.7
+PYINCDIR = -I/usr/local/include/python
 PYLIBDIR = -L/usr/local/lib
 
 INCDIRS = $(PYINCDIR) -I../../src
@@ -34,7 +34,7 @@ OBJS = blake.o bmw.o groestl.o jh.o \
 all: $(PROGS)
 
 ${PROGS}: %: %.o $(OBJS)
-	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython2.7
+	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython
 
 clean:
 	rm -f *.so *.o
