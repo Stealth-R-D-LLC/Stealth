@@ -974,6 +974,10 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
     typedef vector<uint32_t>::iterator vi_type;
     vi_type first = vIDs.begin();
     vi_type last = vIDs.end();
+    if (first == last)
+    {
+        return error("NewQueue(): TSNH No qualified stakers");
+    }
     for (vi_type i = first + 1; i != last; ++i)
     {
         vi_type j = first + shuffler((i - first) + 1);
