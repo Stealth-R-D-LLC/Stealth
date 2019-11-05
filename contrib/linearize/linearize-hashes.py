@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#! /usr/bin/env python
 #
 # linearize-hashes.py:  List blocks in a linear, no-fork version of the chain.
 #
@@ -11,7 +11,7 @@ import json
 import struct
 import re
 import base64
-import httplib
+import http.client
 import sys
 
 settings = {}
@@ -22,7 +22,7 @@ class BitcoinRPC:
 	def __init__(self, host, port, username, password):
 		authpair = "%s:%s" % (username, password)
 		self.authhdr = "Basic %s" % (base64.b64encode(authpair))
-		self.conn = httplib.HTTPConnection(host, port, False, 30)
+		self.conn = http.client.HTTPConnection(host, port, False, 30)
 	def rpc(self, method, params=None):
 		self.OBJID += 1
 		obj = { 'version' : '1.1',
@@ -38,18 +38,18 @@ class BitcoinRPC:
 
 		resp = self.conn.getresponse()
 		if resp is None:
-			print "JSON-RPC: no response"
+			print("JSON-RPC: no response")
 			return None
 
 		body = resp.read()
 		resp_obj = json.loads(body)
 		if resp_obj is None:
-			print "JSON-RPC: cannot JSON-decode body"
+			print("JSON-RPC: cannot JSON-decode body")
 			return None
 		if 'error' in resp_obj and resp_obj['error'] != None:
 			return resp_obj['error']
 		if 'result' not in resp_obj:
-			print "JSON-RPC: no result in object"
+			print("JSON-RPC: no result in object")
 			return None
 
 		return resp_obj['result']
@@ -69,7 +69,7 @@ def get_block_hashes(settings):
 
 if __name__ == '__main__':
 	if len(sys.argv) != 2:
-		print "Usage: linearize-hashes.py CONFIG-FILE"
+		print("Usage: linearize-hashes.py CONFIG-FILE")
 		sys.exit(1)
 
 	f = open(sys.argv[1])
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 	if 'max_height' not in settings:
 		settings['max_height'] = 319000
 	if 'rpcuser' not in settings or 'rpcpassword' not in settings:
-		print "Missing username and/or password in cfg file"
+		print("Missing username and/or password in cfg file")
 		sys.exit(1)
 
 	settings['port'] = int(settings['port'])

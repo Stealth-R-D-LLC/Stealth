@@ -15,15 +15,20 @@
 #include "main.h"
 #include "net.h"
 #include "wallet.h"
+
+#ifdef WITH_STEALTHTEXT
 #include "stealthtext.h"
+#endif  /* WITH_STEALTHTEXT */
 
 using namespace std;
 using namespace boost;
 using namespace boost::assign;
 using namespace json_spirit;
 
+#ifdef WITH_STEALTHTEXT
 // SSend: Externally constructed transactions have a 10 minute window
 const int MaxTxnTimeDrift = 5 * 60;
+#endif  /* WITH_STEALTHTEXT */
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
 {
@@ -534,6 +539,7 @@ string sendtoaddresswithtime(string sAddress, int64_t nAmount, unsigned int nTim
 }
 
 
+#ifdef WITH_STEALTHTEXT
 Value decryptsend(const Array& params, bool fHelp)
 {
     // Not Synced, No Pin, No Secret, Replay, Bad Timestamp, Bad Format
@@ -612,6 +618,7 @@ Value decryptsend(const Array& params, bool fHelp)
 
     return sendtoaddresswithtime(sAddress, nAmount, nTime);
 }
+#endif  /* WITH_STEALTHTEXT */
 
 
 Value sendrawtransaction(const Array& params, bool fHelp)

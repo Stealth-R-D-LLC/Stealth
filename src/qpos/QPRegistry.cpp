@@ -2,6 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <iterator>
+
 #include <boost/random/mersenne_twister.hpp>
 #include <boost/random/uniform_int.hpp>
 #include <boost/random/variate_generator.hpp>
@@ -967,7 +969,20 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
     boost::mt19937 gen(seed);
     boost::uniform_int<> dist;
     QPShuffler shuffler(gen, dist);
-    random_shuffle(vIDs.begin(), vIDs.end(), shuffler);
+
+    // cannot count on gcc STL to have standardized random_shuffle
+    typedef vector<uint32_t>::iterator vi_type;
+    vi_type first = vIDs.begin();
+    vi_type last = vIDs.end();
+    for (vi_type i = first + 1; i != last; ++i)
+    {
+        vi_type j = first + shuffler((i - first) + 1);
+        if (i != j)
+        {
+            std::iter_swap(i, j);
+        }
+    }
+
     queue = QPQueue(nTime0, vIDs);
     nRound += 1;
     nRoundSeed = seed;

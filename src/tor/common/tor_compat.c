@@ -151,6 +151,10 @@ SecureZeroMemory(PVOID ptr, SIZE_T cnt)
 #include "strlcat.c"
 #endif
 
+
+/** Defined in crypto.h */
+extern void memwipe(void *mem, uint8_t byte, size_t sz);
+
 /* When set_max_file_descriptors() is called, update this with the max file
  * descriptor value so we can use it to check the limit when opening a new
  * socket. Default value is what Debian sets as the default hard limit. */

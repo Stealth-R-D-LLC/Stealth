@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # linearize-data.py: Construct a linear, no-fork version of the chain.
 #
@@ -13,7 +13,6 @@ import struct
 import re
 import os
 import base64
-import httplib
 import sys
 import hashlib
 import datetime
@@ -36,7 +35,7 @@ def getTF(v):
   return None
 
 def uint32(x):
-    return x & 0xffffffffL
+    return x & 0xffffffff
 
 def bytereverse(x):
     return uint32(( ((x) << 24) | (((x) << 8) & 0x00ff0000) |
@@ -141,7 +140,7 @@ def mklookup(settings, blkindex):
             try:
                 inF = open(fname, "rb")
             except IOError:
-                print "Done"
+                print("Done")
                 return lookup
 
         position = (fname, inF.tell())
@@ -186,12 +185,12 @@ def copydata(settings, blkindex, blkset):
             used for lookup in old method
     """
 
-    print "Making lookup"
+    print("Making lookup")
     # random access to block index
     # key: block hash, value: (filename, seek)
     lookup = mklookup(settings, blkindex)
 
-    print "Writing data"
+    print("Writing data")
 
     # open all the files you need to read data, won't be that many
     # key: filename, value: open file()
@@ -231,7 +230,7 @@ def copydata(settings, blkindex, blkset):
             try:
                 inF = open(fname, "rb")
             except IOError:
-                print "Suddenly can't read '%s'. Aborting." % fname
+                print("Suddenly can't read '%s'. Aborting." % fname)
                 return
             fileset[fname] = inF
 
@@ -241,7 +240,7 @@ def copydata(settings, blkindex, blkset):
             inF.close()
             inF = None
             inFn = inFn + 1
-            print "File '%s' changed. Aborting." % fname
+            print("File '%s' changed. Aborting." % fname)
             return
 
         inMagic = inhdr[:4]
@@ -304,7 +303,7 @@ def copydata(settings, blkindex, blkset):
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "Usage: linearize-data.py CONFIG-FILE"
+        print("Usage: linearize-data.py CONFIG-FILE")
         sys.exit(1)
 
     f = open(sys.argv[1])
@@ -324,7 +323,7 @@ if __name__ == '__main__':
     if 'max_height' in settings:
         try:
             settings['max_height'] = int(settings['max_height'])
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             settings['max_height'] = None
     else:
         settings['max_height'] = None
@@ -339,7 +338,7 @@ if __name__ == '__main__':
     if 'split_timestamp' not in settings:
         settings['split_timestamp'] = 0
     if 'max_out_sz' not in settings:
-        settings['max_out_sz'] = 1000L * 1000 * 1000
+        settings['max_out_sz'] = 1000 * 1000 * 1000
     if 'verbose' in settings:
         settings['verbose'] = getTF(settings['verbose'])
         if settings['verbose'] is None:
