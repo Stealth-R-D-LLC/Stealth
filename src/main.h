@@ -1192,6 +1192,28 @@ public:
 
     void UpdateTime(const CBlockIndex* pindexPrev);
 
+    unsigned int GetTxVolume()
+    {
+        if (IsProofOfStake())
+        {
+            return vtx.size() - 1;
+        }
+        else
+        {
+            return vtx.size();
+        }
+    }
+
+    uint64_t GetValueOut()
+    {
+        uint64_t v = 0;
+        for (unsigned int i = 0; i < vtx.size(); ++i)
+        {
+            v += vtx[i].GetValueOut();
+        }
+        return v;
+    }
+
     // ppcoin: entropy bit for stake modifier if chosen by modifier
     unsigned int GetStakeEntropyBit(unsigned int nHeight) const
     {
@@ -1457,6 +1479,10 @@ public:
     unsigned int nStakeTime;
     uint256 hashProofOfStake;
 
+    // block stats
+    unsigned int nTxVolume;
+    uint64_t nXSTVolume;
+
     // block header: all blocks
     int nVersion;
     uint256 hashMerkleRoot;
@@ -1486,6 +1512,10 @@ public:
         hashProofOfStake = 0;
         prevoutStake.SetNull();
         nStakeTime = 0;
+
+        // block stats
+        nTxVolume = 0;
+        nXSTVolume = 0;
 
         nVersion       = 0;
         hashMerkleRoot = 0;
@@ -1531,6 +1561,9 @@ public:
             prevoutStake.SetNull();
             nStakeTime = 0;
         }
+
+        nTxVolume = block.GetTxVolume();
+        nXSTVolume = block.GetValueOut();
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
@@ -1776,6 +1809,10 @@ public:
             const_cast<CDiskBlockIndex*>(this)->nStakeTime = 0;
             const_cast<CDiskBlockIndex*>(this)->hashProofOfStake = 0;
         }
+
+        // block stats
+        READWRITE(nTxVolume);
+        READWRITE(nXSTVolume);
 
         // block header
         READWRITE(this->nVersion);

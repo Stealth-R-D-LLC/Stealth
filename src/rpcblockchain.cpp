@@ -13,6 +13,8 @@ extern QPRegistry *pregistryMain;
 
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, json_spirit::Object& entry);
 
+static const unsigned int SEC_PER_DAY = 86400;
+
 double GetDifficulty(const CBlockIndex* blockindex)
 {
     // Floating point number that is a multiple of the minimum difficulty,
@@ -281,7 +283,7 @@ Value getblockbynumber(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
         throw runtime_error(
-            "getblock <number> [txinfo]\n"
+            "getblockbynumber <number> [txinfo]\n"
             "txinfo optional to print more detailed tx info\n"
             "Returns details of a block with given block-number.");
 
@@ -301,6 +303,167 @@ Value getblockbynumber(const Array& params, bool fHelp)
 
     return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
 }
+
+
+#if 0
+Value getwindowedblockinterval(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getwindowedtxvolume <period> <windowsize> <windowspacing>\n"
+            "  last window ends at time of most recent block\n"
+            "  - <period> : duration over which to calculate (sec)\n"
+            "  - <windowsize> : duration of each window (sec)\n"
+            "  - <windowspacing> : duration between start of consecutive windows (sec)\n"
+            "Returns an object with attributes:\n"
+            "  - window_start: starting time of each window\n"
+            "  - number_blocks: number of plocks in each window\n"
+            "  - tx_volume: number of transactions in each window\n");
+# endif
+
+
+Value getwindowedtxvolume(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getwindowedtxvolume <period> <windowsize> <windowspacing>\n"
+            "  last window ends at time of most recent block\n"
+            "  - <period> : duration over which to calculate (sec)\n"
+            "  - <windowsize> : duration of each window (sec)\n"
+            "  - <windowspacing> : duration between start of consecutive windows (sec)\n"
+            "Returns an object with attributes:\n"
+            "  - window_start: starting time of each window\n"
+            "  - number_blocks: number of plocks in each window\n"
+            "  - tx_volume: number of transactions in each window");
+
+    int nPeriod = params[0].get_int();
+    if (nPeriod < 1)
+    {
+        throw runtime_error(
+            "Period should be greater than 0.\n");
+    }
+    if ((unsigned int) nPeriod > 36525 * SEC_PER_DAY)
+    {
+        throw runtime_error(
+            "Period should be less than 100 years.\n");
+    }
+
+    int nWindow = params[1].get_int();
+    if (nWindow < 1)
+    {
+        throw runtime_error(
+            "Window size should be greater than 0.\n");
+    }
+    if (nWindow > nPeriod)
+    {
+        throw runtime_error(
+            "Window size should be less than or equal to period.\n");
+    }
+
+    int nGranularity = params[2].get_int();
+    if (nGranularity < 1)
+    {
+        throw runtime_error(
+            "Window spacing should be greater than 0.\n");
+    }
+    if (nGranularity > nWindow)
+    {
+        throw runtime_error(
+            "Window spacing should be less than or equal to window.\n");
+    }
+
+    if (pindexBest == NULL)
+    {
+        throw runtime_error("No blocks.\n");
+    }
+
+    unsigned int nTime = pindexBest->nTime;
+
+    // asdf use different block
+    if (nTime < pindexGenesisBlock->nTime)
+    {
+        throw runtime_error("TSNH: Invalid block time.\n");
+    }
+
+    unsigned int nPeriodEnd = nTime;
+    unsigned int nPeriodStart = 1 + nPeriodEnd - nPeriod;
+
+    vector<unsigned int> vBlockTimes;
+    vector<unsigned int> vNumberTxs;
+    CBlockIndex *pindex = pindexBest;
+    while (pindex->pprev)
+    {
+        vBlockTimes.push_back(nTime);
+        vNumberTxs.push_back(pindex->nTxVolume);
+        pindex = pindex->pprev;
+        nTime = pindex->nTime;
+        if (nTime < nPeriodStart)
+        {
+            break;
+        }
+    }
+
+    std::reverse(vBlockTimes.begin(), vBlockTimes.end()); 
+    std::reverse(vNumberTxs.begin(), vNumberTxs.end()); 
+
+    unsigned int nSizePeriod = vBlockTimes.size();
+
+    Array aryWindowStartTimes;
+    Array aryTotalBlocks;
+    Array aryTotalTxs;
+
+    unsigned int nWindowStart = nPeriodStart;
+    unsigned int nWindowEnd = nWindowStart + nWindow - 1;
+
+    unsigned int idx = 0;
+    unsigned int idxNext = 0;
+    bool fNextUnknown = true;
+
+    while (nWindowEnd < nPeriodEnd)
+    {
+        if (fNextUnknown)
+        {
+            idxNext = idx;
+        }
+        else
+        {
+            fNextUnknown = true;
+        }
+        unsigned int nNextWindowStart = nWindowStart + nGranularity;
+        unsigned int nWindowBlocks = 0;
+        unsigned int nWindowTotal = 0;
+        for (idx = idxNext; idx < nSizePeriod; ++idx)
+        {
+            printf("idx is: %u\n", idx);
+            unsigned int nBlockTime = vBlockTimes[idx];
+            // assumes blocks are chronologically ordered
+            if (nBlockTime > nWindowEnd)
+            {
+                aryWindowStartTimes.push_back((boost::int64_t)nWindowStart);
+                aryTotalTxs.push_back((boost::int64_t)nWindowTotal);
+                aryTotalBlocks.push_back((boost::int64_t)nWindowBlocks);
+                nWindowStart = nNextWindowStart;
+                nWindowEnd += nGranularity;
+                break;
+            }
+            nWindowBlocks += 1;
+            nWindowTotal += vNumberTxs[idx];
+            if (fNextUnknown && (nBlockTime >= nNextWindowStart))
+            {
+                idxNext = idx;
+                fNextUnknown = false;
+            }
+        }
+    }
+
+    Object obj;
+    obj.push_back(Pair("window_start", aryWindowStartTimes));
+    obj.push_back(Pair("number_blocks", aryTotalBlocks));
+    obj.push_back(Pair("tx_volume", aryTotalTxs));
+
+    return obj;
+}
+
 
 // ppcoin: get information of sync-checkpoint
 Value getcheckpoint(const Array& params, bool fHelp)

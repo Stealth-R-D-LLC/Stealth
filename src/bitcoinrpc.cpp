@@ -280,6 +280,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getrawmempool",          &getrawmempool,          true,   false },
     { "getblock",               &getblock,               false,  false },
     { "getblockbynumber",       &getblockbynumber,       false,  false },
+    { "getwindowedtxvolume",    &getwindowedtxvolume,    false,  false },
     { "getblockhash",           &getblockhash,           false,  false },
     { "gettransaction",         &gettransaction,         false,  false },
     { "listtransactions",       &listtransactions,       false,  false },
@@ -1259,6 +1260,9 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "getblock"               && n > 1) ConvertTo<bool>(params[1]);
     if (strMethod == "getblockbynumber"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getblockbynumber"       && n > 1) ConvertTo<bool>(params[1]);
+    if (strMethod == "getwindowedtxvolume"    && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getwindowedtxvolume"    && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getwindowedtxvolume"    && n > 2) ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "getblockhash"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "move"                   && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "move"                   && n > 3) ConvertTo<boost::int64_t>(params[3]);
