@@ -84,7 +84,7 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
 {
     Object result;
     result.push_back(Pair("hash", block.GetHash().GetHex()));
-    
+
     if (block.IsQuantumProofOfStake())
     {
         int nConfs = pindexBest->nHeight + 1 - blockindex->nHeight;
@@ -304,6 +304,38 @@ Value getblockbynumber(const Array& params, bool fHelp)
     return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
 }
 
+Value getnewestblockbeforetime(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 2)
+        throw runtime_error(
+            "getnewestblockbeforetime <time>\n"
+            "Returns the hash of the newest block that has\n"
+            "   a time stamp earlier than <time>\n"
+            "<time> is a unix epoch (seconds)");
+
+    unsigned int nTime = params[0].get_int();
+
+    CBlockIndex* pindex = pindexBest;
+
+    bool fFound = false;
+    while (pindex->pprev)
+    {
+        if (pindex->nTime < nTime)
+        {
+            fFound = true;
+            break;
+        }
+        pindex = pindex->pprev;
+    }
+
+    if (!fFound)
+    {
+        throw runtime_error("Time precedes genesis block.");
+    }
+
+    return pindex->GetBlockHash().ToString();
+}
+
 
 #if 0
 Value getwindowedblockinterval(const Array& params, bool fHelp)
@@ -403,8 +435,8 @@ Value getwindowedtxvolume(const Array& params, bool fHelp)
         }
     }
 
-    std::reverse(vBlockTimes.begin(), vBlockTimes.end()); 
-    std::reverse(vNumberTxs.begin(), vNumberTxs.end()); 
+    std::reverse(vBlockTimes.begin(), vBlockTimes.end());
+    std::reverse(vNumberTxs.begin(), vNumberTxs.end());
 
     unsigned int nSizePeriod = vBlockTimes.size();
 
@@ -477,7 +509,7 @@ Value getcheckpoint(const Array& params, bool fHelp)
     CBlockIndex* pindexCheckpoint;
 
     result.push_back(Pair("synccheckpoint", Checkpoints::hashSyncCheckpoint.ToString().c_str()));
-    pindexCheckpoint = mapBlockIndex[Checkpoints::hashSyncCheckpoint];        
+    pindexCheckpoint = mapBlockIndex[Checkpoints::hashSyncCheckpoint];
     result.push_back(Pair("height", pindexCheckpoint->nHeight));
     result.push_back(Pair("timestamp", DateTimeStrFormat(pindexCheckpoint->GetBlockTime()).c_str()));
     if (mapArgs.count("-checkpointkey"))

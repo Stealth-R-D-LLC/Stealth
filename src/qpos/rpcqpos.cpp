@@ -5,6 +5,7 @@
 #include "main.h"
 #include "wallet.h"
 #include "bitcoinrpc.h"
+#include "txdb-leveldb.h"
 
 extern QPRegistry *pregistryMain;
 extern CWallet* pwalletMain;
@@ -507,15 +508,55 @@ Value getstakerinfo(const Array& params, bool fHelp)
 
 Value getqposinfo(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() > 0)
+    if (fHelp || params.size() > 1)
     {
         throw runtime_error(
-            "getqposinfo\n"
-            "Returns exhaustive qPoS information");
+            "getqposinfo [height]\n"
+            "Returns exhaustive qPoS information\n"
+            "Optional [height] will get info as of that height (expensive)");
+    }
+
+    int nHeight = -1;
+    if (params.size() > 0)
+    {
+        nHeight = params[0].get_int();
+        if ((nHeight < 0) || (nHeight > pindexBest->nHeight))
+        {
+            throw runtime_error("Height out of range.");
+        }
     }
 
     Object obj;
-    pregistryMain->AsJSON(obj);
+    if (nHeight == -1)
+    {
+        pregistryMain->AsJSON(obj);
+    }
+    else
+    {
+        bool fFound = false;
+        CBlockIndex *pindex = pindexBest;
+        while (pindex->pprev)
+        {
+            if (pindex->nHeight == nHeight)
+            {
+                fFound = true;
+                break;
+            }
+            pindex = pindex->pprev;
+        }
+        if (!fFound)
+        {
+            throw runtime_error("TSNH Block not found at this height.");
+        }
+        AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry());
+        CTxDB txdb;
+        CBlockIndex* pindexCurrent;
+        if (!RewindRegistry(txdb, pindex, pregistryTemp.get(), pindexCurrent))
+        {
+            throw runtime_error("TSRH Error calculating info.");
+        }
+        pregistryTemp->AsJSON(obj);
+    }
 
     return obj;
 }
