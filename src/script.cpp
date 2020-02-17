@@ -124,6 +124,19 @@ const char* GetTxnOutputType(txnouttype t)
     return NULL;
 }
 
+const char* GetPayeeType(txnouttype t)
+{
+    switch (t)
+    {
+    case TX_PUBKEY: return "pubkey";
+    case TX_PUBKEYHASH:
+    case TX_CLAIM: return "pubkeyhash";
+    case TX_SCRIPTHASH: return "scripthash";
+    case TX_MULTISIG: return "multisig";
+    default: return "none";
+    }
+    return NULL;
+}
 
 const char* GetOpName(opcodetype opcode)
 {

@@ -18,6 +18,7 @@
 #include "netbase.h"
 #include "protocol.h"
 #include "addrman.h"
+#include "chainparams.hpp"
 
 class CRequestTracker;
 class CNode;
@@ -25,8 +26,10 @@ class CBlockIndex;
 extern int nBestHeight;
 
 
-inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer", 5*1000); }
-inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 1*1000); }
+inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer",
+                                                             chainParams.DEFAULT_MAXRECEIVEBUFFER); }
+inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer",
+                                                          chainParams.DEFAULT_MAXSENDBUFFER); }
 
 void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);

@@ -146,22 +146,6 @@ inline void MilliSleep(uint64_t n)
 #endif
 
 
-// cloners: add your new forks higher than highest here
-//          keep existing
-//          also, rewrite GetFork
-enum ForkNumbers
-{
-    XST_GENESIS = 0,
-    XST_FORK002,
-    XST_FORK004,
-    XST_FORK005,
-    XST_FORK006,
-    XST_FORKPURCHASE,
-    XST_FORKQPOS,
-    XST_FORKQPOSB,
-    TOTAL_FORKS
-};
-
 extern std::map<std::string, std::string> mapArgs;
 extern std::map<std::string, std::vector<std::string> > mapMultiArgs;
 extern bool fDebug;
@@ -180,6 +164,9 @@ extern bool nTestNet;
 extern bool fNoListen;
 extern bool fLogTimestamps;
 extern bool fReopenDebugLog;
+
+extern int nMaxHeight;
+
 extern bool fDebugQPoS;
 extern bool fDebugBlockCreation;
 

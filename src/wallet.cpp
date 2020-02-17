@@ -1521,9 +1521,12 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                 // if sub-cent change is required, the fee must be raised to at least MIN_TX_FEE
                 // or until nChange becomes zero
                 // NOTE: this depends on the exact behaviour of GetMinFee
-                if (nFeeRet < MIN_TX_FEE && nChange > 0 && nChange < CENT)
+                if ((nFeeRet < chainParams.MIN_TX_FEE) &&
+                    (nChange > 0) &&
+                    (nChange < CENT))
                 {
-                    int64_t nMoveToFee = min(nChange, MIN_TX_FEE - nFeeRet);
+                    int64_t nMoveToFee = min(nChange,
+                                             (chainParams.MIN_TX_FEE - nFeeRet));
                     nChange -= nMoveToFee;
                     nFeeRet += nMoveToFee;
                 }
@@ -1567,8 +1570,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                     return false;
                 }
 
-                unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew, SER_NETWORK, PROTOCOL_VERSION);
-                if (nBytes >= MAX_BLOCK_SIZE_GEN/5)
+                unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew,
+                                                         SER_NETWORK,
+                                                         PROTOCOL_VERSION);
+                if (nBytes >= chainParams.MAX_BLOCK_SIZE_GEN / 5)
                 {
                     printf("CreateTransaction(): too many bytes\n");
                     return false;
@@ -2603,20 +2608,27 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
         }
 
         // Limit size
-        unsigned int nBytes = ::GetSerializeSize(txNew, SER_NETWORK, PROTOCOL_VERSION);
-        if (nBytes >= MAX_BLOCK_SIZE_GEN/5)
+        unsigned int nBytes = ::GetSerializeSize(txNew,
+                                                 SER_NETWORK,
+                                                 PROTOCOL_VERSION);
+        if (nBytes >= chainParams.MAX_BLOCK_SIZE_GEN / 5)
+        {
             return error("CreateCoinStake : exceeded coinstake size limit");
+        }
 
         // Check enough fee is paid
-        if (nMinFee < txNew.GetMinFee() - MIN_TX_FEE)
+        if (nMinFee < txNew.GetMinFee() - chainParams.MIN_TX_FEE)
         {
-            nMinFee = txNew.GetMinFee() - MIN_TX_FEE;
+            nMinFee = txNew.GetMinFee() - chainParams.MIN_TX_FEE;
             continue; // try signing again
         }
         else
         {
             if (fDebug && GetBoolArg("-printfee"))
-                printf("CreateCoinStake : fee for coinstake %s\n", FormatMoney(nMinFee).c_str());
+            {
+                printf("CreateCoinStake : fee for coinstake %s\n",
+                       FormatMoney(nMinFee).c_str());
+            }
             break;
         }
     }
@@ -2881,8 +2893,9 @@ string CWallet::CreateQPoSTx(const string &txid,
         }
 
         unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew,
-                                                 SER_NETWORK, PROTOCOL_VERSION);
-        if (nBytes >= MAX_BLOCK_SIZE_GEN/5)
+                                                 SER_NETWORK,
+                                                 PROTOCOL_VERSION);
+        if (nBytes >= chainParams.MAX_BLOCK_SIZE_GEN / 5)
         {
             return _("CreateQPoSTx(): too many bytes");
         }
@@ -3461,7 +3474,8 @@ bool CWallet::NewKeyPool()
         if (IsLocked())
             return false;
 
-        int64_t nKeys = max(GetArg("-keypool", 100), (int64_t)0);
+        int64_t nKeys = max(GetArg("-keypool", chainParams.DEFAULT_KEYPOOL),
+                            (int64_t)0);
         for (int i = 0; i < nKeys; i++)
         {
             int64_t nIndex = i+1;
@@ -3479,24 +3493,35 @@ bool CWallet::TopUpKeyPool(unsigned int nSize)
         LOCK(cs_wallet);
 
         if (IsLocked())
+        {
             return false;
+        }
 
         CWalletDB walletdb(strWalletFile);
 
         // Top up key pool
         unsigned int nTargetSize;
         if (nSize > 0)
+        {
             nTargetSize = nSize;
+        }
         else
-            nTargetSize = max(GetArg("-keypool", 100), (int64_t)0);
+        {
+            nTargetSize = max(GetArg("-keypool", chainParams.DEFAULT_KEYPOOL),
+                              (int64_t)0);
+        }
 
         while (setKeyPool.size() < (nTargetSize + 1))
         {
             int64_t nEnd = 1;
             if (!setKeyPool.empty())
+            {
                 nEnd = *(--setKeyPool.end()) + 1;
+            }
             if (!walletdb.WritePool(nEnd, CKeyPool(GenerateNewKey())))
+            {
                 throw runtime_error("TopUpKeyPool() : writing generated key failed");
+            }
             setKeyPool.insert(nEnd);
             printf("keypool added key %" PRId64 ", size=%" PRIszu "\n", nEnd, setKeyPool.size());
         }

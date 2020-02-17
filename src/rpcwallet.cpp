@@ -296,7 +296,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
     // Amount
     int64_t nAmount = AmountFromValue(params[1]);
 
-    if (nAmount < MIN_TXOUT_AMOUNT)
+    if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
         throw JSONRPCError(-101, "Send amount too small");
 
     // Wallet comments
@@ -372,7 +372,7 @@ Value signmessage(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_WALLET_ERROR, "Private key not available");
 
     CDataStream ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
+    ss << chainParams.strMessageMagic;
     ss << strMessage;
 
     vector<unsigned char> vchSig;
@@ -408,7 +408,7 @@ Value verifymessage(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Malformed base64 encoding");
 
     CDataStream ss(SER_GETHASH, 0);
-    ss << strMessageMagic;
+    ss << chainParams.strMessageMagic;
     ss << strMessage;
 
     CKey key;
@@ -614,7 +614,7 @@ Value movecmd(const Array& params, bool fHelp)
     string strTo = AccountFromValue(params[1]);
     int64_t nAmount = AmountFromValue(params[2]);
 
-    if (nAmount < MIN_TXOUT_AMOUNT)
+    if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
         throw JSONRPCError(-101, "Send amount too small");
 
     if (params.size() > 3)
@@ -671,7 +671,7 @@ Value sendfrom(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
     int64_t nAmount = AmountFromValue(params[2]);
 
-    if (nAmount < MIN_TXOUT_AMOUNT)
+    if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
         throw JSONRPCError(-101, "Send amount too small");
 
     int nMinDepth = 1;
@@ -739,7 +739,7 @@ Value sendmany(const Array& params, bool fHelp)
         scriptPubKey.SetDestination(address.Get());
         int64_t nAmount = AmountFromValue(s.value_);
 
-        if (nAmount < MIN_TXOUT_AMOUNT)
+        if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
             throw JSONRPCError(-101, "Send amount too small");
 
         totalAmount += nAmount;
@@ -1367,16 +1367,22 @@ Value backupwallet(const Array& params, bool fHelp)
 Value keypoolrefill(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
+    {
         throw runtime_error(
             "keypoolrefill [new-size]\n"
             "Fills the keypool."
             + HelpRequiringPassphrase());
-    unsigned int nSize = max(GetArg("-keypool", 100), (int64_t)0);
-        if (params.size() > 0) {
-            if (params[0].get_int() < 0)
-                throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected valid size");
-            nSize = (unsigned int) params[0].get_int();
+    }
+    unsigned int nSize = max(GetArg("-keypool", chainParams.DEFAULT_KEYPOOL),
+                             (int64_t)0);
+    if (params.size() > 0)
+    {
+        if (params[0].get_int() < 0)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter, expected valid size");
         }
+        nSize = (unsigned int) params[0].get_int();
+    }
 
     EnsureWalletIsUnlocked();
 

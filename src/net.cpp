@@ -34,8 +34,6 @@ extern "C" {
     int tor_main(int argc, char *argv[]);
 }
 
-static const int MAX_OUTBOUND_CONNECTIONS = 12;
-
 void ThreadMessageHandler2(void* parg);
 void ThreadSocketHandler2(void* parg);
 void ThreadOpenConnections2(void* parg);
@@ -671,9 +669,10 @@ bool CNode::Misbehaving(int howmuch)
     }
 
     nMisbehavior += howmuch;
-    if (nMisbehavior >= GetArg("-banscore", 100))
+    if (nMisbehavior >= GetArg("-banscore", chainParams.DEFAULT_BANSCORE))
     {
-        int64_t banTime = GetTime()+GetArg("-bantime", 60*60*24);  // Default 24-hour ban
+        int64_t banTime = GetTime()+GetArg("-bantime",
+                                           chainParams.DEFAULT_BANTIME);
         printf("Misbehaving: %s (%d -> %d) DISCONNECTING\n", addr.ToString().c_str(), nMisbehavior-howmuch, nMisbehavior);
         {
             LOCK(cs_setBanned);
@@ -951,7 +950,9 @@ void ThreadSocketHandler2(void* parg)
                 if (nErr != WSAEWOULDBLOCK)
                     printf("socket error accept failed: %d\n", nErr);
             }
-            else if (nInbound >= GetArg("-maxconnections", 125) - MAX_OUTBOUND_CONNECTIONS)
+            else if (nInbound >= (GetArg("-maxconnections",
+                                         chainParams.DEFAULT_MAXCONNECTIONS) -
+                                  chainParams.MAX_OUTBOUND_CONNECTIONS))
             {
                 {
                     LOCK(cs_setservAddNodeAddresses);
@@ -1788,7 +1789,9 @@ void ThreadMessageHandler2(void* parg)
         int nHeight = pindexPrev->nHeight + 1;
 
         // rollbacks mean qPoS can keep producing even with 0 connections
-        if ((GetFork(nHeight) >= XST_FORKQPOS) && fQPoSActive)   // asdf  && (!vNodes.empty()))
+        if ((GetFork(nHeight) >= XST_FORKQPOS) &&
+            ((nMaxHeight <= 0) || (nBestHeight < nMaxHeight)) &&
+            fQPoSActive)   // asdf  && (!vNodes.empty()))
         {
            /*******************************************************************
             ** qPoS
@@ -2029,12 +2032,15 @@ void StartNode(void* parg)
 
     if (semOutbound == NULL) {
         // initialize semaphore
-        int nMaxOutbound = min(MAX_OUTBOUND_CONNECTIONS, (int)GetArg("-maxconnections", 125));
+        int nMaxOutbound = min(chainParams.MAX_OUTBOUND_CONNECTIONS,
+                               (int)GetArg("-maxconnections",
+                                           chainParams.DEFAULT_MAXCONNECTIONS));
         semOutbound = new CSemaphore(nMaxOutbound);
     }
 
     if (pnodeLocalHost == NULL)
-        pnodeLocalHost = new CNode(INVALID_SOCKET, CAddress(CService("127.0.0.1", 0), nLocalServices));
+        pnodeLocalHost = new CNode(INVALID_SOCKET,
+                                   CAddress(CService("127.0.0.1", 0), nLocalServices));
 
     printf("StartNode(): pnodeLocalHost addr: %s\n",
            pnodeLocalHost->addr.ToString().c_str());
@@ -2108,7 +2114,7 @@ bool StopNode()
     nTransactionsUpdated++;
     int64_t nStart = GetTime();
     if (semOutbound)
-        for (int i=0; i<MAX_OUTBOUND_CONNECTIONS; i++)
+        for (int i=0; i < chainParams.MAX_OUTBOUND_CONNECTIONS; i++)
             semOutbound->post();
     do
     {

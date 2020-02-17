@@ -122,6 +122,7 @@ public:
 typedef boost::variant<CNoDestination, CKeyID, CScriptID, CStealthAddress> CTxDestination;
 
 const char* GetTxnOutputType(txnouttype t);
+const char* GetPayeeType(txnouttype t);
 
 /** Script opcodes */
 enum opcodetype

@@ -20,16 +20,31 @@
 #include "util.h"
 #include "main.h"
 
+#include "explore.hpp"
+
+
 using namespace std;
 using namespace boost;
 
 extern QPRegistry *pregistryMain;
 
+typedef pair<string, string> ss_key_t;
+typedef pair<uint256, int> txidn_key_t;
+typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
+
+/* Is Spent or Is Input */
+static const int FLAG_ADDR_TX = 1 << 30;
+// FLAG_ADDR_TX is used on vin/vout n, which should
+//    never even be close to (1<<30)-1 elements
+static const int MASK_ADDR_TX = ~FLAG_ADDR_TX;
+
+
 leveldb::DB *txdb; // global pointer for LevelDB object instance
 
 static leveldb::Options GetOptions() {
     leveldb::Options options;
-    int nCacheSizeMB = GetArg("-dbcache", 25);
+    int nCacheSizeMB = GetArg("-dbcache",
+                              chainParams.DEFAULT_DBCACHE);
     options.block_cache = leveldb::NewLRUCache(nCacheSizeMB * 1048576);
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     return options;
@@ -196,6 +211,170 @@ bool CTxDB::ScanBatch(const CDataStream &key, string *value, bool *deleted) cons
         throw runtime_error(status.ToString());
     }
     return scanner.foundEntry;
+}
+
+/*  AddrQty
+ *  Parameters - t:type, addr:address, qty:quantity
+ */
+bool CTxDB::ReadAddrQty(const string& t, const string& addr, int& qtyRet)
+{
+    ss_key_t key = make_pair(t, addr);
+    if (Exists(key))
+    {
+        return Read(key, qtyRet);
+    }
+    qtyRet = 0;
+    return true;
+}
+
+bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
+{
+    return Write(make_pair(t, addr), qty);
+}
+
+/*  AddrTx
+ *  Parameters - t:type, addr:address, qty:quantity,
+ *               txid:TxID, n:vout|vin, f:isinput|isspent 
+ */
+bool CTxDB::ReadAddrTx(const string& t, const string& addr, const int& qty,
+                       uint256& txidRet, int& nRet, bool& fRet)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    txidn_key_t value;
+    if (!Read(key, value))
+    {
+        return false;
+    }
+    txidRet = value.first;
+    nRet = value.second & MASK_ADDR_TX;
+    fRet = (value.second & FLAG_ADDR_TX) == FLAG_ADDR_TX;
+    return true;
+}
+bool CTxDB::ReadAddrTx(const string& t, const string& addr, const int& qty,
+                       uint256& txidRet, int& nRet)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    txidn_key_t value;
+    if (!Read(key, value))
+    {
+        return false;
+    }
+    txidRet = value.first;
+    nRet = value.second;
+    return true;
+}
+bool CTxDB::WriteAddrTx(const string& t, const string& addr, const int& qty,
+                        const uint256& txid, const int& n, const bool& f)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    int nf = f ? n | FLAG_ADDR_TX : n;
+    return Write(key, make_pair(txid, nf));
+}
+bool CTxDB::WriteAddrTx(const string& t, const string& addr, const int& qty,
+                        const uint256& txid, const int& n)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    return Write(key, make_pair(txid, n));
+}
+bool CTxDB::RemoveAddrTx(const string& t, const string& addr, const int& qty)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    if (!Exists(key))
+    {
+        return false;
+    }
+    return Erase(key);
+}
+bool CTxDB::AddrTxExists(const string& t, const string& addr, const int& qty)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    return Exists(key);
+}
+
+
+/*  AddrLookup
+ *  Parameters - t:type, addr:address,
+ *               txid:TxID, n:vout|vin, qty:quantity
+ */
+bool CTxDB::ReadAddrLookup(const string& t, const string& addr,
+                           const uint256& txid, const int& n,
+                           int& qtyRet)
+{
+   lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
+   return Read(key, qtyRet);
+}
+bool CTxDB::WriteAddrLookup(const string& t, const string& addr,
+                            const uint256& txid, const int& n,
+                            const int& qty)
+{
+   lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
+   return Write(key, qty);
+}
+bool CTxDB::RemoveAddrLookup(const string& t, const string& addr,
+                             const uint256& txid, const int& n)
+{
+   lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
+   if (!Exists(key))
+   {
+       return false;
+   }
+   return Erase(key);
+}
+bool CTxDB::AddrLookupExists(const string& t, const string& addr,
+                             const uint256& txid, const int& n)
+{
+   lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
+   return Exists(key);
+}
+
+/*  AddrBalance
+ *  Parameters - t:type, addr:address, b:balance
+ */
+bool CTxDB::ReadAddrBalance(const string& t, const string& addr,
+                            int64_t& bRet)
+{
+    ss_key_t key = make_pair(t, addr);
+    if (Exists(key))
+    {
+        return Read(key, bRet);
+    }
+    bRet = 0;
+    return true;
+}
+bool CTxDB::WriteAddrBalance(const string& t, const string& addr, const int64_t& b)
+{
+    ss_key_t key = make_pair(t, addr);
+    return Write(key, b);
+}
+
+/*  AddrSet
+ *  Parameters - t:type, addr:address, b:balance, s:addresses
+ */
+bool CTxDB::ReadAddrSet(const string& t, const int64_t b, set<string>& sRet)
+{
+    pair<string, int64_t> key = make_pair(t, b);
+    if (Exists(key))
+    {
+        return Read(key, sRet);
+    }
+    sRet.clear();
+    return true;
+}
+
+bool CTxDB::WriteAddrSet(const string& t, const int64_t b, const set<string>& s)
+{
+    pair<string, int64_t> key = make_pair(t, b);
+    return Write(key, s);
+}
+
+bool CTxDB::RemoveAddrSet(const string& t, const int64_t b)
+{
+    pair<string, int64_t> key = make_pair(t, b);
+    if (Exists(key))
+    {
+        return Erase(key);
+    }
+    return true;
 }
 
 bool CTxDB::ReadTxIndex(uint256 hash, CTxIndex& txindex)
@@ -399,7 +578,9 @@ bool CTxDB::LoadBlockIndex()
         pindexNew->vDeets           = diskindex.vDeets;
 
         // Watch for genesis block
-        if (pindexGenesisBlock == NULL && blockHash == (fTestNet ? hashGenesisBlockTestNet : hashGenesisBlock))
+        if ((pindexGenesisBlock == NULL) &&
+            (blockHash == (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                      hashGenesisBlock)))
         {
             pindexGenesisBlock = pindexNew;
         }
@@ -419,6 +600,69 @@ bool CTxDB::LoadBlockIndex()
 
     if (fRequestShutdown)
         return true;
+
+    if (fWithExploreAPI)
+    {
+        printf("==\n== Loading Explore API Data\n==\n");
+        printf("Loading balance address sets...\n");
+
+        // The mapAddressBalances is an in-memory structure that maps balances
+        // to the number of addresses (accounts) with that balance.
+        // It is useful for iterating over the rich list by account value.
+        leveldb::Iterator *iter = pdb->NewIterator(leveldb::ReadOptions());
+        // Seek to start key.
+        CDataStream ssStartKey(SER_DISK, CLIENT_VERSION);
+        // As a sentinel for this search, nMaxDust
+        ssStartKey << make_pair(ADDR_SET_BAL, nMaxDust);
+        if (!Exists(ssStartKey))
+        {
+           set<string> setAddrSentinel;
+           if (!Write(ssStartKey, setAddrSentinel))
+           {
+               return error("LoadBlockIndex() : could not write sentinel address set");
+           }
+           iter = pdb->NewIterator(leveldb::ReadOptions());
+        }
+        iter->Seek(ssStartKey.str());
+        int nCountSets = 0;
+        // Now read each entry.
+        while (iter->Valid())
+        {
+            if ((nCountSets > 0) && ((nCountSets % 1000) == 0))
+            {
+                printf("Loaded %d balance address sets\n", nCountSets);
+            }
+            ++nCountSets;
+            // Unpack keys and values.
+            CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+            ssKey.write(iter->key().data(), iter->key().size());
+            CDataStream ssValue(SER_DISK, CLIENT_VERSION);
+            ssValue.write(iter->value().data(), iter->value().size());
+            string strType;
+            ssKey >> strType;
+            // Did we reach the end of the data to read?
+            if (fRequestShutdown || strType != ADDR_SET_BAL)
+            {
+                break;
+            }
+            int64_t nBalance;
+            ssKey >> nBalance;
+            set<string> setAddr;
+            ssValue >> setAddr;
+            if (fDebugExplore)
+            {
+                printf("==== loaded set of %u with balance of %" PRId64 "\n",
+                       setAddr.size(), nBalance);
+            }
+            mapAddressBalances[nBalance] = setAddr.size();
+            iter->Next();
+        }
+
+        delete iter;
+
+        if (fRequestShutdown)
+            return true;
+    }
 
     // Calculate nChainTrust
     vector<pair<int, CBlockIndex*> > vSortedByHeight;
@@ -511,8 +755,10 @@ bool CTxDB::LoadBlockIndex()
             return true;
         return error("CTxDB::LoadBlockIndex() : hashBestChain not loaded");
     }
+
     if (!mapBlockIndex.count(hashBestChain))
         return error("CTxDB::LoadBlockIndex() : hashBestChain not found in the block index");
+
     pindexBest = mapBlockIndex[hashBestChain];
 
     // pindexBest is not in main chain according to test
@@ -534,9 +780,10 @@ bool CTxDB::LoadBlockIndex()
     nBestHeight = pindexBest->nHeight;
     bnBestChainTrust = pindexBest->bnChainTrust;
 
-    printf("LoadBlockIndex(): hashBestChain=%s  height=%d  trust=%s  date=%s\n",
-      hashBestChain.ToString().substr(0,20).c_str(), nBestHeight, CBigNum(bnBestChainTrust).ToString().c_str(),
-      DateTimeStrFormat("%x %H:%M:%S", pindexBest->GetBlockTime()).c_str());
+    printf("LoadBlockIndex():  height=%d  trust=%s  date=%s\n   hashBestChain=%s",
+      nBestHeight, CBigNum(bnBestChainTrust).ToString().c_str(),
+      DateTimeStrFormat("%x %H:%M:%S", pindexBest->GetBlockTime()).c_str(),
+      hashBestChain.ToString().c_str());
 
     // NovaCoin: load hashSyncCheckpoint
     if (!ReadSyncCheckpoint(Checkpoints::hashSyncCheckpoint))
@@ -548,8 +795,10 @@ bool CTxDB::LoadBlockIndex()
     ReadBestInvalidTrust(bnBestInvalidTrust);
 
     // Verify blocks in the best chain
-    int nCheckLevel = GetArg("-checklevel", 1);
-    int nCheckDepth = GetArg("-checkblocks", 2500);
+    int nCheckLevel = GetArg("-checklevel",
+                             chainParams.DEFAULT_CHECKLEVEL);
+    int nCheckDepth = GetArg("-checkblocks",
+                             chainParams.DEFAULT_CHECKBLOCKS);
     if (nCheckDepth == 0)
         nCheckDepth = 1000000000; // suffices until the year 19000
     // no need to check genesis
@@ -783,3 +1032,4 @@ bool CTxDB::EraseRegistrySnapshot(int nHeight)
 {
     return Erase(make_pair(string("registrySnapshot"), nHeight));
 }
+

@@ -14,17 +14,19 @@
 #include "netbase.h"
 #include <string>
 #include "uint256.h"
+#include "chainparams.hpp"
 
 extern bool fTestNet;
 static inline unsigned short GetDefaultPort(const bool testnet = fTestNet)
 {
-    //               testnet : p2p
-    return testnet ? 4438 : 4437;
+    return testnet ?  chainParams.DEFAULT_PORT_TESTNET :
+                      chainParams.DEFAULT_PORT_MAINNET;
 }
 
 static inline unsigned short GetDefaultProxy(const bool testnet = fTestNet)
 {
-    return testnet ? 19050 : 9050;
+    return testnet ? chainParams.DEFAULT_PROXY_TESTNET :
+                     chainParams.DEFAULT_PROXY_MAINNET;
 }
 
 

@@ -515,7 +515,7 @@ string sendtoaddresswithtime(string sAddress, int64_t nAmount, unsigned int nTim
     if (!address.IsValid())
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
 
-    if (nAmount < MIN_TXOUT_AMOUNT)
+    if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
         throw JSONRPCError(-101, "Send amount too small");
 
     CWalletTx wtx;

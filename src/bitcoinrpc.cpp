@@ -44,7 +44,8 @@ void ThreadRPCServer3(void* parg);
 static inline unsigned short GetDefaultRPCPort()
 {
     //                                   testnet : rpc
-    return GetBoolArg("-testnet", false) ? 46503 : 46502;
+    return GetBoolArg("-testnet", false) ? chainParams.DEFAULT_RPCPORT_TESTNET :
+                                           chainParams.DEFAULT_RPCPORT_MAINNET;
 }
 
 Object JSONRPCError(int code, const string& message)
@@ -98,7 +99,7 @@ void RPCTypeCheck(const Object& o,
 int64_t AmountFromValue(const Value& value)
 {
     double dAmount = value.get_real();
-    if (dAmount <= 0.0 || dAmount > MAX_MONEY)
+    if (dAmount <= 0.0 || dAmount > chainParams.MAX_MONEY)
         throw JSONRPCError(RPC_TYPE_ERROR, "Invalid amount");
     int64_t nAmount = roundint64(dAmount * COIN);
     if (!MoneyRange(nAmount))

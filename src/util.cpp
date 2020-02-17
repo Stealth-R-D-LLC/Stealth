@@ -8,6 +8,7 @@
 #include "strlcpy.h"
 #include "version.h"
 #include "ui_interface.h"
+#include "chainparams.hpp"
 #include <boost/algorithm/string/join.hpp>
 
 // Work around clang compilation problem in Boost 1.46:
@@ -83,6 +84,8 @@ bool fNoListen = false;
 bool fLogTimestamps = false;
 CMedianFilter<int64_t> vTimeOffsets(200,0);
 bool fReopenDebugLog = false;
+
+int nMaxHeight = -1;
 
 // Init OpenSSL library multithreading support
 static CCriticalSection** ppmutexOpenSSL;
@@ -1135,8 +1138,12 @@ const boost::filesystem::path &GetDataDir(bool fNetSpecific)
 
 boost::filesystem::path GetConfigFile()
 {
-    boost::filesystem::path pathConfigFile(GetArg("-conf", "StealthCoin.conf"));
-    if (!pathConfigFile.is_complete()) pathConfigFile = GetDataDir(false) / pathConfigFile;
+    boost::filesystem::path pathConfigFile(GetArg("-conf",
+                                                  chainParams.DEFAULT_CONF.c_str()));
+    if (!pathConfigFile.is_complete())
+    {
+        pathConfigFile = GetDataDir(false) / pathConfigFile;
+    }
     return pathConfigFile;
 }
 
@@ -1166,7 +1173,8 @@ void ReadConfigFile(map<string, string>& mapSettingsRet,
 
 boost::filesystem::path GetPidFile()
 {
-    boost::filesystem::path pathPidFile(GetArg("-pid", "StealthCoind.pid"));
+    boost::filesystem::path pathPidFile(GetArg("-pid",
+                                               chainParams.DEFAULT_PID));
     if (!pathPidFile.is_complete()) pathPidFile = GetDataDir() / pathPidFile;
     return pathPidFile;
 }

@@ -80,7 +80,7 @@ bool CDBEnv::Open(boost::filesystem::path pathEnv_)
     if (GetBoolArg("-privdb", true))
         nEnvFlags |= DB_PRIVATE;
 
-    int nDbCache = GetArg("-dbcache", 25);
+    int nDbCache = GetArg("-dbcache", chainParams.DEFAULT_DBCACHE);
     dbenv.set_lg_dir(pathLogDir.string().c_str());
     dbenv.set_cachesize(nDbCache / 1024, (nDbCache % 1024)*1048576, 1);
     dbenv.set_lg_bsize(1048576);
@@ -303,7 +303,12 @@ void CDB::Close()
     if (IsChainFile(strFile) && IsInitialBlockDownload())
         nMinutes = 5;
 
-    bitdb.dbenv.txn_checkpoint(nMinutes ? GetArg("-dblogsize", 100)*1024 : 0, nMinutes, 0);
+    int nLogSize = 0;
+    if (nMinutes)
+    {
+        nLogSize = GetArg("-dblogsize", chainParams.DEFAULT_DBLOGSIZE) * 1024;
+    }
+    bitdb.dbenv.txn_checkpoint(nLogSize, nMinutes, 0);
 
     {
         LOCK(bitdb.cs_db);

@@ -9,6 +9,7 @@
 
 //
 // client versioning
+//    NOTE: edit version info in clientversion.h
 //
 
 static const int CLIENT_VERSION =
@@ -23,41 +24,13 @@ extern const std::string CLIENT_NUMBERS;
 extern const std::string CLIENT_DATE;
 
 // display version
-#define DISPLAY_VERSION_MAJOR       3
-#define DISPLAY_VERSION_MINOR       0
-#define DISPLAY_VERSION_REVISION    3
-#define DISPLAY_VERSION_BUILD       1
+#define DISPLAY_VERSION_MAJOR       CLIENT_VERSION_MAJOR
+#define DISPLAY_VERSION_MINOR       CLIENT_VERSION_MINOR
+#define DISPLAY_VERSION_REVISION    CLIENT_VERSION_REVISION
+#define DISPLAY_VERSION_BUILD       CLIENT_VERSION_BUILD
 
-//
 // network protocol versioning
-//
-
-// 61001 : [Genesis]
-// 61011 : fork 1
-//         1.0.1.1 : Fix PoS difficulty adjustment during PoW period
-// 61021 : fork 2
-//         1.0.2.1 : Kill PoW at 5460 to deal with forks on pools
-//                   Was block 20421
-// 61040 : fork 3
-//         1.0.4.0 : Adjust max bits computation for 60s block times
-// 61300 : fork 4
-//         1.3.0.0 : Stealth Addresses
-// 62100 : fork 5
-//         2.1.0.0 : Clockdrift improvements & Checklocktimeverify (forking)
-//         2.1.0.1 : SignSignature fix
-//         2.1.0.4 : OpenSSL v1.1 compatibility
-// 62200 : fork 6
-//         2.2.0.0 : Removing all traces of tx timestamp
-// 63000 : fork 7
-//         3.0.0.0 : Testnet version
-//                   Staker purchasing and qPoS
-//                   Immaleable transaction IDs
-//         3.0.1.0 : Testnet version
-//                   Fixing many qPoS consensus issues
-// 63200 : 3.0.2.0 : Fixed qPoS transaction authority checking (forking)
-// 63300 : 3.0.3.0 : Forking the tx authority check earlier (forking)
-//         3.0.3.1 : Combining message handling and qPoS
-static const int PROTOCOL_VERSION = 63300;
+static const int PROTOCOL_VERSION = CLIENT_PROTOCOL_VERSION;
 
 // intial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 61300;

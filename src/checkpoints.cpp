@@ -14,51 +14,10 @@ namespace Checkpoints
 {
     typedef std::map<int, uint256> MapCheckpoints;
 
-    //
-    // What makes a good checkpoint block?
-    // + Is surrounded by blocks with reasonable timestamps
-    //   (no blocks before with a timestamp after, none after with
-    //    timestamp before)
-    // + Contains no strange transactions
-    //
-    static MapCheckpoints mapCheckpoints =
-        boost::assign::map_list_of
-        (           0, hashGenesisBlockOfficial )
-	(          15, uint256("0x00000b3b7e584a1de0e079652b1c0e4c3d7a72e2385b070c3a75f333335533a4"))
-        (        4500, uint256("0x000000000029c93f05b4e139e426af1cb0cf4b94fe9e1911d1d26bea254a79f9"))
-        (        4521, uint256("0x0000000000436eedb310de941903ff85be8827e1319200c93b1b9db7f22ef190"))
-        (        4550, uint256("0x000000000084facef94dd16245a75275e5c2c26ff5a13ebad2469ec3da42c5a8"))
-        (        4600, uint256("0x90c9e67baa7aad3ec9ca21b465c26eee2216c93be48e56655fefdd6f7582a113"))
-        (        4650, uint256("0xaee22d2974526a4fb6a068013bed841699b6269490937cf62fa6bb3fec7acb2c"))
-        (        4700, uint256("0x00000000002be5106442cbff52a2868c3f1fa3bbea4ff147696e62e2d1ce7746"))
-        (        4750, uint256("0x00000000014b19ccf351ef277633134958a791d9faf337db4954410d5fbdc7d7"))
-        (        4800, uint256("0x0000000001bdb29c93b4033ac7c907100a5e58bcdbe0f1b377f1f6c6812440a6"))
-        (        4850, uint256("0x4fa8326b35cf85271c419f487fe530626044efd98be053ff1f84d2c585c24bcb"))
-        (        4900, uint256("0x0000000000dd3d701b40d8485850c9adfd8a3408844b1caf3df79643f801bdde"))
-        (        5112, uint256("0x00000000010655f2b03d26740e822f7307491e1997735a5d37e0ee88fedd21bb"))
-        (        6920, uint256("0x72129f1943af505f450e32e815e783870e33bd26b990222dcb91a837194b0a96"))
-        (       15000, uint256("0x53d630587fcce591fac0fd71955558914036d06da1664ae36d8fef0f7ddd0d23"))
-        (       19000, uint256("0x211c68aba319ca333a18dd8e339f430bf538908e6bed32a501aac35fa446a855"))
-        (       51100, uint256("0x2b5c8f77181948e88b793ab76dfd28b8483f047de5555905d9f6a7e058decf13"))
-        (       67000, uint256("0xa08c5d7ae3a662b964969a6a05cbfdd76f26f6124c79f3f0feaf33497c748f32"))
-        (       83500, uint256("0xdf42ca49b49683e6e6cf79228e072322eb80578f94dc01af08e068eabc7cb487"))
-        (      100500, uint256("0x80749a6d5ed2ab45312c11206a355f81c9ec6e3effd2f835ec007caf40865c6f"))
-        (      105000, uint256("0xacc3cc5ecf67849d7616f9f0f6e955e7288be2b93a614e0be52b7bd540327071"))
-        (      347000, uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb"))
-        (      769000, uint256("0x7424eff7b5800cfc59e1420c4c32611bceaebb34959a1df93ca678bb5c614582"))
-        (     2107000, uint256("0x3e1be0deee5db79f2de34ccdea3b3891cfb158902b1f8f8215c69c616d719eb1"))
-           ;
-
-
-    static MapCheckpoints mapCheckpointsTestnet =
-        boost::assign::map_list_of
-        (           0, hashGenesisBlockTestNet )
-        (        8974, uint256("0x00cd9141d0dedc9ed68739c4d0ff98367edafee810e9be8835a71523928e5908"))
-           ;
-
     bool CheckHardened(int nHeight, const uint256& hash)
     {
-        MapCheckpoints& checkpoints = (fTestNet ? mapCheckpointsTestnet : mapCheckpoints);
+        const MapCheckpoints& checkpoints = (fTestNet ? chainParams.mapCheckpointsTestNet :
+                                                  chainParams.mapCheckpointsMainNet);
 
         MapCheckpoints::const_iterator i = checkpoints.find(nHeight);
         if (i == checkpoints.end()) return true;
@@ -67,14 +26,16 @@ namespace Checkpoints
 
     int GetTotalBlocksEstimate()
     {
-        MapCheckpoints& checkpoints = (fTestNet ? mapCheckpointsTestnet : mapCheckpoints);
+        const MapCheckpoints& checkpoints = (fTestNet ? chainParams.mapCheckpointsTestNet :
+                                                  chainParams.mapCheckpointsMainNet);
 
         return checkpoints.rbegin()->first;
     }
 
     CBlockIndex* GetLastCheckpoint(const std::map<uint256, CBlockIndex*>& mapBlockIndex)
     {
-        MapCheckpoints& checkpoints = (fTestNet ? mapCheckpointsTestnet : mapCheckpoints);
+        const MapCheckpoints& checkpoints = (fTestNet ? chainParams.mapCheckpointsTestNet :
+                                                        chainParams.mapCheckpointsMainNet);
 
         BOOST_REVERSE_FOREACH(const MapCheckpoints::value_type& i, checkpoints)
         {
@@ -87,12 +48,10 @@ namespace Checkpoints
     }
 
     // ppcoin: synchronized checkpoint (centrally broadcasted)
-    uint256 hashSyncCheckpoint = fTestNet ?
-       hashGenesisBlockTestNet :
-       uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb");
-    uint256 hashPendingCheckpoint = fTestNet ?
-        hashGenesisBlockTestNet :
-       uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb");
+    uint256 hashSyncCheckpoint = fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                            chainParams.hashGenesisBlockMainNet;
+    uint256 hashPendingCheckpoint = fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                               chainParams.hashGenesisBlockMainNet;
     CSyncCheckpoint checkpointMessage;
     CSyncCheckpoint checkpointMessagePending;
     uint256 hashInvalidCheckpoint = 0;
@@ -103,9 +62,14 @@ namespace Checkpoints
     {
         LOCK(cs_hashSyncCheckpoint);
         if (!mapBlockIndex.count(hashSyncCheckpoint))
-            error("GetSyncCheckpoint: block index missing for current sync-checkpoint %s", hashSyncCheckpoint.ToString().c_str());
+        {
+            error("GetSyncCheckpoint: block index missing for current sync-checkpoint %s",
+                  hashSyncCheckpoint.ToString().c_str());
+        }
         else
+        {
             return mapBlockIndex[hashSyncCheckpoint];
+        }
         return NULL;
     }
 
@@ -113,9 +77,15 @@ namespace Checkpoints
     bool ValidateSyncCheckpoint(uint256 hashCheckpoint)
     {
         if (!mapBlockIndex.count(hashSyncCheckpoint))
-            return error("ValidateSyncCheckpoint: block index missing for current sync-checkpoint %s", hashSyncCheckpoint.ToString().c_str());
+        {
+            return error("ValidateSyncCheckpoint: block index missing for current sync-checkpoint %s",
+                         hashSyncCheckpoint.ToString().c_str());
+        }
         if (!mapBlockIndex.count(hashCheckpoint))
-            return error("ValidateSyncCheckpoint: block index missing for received sync-checkpoint %s", hashCheckpoint.ToString().c_str());
+        {
+            return error("ValidateSyncCheckpoint: block index missing for received sync-checkpoint %s",
+                         hashCheckpoint.ToString().c_str());
+        }
 
         CBlockIndex* pindexSyncCheckpoint = mapBlockIndex[hashSyncCheckpoint];
         CBlockIndex* pindexCheckpointRecv = mapBlockIndex[hashCheckpoint];
@@ -216,14 +186,20 @@ namespace Checkpoints
     // Automatically select a suitable sync-checkpoint 
     uint256 AutoSelectSyncCheckpoint()
     {
+        static const int nMaxSpan = chainParams.CHECKPOINT_MAX_SPAN;
+        static const int nMinMaturity = std::min(6, nCoinbaseMaturity - 20);
         // Proof-of-work blocks are immediately checkpointed
         // to defend against 51% attack which rejects other miners block 
 
         // Select the last proof-of-work block
         const CBlockIndex *pindex = GetLastBlockIndex(pindexBest, false);
         // Search forward for a block within max span and maturity window
-        while (pindex->pnext && (pindex->GetBlockTime() + CHECKPOINT_MAX_SPAN <= pindexBest->GetBlockTime() || pindex->nHeight + std::min(6, nCoinbaseMaturity - 20) <= pindexBest->nHeight))
+        while (pindex->pnext &&
+               (((pindex->GetBlockTime() + nMaxSpan) <= pindexBest->GetBlockTime()) ||
+                ((pindex->nHeight + nMinMaturity) <= pindexBest->nHeight)))
+        {
             pindex = pindex->pnext;
+        }
         return pindex->GetBlockHash();
     }
 
@@ -272,7 +248,8 @@ namespace Checkpoints
     bool ResetSyncCheckpoint()
     {
         LOCK(cs_hashSyncCheckpoint);
-        MapCheckpoints& checkpoints = (fTestNet ? mapCheckpointsTestnet : mapCheckpoints);
+        const MapCheckpoints& checkpoints = (fTestNet ? chainParams.mapCheckpointsTestNet :
+                                                        chainParams.mapCheckpointsMainNet);
         const uint256& hash = checkpoints.rbegin()->second;
         if (mapBlockIndex.count(hash) && !mapBlockIndex[hash]->IsInMainChain())
         {
@@ -322,7 +299,8 @@ namespace Checkpoints
     {
         // Test signing a sync-checkpoint with genesis block
         CSyncCheckpoint checkpoint;
-        checkpoint.hashCheckpoint = !fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet;
+        checkpoint.hashCheckpoint = fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                               hashGenesisBlock;
         CDataStream sMsg(SER_NETWORK, PROTOCOL_VERSION);
         sMsg << (CUnsignedSyncCheckpoint)checkpoint;
         checkpoint.vchMsg = std::vector<unsigned char>(sMsg.begin(), sMsg.end());
@@ -381,17 +359,9 @@ namespace Checkpoints
     }
 }
 
-// stealth: sync-checkpoint master key (520 bits, 130 hex)
-// this is the public key for a secp256k1 private key
-// e.g.: openssl ecparam -name secp256k1 -genkey -noout -out private-key.pem
-//       openssl ec -in private-key.pem -pubout -text -out ecpubkey.txt
-// hex is the "pub:" section in ecpubkey.txt with colons removed
+// TODO: why are these here and not in the constructor?
 const std::string CSyncCheckpoint::strMasterPubKey =
-                                "0484f4bcfce3238a1ebcbf0d4ac99c"
-                                "d3e8f75e96e73325783c807f9068c1"
-                                "e9191b210f7f875fd8e63551989dac"
-                                "fa22f1d9b365a13f2f5a135c87d001"
-                                "0e46d6a576";
+                      chainParams.strCheckpointMasterPubKey;
 
 std::string CSyncCheckpoint::strMasterPrivKey = "";
 

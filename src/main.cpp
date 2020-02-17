@@ -13,7 +13,9 @@
 #include "ui_interface.h"
 #include "kernel.h"
 #include "QPRegistry.hpp"
+#include "explore.hpp"
 #include "stealthaddress.h"
+#include "chainparams.hpp"
 #include <boost/algorithm/string/replace.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -27,7 +29,17 @@ using namespace boost;
 // Global state
 //
 
-extern std::map<txnouttype, QPKeyType> mapQPoSKeyTypes;
+
+
+unsigned char pchMessageStart[4] = {
+                 chainParams.pchMessageStartMainNet[0],
+                 chainParams.pchMessageStartMainNet[1],
+                 chainParams.pchMessageStartMainNet[2],
+                 chainParams.pchMessageStartMainNet[3] };
+
+
+
+extern map<txnouttype, QPKeyType> mapQPoSKeyTypes;
 
 CCriticalSection cs_setpwalletRegistered;
 set<CWallet*> setpwalletRegistered;
@@ -39,19 +51,16 @@ unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
 set<pair<COutPoint, unsigned int> > setStakeSeen;
-uint256 hashGenesisBlock = hashGenesisBlockOfficial;
-static CBigNum bnProofOfWorkLimit(~uint256(0) >> 20);
-static CBigNum bnProofOfStakeLimit(~uint256(0) >> 2);
+uint256 hashGenesisBlock = chainParams.hashGenesisBlockMainNet;
+static CBigNum bnProofOfWorkLimit = chainParams.bnProofOfWorkLimitMainNet;
+static CBigNum bnProofOfStakeLimit = chainParams.bnProofOfStakeLimitMainNet;
 
-static CBigNum bnProofOfWorkLimitTestNet(~uint256(0) >> 16);
-static CBigNum bnProofOfStakeLimitTestNet(~uint256(0) >> 2);
 
-unsigned int nStakeMinAge = 60 * 60 * 24 * 3;    //minimum age for coin age:  3 day
-unsigned int nStakeMaxAge = 60 * 60 * 24 * 9;    //stake age of full weight:  9 day
-unsigned int nStakeTargetSpacing = 60;           // 60 sec block spacing
+unsigned int nStakeMinAge = chainParams.nStakeMinAgeMainNet;
+unsigned int nStakeMaxAge = chainParams.nStakeMaxAgeMainNet;
+unsigned int nStakeTargetSpacing = chainParams.nTargetSpacingMainNet;
 
-int64_t nChainStartTime = 1403684997;
-int nCoinbaseMaturity = 40;
+int nCoinbaseMaturity = chainParams.nCoinbaseMaturityMainNet;
 CBlockIndex* pindexGenesisBlock = NULL;
 int nBestHeight = -1;
 CBigNum bnBestChainTrust = 0;
@@ -60,10 +69,11 @@ uint256 hashBestChain = 0;
 CBlockIndex* pindexBest = NULL;
 int64_t nTimeBestReceived = 0;
 
-static const int GETBLOCKS_LIMIT = 2000;
-
 
 CMedianFilter<int> cPeerBlockCounts(5, 0); // Amount of blocks that other nodes claim to have
+
+
+
 
 map<uint256, CBlock*> mapOrphanBlocks;
 multimap<uint256, CBlock*> mapOrphanBlocksByPrev;
@@ -76,15 +86,12 @@ map<uint256, map<uint256, CDataStream*> > mapOrphanTransactionsByPrev;
 // Constant stuff for coinbase transactions we create:
 CScript COINBASE_FLAGS;
 
-const string strMessageMagic = "StealthCoin Signed Message:\n";
-
 double dHashesPerSec;
 int64_t nHPSTimerStart;
 
 // Settings
-int64_t nTransactionFee = MIN_TX_FEE;
+int64_t nTransactionFee = chainParams.MIN_TX_FEE;
 int64_t nReserveBalance = 0;
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -92,47 +99,27 @@ int64_t nReserveBalance = 0;
 //
 
 int GetFork(int nHeight)
-{
-    // Make sure Heights are ascending!
-    const int aForks[2][TOTAL_FORKS][2] =
-                                     {
-    /* MAIN NET */                     {      // Height, Fork Number
-    /* Jul  4 02:47:04 MST 2014 */       {            0, XST_GENESIS },
-    /* Jul 11 18:33:08 MST 2014 */       { CUTOFF_POW_M, XST_FORK002 },
-    /* Oct  9 00:00:42 MST 2014 */       {       130669, XST_FORK004 },
-    /* Aug 16 10:23:28 MST 2017 */       {      1732201, XST_FORK005 },
-    /* Nov 14 08:09:53 MDT 2018 */       {      2378000, XST_FORK006 },
-    /* Approx ????????????????  */       { START_PURCHASE_M, XST_FORKPURCHASE },
-    /* Approx ????????????????  */       { CUTOFF_POS_M, XST_FORKQPOS },
-    /* Approx ????????????????  */       { CUTOFF_POS_M, XST_FORKQPOSB }
-                                       },
-    /* TEST NET */                     {      // Height, Fork Number
-                                         {            0, XST_GENESIS },
-    /*                          */       { CUTOFF_POW_T, XST_FORK002 },
-                                         {          130, XST_FORK004 },
-                                         {          140, XST_FORK005 },
-                                         {          145, XST_FORK006 },
-                                         { START_PURCHASE_T, XST_FORKPURCHASE },
-                                         { CUTOFF_POS_T, XST_FORKQPOS },
-                                         {        22500, XST_FORKQPOSB }
-                                       }
-                                     };
+{   
+    static const map<int, int> mapForks = fTestNet ? chainParams.mapForksTestNet :
+                                                     chainParams.mapForksMainNet;
+    static const map<int, int>::const_iterator b = mapForks.begin();
+    static const map<int, int>::const_iterator e = mapForks.end();
+    assert (b != e);
 
+    int nFork = b->second;
     // loop has strange logic, but if fork i height is greater than nHeight
     // then you are on fork i-1
-    const int idx = fTestNet ? 1 : 0;
-    int nFork = aForks[idx][0][1];
-    for (int i = 1; i < TOTAL_FORKS; ++i)
+    // we can do it this way because maps are sorted
+    for (map<int, int>::const_iterator it = b; it != e; ++it)
     {
-       if (aForks[idx][i][0] > nHeight)
+       if (it->first > nHeight)
        {
            break;
        }
-       nFork = aForks[idx][i][1];
+       nFork = it->second;
     }
     return nFork;
 }
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -141,39 +128,25 @@ int GetFork(int nHeight)
 
 int GetMinPeerProtoVersion(int nHeight)
 {
-    // helps to prevent buffer overrun
-    static const int nVersions = 6;
+    static const map<int, int>::const_iterator b = 
+                                   chainParams.mapProtocolVersions.begin();
+    static const map<int, int>::const_iterator e = 
+                                   chainParams.mapProtocolVersions.end();
+    assert(b != e);
 
-    // Make sure forks are ascending!
-    const int aVersions[nVersions][2] = {
-    //                                    Fork, Proto Version
-                   {               XST_GENESIS,         62020 },
-                   {               XST_FORK005,         62100 },
-                   {               XST_FORK006,         62200 },
-                   {          XST_FORKPURCHASE,         63000 },
-                   {              XST_FORKQPOS,         63000 },
-                   {             XST_FORKQPOSB,         63300 }
-                                          };
-
+    int nVersion = b->second;
     int nFork = GetFork(nHeight);
-
-    int nVersion = aVersions[0][1];
-
-    for (int i = 1; i < nVersions; ++i)
+    // we can do it this way because maps are sorted
+    for (map<int, int>::const_iterator it = b; it != e; ++it)
     {
-       if (aVersions[i][0] > nFork)
+       if (it->first > nFork)
        {
            break;
        }
-       nVersion = aVersions[i][1];
+       nVersion = it->second;
     }
-
     return nVersion;
 }
-
-
-
-
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -538,6 +511,24 @@ unsigned int LimitOrphanTxSize(unsigned int nMaxOrphans)
     return nEvicted;
 }
 
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Inputs
+//
+
+const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs)
+{
+    MapPrevTx::const_iterator mi = inputs.find(input.prevout.hash);
+    if (mi == inputs.end())
+        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.hash not found");
+
+    const CTransaction& txPrev = (mi->second).second;
+    if (input.prevout.n >= txPrev.vout.size())
+        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.n out of range");
+
+    return txPrev.vout[input.prevout.n];
+}
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -1050,7 +1041,7 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
 
     ExtractClaim(vSolutions.front(), claimRet);
 
-    if (claimRet.value < MIN_TXOUT_AMOUNT)
+    if (claimRet.value < chainParams.MIN_TXOUT_AMOUNT)
     {
         printf("CheckClaim(): claim amount is too little for any tx\n");
         return false;
@@ -1462,7 +1453,7 @@ bool CTransaction::IsStandard() const
         // computing signature hashes is O(ninputs*txsize). Limiting transactions
         // to MAX_STANDARD_TX_SIZE mitigates CPU exhaustion attacks.
         unsigned int sz = GetSerializeSize(SER_NETWORK, CTransaction::CURRENT_VERSION);
-        if (sz >= MAX_STANDARD_TX_SIZE) {
+        if (sz >= chainParams.MAX_STANDARD_TX_SIZE) {
             return false;
         }
     }
@@ -1645,9 +1636,12 @@ bool CTransaction::CheckTransaction() const
                                   GetHash().ToString().c_str()));
     }
     // Size limits
-    if (::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
+    if (::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) >
+                                                    chainParams.MAX_BLOCK_SIZE)
+    {
         return DoS(100, error("CTransaction::CheckTransaction() : size limits failed %s",
                                   GetHash().ToString().c_str()));
+    }
 
     // Check for negative or overflow output values
     int64_t nValueOut = 0;
@@ -1681,7 +1675,8 @@ bool CTransaction::CheckTransaction() const
                                   GetHash().ToString().c_str(), i));
                 }
             }
-            else if ((!txout.IsEmpty()) && (txout.nValue < MIN_TXOUT_AMOUNT))
+            else if ((!txout.IsEmpty()) &&
+                     (txout.nValue < chainParams.MIN_TXOUT_AMOUNT))
             {
                 return DoS(100,
                   error("CTransaction::CheckTransaction() : txout.nValue below minimum %s %u",
@@ -1689,7 +1684,7 @@ bool CTransaction::CheckTransaction() const
             }
         }
 
-        if (txout.nValue > MAX_MONEY)
+        if (txout.nValue > chainParams.MAX_MONEY)
             return DoS(100,
               error("CTransaction::CheckTransaction() : txout.nValue too high %s %u",
                                   GetHash().ToString().c_str(), i));
@@ -1731,8 +1726,10 @@ bool CTransaction::CheckTransaction() const
 int64_t CTransaction::GetMinFee(unsigned int nBlockSize, bool fAllowFree,
                               enum GetMinFee_mode mode, unsigned int nBytes) const
 {
+    static const unsigned int nMaxBlockSizeGen = chainParams.MAX_BLOCK_SIZE_GEN;
     // Base fee is either MIN_TX_FEE or MIN_RELAY_TX_FEE
-    int64_t nBaseFee = (mode == GMF_RELAY) ? MIN_RELAY_TX_FEE : MIN_TX_FEE;
+    int64_t nBaseFee = (mode == GMF_RELAY) ? chainParams.MIN_RELAY_TX_FEE :
+                                             chainParams.MIN_TX_FEE;
 
     unsigned int nNewBlockSize = nBlockSize + nBytes;
     int64_t nMinFee = (1 + (int64_t)nBytes / 1000) * nBaseFee;
@@ -1746,15 +1743,15 @@ int64_t CTransaction::GetMinFee(unsigned int nBlockSize, bool fAllowFree,
     }
 
     // Raise the price as the block approaches full
-    if (nBlockSize != 1 && nNewBlockSize >= MAX_BLOCK_SIZE_GEN/2)
+    if (nBlockSize != 1 && nNewBlockSize >= nMaxBlockSizeGen/2)
     {
-        if (nNewBlockSize >= MAX_BLOCK_SIZE_GEN)
-            return MAX_MONEY;
-        nMinFee *= MAX_BLOCK_SIZE_GEN / (MAX_BLOCK_SIZE_GEN - nNewBlockSize);
+        if (nNewBlockSize >= nMaxBlockSizeGen)
+            return chainParams.MAX_MONEY;
+        nMinFee *= nMaxBlockSizeGen / (nMaxBlockSizeGen - nNewBlockSize);
     }
 
     if (!MoneyRange(nMinFee))
-        nMinFee = MAX_MONEY;
+        nMinFee = chainParams.MAX_MONEY;
     return nMinFee;
 }
 
@@ -1961,7 +1958,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         // Continuously rate-limit free transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
         // be annoying or make others' transactions take longer to confirm.
-        if (nFees < MIN_RELAY_TX_FEE)
+        if (nFees < chainParams.MIN_RELAY_TX_FEE)
         {
             static CCriticalSection cs;
             static double dFreeCount;
@@ -2360,11 +2357,13 @@ int64_t GetProofOfWorkReward(int nHeight, int64_t nFees)
 int64_t GetProofOfStakeReward(int64_t nCoinAge, unsigned int nBits)
 {
     int64_t nRewardCoinYear;
-    nRewardCoinYear = fTestNet ? MAX_STEALTH_PROOF_OF_STAKE_TESTNET : MAX_STEALTH_PROOF_OF_STAKE;
+    nRewardCoinYear = fTestNet ? chainParams.MAX_STEALTH_PROOF_OF_STAKE_TESTNET :
+                                 chainParams.MAX_STEALTH_PROOF_OF_STAKE_MAINNET;
     int64_t nSubsidy = nCoinAge * nRewardCoinYear / 365;
 
     if (fDebug && GetBoolArg("-printcreation"))
-        printf("GetProofOfStakeReward(): create=%s nCoinAge=%" PRId64 " nBits=%d\n", FormatMoney(nSubsidy).c_str(), nCoinAge, nBits);
+        printf("GetProofOfStakeReward(): create=%s nCoinAge=%" PRId64 " nBits=%d\n",
+               FormatMoney(nSubsidy).c_str(), nCoinAge, nBits);
 
     return nSubsidy;
 }
@@ -2705,20 +2704,6 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
 }
 
 
-const CTxOut& CTransaction::GetOutputFor(const CTxIn& input, const MapPrevTx& inputs) const
-{
-    MapPrevTx::const_iterator mi = inputs.find(input.prevout.hash);
-    if (mi == inputs.end())
-        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.hash not found");
-
-    const CTransaction& txPrev = (mi->second).second;
-    if (input.prevout.n >= txPrev.vout.size())
-        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.n out of range");
-
-    return txPrev.vout[input.prevout.n];
-}
-
-
 int64_t CTransaction::GetValueIn(const MapPrevTx& inputs, int64_t nClaim) const
 {
     if (IsCoinBase())
@@ -2890,7 +2875,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
             int64_t nStakeReward = GetValueOut() - nValueIn;
             if (nStakeReward > (GetProofOfStakeReward(nCoinAge,
                                                      pindexBlock->nBits) -
-                                GetMinFee() + MIN_TX_FEE))
+                                GetMinFee() + chainParams.MIN_TX_FEE))
             {
                 return DoS(100, error("ConnectInputs() : %s stake reward exceeded",
                                       GetHash().ToString().c_str()));
@@ -2997,7 +2982,14 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 
     // ppcoin: clean up wallet after disconnecting coinstake
     BOOST_FOREACH(CTransaction& tx, vtx)
+    {
         SyncWithWallets(tx, this, false, false);
+    }
+
+    if (fWithExploreAPI)
+    {
+        ExploreDisconnectBlock(txdb, this);
+    }
 
     return true;
 }
@@ -3076,7 +3068,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
         }
 
         nSigOps += tx.GetLegacySigOpCount();
-        if (nSigOps > MAX_BLOCK_SIGOPS)
+        if (nSigOps > chainParams.MAX_BLOCK_SIGOPS)
             return DoS(100, error("ConnectBlock() : too many sigops"));
 
         CDiskTxPos posThisTx(pindex->nFile, pindex->nBlockPos, nTxPos);
@@ -3100,7 +3092,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                 // this is to prevent a "rogue miner" from creating
                 // an incredibly-expensive-to-validate block.
                 nSigOps += tx.GetP2SHSigOpCount(mapInputs);
-                if (nSigOps > MAX_BLOCK_SIGOPS)
+                if (nSigOps > chainParams.MAX_BLOCK_SIGOPS)
                     return DoS(100, error("ConnectBlock() : too many sigops"));
             }
 
@@ -3215,7 +3207,14 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
 
     // Watch for transactions paying to me
     BOOST_FOREACH(CTransaction& tx, vtx)
+    {
         SyncWithWallets(tx, this, true);
+    }
+
+    if (fWithExploreAPI)
+    {
+        ExploreConnectBlock(txdb, this);
+    }
 
     return true;
 }
@@ -3382,7 +3381,8 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         return error("SetBestChain() : TxnBegin failed");
 
     if ((pindexGenesisBlock == NULL) &&
-        (hash == (fTestNet ? hashGenesisBlockTestNet : hashGenesisBlock)))
+        (hash == (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                             hashGenesisBlock)))
     {
         txdb.WriteHashBestChain(hash);
         if (!txdb.TxnCommit())
@@ -3635,7 +3635,8 @@ bool CTransaction::GetCoinAge(CTxDB& txdb, unsigned int nBlockTime, uint64_t& nC
             continue; // only count coins meeting min age requirement
 
         int64_t nValueIn = txPrev.vout[txin.prevout.n].nValue;
-        bnSeconds = min(CBigNum(nTxTime - nTxPrevTime), MAX_COIN_SECONDS);
+        bnSeconds = min(CBigNum(nTxTime - nTxPrevTime),
+                        chainParams.MAX_COIN_SECONDS);
         bnCentSecond += CBigNum(nValueIn) * bnSeconds / CENT;
 
         if (fDebug && GetBoolArg("-printcoinage"))
@@ -3828,8 +3829,9 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
 
     // Size limits (note qPoS allows empty blocks)
     if (((nBlockFork < XST_FORKQPOS) && vtx.empty()) ||
-        (vtx.size() > MAX_BLOCK_SIZE) ||
-        ::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) > MAX_BLOCK_SIZE)
+        (vtx.size() > chainParams.MAX_BLOCK_SIZE) ||
+        (::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) >
+                                                   chainParams.MAX_BLOCK_SIZE))
     {
         return DoS(100, error("CheckBlock() : size limits failed at height %d", nThisHeight));
     }
@@ -3875,7 +3877,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     }
     else
     {
-        if (GetBlockTime() > GetAdjustedTime() + nMaxClockDrift)
+        if (GetBlockTime() > (GetAdjustedTime() + chainParams.nMaxClockDrift))
         {
             return error("CheckBlock() : block timestamp too far in the future");
         }
@@ -3918,7 +3920,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     if ((nFork < XST_FORK005) && (nBlockFork < XST_FORKQPOS))
     {
         // prior to XST_FORK006 CTransactions have timestamps
-        if (GetBlockTime() > (int64_t)vtx[0].GetTxTime() + nMaxClockDrift)
+        if (GetBlockTime() > (int64_t)vtx[0].GetTxTime() + chainParams.nMaxClockDrift)
         {
             return DoS(50, error("CheckBlock() : coinbase timestamp is too early"));
         }
@@ -4026,7 +4028,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     {
         nSigOps += tx.GetLegacySigOpCount();
     }
-    if (nSigOps > MAX_BLOCK_SIGOPS)
+    if (nSigOps > chainParams.MAX_BLOCK_SIGOPS)
         return DoS(100, error("CheckBlock() : out-of-bounds SigOpCount"));
 
     // Check merkle root
@@ -4195,13 +4197,16 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
     }
     else if (nFork >= XST_FORK005)
     {
-        if (GetBlockTime() <= pindexPrev->GetPastTimeLimit() || FutureDrift(GetBlockTime()) < pindexPrev->GetBlockTime())
+        if ((GetBlockTime() <= pindexPrev->GetPastTimeLimit()) ||
+            (FutureDrift(GetBlockTime()) < pindexPrev->GetBlockTime()))
+        {
             return error("AcceptBlock() : block's timestamp is too early");
+        }
     }
-    else
+    else if ((GetBlockTime() <= pindexPrev->GetMedianTimePast()) || 
+            ((GetBlockTime() + chainParams.nMaxClockDrift) < pindexPrev->GetBlockTime()))
     {
-        if (GetBlockTime() <= pindexPrev->GetMedianTimePast() || GetBlockTime() + nMaxClockDrift < pindexPrev->GetBlockTime())
-            return error("AcceptBlock() : block's timestamp is too early");
+        return error("AcceptBlock() : block's timestamp is too early");
     }
 
     // Check that all transactions are finalized
@@ -4732,7 +4737,8 @@ bool CBlock::SignBlock(const CKeyStore& keystore,
 // ppcoin: check block signature
 bool CBlock::CheckBlockSignature(const QPRegistry *pregistry) const
 {
-    if (GetHash() == (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet))
+    if (GetHash() == (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                 hashGenesisBlock))
         return vchBlockSig.empty();
 
     vector<valtype> vSolutions;
@@ -4818,13 +4824,17 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
     uint64_t nFreeBytesAvailable = filesystem::space(GetDataDir()).available;
 
     // Check for nMinDiskSpace bytes (currently 50MB)
-    if (nFreeBytesAvailable < nMinDiskSpace + nAdditionalBytes)
+    if (nFreeBytesAvailable < (chainParams.nMinDiskSpace + nAdditionalBytes))
     {
         fShutdown = true;
         string strMessage = _("Warning: Disk space is low!");
         strMiscWarning = strMessage;
         printf("*** %s\n", strMessage.c_str());
-        uiInterface.ThreadSafeMessageBox(strMessage, "Stealth", CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION | CClientUIInterface::MODAL);
+        uiInterface.ThreadSafeMessageBox(strMessage,
+                                         "Stealth",
+                                         (CClientUIInterface::OK |
+                                          CClientUIInterface::ICON_EXCLAMATION |
+                                          CClientUIInterface::MODAL));
         StartShutdown();
         return false;
     }
@@ -4884,20 +4894,22 @@ FILE* AppendBlockFile(unsigned int& nFileRet)
 
 bool LoadBlockIndex(bool fAllowNew)
 {
+    // these are initialized for mainnet when setting global state above
     if (fTestNet)
     {
-        pchMessageStart[0] = 0xcf;
-        pchMessageStart[1] = 0xed;
-        pchMessageStart[2] = 0xff;
-        pchMessageStart[3] = 0xfd;
+        pchMessageStart[0] = chainParams.pchMessageStartTestNet[0];
+        pchMessageStart[1] = chainParams.pchMessageStartTestNet[1];
+        pchMessageStart[2] = chainParams.pchMessageStartTestNet[2];
+        pchMessageStart[3] = chainParams.pchMessageStartTestNet[3];
 
-        bnProofOfStakeLimit = bnProofOfStakeLimitTestNet; // 0x00000fff PoS base target is fixed in testnet
-        bnProofOfWorkLimit = bnProofOfWorkLimitTestNet; // 0x0000ffff PoW base target is fixed in testnet
-        nStakeMinAge = 1 * 60; // test net min age is 1 min
-        nStakeMaxAge = 40 * 60; // test net min age is 40 min
-        nModifierInterval = 30; // test modifier interval is 30 seconds
-        nCoinbaseMaturity = 10; // test maturity is 10 blocks
-        nStakeTargetSpacing = 20; // test block spacing is 20 seconds
+        bnProofOfStakeLimit = chainParams.bnProofOfStakeLimitTestNet;
+        bnProofOfWorkLimit = chainParams.bnProofOfWorkLimitTestNet;
+        nStakeMinAge = chainParams.nStakeMinAgeTestNet;
+        nStakeMaxAge = chainParams.nStakeMaxAgeTestNet;
+        nModifierInterval = chainParams.MODIFIER_INTERVAL_TESTNET;
+        nModifierIntervalRatio = chainParams.MODIFIER_INTERVAL_RATIO_TESTNET;
+        nCoinbaseMaturity = chainParams.nCoinbaseMaturityTestNet;
+        nStakeTargetSpacing = chainParams.nTargetSpacingTestNet;
     }
 
     //
@@ -4917,12 +4929,14 @@ bool LoadBlockIndex(bool fAllowNew)
             return false;
 
         // Genesis block
-        const char* pszTimestamp = "20140615 Stealth proves that pzTimestamp is overkill.";
+        const char* pszTimestamp = chainParams.strTimestamp.c_str();
         CTransaction txNew;
-        txNew.SetTxTime(nChainStartTime);
+        txNew.SetTxTime(chainParams.nChainStartTime);
         txNew.vin.resize(1);
         txNew.vout.resize(1);
-        txNew.vin[0].scriptSig = CScript() << 486604799 << CBigNum(9999) << vector<unsigned char>((const unsigned char*)pszTimestamp, (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
+        txNew.vin[0].scriptSig = CScript() << chainParams.nIgma << chainParams.bnIgma <<
+                                 vector<unsigned char>((const unsigned char*)pszTimestamp,
+                                 (const unsigned char*)pszTimestamp + strlen(pszTimestamp));
         txNew.vout[0].SetEmpty();
 
         CBlock block;
@@ -4930,9 +4944,9 @@ bool LoadBlockIndex(bool fAllowNew)
         block.hashPrevBlock = 0;
         block.hashMerkleRoot = block.BuildMerkleTree();
         block.nVersion = 1;
-        block.nTime    = 1403668979;
+        block.nTime    = chainParams.nTimeGenesisBlock;
         block.nBits    = bnProofOfWorkLimit.GetCompact();
-        block.nNonce   = 4204204204LL; // perfect nonce
+        block.nNonce   = chainParams.nNonceGenesisBlock;
 
         if (false && (block.GetHash() != hashGenesisBlock))
         {
@@ -4957,11 +4971,13 @@ bool LoadBlockIndex(bool fAllowNew)
         printf("block.nTime = %u \n", block.nTime);
         printf("block.nNonce = %u \n", block.nNonce);
 
-        uint256 hashMerkleRootMainNet("0xe3de7c386d5b82f62ff24c6d2351539c22b17c6ffab0e267b3cdd72fda82bd83");
-        uint256 hashMerkleRootTestNet("0xe3de7c386d5b82f62ff24c6d2351539c22b17c6ffab0e267b3cdd72fda82bd83");
 
-        assert(block.hashMerkleRoot == (fTestNet ? hashMerkleRootTestNet : hashMerkleRootMainNet));
-        assert(block.GetHash() == (fTestNet ? hashGenesisBlockTestNet : hashGenesisBlock));
+        assert(block.hashMerkleRoot ==
+               (fTestNet ? chainParams.hashMerkleRootTestNet :
+                           chainParams.hashMerkleRootMainNet));
+        assert(block.GetHash() ==
+               (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                           chainParams.hashGenesisBlockMainNet));
 
         // Start new block file
         unsigned int nFile;
@@ -4972,8 +4988,12 @@ bool LoadBlockIndex(bool fAllowNew)
             return error("LoadBlockIndex() : genesis block not accepted");
 
         // ppcoin: initialize synchronized checkpoint
-        if (!Checkpoints::WriteSyncCheckpoint((!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet)))
+        if (!Checkpoints::WriteSyncCheckpoint(fTestNet ?
+                                       chainParams.hashGenesisBlockTestNet :
+                                       chainParams.hashGenesisBlockMainNet))
+        {
             return error("LoadBlockIndex() : failed to init sync checkpoint");
+        }
     }
 
     // ppcoin: if checkpoint master key changed must reset sync-checkpoint
@@ -5106,7 +5126,7 @@ bool LoadExternalBlockFile(FILE* fileIn)
                 fseek(blkdat, nPos, SEEK_SET);
                 unsigned int nSize;
                 blkdat >> nSize;
-                if (nSize > 0 && nSize <= MAX_BLOCK_SIZE)
+                if (nSize > 0 && nSize <= chainParams.MAX_BLOCK_SIZE)
                 {
                     CBlock block;
                     blkdat >> block;
@@ -5114,6 +5134,10 @@ bool LoadExternalBlockFile(FILE* fileIn)
                     {
                         nLoaded++;
                         nPos += 4 + nSize;
+                    }
+                    if ((nMaxHeight > 0) && (nBestHeight >= nMaxHeight))
+                    {
+                        break;
                     }
                 }
             }
@@ -5371,11 +5395,6 @@ bool Rollback()
 
     return true;
 }
-
-// The message start string is designed to be unlikely to occur in normal data.
-// The characters are rarely used upper ASCII, not valid as UTF-8, and produce
-// a large 4-byte int at any alignment.
-unsigned char pchMessageStart[4] = { 0x70, 0x35, 0x22, 0x05 };
 
 bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
@@ -5639,7 +5658,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
         vector<CInv> vInv;
         vRecv >> vInv;
-        if (vInv.size() > MAX_INV_SZ)
+        if (vInv.size() > chainParams.MAX_INV_SZ)
         {
             pfrom->Misbehaving(20);
             return error("message inv size() = %" PRIszu "", vInv.size());
@@ -5722,7 +5741,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
         vector<CInv> vInv;
         vRecv >> vInv;
-        if (vInv.size() > MAX_INV_SZ)
+        if (vInv.size() > chainParams.MAX_INV_SZ)
         {
             pfrom->Misbehaving(20);
             return error("message getdata size() = %" PRIszu "", vInv.size());
@@ -5820,7 +5839,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Send the rest of the chain
         if (pindex)
             pindex = pindex->pnext;
-        int nLimit = GETBLOCKS_LIMIT;
+        int nLimit = chainParams.GETBLOCKS_LIMIT;
 
         if (fDebugNet)
         {
@@ -5981,14 +6000,16 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             AddOrphanTx(vMsg);
 
             // DoS prevention: do not allow mapOrphanTransactions to grow unbounded
-            unsigned int nEvicted = LimitOrphanTxSize(MAX_ORPHAN_TRANSACTIONS);
+            unsigned int nEvicted = LimitOrphanTxSize(
+                                          chainParams.MAX_ORPHAN_TRANSACTIONS);
             if (nEvicted > 0)
                 printf("mapOrphan overflow, removed %u tx\n", nEvicted);
         }
         if (tx.nDoS) pfrom->Misbehaving(tx.nDoS);
     }
 
-    else if (strCommand == "block")
+    else if ((strCommand == "block") &&
+             ((nMaxHeight <= 0) || (nBestHeight < nMaxHeight)))
     {
         CBlock block;
         vRecv >> block;
@@ -6070,7 +6091,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             pfrom->Misbehaving(block.nDoS);
         }
 
-        if (pfrom->nOrphans > 2 * GETBLOCKS_LIMIT)
+        if (pfrom->nOrphans > 2 * chainParams.GETBLOCKS_LIMIT)
         {
             printf("Node has exceeded max init download orphans.\n");
             pfrom->Misbehaving(100);
@@ -6094,7 +6115,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         for (unsigned int i = 0; i < vtxid.size(); i++) {
             CInv inv(MSG_TX, vtxid[i]);
             vInv.push_back(inv);
-            if (i == (MAX_INV_SZ - 1))
+            if (i == (chainParams.MAX_INV_SZ - 1))
                     break;
         }
         if (vInv.size() > 0)
@@ -6735,18 +6756,23 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
     }
 
     // Largest block you're willing to create:
-    unsigned int nBlockMaxSize = GetArg("-blockmaxsize", MAX_BLOCK_SIZE_GEN/2);
+    unsigned int nBlockMaxSize = GetArg("-blockmaxsize",
+                                        chainParams.DEFAULT_BLOCKMAXSIZE);
     // Limit to betweeen 1K and MAX_BLOCK_SIZE-1K for sanity:
-    nBlockMaxSize = std::max((unsigned int)1000, std::min((unsigned int)(MAX_BLOCK_SIZE-1000), nBlockMaxSize));
+    nBlockMaxSize = std::max((unsigned int)1000,
+                    std::min((unsigned int)(chainParams.MAX_BLOCK_SIZE - 1000),
+                             nBlockMaxSize));
 
     // How much of the block should be dedicated to high-priority transactions,
     // included regardless of the fees they pay
-    unsigned int nBlockPrioritySize = GetArg("-blockprioritysize", 27000);
+    unsigned int nBlockPrioritySize = GetArg("-blockprioritysize",
+                                             chainParams.DEFAULT_BLOCKPRIORITYSIZE);
     nBlockPrioritySize = std::min(nBlockMaxSize, nBlockPrioritySize);
 
     // Minimum block size you want to create; block will be filled with free transactions
     // until there are no more or the block reaches this size:
-    unsigned int nBlockMinSize = GetArg("-blockminsize", 0);
+    unsigned int nBlockMinSize = GetArg("-blockminsize",
+                                        chainParams.DEFAULT_BLOCKMINSIZE);
     nBlockMinSize = std::min(nBlockMaxSize, nBlockMinSize);
 
     // Fee-per-kilobyte amount considered the same as "free"
@@ -6754,7 +6780,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
     // a transaction spammer can cheaply fill blocks using
     // 1-satoshi-fee transactions. It should be set above the real
     // cost to you of processing a transaction.
-    int64_t nMinTxFee = MIN_TX_FEE;
+    int64_t nMinTxFee = chainParams.MIN_TX_FEE;
     if (mapArgs.count("-mintxfee"))
     {
         ParseMoney(mapArgs["-mintxfee"], nMinTxFee);
@@ -6786,13 +6812,18 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
         unsigned int nSearchTime = nCoinStakeTime; // search to current time
         if (nSearchTime > nLastCoinStakeSearchTime)
         {
-            if (pwallet->CreateCoinStake(*pwallet, pblockRet->nBits,
-                           nSearchTime - nLastCoinStakeSearchTime, txCoinStake, nCoinStakeTime))
+            if (pwallet->CreateCoinStake(*pwallet,
+                                         pblockRet->nBits,
+                                         nSearchTime - nLastCoinStakeSearchTime,
+                                         txCoinStake,
+                                         nCoinStakeTime))
             {
                 unsigned int nTimeMax;
                 if (nFork < XST_FORK005)
                 {
-                    nTimeMax = max(pindexPrev->GetPastTimeLimit()+1, pindexPrev->GetBlockTime() - nMaxClockDrift);
+                    nTimeMax = max(pindexPrev->GetPastTimeLimit()+1,
+                                   (pindexPrev->GetBlockTime() -
+                                    chainParams.nMaxClockDrift));
                 }
                 else
                 {
@@ -6800,7 +6831,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                     {
                         pblockRet->nTime = nCoinStakeTime;
                     }
-                    nTimeMax = max(pblockRet->GetBlockTime(), pindexPrev->GetBlockTime());
+                    nTimeMax = max(pblockRet->GetBlockTime(),
+                                   pindexPrev->GetBlockTime());
                 }
 
                 if (nCoinStakeTime >= nTimeMax)
@@ -6940,7 +6972,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
 
             // Legacy limits on sigOps:
             unsigned int nTxSigOps = tx.GetLegacySigOpCount();
-            if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
+            if (nBlockSigOps + nTxSigOps >= chainParams.MAX_BLOCK_SIGOPS)
                 continue;
 
             // Timestamp limit
@@ -7008,7 +7040,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             }
 
             nTxSigOps += tx.GetP2SHSigOpCount(mapInputs);
-            if (nBlockSigOps + nTxSigOps >= MAX_BLOCK_SIGOPS)
+            if (nBlockSigOps + nTxSigOps >= chainParams.MAX_BLOCK_SIGOPS)
             {
                 continue;
             }
@@ -7088,7 +7120,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
         else if (nFork < XST_FORK005)
         {
             pblockRet->nTime = max(pblockRet->GetBlockTime(),
-                                   pindexPrev->GetBlockTime() - nMaxClockDrift);
+                                   (pindexPrev->GetBlockTime() -
+                                    chainParams.nMaxClockDrift));
         }
         if (pblockRet->IsProofOfWork())
         {
@@ -7215,7 +7248,6 @@ bool CheckWork(CBlock* pblock, CWallet& wallet,
             wallet.mapRequestCount[pblock->GetHash()] = 0;
         }
 
-
         // Process this block the same as if we had received it from
         //    another node.
         // Stakers produce qPoS on contingency, meaning the block can only
@@ -7293,6 +7325,11 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
     while (fGenerateXST || fProofOfStake)
     {
         if (fShutdown)
+        {
+            return;
+        }
+
+        if ((nMaxHeight > 0) && (nBestHeight >= nMaxHeight))
         {
             return;
         }
@@ -7485,7 +7522,8 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
             if (nFork < XST_FORK005)
             {
                 pblock->nTime = max(pblock->GetBlockTime(),
-                                    pindexPrev->GetBlockTime() - nMaxClockDrift);
+                                    (pindexPrev->GetBlockTime() -
+                                     chainParams.nMaxClockDrift));
             }
             else
             {
@@ -7496,13 +7534,18 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
             // coinbase timestamp is irrelevant upon XST_FORK006
             if (nFork < XST_FORK005)
             {
-                if (pblock->GetBlockTime() >= (int64_t)pblock->vtx[0].GetTxTime() + nMaxClockDrift)
+                if (pblock->GetBlockTime() >= ((int64_t)pblock->vtx[0].GetTxTime() +
+                                               chainParams.nMaxClockDrift))
+                {
                     break;  // need to update coinbase timestamp
+                }
             }
             else if (nFork < XST_FORK006)
             {
                 if (pblock->GetBlockTime() >= FutureDrift((int64_t)pblock->vtx[0].GetTxTime()))
+                {
                     break;  // need to update coinbase timestamp
+                }
             }
         }
 #endif  /* WITH_MINER */

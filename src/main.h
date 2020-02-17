@@ -28,31 +28,11 @@ class CInv;
 class CRequestTracker;
 class CNode;
 
-static const unsigned int MAX_BLOCK_SIZE = 1000000;
-static const unsigned int MAX_BLOCK_SIZE_GEN = MAX_BLOCK_SIZE/2;
-static const unsigned int MAX_STANDARD_TX_SIZE = MAX_BLOCK_SIZE_GEN/5;
-static const unsigned int MAX_BLOCK_SIGOPS = MAX_BLOCK_SIZE/50;
-static const unsigned int MAX_ORPHAN_TRANSACTIONS = MAX_BLOCK_SIZE/100;
-static const unsigned int MAX_INV_SZ = 50000;
-static const int64_t MIN_TX_FEE = 1 * CENT;
-static const int64_t MIN_RELAY_TX_FEE = 1 * CENT;
-// MAX_MONEY is for consistency checking
-// The actual PoW coins is about 23,300,000
-// This number will go up over time.
-// Code Reviewers: Don't look here for the money supply limit!!!!!!
-// Go look at GetProofOfWorkReward and do the math yourself
-// Don't quote the value of MAX_MONEY as an indicator
-// of the true money supply or you will look foolish!!!!!!
-static const int64_t MAX_MONEY = COIN * 43300000;  // 23.3 Million -> 43.3 bumped to be safe
-static const int64_t CIRCULATION_MONEY = MAX_MONEY;
-static const double TAX_PERCENTAGE = 0.00; //no tax
-// main net: 20% annual interest
-static const int64_t MAX_STEALTH_PROOF_OF_STAKE = 0.20 * COIN;
-static const int64_t MAX_STEALTH_PROOF_OF_STAKE_TESTNET = 20 * COIN;
-
-static const int64_t MIN_TXOUT_AMOUNT = MIN_TX_FEE;
-
-inline bool MoneyRange(int64_t nValue) { return (nValue >= 0 && nValue <= MAX_MONEY); }
+inline bool MoneyRange(int64_t nValue)
+{
+    return ((nValue >= 0) &&
+            (nValue <= chainParams.MAX_MONEY));
+}
 
 #ifdef USE_UPNP
 static const int fHaveUPnP = true;
@@ -60,47 +40,39 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-static const uint256 hashGenesisBlockOfficial(
-   "0x1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a");
-static const uint256 hashGenesisBlockTestNet (
-   "0x3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634");
-
-static const int CUTOFF_POW_M = 5460;  // asdf
-static const int CUTOFF_POW_T = 120;  // asdf
-
-static const int START_PURCHASE_M = 4204204;  // asdf
-static const int START_PURCHASE_T = 4204;  // asdf
-
-static const int CUTOFF_POS_M = 4420420;  // asdf
-static const int CUTOFF_POS_T = 17400;  // asdf
-
 // cloners: edit aForks
 int GetFork(int nHeight);
 
-static const int64_t nMaxClockDrift = 2 * 60 * 60;        // two hours
-
 // blackcoin pos 2.0 drift recommendations
-// inline int64_t PastDrift(CBlockIndex *pprev)   {return pprev->nTime; } // time of last block
+// back to time of previous block in the past
+// inline int64_t PastDrift(CBlockIndex *pprev) {return pprev->nTime; }
+// up to FUTURE_DRIFT_* sec in the future
 inline int64_t FutureDrift(int64_t nTime) {
-                  return fTestNet ? nTime + 7 : nTime + 17; } // up to 17 sec in the future
+                  return fTestNet ? nTime + chainParams.FUTURE_DRIFT_MAINNET  :
+                                    nTime + chainParams.FUTURE_DRIFT_TESTNET; }
 
 inline int GetPoWCutoff()
 {
     // too many problems with PoW+PoS and big hashes, was block 20421
-    return fTestNet ? CUTOFF_POW_T : CUTOFF_POW_M;
+    return fTestNet ? chainParams.CUTOFF_POW_T :
+                      chainParams.CUTOFF_POW_M;
 }
 
 inline int GetPurchaseStart()
 {
     // allow staker purchases
-    return fTestNet ? START_PURCHASE_T : START_PURCHASE_M;
+    return fTestNet ? chainParams.START_PURCHASE_T :
+                      chainParams.START_PURCHASE_M;
 }
 
 inline int GetPoSCutoff()
 {
     // switch to qPoS
-    return fTestNet ? CUTOFF_POS_T : CUTOFF_POS_M;
+    return fTestNet ? chainParams.CUTOFF_POS_T :
+                      chainParams.CUTOFF_POS_M;
 }
+
+
 
 extern CScript COINBASE_FLAGS;
 
@@ -120,27 +92,18 @@ extern unsigned int nTransactionsUpdated;
 extern uint64_t nLastBlockTx;
 extern uint64_t nLastBlockSize;
 extern int64_t nLastCoinStakeSearchInterval;
-extern const std::string strMessageMagic;
 extern double dHashesPerSec;
 extern int64_t nHPSTimerStart;
 extern int64_t nTimeBestReceived;
 extern CCriticalSection cs_setpwalletRegistered;
 extern std::set<CWallet*> setpwalletRegistered;
-extern unsigned char pchMessageStart[4];
+
 extern std::map<uint256, CBlock*> mapOrphanBlocks;
 
 // Settings
 extern int64_t nTransactionFee;
 extern unsigned int nDerivationMethodIndex;
 extern int64_t nReserveBalance;
-
-// Minimum disk space required - used in CheckDiskSpace()
-static const uint64_t nMinDiskSpace = 52428800;
-
-
-// Maximum age of a coin, to encourage open wallet (9 days)
-static const CBigNum MAX_COIN_SECONDS = 9 * 24 * 60 * 60;
-
 
 enum BlockCreationResult
 {
@@ -937,9 +900,6 @@ public:
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true, bool* pfMissingInputs=NULL);
     // ppcoin: get transaction coin age
     bool GetCoinAge(CTxDB& txdb, unsigned int nBlockTime, uint64_t& nCoinAge) const;
-
-protected:
-    const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs) const;
 };
 
 
@@ -1204,9 +1164,9 @@ public:
         }
     }
 
-    uint64_t GetValueOut()
+    int64_t GetValueOut()
     {
-        uint64_t v = 0;
+        int64_t v = 0;
         for (unsigned int i = 0; i < vtx.size(); ++i)
         {
             v += vtx[i].GetValueOut();
@@ -1481,7 +1441,7 @@ public:
 
     // block stats
     unsigned int nTxVolume;
-    uint64_t nXSTVolume;
+    int64_t nXSTVolume;
 
     // block header: all blocks
     int nVersion;
@@ -1932,7 +1892,8 @@ public:
             if (vHave.size() > 10)
                 nStep *= 2;
         }
-        vHave.push_back((!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet));
+        vHave.push_back((fTestNet ? chainParams.hashGenesisBlockTestNet :
+                                    hashGenesisBlock));
     }
 
     int GetDistanceBack()
@@ -1985,7 +1946,8 @@ public:
                     return hash;
             }
         }
-        return (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet);
+        return (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                           hashGenesisBlock);
     }
 
     int GetHeight()
@@ -2046,6 +2008,8 @@ public:
     }
 };
 
+
+const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs);
 
 extern CTxMemPool mempool;
 

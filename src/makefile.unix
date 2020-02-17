@@ -69,7 +69,8 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
- -I"$(CURDIR)/qpos"
+ -I"$(CURDIR)/qpos" \
+ -I"$(CURDIR)/explore"
 
 DEBUGFLAGS=-g
 
@@ -191,6 +192,7 @@ xLDFLAGS=$(LDHARDENING) $(LDFLAGS)
 
 
 OBJS= \
+    obj/stealthparams.o \
     obj/json_spirit_reader.o \
     obj/json_spirit_value.o \
     obj/json_spirit_writer.o \
@@ -410,7 +412,8 @@ OBJS= \
     obj/QPPowerRound.o \
     obj/QPRegistry.o \
     obj/rpcqpos.o \
-    obj/syncregistry.o
+    obj/syncregistry.o \
+    obj/explore.o
 
 all: StealthCoind
 
@@ -453,6 +456,13 @@ obj/%.o: json/%.cpp
 
 obj/%.o: %.c
 	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: qpos/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \

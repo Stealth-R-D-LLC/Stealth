@@ -37,7 +37,7 @@ public:
         delete activeBatch;
     }
 
-    bool ActiveBatchIsNull()   // asdf
+    bool ActiveBatchIsNull()
     {
         return !bool(activeBatch);
     }
@@ -187,6 +187,36 @@ public:
     {
         return Write(std::string("version"), nVersion);
     }
+
+    bool ReadAddrQty(const std::string& t, const std::string& addr, int& qtyRet);
+    bool WriteAddrQty(const std::string& t, const std::string& addr, const int& qty);
+    bool ReadAddrTx(const std::string& t, const std::string& addr, const int& qty,
+                    uint256& txidRet, int& nRet, bool& fRet);
+    bool ReadAddrTx(const std::string& t, const std::string& addr, const int& qty,
+                    uint256& txidRet, int& nRet);
+    bool WriteAddrTx(const std::string& t, const std::string& addr, const int& qty,
+                     const uint256& txid, const int& n, const bool& f);
+    bool WriteAddrTx(const std::string& t, const std::string& addr, const int& qty,
+                     const uint256& txid, const int& n);
+    bool RemoveAddrTx(const std::string& t, const std::string& addr, const int& qty);
+    bool AddrTxExists(const std::string& t, const std::string& addr, const int& qty);
+    bool ReadAddrLookup(const std::string& t, const std::string& addr,
+                        const uint256& txid, const int& n,
+                        int& qtyRet);
+    bool WriteAddrLookup(const std::string& t, const std::string& addr,
+                         const uint256& txid, const int& n,
+                         const int& qty);
+    bool RemoveAddrLookup(const std::string& t, const std::string& addr,
+                          const uint256& txid, const int& n);
+    bool AddrLookupExists(const std::string& t, const std::string& addr,
+                          const uint256& txid, const int& n);
+    bool ReadAddrBalance(const std::string& t, const std::string& addr,
+                         int64_t& bRet);
+    bool WriteAddrBalance(const std::string& t, const std::string& addr, const int64_t& b);
+    bool ReadAddrSet(const std::string& t, const int64_t b,
+                     std::set<std::string>& sRet);
+    bool WriteAddrSet(const std::string& t, const int64_t b, const std::set<std::string>& s);
+    bool RemoveAddrSet(const std::string& t, const int64_t b);
 
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
     bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);

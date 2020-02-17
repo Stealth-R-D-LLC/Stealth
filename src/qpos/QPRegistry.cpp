@@ -45,7 +45,8 @@ void QPRegistry::SetNull()
     // can't penalize the very first staker ever to have a slot
     fPrevBlockWasProduced = true;
     nBlockHeight = 0;
-    hashBlock = (!fTestNet ? hashGenesisBlock : hashGenesisBlockTestNet);
+    hashBlock = (fTestNet ? chainParams.hashGenesisBlockTestNet :
+                            hashGenesisBlock);
     hashBlockLastSnapshot = hashBlock;
     hashLastBlockPrev1Queue = hashBlock;
     hashLastBlockPrev2Queue = hashBlock;

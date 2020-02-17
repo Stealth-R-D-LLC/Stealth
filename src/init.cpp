@@ -10,6 +10,7 @@
 #include "util.h"
 #include "ui_interface.h"
 #include "checkpoints.h"
+#include "explore.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -101,7 +102,9 @@ void Shutdown(void* parg)
     else
     {
         while (!fExit)
+        {
             MilliSleep(500);
+        }
         MilliSleep(100);
         ExitThread(0);
     }
@@ -227,26 +230,35 @@ bool static Bind(const CService &addr, bool fError = true) {
 // Core-specific options shared between UI and daemon
 std::string HelpMessage()
 {
+    static const ChainParams cp = chainParams;
     string strUsage = _("Options:") + "\n" +
         "  -?                     " + _("This help message") + "\n" +
-        "  -conf=<file>           " + _("Specify configuration file (default: StealthCoin.conf)") + "\n" +
-        "  -pid=<file>            " + _("Specify pid file (default: StealthCoind.pid)") + "\n" +
+        "  -conf=<file>           " + strprintf(_("Specify configuration file (default: %s)"),
+                                            cp.DEFAULT_CONF.c_str()) + "\n" +
+        "  -pid=<file>            " + strprintf(_("Specify pid file (default: %s)"),
+                                            cp.DEFAULT_PID.c_str()) + "\n" +
         "  -gen                   " + _("Generate coins") + "\n" +
         "  -gen=0                 " + _("Don't generate coins") + "\n" +
         "  -stake                 " + _("Stake coins") + "\n" +
         "  -stake=0               " + _("Turn off staking (default: 1, staking on)") + "\n" +
         "  -datadir=<dir>         " + _("Specify data directory") + "\n" +
         "  -wallet=<file>          " + _("Specify wallet file (within data directory)") + "\n" +
-        "  -dbcache=<n>           " + _("Set database cache size in megabytes (default: 25)") + "\n" +
-        "  -dblogsize=<n>         " + _("Set database disk log size in megabytes (default: 100)") + "\n" +
-        "  -timeout=<n>           " + _("Specify connection timeout in milliseconds (default: 5000)") + "\n" +
+        "  -dbcache=<n>           " + strprintf(_("Set database cache size in megabytes (default: %d)"),
+                                            cp.DEFAULT_DBCACHE) + "\n" +
+        "  -dblogsize=<n>         " + strprintf(_("Set database disk log size in megabytes (default: %d)"),
+                                            cp.DEFAULT_DBLOGSIZE) + "\n" +
+        "  -timeout=<n>           " + strprintf(_("Specify connection timeout in milliseconds (default: %d)"),
+                                            cp.DEFAULT_TIMEOUT) + "\n" +
         "  -proxy=<ip:port>       " + _("Connect through socks proxy") + "\n" +
         "  -socks=<n>             " + _("Select the version of socks proxy to use (4-5, default: 5)") + "\n" +
         "  -torext=<ip:port>      " + _("Use proxy to reach tor hidden services (default: same as -proxy)") + "\n"
         "  -dns                   " + _("Allow DNS lookups for -addnode, -seednode and -connect") + "\n" +
-        "  -port=<port>           " + _("Listen for connections on <port> (default: 4437 or testnet: 4438)") + "\n" +
-        "  -torport=<port>        " + _("Connect to Tor through <torport> (default: 9060)") + "\n" 
-        "  -maxconnections=<n>    " + _("Maintain at most <n> connections to peers (default: 125)") + "\n" +
+        "  -port=<port>           " + strprintf(_("Listen for connections on <port> (default: %d or testnet: %d)"),
+                                            cp.DEFAULT_PORT_MAINNET, cp.DEFAULT_PORT_TESTNET) + "\n" +
+        "  -torport=<port>        " + strprintf(_("Connect to Tor through <torport> (default: %d)"),
+                                            cp.DEFAULT_TORPORT) + "\n" 
+        "  -maxconnections=<n>    " + strprintf(_("Maintain at most <n> connections to peers (default: %d)"),
+                                            cp.DEFAULT_MAXCONNECTIONS) + "\n" +
         "  -addnode=<ip>          " + _("Add a node to connect to and attempt to keep the connection open") + "\n" +
         "  -connect=<ip>          " + _("Connect only to the specified node(s)") + "\n" +
         "  -seednode=<ip>         " + _("Connect to a node to retrieve peer addresses, and disconnect") + "\n" +
@@ -261,10 +273,14 @@ std::string HelpMessage()
         "  -dnsseed               " + _("Find peers using DNS lookup (default: 1)") + "\n" +
         "  -staking               " + _("Stake your coins to support network and gain reward (default: 1)") + "\n" +
         "  -qposminting           " + _("Turn off qPoS minting with =0 (default: 1, qPoS minting on)") + "\n" +
-        "  -banscore=<n>          " + _("Threshold for disconnecting misbehaving peers (default: 100)") + "\n" +
-        "  -bantime=<n>           " + _("Number of seconds to keep misbehaving peers from reconnecting (default: 86400)") + "\n" +
-        "  -maxreceivebuffer=<n>  " + _("Maximum per-connection receive buffer, <n>*1000 bytes (default: 5000)") + "\n" +
-        "  -maxsendbuffer=<n>     " + _("Maximum per-connection send buffer, <n>*1000 bytes (default: 1000)") + "\n" +
+        "  -banscore=<n>          " + strprintf(_("Threshold for disconnecting misbehaving peers (default: %d)"),
+                                            cp.DEFAULT_BANSCORE) + "\n" +
+        "  -bantime=<n>           " + strprintf(_("Number of seconds to keep misbehaving peers from reconnecting (default: %d)"),
+                                            cp.DEFAULT_BANTIME) + "\n" +
+        "  -maxreceivebuffer=<n>  " + strprintf(_("Maximum per-connection receive buffer, <n>*1000 bytes (default: %d)"),
+                                            cp.DEFAULT_MAXRECEIVEBUFFER) + "\n" +
+        "  -maxsendbuffer=<n>     " + strprintf(_("Maximum per-connection send buffer, <n>*1000 bytes (default: %d)"),
+                                            cp.DEFAULT_MAXSENDBUFFER) + "\n" +
 #ifdef USE_UPNP
 #if USE_UPNP
         "  -upnp                  " + _("Use UPnP to map the listening port (default: 1 when listening)") + "\n" +
@@ -284,6 +300,7 @@ std::string HelpMessage()
         "  -debug                 " + _("Output extra debugging information. Implies all other -debug* options") + "\n" +
         "  -debugnet              " + _("Output extra network debugging information") + "\n" +
         "  -debugqpos             " + _("Output extra qPoS debugging information") + "\n" +
+        "  -debugexplore          " + _("Output extra explore API debugging information") + "\n" +
         "  -logtimestamps         " + _("Prepend debug output with timestamp") + "\n" +
         "  -shrinkdebugfile       " + _("Shrink debug.log file on client startup (default: 1 when no -debug)") + "\n" +
         "  -printtoconsole        " + _("Send trace/debug info to console instead of debug.log file") + "\n" +
@@ -294,23 +311,30 @@ std::string HelpMessage()
         "  -rpcpassword=<pw>      " + _("Password for JSON-RPC connections") + "\n" +
         "  -stealthsecret=<sec>   " + _("Secret for stealth cloud sending") + "\n" +
         "  -stealthpin=<pin>      " + _("2FA for stealth cloud sending") + "\n" +
-        "  -rpcport=<port>        " + _("Listen for JSON-RPC connections on <port> (default: 46502 or testnet: 46503)") + "\n" +
+        "  -rpcport=<port>        " + strprintf(_("Listen for JSON-RPC connections on <port> (default: %d or testnet: %d)"),
+                                            cp.DEFAULT_RPCPORT_MAINNET, cp.DEFAULT_RPCPORT_TESTNET) + "\n" +
         "  -rpcallowip=<ip>       " + _("Allow JSON-RPC connections from specified IP address") + "\n" +
         "  -rpcconnect=<ip>       " + _("Send commands to node running on <ip> (default: 127.0.0.1)") + "\n" +
         "  -blocknotify=<cmd>     " + _("Execute command when the best block changes (%s in cmd is replaced by block hash)") + "\n" +
         "  -walletnotify=<cmd>    " + _("Execute command when a wallet transaction changes (%s in cmd is replaced by TxID)") + "\n" +
         "  -upgradewallet         " + _("Upgrade wallet to latest format") + "\n" +
-        "  -keypool=<n>           " + _("Set key pool size to <n> (default: 100)") + "\n" +
+        "  -keypool=<n>           " + strprintf(_("Set key pool size to <n> (default: %d)"),
+                                            cp.DEFAULT_KEYPOOL) + "\n" +
         "  -rescan                " + _("Rescan the block chain for missing wallet transactions") + "\n" +
         "  -salvagewallet         " + _("Attempt to recover private keys from a corrupt wallet.dat") + "\n" +
-        "  -checkblocks=<n>       " + _("How many blocks to check at startup (default: 2500, 0 = all)") + "\n" +
-        "  -checklevel=<n>        " + _("How thorough the block verification is (0-6, default: 1)") + "\n" +
+        "  -checkblocks=<n>       " + strprintf(_("How many blocks to check at startup (default: %d, 0 = all)"),
+                                            cp.DEFAULT_CHECKBLOCKS) + "\n" +
+        "  -checklevel=<n>        " + strprintf(_("How thorough the block verification is (0-6, default: %d)"),
+                                            cp.DEFAULT_CHECKLEVEL) + "\n" +
         "  -loadblock=<file>      " + _("Imports blocks from external blk000?.dat file") + "\n" +
 
         "\n" + _("Block creation options:") + "\n" +
-        "  -blockminsize=<n>      "   + _("Set minimum block size in bytes (default: 0)") + "\n" +
-        "  -blockmaxsize=<n>      "   + _("Set maximum block size in bytes (default: 250000)") + "\n" +
-        "  -blockprioritysize=<n> "   + _("Set maximum size of high-priority/low-fee transactions in bytes (default: 27000)") + "\n" +
+        "  -blockminsize=<n>      " + strprintf(_("Set minimum block size in bytes (default: %d)"),
+                                            cp.DEFAULT_BLOCKMINSIZE) + "\n" +
+        "  -blockmaxsize=<n>      " + strprintf(_("Set maximum block size in bytes (default: %d)"),
+                                            cp.DEFAULT_BLOCKMAXSIZE) + "\n" +
+        "  -blockprioritysize=<n> " + strprintf(_("Set maximum size of high-priority/low-fee transactions in bytes (default: %d)"),
+                                            cp.DEFAULT_BLOCKPRIORITYSIZE) + "\n" +
 
         "\n" + _("SSL options: (see the Bitcoin Wiki for SSL setup instructions)") + "\n" +
         "  -rpcssl                                  " + _("Use OpenSSL (https) for JSON-RPC connections") + "\n" +
@@ -320,8 +344,13 @@ std::string HelpMessage()
 
         "  -quitonbootstrap       " + _("Quit the client immediatley upon processing a bootstrap") + "\n" +
         "  -permitdirtybootstrap  " + _("Allow duplicate stake for bootstrap from block***.dat file") + "\n" +
+        "  -maxheight             " + _("For testing, don't allow more blocks than height") + "\n" +
 
-        "  -rollbackdeadend         " + _("Reject own blocks on a deadend chain (default: true)") + "\n" +
+        "  -rollbackdeadend       " + _("Reject own blocks on a deadend chain (default: true)") + "\n" +
+
+        "  -exploreapi=1          " + _("enable the expolore API (default: false") + "\n"
+        "  -maxdust               " + strprintf(_("Maximum coin value considered \"dust\" (default: %" PRId64 ")"),
+                                            cp.DEFAULT_MAXDUST) + "\n"
 
         "";  // KEEP THIS LINE
 
@@ -420,14 +449,14 @@ bool AppInit2()
         SoftSetBoolArg("-discover", false);
     }
 
-    if (GetBoolArg("-salvagewallet")) {
+    if (GetBoolArg("-salvagewallet", false)) {
         // Rewrite just private keys: rescan to find transactions
         SoftSetBoolArg("-rescan", true);
     }
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
-    fDebug = GetBoolArg("-debug");
+    fDebug = GetBoolArg("-debug", false);
 
     // -debug implies fDebug*
     if (fDebug)
@@ -437,9 +466,10 @@ bool AppInit2()
     }
     else
     {
-        fDebugNet = GetBoolArg("-debugnet");
-        fDebugQPoS = GetBoolArg("-debugqpos");
-        fDebugBlockCreation = GetBoolArg("-debugblockcreation");
+        fDebugNet = GetBoolArg("-debugnet", false);
+        fDebugQPoS = GetBoolArg("-debugqpos", false);
+        fDebugBlockCreation = GetBoolArg("-debugblockcreation", false);
+        fDebugExplore = GetBoolArg("-debugexplore", false);
     }
 
     bitdb.SetDetach(GetBoolArg("-detachdb", false));
@@ -469,7 +499,7 @@ bool AppInit2()
 
     if (mapArgs.count("-timeout"))
     {
-        int nNewTimeout = GetArg("-timeout", 5000);
+        int nNewTimeout = GetArg("-timeout", chainParams.DEFAULT_TIMEOUT);
         if (nNewTimeout > 0 && nNewTimeout < 600000)
             nConnectTimeout = nNewTimeout;
     }
@@ -485,7 +515,7 @@ bool AppInit2()
     {
         if (!ParseMoney(mapArgs["-paytxfee"], nTransactionFee))
             return InitError(strprintf(_("Invalid amount for -paytxfee=<amount>: '%s'"), mapArgs["-paytxfee"].c_str()));
-        if (nTransactionFee > 0.25 * COIN)
+        if (nTransactionFee > chainParams.MAX_TXFEE * COIN)
             InitWarning(_("Warning: -paytxfee is set very high! This is the transaction fee you will pay if you send a transaction."));
     }
 
@@ -684,7 +714,7 @@ bool AppInit2()
     {
         CService addrOnion;
         p2p_port = GetDefaultPort();
-        onion_port = (unsigned short)GetArg("-torport", TOR_PORT);
+        onion_port = (unsigned short)GetArg("-torport", chainParams.DEFAULT_TORPORT);
         if (mapArgs.count("-tor") && mapArgs["-tor"] != "0") {
             addrOnion = CService(mapArgs["-tor"], onion_port);
             if (!addrOnion.IsValid())
@@ -848,6 +878,19 @@ bool AppInit2()
     // AddOneShot(string(""));
 
     // ********************************************************* Step 7: load blockchain
+
+    nMaxHeight = GetArg("-maxheight", -1);
+
+    fWithExploreAPI = GetBoolArg("-exploreapi", false);
+
+    if (mapArgs.count("-maxdust")) // ppcoin: reserve balance amount
+    {
+        if (!ParseMoney(mapArgs["-maxdust"], nMaxDust))
+        {
+            InitError(_("Invalid amount for -maxdust=<amount>"));
+            return false;
+        }
+    }
 
     if (!bitdb.Open(GetDataDir()))
     {
