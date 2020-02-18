@@ -3,17 +3,11 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "main.h"
-#include "wallet.h"
 #include "bitcoinrpc.h"
 #include "txdb-leveldb.h"
 
-#include "txdb-leveldb.h"
-#include "base58.h"
-#include "main.h"
 #include "explore.hpp"
 
-extern QPRegistry *pregistryMain;
-extern CWallet* pwalletMain;
 
 using namespace json_spirit;
 using namespace std;
