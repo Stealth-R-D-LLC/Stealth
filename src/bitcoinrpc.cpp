@@ -338,8 +338,11 @@ static const CRPCCommand vRPCCommands[] =
     { "getqposbalance",         &getqposbalance,         false,  false },
     { "exitreplay",             &exitreplay,             false,  false },
     // explorer api
+    // asdf move next 2 to rpcexplore.cpp
     { "getnewestblockbeforetime",  &getnewestblockbeforetime,   false,  false },
-    { "getwindowedtxvolume",       &getwindowedtxvolume,        false,  false }
+    { "getwindowedtxvolume",       &getwindowedtxvolume,        false,  false },
+    { "getrichlistsize",           &getrichlistsize,            false,  false },
+    { "getrichlist",               &getrichlist,                false,  false }
 };
 
 CRPCTable::CRPCTable()
@@ -1312,6 +1315,12 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getwindowedtxvolume"       && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getrichlistsize"           && n > 0)
+                                ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getrichlist"               && n > 0)
+                                ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getrichlist"               && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
 
     return params;
 }

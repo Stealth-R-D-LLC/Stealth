@@ -11,6 +11,7 @@
 class CBlock;
 class CTransaction;
 
+// sorted in descending order
 typedef std::map<int64_t, unsigned int,
                  std::greater<int64_t> > MapBalanceCounts;
 

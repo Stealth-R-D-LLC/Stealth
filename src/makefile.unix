@@ -413,7 +413,8 @@ OBJS= \
     obj/QPRegistry.o \
     obj/rpcqpos.o \
     obj/syncregistry.o \
-    obj/explore.o
+    obj/explore.o \
+    obj/rpcexplore.o
 
 all: StealthCoind
 

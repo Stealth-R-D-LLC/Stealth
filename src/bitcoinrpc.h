@@ -229,6 +229,9 @@ extern json_spirit::Value getblockbynumber(const json_spirit::Array& params, boo
 // explorer api
 extern json_spirit::Value getnewestblockbeforetime(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getwindowedtxvolume(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getrichlistsize(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getrichlist(const json_spirit::Array& params, bool fHelp);
+//
 extern json_spirit::Value getcheckpoint(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getnewstealthaddress(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststealthaddresses(const json_spirit::Array& params, bool fHelp);
