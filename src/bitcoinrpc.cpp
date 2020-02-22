@@ -341,6 +341,10 @@ static const CRPCCommand vRPCCommands[] =
     // asdf move next 2 to rpcexplore.cpp
     { "getnewestblockbeforetime",  &getnewestblockbeforetime,   false,  false },
     { "getwindowedtxvolume",       &getwindowedtxvolume,        false,  false },
+    { "getaddressbalance",         &getaddressbalance,          false,  false },
+    { "getaddressinfo",            &getaddressinfo,             false,  false },
+    { "getaddressinputs",          &getaddressinputs,           false,  false },
+    { "getaddressoutputs",         &getaddressoutputs,          false,  false },
     { "getrichlistsize",           &getrichlistsize,            false,  false },
     { "getrichlist",               &getrichlist,                false,  false }
 };
@@ -1314,6 +1318,14 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "getwindowedtxvolume"       && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getwindowedtxvolume"       && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddressinputs"          && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddressinputs"          && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddressoutputs"         && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddressoutputs"         && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "getrichlistsize"           && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);

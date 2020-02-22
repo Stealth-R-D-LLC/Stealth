@@ -18,6 +18,7 @@ typedef std::map<int64_t, unsigned int,
 extern const std::string ADDR_QTY_INPUT;
 extern const std::string ADDR_QTY_OUTPUT;
 extern const std::string ADDR_QTY_INOUT;
+extern const std::string ADDR_QTY_UNSPENT;
 extern const std::string ADDR_TX_INPUT;
 extern const std::string ADDR_TX_OUTPUT;
 extern const std::string ADDR_TX_INOUT;

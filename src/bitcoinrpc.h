@@ -101,6 +101,9 @@ void RPCTypeCheck(const json_spirit::Array& params,
 void RPCTypeCheck(const json_spirit::Object& o,
                   const std::map<std::string, json_spirit::Value_type>& typesExpected, bool fAllowNull=false);
 
+
+void ScriptPubKeyToJSON(const CScript& scriptPubKey, json_spirit::Object& out);
+
 typedef json_spirit::Value(*rpcfn_type)(const json_spirit::Array& params, bool fHelp);
 
 class CRPCCommand
@@ -229,6 +232,10 @@ extern json_spirit::Value getblockbynumber(const json_spirit::Array& params, boo
 // explorer api
 extern json_spirit::Value getnewestblockbeforetime(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getwindowedtxvolume(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddressbalance(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddressinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddressinputs(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddressoutputs(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlistsize(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlist(const json_spirit::Array& params, bool fHelp);
 //

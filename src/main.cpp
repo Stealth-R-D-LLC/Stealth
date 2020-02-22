@@ -1028,7 +1028,6 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
     if (!fFoundClaim)
     {
         // tx could very well be fine, but it isn't a claim
-        printf("CheckClaim(): not a claim\n");
         return true;
     }
 

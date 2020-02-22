@@ -62,8 +62,9 @@ protected:
     bool ScanBatch(const CDataStream &key, std::string *value, bool *deleted) const;
 
     template<typename K, typename T>
-    bool Read(const K& key, T& value)
+    bool Read(const K& key, T& value, bool& fOk)
     {
+        fOk = true;
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
@@ -82,11 +83,13 @@ protected:
         if (readFromDb) {
             leveldb::Status status = pdb->Get(leveldb::ReadOptions(),
                                               ssKey.str(), &strValue);
-            if (!status.ok()) {
+            if (!status.ok())
+            {
                 if (status.IsNotFound())
                     return false;
                 // Some unexpected error.
                 printf("LevelDB read failure: %s\n", status.ToString().c_str());
+                fOk = false;
                 return false;
             }
         }
@@ -97,9 +100,17 @@ protected:
             ssValue >> value;
         }
         catch (std::exception &e) {
+            fOk = false;
             return false;
         }
         return true;
+    }
+
+    template<typename K, typename T>
+    bool Read(const K& key, T& value)
+    {
+        bool fReadOk;
+        return Read(key, value, fReadOk);
     }
 
     template<typename K, typename T>
@@ -131,7 +142,9 @@ protected:
     bool Erase(const K& key)
     {
         if (!pdb)
+        {
             return false;
+        }
         if (fReadOnly)
             assert(!"Erase called on database in read-only mode");
 
@@ -143,7 +156,18 @@ protected:
             return true;
         }
         leveldb::Status status = pdb->Delete(leveldb::WriteOptions(), ssKey.str());
-        return (status.ok() || status.IsNotFound());
+        if (!status.ok())
+        {
+            if (status.IsNotFound())
+            {
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     template<typename K>
@@ -213,6 +237,7 @@ public:
     bool ReadAddrBalance(const std::string& t, const std::string& addr,
                          int64_t& bRet);
     bool WriteAddrBalance(const std::string& t, const std::string& addr, const int64_t& b);
+    bool AddrBalanceExists(const std::string& t, const std::string& addr);
     bool ReadAddrSet(const std::string& t, const int64_t b,
                      std::set<std::string>& sRet);
     bool WriteAddrSet(const std::string& t, const int64_t b, const std::set<std::string>& s);

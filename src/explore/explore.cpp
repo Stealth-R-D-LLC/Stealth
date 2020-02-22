@@ -19,6 +19,7 @@ using namespace std;
 const string ADDR_QTY_INPUT = "AddrQtyInput";
 const string ADDR_QTY_OUTPUT = "AddrQtyOutput";
 const string ADDR_QTY_INOUT = "AddrQtyInOut";
+const string ADDR_QTY_UNSPENT = "AddrQtyUnspent";
 // Addr Tx
 const string ADDR_TX_INPUT = "AddrTxInput";
 const string ADDR_TX_OUTPUT = "AddrTxOutput";
@@ -173,6 +174,22 @@ bool ExploreConnectInput(CTxDB& txdb,
         {
             return error("ExploreConnectInput() : could not write prev output");
         }
+        // decrement the unspent count
+        int nQtyUnspent;
+        if (!txdb.ReadAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreConnectInput() : could not read qty unspent");
+        }
+        if (nQtyUnspent < 1)
+        {
+            return error("ExploreConnectInput() : TSNH no qty unspent found");
+        }
+        nQtyUnspent -= 1;
+        if (!txdb.WriteAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreConnectInput() : could not write qty unspent");
+        }
+
 
        /***************************************************************
         * 2. add the input
@@ -300,7 +317,8 @@ bool ExploreConnectInput(CTxDB& txdb,
             {
                 if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreConnectInput() : could not read addr set");
+                    return error("ExploreConnectInput() : could not read addr set %s",
+                                 FormatMoney(nBalanceNew).c_str());
                 }
                 if (setAddr.insert(strAddr).second == false)
                 {
@@ -346,6 +364,11 @@ bool ExploreConnectOutput(CTxDB& txdb,
                          MapBalanceCounts& mapAddressBalancesAddRet,
                          set<int64_t>& setAddressBalancesRemoveRet)
 {
+    if (tx.IsCoinStake() && (n == 0))
+    {
+        // skip coin stake marker output
+        return true;
+    }
     const CTxOut& txOut = tx.vout[n];
     const CScript &script = txOut.scriptPubKey;
     txnouttype typetxo;
@@ -405,7 +428,23 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 2. add the output lookup
+        * 2. increment the quantity unspent
+        ***************************************************************/
+        // unspent are not stored separately from other outputs because the
+        //   user wallet is expected to store all inputs and outputs anyway
+        int nQtyUnspent;
+        if (!txdb.ReadAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreConnectOutput() : could not read qty unspent");
+        }
+        nQtyUnspent += 1;
+        if (!txdb.WriteAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreConnectOutput() : could not write qty unspent");
+        }
+
+       /***************************************************************
+        * 3. add the output lookup
         ***************************************************************/
         // ensure the output lookup does not exist
         if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
@@ -421,7 +460,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 3. add the in-out
+        * 4. add the in-out
         ***************************************************************/
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
@@ -451,7 +490,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 4. update the balance
+        * 5. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
         // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
@@ -473,7 +512,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the balance address sets (for rich list, etc)
+        * 6. update the balance address sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -512,7 +551,9 @@ bool ExploreConnectOutput(CTxDB& txdb,
         {
             if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreConnectOutput() : could not read addr set");
+                printf("asdf setAddr size is %u\n", setAddr.size());
+                return error("ExploreConnectOutput() : could not read addr set %s",
+                             FormatMoney(nBalanceNew).c_str());
             }
             if (setAddr.insert(strAddr).second == false)
             {
@@ -579,7 +620,6 @@ bool ExploreConnectTx(CTxDB& txdb, const CTransaction &tx)
 
     for (unsigned int n = 0; n < tx.vout.size(); ++n)
     {
-
         ExploreConnectOutput(txdb, tx, n, txid,
                              mapAddressBalancesAdd,
                              setAddressBalancesRemove);
@@ -762,7 +802,25 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 4. update the balance
+        * 4. decrement the quantity unspent
+        ***************************************************************/
+        int nQtyUnspent;
+        if (!txdb.ReadAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreDisconnectOutput() : could not read qty unspent");
+        }
+        if (nQtyUnspent < 1)
+        {
+            return error("ExploreDisconnectOutput() : TSNH no qty unspent found");
+        }
+        nQtyUnspent -= 1;
+        if (!txdb.WriteAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreDisconnectOutput() : could not write qty unspent");
+        }
+
+       /***************************************************************
+        * 5. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
         // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
@@ -789,7 +847,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the balance sets (for rich list, etc)
+        * 6. update the balance sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -827,7 +885,8 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             {
                 if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreDisconnectOutput() : could not read addr set");
+                    return error("ExploreDisconnectOutput() : could not read addr set %s",
+                                 FormatMoney(nBalanceNew).c_str());
                 }
                 if (setAddr.insert(strAddr).second == false)
                 {
@@ -1042,6 +1101,19 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             return error("ExploreDisconnectInput() : could not write output as spent");
         }
+        // unspent are not stored separately from other outputs because the
+        //   user wallet is expected to store all inputs and outputs anyway
+        // increment the unspent count
+        int nQtyUnspent;
+        if (!txdb.ReadAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreDisconnectInput() : could not read qty unspent");
+        }
+        nQtyUnspent += 1;
+        if (!txdb.WriteAddrQty(ADDR_QTY_UNSPENT, strAddr, nQtyUnspent))
+        {
+            return error("ExploreDisconnectInput() : could not write qty unspent");
+        }
 
        /***************************************************************
         * 4. update the balance
@@ -1105,7 +1177,8 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreDisconnectInput() : could not read addr set");
+                return error("ExploreDisconnectInput() : could not read addr set %s",
+                             FormatMoney(nBalanceNew).c_str());
             }
             if (setAddr.insert(strAddr).second == false)
             {

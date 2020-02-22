@@ -219,12 +219,12 @@ bool CTxDB::ScanBatch(const CDataStream &key, string *value, bool *deleted) cons
 bool CTxDB::ReadAddrQty(const string& t, const string& addr, int& qtyRet)
 {
     ss_key_t key = make_pair(t, addr);
-    if (Exists(key))
+    bool fReadOk;
+    if (!Read(key, qtyRet, fReadOk))
     {
-        return Read(key, qtyRet);
+        qtyRet = 0;
     }
-    qtyRet = 0;
-    return true;
+    return fReadOk;
 }
 
 bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
@@ -334,17 +334,24 @@ bool CTxDB::ReadAddrBalance(const string& t, const string& addr,
                             int64_t& bRet)
 {
     ss_key_t key = make_pair(t, addr);
-    if (Exists(key))
+    bool fReadOk;
+    if (!Read(key, bRet, fReadOk))
     {
-        return Read(key, bRet);
+        bRet = 0;
     }
-    bRet = 0;
-    return true;
+    return fReadOk;
 }
+
 bool CTxDB::WriteAddrBalance(const string& t, const string& addr, const int64_t& b)
 {
     ss_key_t key = make_pair(t, addr);
     return Write(key, b);
+}
+
+bool CTxDB::AddrBalanceExists(const std::string& t, const std::string& addr)
+{
+    ss_key_t key = make_pair(t, addr);
+    return Exists(key);
 }
 
 /*  AddrSet
@@ -352,13 +359,11 @@ bool CTxDB::WriteAddrBalance(const string& t, const string& addr, const int64_t&
  */
 bool CTxDB::ReadAddrSet(const string& t, const int64_t b, set<string>& sRet)
 {
-    pair<string, int64_t> key = make_pair(t, b);
-    if (Exists(key))
-    {
-        return Read(key, sRet);
-    }
     sRet.clear();
-    return true;
+    pair<string, int64_t> key = make_pair(t, b);
+    bool fReadOk;
+    Read(key, sRet, fReadOk);
+    return fReadOk;
 }
 
 bool CTxDB::WriteAddrSet(const string& t, const int64_t b, const set<string>& s)
