@@ -9,44 +9,7 @@
 #
 # INSTRUCTIONS TO BUILD ON OS X
 #
-# The recommended package manager to build the daemon is Homebrew
-# (https://https://brew.sh/).
-#
-# Make sure you have installed the following packages with
-# linkable libraries, preferably using Homebrew. If you build from
-# scratch, make sure to enable building the static libraries when
-# running configure.
-#
-#     Berkeley DB 4.8: https://www.oracle.com/
-#     Boost: http://www.boost.org/
-#     LibEvent 2: http://libevent.org/
-#     OpenSSL 1.1: https://www.openssl.org/
-#     ZLib: http://www.zlib.net/
-#
-# Once these packages are installed, you will have the correct
-# headers and static libraries.
-#
-# Note that ZLib is already provided by the OS X system.
-#
-# For Homebrew, the necessary packages are:
-#
-#     - berkeley-db@4
-#     - boost
-#     - libevent
-#     - openssl@1.1
-#
-# To use the homebrew packages, set the following
-# environment variables before make:
-#
-#     - BDB_INCLUDE_PATH="/usr/local/opt/berkeley-db@4/include"
-#     - BDB_LIB_PATH="/usr/local/opt/berkeley-db@4/lib"
-#     - OPENSSL_INCLUDE_PATH="/usr/local/opt/openssl@1.1/include"
-#     - OPENSSL_LIB_PATH="/usr/local/opt/openssl@1.1/lib"
-#     - BOOST_LIB_SUFFIX="-mt"
-#
-# Then, you can build
-#
-#     make -f makefile.osx
+# See: https://github.com/StealthSend/Stealth/tree/master/contrib/build-osx
 #
 #######################################################################
 
@@ -59,6 +22,7 @@ MINER=-
 STEALTHTEXT=-
 
 INCLUDEPATHS= \
+ -I"/usr/local/include" \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
  -I"$(CURDIR)/tor" \
@@ -74,7 +38,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/trunnel" \
  -I"$(CURDIR)/tor/trunnel/hs" \
  -I"$(CURDIR)/src/libcryptopp" \
- -I"/usr/include" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
@@ -83,6 +46,7 @@ INCLUDEPATHS= \
 
 DEBUGFLAGS = -g
 
+CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
 CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
 
 USE_UPNP:=-
@@ -96,7 +60,7 @@ DEFS = -DBOOST_SPIRIT_THREADSAFE
 
 incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
 DEFS += $(incDEFS)
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
+LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH) /usr/local/lib)
 
 LIBS += \
    -l boost_system$(BOOST_LIB_SUFFIX) \
@@ -409,6 +373,11 @@ OBJS= \
     obj/QPRegistry.o \
     obj/rpcqpos.o \
     obj/syncregistry.o \
+    obj/ExploreDestination.o \
+    obj/ExploreInOutLookup.o \
+    obj/ExploreInputInfo.o \
+    obj/ExploreOutputInfo.o \
+    obj/ExploreTxInfo.o \
     obj/explore.o \
     obj/rpcexplore.o
 

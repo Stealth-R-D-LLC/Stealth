@@ -413,6 +413,10 @@ OBJS= \
     obj/QPRegistry.o \
     obj/rpcqpos.o \
     obj/syncregistry.o \
+    obj/ExploreDestination.o \
+    obj/ExploreInOutLookup.o \
+    obj/ExploreInputInfo.o \
+    obj/ExploreOutputInfo.o \
     obj/explore.o \
     obj/rpcexplore.o
 

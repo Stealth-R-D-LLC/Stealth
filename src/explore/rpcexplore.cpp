@@ -8,7 +8,6 @@
 
 #include "explore.hpp"
 
-
 using namespace json_spirit;
 using namespace std;
 
@@ -75,12 +74,6 @@ Value getaddressinfo(const Array &params, bool fHelp)
          throw runtime_error("TSNH: Can't read number of outputs.");
     }
 
-    int nQtyUnspent;
-    if (!txdb.ReadAddrQty(ADDR_QTY_UNSPENT, strAddress, nQtyUnspent))
-    {
-         throw runtime_error("TSNH: Can't read number of unspent.");
-    }
-
     int nRank = 0;
     if (nBalance > nMaxDust)
     {
@@ -104,14 +97,16 @@ Value getaddressinfo(const Array &params, bool fHelp)
         }
     }
 
+    int nQtyUnspent = nQtyOutputs - nQtyInputs;
+
     Object obj;
     obj.push_back(Pair("address", strAddress));
     obj.push_back(Pair("balance", ValueFromAmount(nBalance)));
-    obj.push_back(Pair("rank", static_cast<boost::int64_t>(nRank)));
-    obj.push_back(Pair("inputs", static_cast<boost::int64_t>(nQtyInputs)));
-    obj.push_back(Pair("outputs", static_cast<boost::int64_t>(nQtyOutputs)));
-    obj.push_back(Pair("unspent", static_cast<boost::int64_t>(nQtyUnspent)));
-    obj.push_back(Pair("height", static_cast<boost::int64_t>(nBestHeight)));
+    obj.push_back(Pair("rank", (boost::int64_t)nRank));
+    obj.push_back(Pair("inputs", (boost::int64_t)nQtyInputs));
+    obj.push_back(Pair("outputs", (boost::int64_t)nQtyOutputs));
+    obj.push_back(Pair("unspent", (boost::int64_t)nQtyUnspent));
+    obj.push_back(Pair("height", (boost::int64_t)nBestHeight));
 
     return obj;
 }
@@ -176,56 +171,25 @@ Value getaddressinputs(const Array &params, bool fHelp)
     for (int i = nStart; i <= nStop; ++i)
     {
         Object entry;
-        uint256 txid;
-        int n;
-        if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddress, i, txid, n))
+        ExploreInputInfo input;
+        if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddress, i, input))
         {
             throw runtime_error("TSNH: Problem reading input.");
         }
-        CTransaction tx;
-        uint256 hashBlock = 0;
-        unsigned int nTimeBlock;
-        if (GetTransaction(txid, tx, hashBlock, nTimeBlock))
+        ExploreTxInfo tx;
+        if (!txdb.ReadTxInfo(input.txid, tx))
         {
-            entry.push_back(Pair("txid", txid.GetHex()));
-            entry.push_back(Pair("vin", static_cast<boost::int64_t>(n)));
-            if (hashBlock == 0)
-            {
-                entry.push_back(Pair("confirmations", 0));
-            }
-            else
-            {
-                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-                if (mi != mapBlockIndex.end() && (*mi).second)
-                {
-                    CBlockIndex* pindex = (*mi).second;
-                    if (pindex->IsInMainChain())
-                    {
-                        entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                        entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                    }
-                    else
-                    {
-                        entry.push_back(Pair("confirmations", 0));
-                    }
-                }
-                entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-            }
-            entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+            throw runtime_error("TSNH: Problem reading transaction.");
         }
-        else
-        {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
-                               "TSNH No information available about transaction");
-        }
-        if (n >= static_cast<int>(tx.vin.size()))
-        {
-            throw runtime_error("TSNH vin does not exist");
-        }
-        const CTxIn& txin = tx.vin[n];
-        entry.push_back(Pair("prev_txid", txin.prevout.hash.GetHex()));
-        entry.push_back(Pair("prev_vout", (boost::int64_t)txin.prevout.n));
-
+        entry.push_back(Pair("txid", input.txid.GetHex()));
+        entry.push_back(Pair("vin", (boost::int64_t)input.vin));
+        entry.push_back(Pair("blockhash", tx.blockhash.GetHex()));
+        boost::int64_t nConfs = 1 + nBestHeight - tx.height;
+        entry.push_back(Pair("confirmations", nConfs));
+        entry.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
+        entry.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
+        entry.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
+        // asdf entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
         result.push_back(entry);
    }
 
@@ -292,61 +256,32 @@ Value getaddressoutputs(const Array &params, bool fHelp)
     for (int i = nStart; i <= nStop; ++i)
     {
         Object entry;
-        uint256 txid;
-        int n;
-        bool fIsSpent;
-        if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddress, i, txid, n, fIsSpent))
+        ExploreOutputInfo output;
+        if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddress, i, output))
         {
             throw runtime_error("TSNH: Problem reading output.");
         }
-        CTransaction tx;
-        uint256 hashBlock = 0;
-        unsigned int nTimeBlock;
-        if (GetTransaction(txid, tx, hashBlock, nTimeBlock))
+        ExploreTxInfo tx;
+        if (!txdb.ReadTxInfo(output.txid, tx))
         {
-            entry.push_back(Pair("txid", txid.GetHex()));
-            entry.push_back(Pair("vout", static_cast<boost::int64_t>(n)));
-            if (n >= static_cast<int>(tx.vout.size()))
-            {
-                throw runtime_error("TSNH vin does not exist");
-            }
-            const CTxOut& txout = tx.vout[n];
-            entry.push_back(Pair("amount", ValueFromAmount(txout.nValue)));
-            if (hashBlock == 0)
-            {
-                entry.push_back(Pair("confirmations", 0));
-            }
-            else
-            {
-                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
-                if (mi != mapBlockIndex.end() && (*mi).second)
-                {
-                    CBlockIndex* pindex = (*mi).second;
-                    if (pindex->IsInMainChain())
-                    {
-                        entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                        entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                    }
-                    else
-                    {
-                        entry.push_back(Pair("confirmations", 0));
-                    }
-                }
-                entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-            }
-            if (fIsSpent)
-            {
-                entry.push_back(Pair("isspent", "true"));
-            }
-            else
-            {
-                entry.push_back(Pair("isspent", "false"));
-            }
+            throw runtime_error("TSNH: Problem reading transaction.");
+        }
+        entry.push_back(Pair("txid", output.txid.GetHex()));
+        entry.push_back(Pair("vout", (boost::int64_t)output.vout));
+        entry.push_back(Pair("amount", ValueFromAmount(output.amount)));
+        entry.push_back(Pair("blockhash", tx.blockhash.GetHex()));
+        boost::int64_t nConfs = 1 + nBestHeight - tx.height;
+        entry.push_back(Pair("confirmations", nConfs));
+        entry.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
+        if (output.IsSpent())
+        {
+            entry.push_back(Pair("isspent", "true"));
+            entry.push_back(Pair("next_txid", output.next_txid.GetHex()));
+            entry.push_back(Pair("next_vin", (boost::int64_t)output.next_vin));
         }
         else
         {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
-                               "TSNH No information available about transaction");
+            entry.push_back(Pair("isspent", "false"));
         }
 
         result.push_back(entry);

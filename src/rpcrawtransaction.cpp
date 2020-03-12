@@ -32,14 +32,18 @@ const int MaxTxnTimeDrift = 5 * 60;
 
 void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
 {
-    txnouttype type;
-    vector<CTxDestination> addresses;
-    int nRequired;
-
     out.push_back(Pair("asm", scriptPubKey.ToString()));
     out.push_back(Pair("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
 
-    if (!ExtractDestinations(scriptPubKey, type, addresses, nRequired))
+    int nRequired;
+    txnouttype type;
+    vector<CTxDestination> addresses;
+    if (ExtractDestinations(scriptPubKey, type, addresses, nRequired))
+    {
+        out.push_back(Pair("reqSigs", nRequired));
+        out.push_back(Pair("type", GetTxnOutputType(type)));
+    }
+    else
     {
         if ((type >= TX_PURCHASE1) && (type <= TX_SETMETA))
         {
@@ -52,8 +56,6 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
         return;
     }
 
-    out.push_back(Pair("reqSigs", nRequired));
-    out.push_back(Pair("type", GetTxnOutputType(type)));
 
     Array a;
     BOOST_FOREACH(const CTxDestination& addr, addresses)

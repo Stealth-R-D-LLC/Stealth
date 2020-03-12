@@ -5,26 +5,16 @@
 #ifndef _STEALTHEXPLORE_H_
 #define _STEALTHEXPLORE_H_ 1
 
-#include <string>
+#include "ExploreConstants.hpp"
+#include "ExploreInputInfo.hpp"
+#include "ExploreOutputInfo.hpp"
+#include "ExploreInOutLookup.hpp"
+#include "ExploreTxInfo.hpp"
 
 
 class CBlock;
 class CTransaction;
 
-// sorted in descending order
-typedef std::map<int64_t, unsigned int,
-                 std::greater<int64_t> > MapBalanceCounts;
-
-extern const std::string ADDR_QTY_INPUT;
-extern const std::string ADDR_QTY_OUTPUT;
-extern const std::string ADDR_QTY_INOUT;
-extern const std::string ADDR_QTY_UNSPENT;
-extern const std::string ADDR_TX_INPUT;
-extern const std::string ADDR_TX_OUTPUT;
-extern const std::string ADDR_TX_INOUT;
-extern const std::string ADDR_LOOKUP_OUTPUT;
-extern const std::string ADDR_BALANCE;
-extern const std::string ADDR_SET_BAL;
 
 extern int64_t nMaxDust;
 
@@ -32,13 +22,14 @@ extern bool fWithExploreAPI;
 extern bool fDebugExplore;
 extern MapBalanceCounts mapAddressBalances;
 
+
 void UpdateMapAddressBalances(const MapBalanceCounts& mapAddressBalancesAdd,
                               const std::set<int64_t>& setAddressBalancesRemove,
                               MapBalanceCounts& mapAddressBalancesRet);
  
 bool ExploreConnectInput(CTxDB& txdb,
                          const CTransaction& tx,
-                         const unsigned int& n,
+                         const unsigned int n,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
@@ -46,21 +37,21 @@ bool ExploreConnectInput(CTxDB& txdb,
 
 bool ExploreConnectOutput(CTxDB& txdb,
                           const CTransaction& tx,
-                          const unsigned int& n,
+                          const unsigned int n,
                           const uint256& txid,
                           MapBalanceCounts& mapAddressBalancesAddRet,
                           std::set<int64_t>& setAddressBalancesRemoveRet);
 
 bool ExploreDisconnectOutput(CTxDB& txdb,
                              const CTransaction& tx,
-                             const int& n,
+                             const unsigned int n,
                              const uint256& txid,
                              MapBalanceCounts& mapAddressBalancesAddRet,
                              std::set<int64_t>& setAddressBalancesRemoveRet);
 
 bool ExploreDisconnectInput(CTxDB& txdb,
                             const CTransaction& tx,
-                            const int& n,
+                            const unsigned int n,
                             const MapPrevTx& mapInputs,
                             const uint256& txid,
                             MapBalanceCounts& mapAddressBalancesAddRet,
@@ -71,5 +62,6 @@ bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block);
 
 bool ExploreDisconnectTx(CTxDB& txdb, const CTransaction &tx);
 bool ExploreDisconnectBlock(CTxDB& txdb, const CBlock *const block);
+
 
 #endif  // _STEALTHEXPLORE_H_

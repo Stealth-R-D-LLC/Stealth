@@ -15,6 +15,15 @@
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 
+class ExploreInputInfo;
+class ExploreOutputInfo;
+class ExploreInOutInfo;
+class ExploreTxInfo;
+
+typedef pair<string, string> ss_key_t;
+typedef pair<uint256, int> txidn_key_t;
+typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
+
 // Class that provides access to a LevelDB. Note that this class is frequently
 // instantiated on the stack and then destroyed again, so instantiation has to
 // be very cheap. Unfortunately that means, a CTxDB instance is actually just a
@@ -190,6 +199,23 @@ protected:
         return status.IsNotFound() == false;
     }
 
+    template<typename K, typename T>
+    bool ReadRecord(const K& key, T& value)
+    {
+        bool fReadOk;
+        Read(key, value, fReadOk);
+        return fReadOk;
+    }
+
+    template<typename K>
+    bool RemoveRecord(const K& key)
+    {
+        if (Exists(key))
+        {
+            return Erase(key);
+        }
+        return false;
+    }
 
 public:
     bool TxnBegin();
@@ -214,14 +240,25 @@ public:
 
     bool ReadAddrQty(const std::string& t, const std::string& addr, int& qtyRet);
     bool WriteAddrQty(const std::string& t, const std::string& addr, const int& qty);
-    bool ReadAddrTx(const std::string& t, const std::string& addr, const int& qty,
-                    uint256& txidRet, int& nRet, bool& fRet);
-    bool ReadAddrTx(const std::string& t, const std::string& addr, const int& qty,
-                    uint256& txidRet, int& nRet);
-    bool WriteAddrTx(const std::string& t, const std::string& addr, const int& qty,
-                     const uint256& txid, const int& n, const bool& f);
-    bool WriteAddrTx(const std::string& t, const std::string& addr, const int& qty,
-                     const uint256& txid, const int& n);
+
+     // Parameters - t:type, addr:address, qty:quantity,
+     //              value:input_info|output_info|inout_lookup
+    template<typename T>
+    bool ReadAddrTx(const string& t, const string& addr, const int& qty,
+                    T& value)
+    {
+        value.SetNull();
+        pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+        return ReadRecord(key, value);
+    }
+    template<typename T>
+    bool WriteAddrTx(const string& t, const string& addr, const int& qty,
+                     const T& value)
+    {
+        pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+        return Write(key, value);
+    }
+
     bool RemoveAddrTx(const std::string& t, const std::string& addr, const int& qty);
     bool AddrTxExists(const std::string& t, const std::string& addr, const int& qty);
     bool ReadAddrLookup(const std::string& t, const std::string& addr,
@@ -242,6 +279,9 @@ public:
                      std::set<std::string>& sRet);
     bool WriteAddrSet(const std::string& t, const int64_t b, const std::set<std::string>& s);
     bool RemoveAddrSet(const std::string& t, const int64_t b);
+    bool ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet);
+    bool WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo);
+    bool RemoveTxInfo(const uint256& txid);
 
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
     bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);

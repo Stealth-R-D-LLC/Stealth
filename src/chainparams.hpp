@@ -5,6 +5,7 @@
 #ifndef CHAINPARAMS_H
 #define CHAINPARAMS_H
 
+#include "math.h"
 #include "bignum.h"
 
 #include <boost/assign/list_of.hpp>

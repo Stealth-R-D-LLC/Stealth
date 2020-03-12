@@ -320,6 +320,7 @@ bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
 
 void QPRegistry::AsJSON(Object &objRet) const
 {
+    objRet.clear();
     Array aryQueue;
     for (unsigned int slot = 0; slot < queue.Size(); ++slot)
     {

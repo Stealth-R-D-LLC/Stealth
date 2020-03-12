@@ -28,17 +28,6 @@ using namespace boost;
 
 extern QPRegistry *pregistryMain;
 
-typedef pair<string, string> ss_key_t;
-typedef pair<uint256, int> txidn_key_t;
-typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
-
-/* Is Spent or Is Input */
-static const int FLAG_ADDR_TX = 1 << 30;
-// FLAG_ADDR_TX is used on vin/vout n, which should
-//    never even be close to (1<<30)-1 elements
-static const int MASK_ADDR_TX = ~FLAG_ADDR_TX;
-
-
 leveldb::DB *txdb; // global pointer for LevelDB object instance
 
 static leveldb::Options GetOptions() {
@@ -218,15 +207,10 @@ bool CTxDB::ScanBatch(const CDataStream &key, string *value, bool *deleted) cons
  */
 bool CTxDB::ReadAddrQty(const string& t, const string& addr, int& qtyRet)
 {
+    qtyRet = 0;
     ss_key_t key = make_pair(t, addr);
-    bool fReadOk;
-    if (!Read(key, qtyRet, fReadOk))
-    {
-        qtyRet = 0;
-    }
-    return fReadOk;
+    return ReadRecord(key, qtyRet);
 }
-
 bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
 {
     return Write(make_pair(t, addr), qty);
@@ -234,56 +218,12 @@ bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
 
 /*  AddrTx
  *  Parameters - t:type, addr:address, qty:quantity,
- *               txid:TxID, n:vout|vin, f:isinput|isspent 
+                 value:input_info|output_info|inout
  */
-bool CTxDB::ReadAddrTx(const string& t, const string& addr, const int& qty,
-                       uint256& txidRet, int& nRet, bool& fRet)
-{
-    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    txidn_key_t value;
-    if (!Read(key, value))
-    {
-        return false;
-    }
-    txidRet = value.first;
-    nRet = value.second & MASK_ADDR_TX;
-    fRet = (value.second & FLAG_ADDR_TX) == FLAG_ADDR_TX;
-    return true;
-}
-bool CTxDB::ReadAddrTx(const string& t, const string& addr, const int& qty,
-                       uint256& txidRet, int& nRet)
-{
-    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    txidn_key_t value;
-    if (!Read(key, value))
-    {
-        return false;
-    }
-    txidRet = value.first;
-    nRet = value.second;
-    return true;
-}
-bool CTxDB::WriteAddrTx(const string& t, const string& addr, const int& qty,
-                        const uint256& txid, const int& n, const bool& f)
-{
-    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    int nf = f ? n | FLAG_ADDR_TX : n;
-    return Write(key, make_pair(txid, nf));
-}
-bool CTxDB::WriteAddrTx(const string& t, const string& addr, const int& qty,
-                        const uint256& txid, const int& n)
-{
-    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    return Write(key, make_pair(txid, n));
-}
 bool CTxDB::RemoveAddrTx(const string& t, const string& addr, const int& qty)
 {
     pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    if (!Exists(key))
-    {
-        return false;
-    }
-    return Erase(key);
+    return RemoveRecord(key);
 }
 bool CTxDB::AddrTxExists(const string& t, const string& addr, const int& qty)
 {
@@ -300,8 +240,9 @@ bool CTxDB::ReadAddrLookup(const string& t, const string& addr,
                            const uint256& txid, const int& n,
                            int& qtyRet)
 {
+   qtyRet = -1;
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
-   return Read(key, qtyRet);
+   return ReadRecord(key, qtyRet);
 }
 bool CTxDB::WriteAddrLookup(const string& t, const string& addr,
                             const uint256& txid, const int& n,
@@ -314,11 +255,7 @@ bool CTxDB::RemoveAddrLookup(const string& t, const string& addr,
                              const uint256& txid, const int& n)
 {
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
-   if (!Exists(key))
-   {
-       return false;
-   }
-   return Erase(key);
+   return RemoveRecord(key);
 }
 bool CTxDB::AddrLookupExists(const string& t, const string& addr,
                              const uint256& txid, const int& n)
@@ -333,21 +270,15 @@ bool CTxDB::AddrLookupExists(const string& t, const string& addr,
 bool CTxDB::ReadAddrBalance(const string& t, const string& addr,
                             int64_t& bRet)
 {
+    bRet = 0;
     ss_key_t key = make_pair(t, addr);
-    bool fReadOk;
-    if (!Read(key, bRet, fReadOk))
-    {
-        bRet = 0;
-    }
-    return fReadOk;
+    return ReadRecord(key, bRet);
 }
-
 bool CTxDB::WriteAddrBalance(const string& t, const string& addr, const int64_t& b)
 {
     ss_key_t key = make_pair(t, addr);
     return Write(key, b);
 }
-
 bool CTxDB::AddrBalanceExists(const std::string& t, const std::string& addr)
 {
     ss_key_t key = make_pair(t, addr);
@@ -361,26 +292,39 @@ bool CTxDB::ReadAddrSet(const string& t, const int64_t b, set<string>& sRet)
 {
     sRet.clear();
     pair<string, int64_t> key = make_pair(t, b);
-    bool fReadOk;
-    Read(key, sRet, fReadOk);
-    return fReadOk;
+    return ReadRecord(key, sRet);
 }
-
 bool CTxDB::WriteAddrSet(const string& t, const int64_t b, const set<string>& s)
 {
     pair<string, int64_t> key = make_pair(t, b);
     return Write(key, s);
 }
-
 bool CTxDB::RemoveAddrSet(const string& t, const int64_t b)
 {
     pair<string, int64_t> key = make_pair(t, b);
-    if (Exists(key))
-    {
-        return Erase(key);
-    }
-    return true;
+    return RemoveRecord(key);
 }
+
+/*  TxInfo
+ *  Parameters - txid:TxID, txinfo:TxInfo
+ */
+bool CTxDB::ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet)
+{
+   txinfoRet.SetNull();
+   pair<string, uint256> key = make_pair(TX_INFO, txid);
+   return ReadRecord(key, txinfoRet);
+}
+bool CTxDB::WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo)
+{
+   pair<string, uint256> key = make_pair(TX_INFO, txid);
+   return Write(key, txinfo);
+}
+bool CTxDB::RemoveTxInfo(const uint256& txid)
+{
+    pair<string, uint256> key = make_pair(TX_INFO, txid);
+    return RemoveRecord(key);
+}
+
 
 bool CTxDB::ReadTxIndex(uint256 hash, CTxIndex& txindex)
 {
@@ -656,7 +600,7 @@ bool CTxDB::LoadBlockIndex()
             ssValue >> setAddr;
             if (fDebugExplore)
             {
-                printf("==== loaded set of %u with balance of %" PRId64 "\n",
+                printf("==== loaded set of %lu with balance of %" PRId64 "\n",
                        setAddr.size(), nBalance);
             }
             mapAddressBalances[nBalance] = setAddr.size();

@@ -1,46 +1,33 @@
-=======
-pyHash9
-=======
+# pyHash9
 
 A python module that produces an X13 hash from an input string.
 
 
-Rationale
----------
+## Rationale
 
 This module is useful for chain linearization and third party toolchains.
 
 
+## Usage
 
-Usage
------
-
-::
-     >>> import pyHash9
-     >>> pyHash9.hash9("Why did they call it Hash9?")
-     '3bddd71f63eb706ca44fd61743b5e23da7497b86db1164c3d2125432bd8d4c31'
-     >>> pyHash9.hash("Why did they call it Hash9?").encode("hex")
-     '3bddd71f63eb706ca44fd61743b5e23da7497b86db1164c3d2125432bd8d4c31'
+    >>> import pyHash9
+    >>> pyHash9.hash9("Why did they call it Hash9?")
+    '3bddd71f63eb706ca44fd61743b5e23da7497b86db1164c3d2125432bd8d4c31'
+    >>> pyHash9.hash("Why did they call it Hash9?").encode("hex")
+    '3bddd71f63eb706ca44fd61743b5e23da7497b86db1164c3d2125432bd8d4c31'
 
 
-
-Building
---------
-
-::
+## Building
 
     % cd pyHash9
     % make
 
 
-
-Installation
-------------
+## Installation
 
     % cp pyHash9.so ${PYTHONPATH}
 
 
-Copyright
----------
+## Copyright
 
 Copyright (c) 2016-2019 Stealth R&D LLC

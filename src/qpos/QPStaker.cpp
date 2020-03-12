@@ -170,6 +170,7 @@ void QPStaker::AsJSON(unsigned int nID,
                       Object &objRet,
                       bool fWithRecentBlocks) const
 {
+    objRet.clear();
     Object objKeys;
     objKeys.push_back(Pair("owner_key", HexStr(pubkeyOwner.Raw())));
     objKeys.push_back(Pair("delegate_key", HexStr(pubkeyDelegate.Raw())));
