@@ -4599,37 +4599,38 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         return error("ProcessBlock() : AcceptBlock FAILED %s", hash.ToString().c_str());
     }
 
-    // Only recursively process orphans and update main registry if on best chain
+    // Recursively process any orphan blocks that depended on this one
+    vector<uint256> vWorkQueue;
+    vWorkQueue.push_back(hash);
+    for (unsigned int i = 0; i < vWorkQueue.size(); i++)
+    {
+        uint256 hashPrev = vWorkQueue[i];
+        for (multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(hashPrev);
+             mi != mapOrphanBlocksByPrev.upper_bound(hashPrev);
+             ++mi)
+        {
+            CBlock* pblockOrphan = (*mi).second;
+            if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine))
+            {
+                printf("ProcessBlock(): accept orphan %s success\n",
+                       pblockOrphan->GetHash().ToString().c_str());
+                vWorkQueue.push_back(pblockOrphan->GetHash());
+            }
+            else
+            {
+                printf("ProcessBlock(): accept orphan %s fail\n",
+                       pblockOrphan->GetHash().ToString().c_str());
+            }
+            mapOrphanBlocks.erase(pblockOrphan->GetHash());
+            setStakeSeenOrphan.erase(pblockOrphan->GetProofOfStake());
+            delete pblockOrphan;
+        }
+        mapOrphanBlocksByPrev.erase(hashPrev);
+    }
+
+    // Only update main registry if on best chain
     if (hashBestChain == pregistryTemp->GetBlockHash())
     {
-        // Recursively process any orphan blocks that depended on this one
-        vector<uint256> vWorkQueue;
-        vWorkQueue.push_back(hash);
-        for (unsigned int i = 0; i < vWorkQueue.size(); i++)
-        {
-            uint256 hashPrev = vWorkQueue[i];
-            for (multimap<uint256, CBlock*>::iterator mi = mapOrphanBlocksByPrev.lower_bound(hashPrev);
-                 mi != mapOrphanBlocksByPrev.upper_bound(hashPrev);
-                 ++mi)
-            {
-                CBlock* pblockOrphan = (*mi).second;
-                if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine))
-                {
-                    printf("ProcessBlock(): accept orphan %s success\n",
-                           pblockOrphan->GetHash().ToString().c_str());
-                    vWorkQueue.push_back(pblockOrphan->GetHash());
-                }
-                else
-                {
-                    printf("ProcessBlock(): accept orphan %s fail\n",
-                           pblockOrphan->GetHash().ToString().c_str());
-                }
-                mapOrphanBlocks.erase(pblockOrphan->GetHash());
-                setStakeSeenOrphan.erase(pblockOrphan->GetProofOfStake());
-                delete pblockOrphan;
-            }
-            mapOrphanBlocksByPrev.erase(hashPrev);
-        }
         // Update main registry with pregistryTemp
         bool fExitReplay = !pregistryMain->IsInReplayMode();
         pregistryMain->Copy(pregistryTemp.get());

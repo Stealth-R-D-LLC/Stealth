@@ -1074,6 +1074,9 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                                  bool fWriteSnapshot,
                                  bool fWriteLog)
 {
+    fWriteSnapshot = (fWriteSnapshot &&
+                      (pindex->nHeight >= GetPurchaseStart()));
+
     uint256 hash = *(pindex->phashBlock);
 
     // take snapshot here because the registry should be fully caught up
@@ -1089,7 +1092,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         unsigned int nStakerSlot = 0;
         queue.GetSlotForID(pindex->nStakerID, nStakerSlot);
 
-        printf("UpdateOnTime(): writing snapshot at %d\n"
+        printf("UpdateOnNewTime(): writing snapshot at %d\n"
                "   hash=%s\n"
                "   height=%d, time=%" PRId64 ", "
                   "staker_id=%d, staker_slot=%d\n"
