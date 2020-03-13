@@ -2,6 +2,7 @@
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+# Unix makefile for bitcoin
 #######################################################################
 #
 # INSTRUCTIONS TO BUILD ON UNIX
@@ -47,9 +48,13 @@
 STATIC=1
 # DEBUG=1
 
+# Set to 1 to make with miner
 MINER=-
+# Set to 1 to make with StealthText
+STEALTHTEXT=-
 
 INCLUDEPATHS= \
+ -I"/usr/include" \
  -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
  -I"$(CURDIR)/tor" \
@@ -65,7 +70,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/trunnel" \
  -I"$(CURDIR)/tor/trunnel/hs" \
  -I"$(CURDIR)/src/libcryptopp" \
- -I"/usr/include" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
@@ -80,13 +84,14 @@ USE_UPNP:=-
 USE_IPV6:=-
 
 
-LINK:=$(CXX)
-ARCH:=$(shell uname -m)
+LINK := $(CXX)
+ARCH := $(shell uname -m)
 
-DEFS=-DBOOST_SPIRIT_THREADSAFE
+DEFS = -DBOOST_SPIRIT_THREADSAFE
 
-DEFS += $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH))
+incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
+DEFS += $(incDEFS)
+LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH) /usr/lib)
 
 LMODE = dynamic
 LMODE2 = dynamic
@@ -97,7 +102,6 @@ ifdef STATIC
     endif
 endif
 
-# for boost 1.37, add -mt to the boost libraries
 LIBS += \
  -Wl,-B$(LMODE) \
    -l boost_system$(BOOST_LIB_SUFFIX) \
@@ -122,6 +126,10 @@ endif
 
 ifeq (${MINER}, 1)
         DEFS += -DWITH_MINER
+endif
+
+ifeq (${STEALTHTEXT}, 1)
+        DEFS += -DWITH_STEALTHTEXT
 endif
 
 LIBS+= \
@@ -192,7 +200,7 @@ xLDFLAGS=$(LDHARDENING) $(LDFLAGS)
 
 
 OBJS= \
-    obj/stealthparams.o \
+    obj/chainparams.o \
     obj/json_spirit_reader.o \
     obj/json_spirit_value.o \
     obj/json_spirit_writer.o \
@@ -398,7 +406,6 @@ OBJS= \
     obj/noui.o \
     obj/kernel.o \
     obj/pbkdf2.o \
-    obj/stealthtext.o \
     obj/stealthaddress.o \
     obj/txdb-leveldb.o \
     obj/uisqrt.o \
@@ -417,15 +424,21 @@ OBJS= \
     obj/ExploreInOutLookup.o \
     obj/ExploreInputInfo.o \
     obj/ExploreOutputInfo.o \
+    obj/ExploreTxInfo.o \
     obj/explore.o \
     obj/rpcexplore.o
 
+ifeq (${STEALTHTEXT}, 1)
+    OBJS += obj/stealthtext.o
+endif
+
 all: StealthCoind
 
-
-LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
-libcryptopp/libcryptopp.a:
+ifeq (${STEALTHTEXT}, 1)
+  LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
+  libcryptopp/libcryptopp.a:
 	@echo "Building libcryptopp ..."; cd libcryptopp; make libcryptopp.a; cd ..;
+endif
 
 LIBS += $(CURDIR)/leveldb/out-static/libleveldb.a $(CURDIR)/leveldb/out-static/libmemenv.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
@@ -460,7 +473,7 @@ obj/%.o: json/%.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: %.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
@@ -473,7 +486,7 @@ obj/%.o: qpos/%.cpp
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
-obj/%.o: qpos/%.cpp
+obj/%.o: explore/%.cpp
 	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
@@ -481,70 +494,70 @@ obj/%.o: qpos/%.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/common/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/curve25519_donna/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/ed25519/donna/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/ed25519/ref10/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/keccak-tiny/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/or/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/trunnel/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/trunnel/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/trunnel/hs/%.c
-	$(CC) -c $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
@@ -557,7 +570,13 @@ obj/toradapter.o: tor/adapter/toradapter.cpp
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
-StealthCoind: leveldb/out-static/libleveldb.a libcryptopp/libcryptopp.a \
+ifeq (${STEALTHTEXT}, 1)
+    LIBCRYPTOPP = libcryptopp/libcryptopp.a
+else
+    LIBCRYPTOPP =
+endif
+
+StealthCoind: leveldb/out-static/libleveldb.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
 
