@@ -6,6 +6,8 @@
 
 #include <boost/assign/list_of.hpp>
 
+
+
 ChainParams::ChainParams()
 {
     //////////////////////////////////////////////////////////////////////////////
@@ -14,7 +16,8 @@ ChainParams::ChainParams()
     //
 
     // Make sure forks are ascending!
-    mapProtocolVersions =
+
+     mapProtocolVersions =  MakeMapIntInt(
         boost::assign::map_list_of
         //                         Protocol
         //                  Fork,   Version
@@ -24,14 +27,14 @@ ChainParams::ChainParams()
         (          XST_FORKPURCHASE,     63000 )
         (              XST_FORKQPOS,     63000 )
         (             XST_FORKQPOSB,     63300 )
-                ;
+               );
 
     CUTOFF_POW_M = 5460;
 
     START_PURCHASE_M = 4204204;  // asdf
     CUTOFF_POS_M = 4420420;  // asdf
 
-    mapForksMainNet =
+    mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
         /* MAIN NET */                            // Height, Fork Number
         /* Jul  4 02:47:04 MST 2014 */       (            0, XST_GENESIS )
@@ -42,7 +45,7 @@ ChainParams::ChainParams()
         /* Approx ????????????????  */       ( START_PURCHASE_M, XST_FORKPURCHASE )
         /* Approx ????????????????  */       ( CUTOFF_POS_M, XST_FORKQPOS )
         /* Approx ????????????????  */       ( CUTOFF_POS_M, XST_FORKQPOSB )
-                                                  ;
+                                                 );
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -172,7 +175,7 @@ ChainParams::ChainParams()
     //   (no blocks before with a timestamp after, none after with
     //    timestamp before)
     // + Contains no strange transactions
-    mapCheckpointsMainNet =
+    mapCheckpointsMainNet = MakeMapIntUInt256(
         boost::assign::map_list_of
         (           0, hashGenesisBlockMainNet )
         (          15, uint256("0x00000b3b7e584a1de0e079652b1c0e4c3d7a72e2385b070c3a75f333335533a4"))
@@ -198,14 +201,14 @@ ChainParams::ChainParams()
         (      347000, uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb"))
         (      769000, uint256("0x7424eff7b5800cfc59e1420c4c32611bceaebb34959a1df93ca678bb5c614582"))
         (     2107000, uint256("0x3e1be0deee5db79f2de34ccdea3b3891cfb158902b1f8f8215c69c616d719eb1"))
-           ;
+           );
 
     // Hard checkpoints of stake modifiers to ensure they are deterministic
-    mapStakeModifierCheckpoints =
+    mapStakeModifierCheckpoints = MakeMapIntUInt(
         boost::assign::map_list_of
         (           0, 0xfd11f4e7u )
         (      114200, 0xe2232be0u )
-           ;
+           );
 
     // stealth: sync-checkpoint master key (520 bits, 130 hex)
     // this is the public key for a secp256k1 private key
@@ -304,7 +307,7 @@ ChainParams::ChainParams()
     START_PURCHASE_T = 4204;
 
     // should be similar to aryForksMainNet
-    mapForksTestNet = 
+    mapForksTestNet = MakeMapIntInt(
         boost::assign::map_list_of
         /* TEST NET */                            // Height, Fork Number
                                              (            0, XST_GENESIS )
@@ -315,7 +318,7 @@ ChainParams::ChainParams()
         /*                          */       ( START_PURCHASE_T, XST_FORKPURCHASE )
         /*                          */       ( CUTOFF_POS_T, XST_FORKQPOS )
         /*                          */       (        22500, XST_FORKQPOSB )
-                                                  ; 
+                                                 );
 
 
     pchMessageStartTestNet[0] = 0xcf;
@@ -352,11 +355,11 @@ ChainParams::ChainParams()
                              "0a8974bba93d8bdc53bca40418bd87"
                              "9a733bb064";
 
-    mapCheckpointsTestNet =
+    mapCheckpointsTestNet = MakeMapIntUInt256(
         boost::assign::map_list_of
         (           0, hashGenesisBlockTestNet )
         (        8974, uint256("0x00cd9141d0dedc9ed68739c4d0ff98367edafee810e9be8835a71523928e5908"))
-           ;
+           );
 
     DEFAULT_PORT_TESTNET = 4438;
 

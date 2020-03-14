@@ -8,11 +8,37 @@
 #include "math.h"
 #include "bignum.h"
 
-#include <boost/assign/list_of.hpp>
-
 #include <map>
 
 class ChainParams;
+
+typedef std::map<int, int> mapIntInt_t;
+typedef std::map<int, unsigned int> mapIntUInt_t;
+typedef std::map<int, uint256> mapIntUInt256_t;
+
+// borrowed from https://tinyurl.com/wmual38
+// fixes assignment collision with newer c++11 compilers
+template<typename T>
+mapIntInt_t MakeMapIntInt(const T& mapInit)
+{
+    mapIntInt_t m = mapInit;
+    return m;
+}
+
+template<typename T>
+mapIntUInt_t MakeMapIntUInt(const T& mapInit)
+{
+    mapIntUInt_t m = mapInit;
+    return m;
+}
+
+template<typename T>
+mapIntUInt256_t MakeMapIntUInt256(const T& mapInit)
+{
+    mapIntUInt256_t m = mapInit;
+    return m;
+}
+
 
 extern const ChainParams chainParams;
 
@@ -25,13 +51,13 @@ public:
     //////////////////////////////////////////////////////////////////////////////
     // Forks
 
-    std::map<int, int> mapProtocolVersions;
+    mapIntInt_t mapProtocolVersions;
 
     int CUTOFF_POW_M;
     int START_PURCHASE_M;
     int CUTOFF_POS_M;
 
-    std::map<int, int> mapForksMainNet;
+    mapIntInt_t mapForksMainNet;
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -116,9 +142,9 @@ public:
 
     int CHECKPOINT_MAX_SPAN;
 
-    std::map<int, uint256> mapCheckpointsMainNet;
+    mapIntUInt256_t mapCheckpointsMainNet;
 
-    std::map<int, unsigned int> mapStakeModifierCheckpoints;
+    mapIntUInt_t mapStakeModifierCheckpoints;
 
     std::string strCheckpointMasterPubKey;
 
@@ -164,7 +190,7 @@ public:
     int CUTOFF_POS_T;
     int START_PURCHASE_T;
 
-    std::map<int, int> mapForksTestNet;
+    mapIntInt_t mapForksTestNet;
 
     unsigned char pchMessageStartTestNet[4];
 
@@ -191,7 +217,7 @@ public:
     // TestNet alerts pubKey
     std::string strTestKey;
 
-    std::map<int, uint256> mapCheckpointsTestNet;
+    mapIntUInt256_t mapCheckpointsTestNet;
 
     int DEFAULT_PORT_TESTNET;
 
