@@ -12,3 +12,5 @@ OPENSSL_LIB_PATH="/usr/local/opt/openssl@1.1/lib"
 BOOST_INCLUDE_PATH="/usr/local/opt/boost/include"
 BOOST_LIB_PATH="/usr/local/opt/boost/lib"
 BOOST_LIB_SUFFIX="-mt"
+
+echo "OS X build environment setup."
