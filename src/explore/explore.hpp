@@ -33,14 +33,16 @@ bool ExploreConnectInput(CTxDB& txdb,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
-                         std::set<int64_t>& setAddressBalancesRemoveRet);
+                         std::set<int64_t>& setAddressBalancesRemoveRet,
+                         bool fReindex);
 
 bool ExploreConnectOutput(CTxDB& txdb,
                           const CTransaction& tx,
                           const unsigned int n,
                           const uint256& txid,
                           MapBalanceCounts& mapAddressBalancesAddRet,
-                          std::set<int64_t>& setAddressBalancesRemoveRet);
+                          std::set<int64_t>& setAddressBalancesRemoveRet,
+                          bool fReindex);
 
 bool ExploreDisconnectOutput(CTxDB& txdb,
                              const CTransaction& tx,
@@ -57,8 +59,8 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                             MapBalanceCounts& mapAddressBalancesAddRet,
                             std::set<int64_t>& setAddressBalancesRemoveRet);
 
-bool ExploreConnectTx(CTxDB& txdb, const CTransaction &tx);
-bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block);
+bool ExploreConnectTx(CTxDB& txdb, const CTransaction &tx, bool fReindex);
+bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block, bool fReindex=false);
 
 bool ExploreDisconnectTx(CTxDB& txdb, const CTransaction &tx);
 bool ExploreDisconnectBlock(CTxDB& txdb, const CBlock *const block);

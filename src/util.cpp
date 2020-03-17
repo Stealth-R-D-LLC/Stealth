@@ -351,6 +351,16 @@ bool error(const char *format, ...)
 }
 
 
+bool warning(const char *format, ...)
+{
+    va_list arg_ptr;
+    va_start(arg_ptr, format);
+    std::string str = vstrprintf(format, arg_ptr);
+    va_end(arg_ptr);
+    printf("WARNING: %s\n", str.c_str());
+    return false;
+}
+
 void ParseString(const string& str, char c, vector<string>& v)
 {
     if (str.empty())

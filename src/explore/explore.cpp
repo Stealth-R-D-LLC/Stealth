@@ -110,7 +110,8 @@ bool ExploreConnectInput(CTxDB& txdb,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
-                         set<int64_t>& setAddressBalancesRemoveRet)
+                         set<int64_t>& setAddressBalancesRemoveRet,
+                         bool fReindex)
 {
     const CTxIn& txIn = tx.vin[n];
     const CTxOut txOut = GetOutputFor(txIn, mapInputs);
@@ -213,7 +214,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             return error("ExploreConnectInput() : TSNH negative number of inputs");
         }
         nQtyInputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs))
+        if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs) && !fReindex)
         {
             // This should never happen, input tx already exists
             return error("ExploreConnectInput() : TSNH input tx already exists");
@@ -244,7 +245,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             return error("ExploreConnectInput() : TSNH negative number of in-outs");
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
+        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts) && !fReindex)
         {
             // This should never happen, input in-out tx already exists
             return error("ExploreConnectInput() : TSNH input in-out tx already exists");
@@ -265,12 +266,6 @@ bool ExploreConnectInput(CTxDB& txdb,
         * 4. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
-        // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
-        if ((nValue < chainParams.MIN_TXOUT_AMOUNT) || (nValue <= 0))
-        {
-            // This should never happen, output value is less than minimum
-            return error("ExploreConnectInput() : TSNH prev output value less than minimum");
-        }
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
@@ -372,7 +367,8 @@ bool ExploreConnectOutput(CTxDB& txdb,
                          const unsigned int n,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
-                         set<int64_t>& setAddressBalancesRemoveRet)
+                         set<int64_t>& setAddressBalancesRemoveRet,
+                         bool fReindex)
 {
     if (tx.IsCoinStake() && (n == 0))
     {
@@ -386,8 +382,8 @@ bool ExploreConnectOutput(CTxDB& txdb,
     if (!Solver(script, typetxo, vSolutions))
     {
         // output has insoluble script -- skip
-        printf("ExploreConnectOutput() : output %u has insoluble script: %s\n", n,
-               tx.GetHash().ToString().c_str());
+        // printf("ExploreConnectOutput() : output %u has insoluble script: %s\n", n,
+        //        tx.GetHash().ToString().c_str());
         return true;
     }
     switch (typetxo)
@@ -421,7 +417,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return error("ExploreConnectOutput() : TSNH negative number of outputs");
         }
         nQtyOutputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs))
+        if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs) && !fReindex)
         {
             // This should never happen, output tx already exists
             return error("ExploreConnectOutput() : TSNH output tx already exists");
@@ -442,7 +438,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         * 2. add the output lookup
         ***************************************************************/
         // ensure the output lookup does not exist
-        if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
+        if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n) && !fReindex)
         {
             // This should never happen, output lookup already exists
             return error("ExploreConnectOutput() : TSNH output lookup already exists");
@@ -468,7 +464,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return error("ExploreConnectOutput() : TSNH negative number of in-outs");
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
+        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts) && !fReindex)
         {
             // This should never happen, output in-out tx already exists
             return error("ExploreConnectOutput() : TSNH output in-out tx already exists");
@@ -489,12 +485,6 @@ bool ExploreConnectOutput(CTxDB& txdb,
         * 4. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
-        // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
-        if ((nValue < chainParams.MIN_TXOUT_AMOUNT) || (nValue <= 0))
-        {
-            // This should never happen, output value is less than minimum
-            return error("ExploreConnectOutput() : TSNH output value less than minimum");
-        }
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
@@ -591,7 +581,8 @@ bool ExploreConnectTx(CTxDB& txdb,
                       const CTransaction& tx,
                       const uint256& hashBlock,
                       const unsigned int nBlockTime,
-                      const int nHeight)
+                      const int nHeight,
+                      bool fReindex)
 {
     MapBalanceCounts mapAddressBalancesAdd;
     set<int64_t> setAddressBalancesRemove;
@@ -623,7 +614,8 @@ bool ExploreConnectTx(CTxDB& txdb,
         {
             ExploreConnectInput(txdb, tx, n, mapInputs, txid,
                                 mapAddressBalancesAdd,
-                                setAddressBalancesRemove);
+                                setAddressBalancesRemove,
+                                fReindex);
         }
     }
 
@@ -631,7 +623,8 @@ bool ExploreConnectTx(CTxDB& txdb,
     {
         ExploreConnectOutput(txdb, tx, n, txid,
                              mapAddressBalancesAdd,
-                             setAddressBalancesRemove);
+                             setAddressBalancesRemove,
+                             fReindex);
     }
 
     VecDest vDest;
@@ -649,7 +642,9 @@ bool ExploreConnectTx(CTxDB& txdb,
     return true;
 }
 
-bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block)
+bool ExploreConnectBlock(CTxDB& txdb,
+                         const CBlock *const block,
+                         bool fReindex)
 {
     const uint256 h = block->GetHash();
 
@@ -667,7 +662,9 @@ bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block)
     // iterate backwards through everything on the disconnect
     BOOST_FOREACH(const CTransaction& tx, block->vtx)
     {
-        if (!ExploreConnectTx(txdb, tx, h, pindex->nTime, pindex->nHeight))
+        if (!ExploreConnectTx(txdb, tx, h,
+                              pindex->nTime, pindex->nHeight,
+                              fReindex))
         {
             return false;
         }
@@ -689,8 +686,8 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
     if (!Solver(script, typetxo, vSolutions))
     {
         // output has insoluble script -- skip
-        printf("DisonnectBlock() : output %u has insoluble script\n   %s\n",
-               n, txid.ToString().c_str());
+        // printf("DisonnectBlock() : output %u has insoluble script\n   %s\n",
+        //        n, txid.ToString().c_str());
         return true;
     }
     switch (typetxo)
@@ -825,12 +822,6 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         * 4. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
-        // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
-        if ((nValue < chainParams.MIN_TXOUT_AMOUNT) || (nValue <= 0))
-        {
-            // This should never happen, output value is less than minimum
-            return error("ExploreDisconnectOutput() : TSNH output value less than minimum");
-        }
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
@@ -1105,12 +1096,6 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         * 4. update the balance
         ***************************************************************/
         int64_t nValue = txOut.nValue;
-        // someone could mindlessly set MIN_TXOUT_AMOUNT to 0 in the future
-        if ((nValue < chainParams.MIN_TXOUT_AMOUNT) || (nValue <= 0))
-        {
-            // This should never happen, output value is less than minimum
-            return error("ExploreDisconnectInput() : TSNH output value less than minimum");
-        }
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {

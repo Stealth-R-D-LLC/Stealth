@@ -200,18 +200,76 @@ bool CTxDB::ScanBatch(const CDataStream &key, string *value, bool *deleted) cons
         throw runtime_error(status.ToString());
     }
     return scanner.foundEntry;
+
 }
+
+bool CTxDB::EraseStartsWith(const string& strSearch)
+{
+    int count = 0;
+    int xcount = 0;
+    leveldb::Iterator *iter = pdb->NewIterator(leveldb::ReadOptions());
+    iter->SeekToFirst();
+    while (iter->Valid())
+    {
+        xcount += 1;
+        if (xcount % 100000 == 0)
+        {
+            printf("examined %d records\n", xcount);
+        }
+        if (fRequestShutdown)
+        {
+            break;
+        }
+        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        ssKey.write(iter->key().data(), iter->key().size());
+        string strPrefix;
+        ssKey >> strPrefix;
+        if (strPrefix != strSearch)
+        {
+            if (count > 0)
+            {
+                break;
+            }
+            else
+            {
+                iter->Next();
+                continue;
+            }
+        }
+        if ((count == 1) || ((count > 0) && ((count % 100000) == 0)))
+        {
+            printf("EraseStartsWith(): erased %d records\n", count);
+        }
+        count += 1;
+        if (activeBatch)
+        {
+            activeBatch->Delete(ssKey.str());
+        }
+        else
+        {
+            leveldb::Status status = pdb->Delete(leveldb::WriteOptions(), ssKey.str());
+            if (!status.ok())
+            {
+                return error("TSNH: Can't erase record type \"%s\".",
+                             strSearch.c_str());
+            }
+        }
+        iter->Next();
+    }
+    return true;
+}
+
 
 /*  AddrQty
  *  Parameters - t:type, addr:address, qty:quantity
  */
-bool CTxDB::ReadAddrQty(const string& t, const string& addr, int& qtyRet)
+bool CTxDB::ReadAddrQty(const exploreKey_t& t, const string& addr, int& qtyRet)
 {
     qtyRet = 0;
     ss_key_t key = make_pair(t, addr);
     return ReadRecord(key, qtyRet);
 }
-bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
+bool CTxDB::WriteAddrQty(const exploreKey_t& t, const string& addr, const int& qty)
 {
     return Write(make_pair(t, addr), qty);
 }
@@ -220,12 +278,12 @@ bool CTxDB::WriteAddrQty(const string& t, const string& addr, const int& qty)
  *  Parameters - t:type, addr:address, qty:quantity,
                  value:input_info|output_info|inout
  */
-bool CTxDB::RemoveAddrTx(const string& t, const string& addr, const int& qty)
+bool CTxDB::RemoveAddrTx(const exploreKey_t& t, const string& addr, const int& qty)
 {
     pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
     return RemoveRecord(key);
 }
-bool CTxDB::AddrTxExists(const string& t, const string& addr, const int& qty)
+bool CTxDB::AddrTxExists(const exploreKey_t& t, const string& addr, const int& qty)
 {
     pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
     return Exists(key);
@@ -236,7 +294,7 @@ bool CTxDB::AddrTxExists(const string& t, const string& addr, const int& qty)
  *  Parameters - t:type, addr:address,
  *               txid:TxID, n:vout|vin, qty:quantity
  */
-bool CTxDB::ReadAddrLookup(const string& t, const string& addr,
+bool CTxDB::ReadAddrLookup(const exploreKey_t& t, const string& addr,
                            const uint256& txid, const int& n,
                            int& qtyRet)
 {
@@ -244,20 +302,20 @@ bool CTxDB::ReadAddrLookup(const string& t, const string& addr,
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
    return ReadRecord(key, qtyRet);
 }
-bool CTxDB::WriteAddrLookup(const string& t, const string& addr,
+bool CTxDB::WriteAddrLookup(const exploreKey_t& t, const string& addr,
                             const uint256& txid, const int& n,
                             const int& qty)
 {
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
    return Write(key, qty);
 }
-bool CTxDB::RemoveAddrLookup(const string& t, const string& addr,
+bool CTxDB::RemoveAddrLookup(const exploreKey_t& t, const string& addr,
                              const uint256& txid, const int& n)
 {
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
    return RemoveRecord(key);
 }
-bool CTxDB::AddrLookupExists(const string& t, const string& addr,
+bool CTxDB::AddrLookupExists(const exploreKey_t& t, const string& addr,
                              const uint256& txid, const int& n)
 {
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
@@ -267,19 +325,19 @@ bool CTxDB::AddrLookupExists(const string& t, const string& addr,
 /*  AddrBalance
  *  Parameters - t:type, addr:address, b:balance
  */
-bool CTxDB::ReadAddrBalance(const string& t, const string& addr,
+bool CTxDB::ReadAddrBalance(const exploreKey_t& t, const string& addr,
                             int64_t& bRet)
 {
     bRet = 0;
     ss_key_t key = make_pair(t, addr);
     return ReadRecord(key, bRet);
 }
-bool CTxDB::WriteAddrBalance(const string& t, const string& addr, const int64_t& b)
+bool CTxDB::WriteAddrBalance(const exploreKey_t& t, const string& addr, const int64_t& b)
 {
     ss_key_t key = make_pair(t, addr);
     return Write(key, b);
 }
-bool CTxDB::AddrBalanceExists(const std::string& t, const std::string& addr)
+bool CTxDB::AddrBalanceExists(const exploreKey_t& t, const std::string& addr)
 {
     ss_key_t key = make_pair(t, addr);
     return Exists(key);
@@ -288,20 +346,20 @@ bool CTxDB::AddrBalanceExists(const std::string& t, const std::string& addr)
 /*  AddrSet
  *  Parameters - t:type, addr:address, b:balance, s:addresses
  */
-bool CTxDB::ReadAddrSet(const string& t, const int64_t b, set<string>& sRet)
+bool CTxDB::ReadAddrSet(const exploreKey_t& t, const int64_t b, set<string>& sRet)
 {
     sRet.clear();
-    pair<string, int64_t> key = make_pair(t, b);
+    pair<exploreKey_t, int64_t> key = make_pair(t, b);
     return ReadRecord(key, sRet);
 }
-bool CTxDB::WriteAddrSet(const string& t, const int64_t b, const set<string>& s)
+bool CTxDB::WriteAddrSet(const exploreKey_t& t, const int64_t b, const set<string>& s)
 {
-    pair<string, int64_t> key = make_pair(t, b);
+    pair<exploreKey_t, int64_t> key = make_pair(t, b);
     return Write(key, s);
 }
-bool CTxDB::RemoveAddrSet(const string& t, const int64_t b)
+bool CTxDB::RemoveAddrSet(const exploreKey_t& t, const int64_t b)
 {
-    pair<string, int64_t> key = make_pair(t, b);
+    pair<exploreKey_t, int64_t> key = make_pair(t, b);
     return RemoveRecord(key);
 }
 
@@ -311,17 +369,17 @@ bool CTxDB::RemoveAddrSet(const string& t, const int64_t b)
 bool CTxDB::ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet)
 {
    txinfoRet.SetNull();
-   pair<string, uint256> key = make_pair(TX_INFO, txid);
+   pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
    return ReadRecord(key, txinfoRet);
 }
 bool CTxDB::WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo)
 {
-   pair<string, uint256> key = make_pair(TX_INFO, txid);
+   pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
    return Write(key, txinfo);
 }
 bool CTxDB::RemoveTxInfo(const uint256& txid)
 {
-    pair<string, uint256> key = make_pair(TX_INFO, txid);
+    pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
     return RemoveRecord(key);
 }
 
@@ -550,7 +608,7 @@ bool CTxDB::LoadBlockIndex()
     if (fRequestShutdown)
         return true;
 
-    if (fWithExploreAPI)
+    if (fWithExploreAPI && !GetBoolArg("-reindexexplore", false))
     {
         printf("==\n== Loading Explore API Data\n==\n");
         printf("Loading balance address sets...\n");
@@ -587,10 +645,10 @@ bool CTxDB::LoadBlockIndex()
             ssKey.write(iter->key().data(), iter->key().size());
             CDataStream ssValue(SER_DISK, CLIENT_VERSION);
             ssValue.write(iter->value().data(), iter->value().size());
-            string strType;
-            ssKey >> strType;
+            exploreKey_t expkType;
+            ssKey >> expkType;
             // Did we reach the end of the data to read?
-            if (fRequestShutdown || strType != ADDR_SET_BAL)
+            if (fRequestShutdown || expkType != ADDR_SET_BAL)
             {
                 break;
             }

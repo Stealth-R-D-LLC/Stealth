@@ -348,7 +348,8 @@ std::string HelpMessage()
 
         "  -rollbackdeadend       " + _("Reject own blocks on a deadend chain (default: true)") + "\n" +
 
-        "  -exploreapi=1          " + _("enable the expolore API (default: false") + "\n"
+        "  -exploreapi=1          " + _("enable the expolore API (default: false") + "\n" +
+        "  -reindexexplore=1      " + _("reindex all explore API information on start (default: false") + "\n" +
         "  -maxdust               " + strprintf(_("Maximum coin value considered \"dust\" (default: %" PRId64 ")"),
                                             cp.DEFAULT_MAXDUST) + "\n"
 
@@ -883,6 +884,7 @@ bool AppInit2()
 
     fWithExploreAPI = GetBoolArg("-exploreapi", false);
 
+
     if (mapArgs.count("-maxdust")) // ppcoin: reserve balance amount
     {
         if (!ParseMoney(mapArgs["-maxdust"], nMaxDust))
@@ -1042,8 +1044,11 @@ bool AppInit2()
 
     // ********************************************************* Step 9: import blocks
 
+    bool fReindexExplore = (GetBoolArg("-reindexexplore", false) && fWithExploreAPI);
+
     if (mapArgs.count("-loadblock"))
     {
+        fReindexExplore = false;
         uiInterface.InitMessage(_("Importing blockchain data file."));
 
         BOOST_FOREACH(string strFile, mapMultiArgs["-loadblock"])
@@ -1056,6 +1061,7 @@ bool AppInit2()
 
     filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
     if (filesystem::exists(pathBootstrap)) {
+        fReindexExplore = false;
         uiInterface.InitMessage(_("Importing bootstrap blockchain data file."));
 
         FILE *file = fopen(pathBootstrap.string().c_str(), "rb");
@@ -1065,6 +1071,31 @@ bool AppInit2()
             RenameOver(pathBootstrap, pathBootstrapOld);
         }
     }
+
+    if (fReindexExplore)
+    {
+        uiInterface.InitMessage(_("Reindexing for the Explore API."));
+        printf("Reindexing for the Explore API.\n");
+        CTxDB txdb;
+        CBlockIndex *pindex = pindexGenesisBlock;
+        int count = 0;
+        while (pindex->pnext != NULL)
+        {
+            if ((count == 1) || ((count > 0) && (count % 10000 == 0)))
+            {
+                printf("Reindexed %d blocks for Explore API\n", count);
+            }
+            CBlock block;
+            block.ReadFromDisk(pindex, true);
+            if (!ExploreConnectBlock(txdb, &block, true))
+            {
+                Shutdown(NULL);
+            }
+            count += 1;
+            pindex = pindex->pnext;
+        }
+    }
+
 
     // ********************************************************* Step 10: load peers
 

@@ -8,6 +8,8 @@
 #include <string>
 #include <map>
 
+typedef std::pair<std::string, std::string> exploreKey_t;
+
 // sorted in descending order
 typedef std::map<int64_t, unsigned int,
                  std::greater<int64_t> > MapBalanceCounts;
@@ -27,23 +29,26 @@ const int MASK_ADDR_TX = ~FLAG_ADDR_TX;
 //
 // leveldb record strings for the explore API
 //
+
+const std::string EXPLORE_KEY = "EXPK";
+
 // Addr Qty
-const std::string ADDR_QTY_INPUT = "AddrQtyInput";
-const std::string ADDR_QTY_OUTPUT = "AddrQtyOutput";
-const std::string ADDR_QTY_INOUT = "AddrQtyInOut";
-const std::string ADDR_QTY_UNSPENT = "AddrQtyUnspent";
+const exploreKey_t ADDR_QTY_INPUT(EXPLORE_KEY, "AQI");
+const exploreKey_t ADDR_QTY_OUTPUT(EXPLORE_KEY, "AQO");
+const exploreKey_t ADDR_QTY_INOUT(EXPLORE_KEY, "AQIO");
+const exploreKey_t ADDR_QTY_UNSPENT(EXPLORE_KEY, "AQU");
 // Addr Tx
-const std::string ADDR_TX_INPUT = "AddrTxInput";
-const std::string ADDR_TX_OUTPUT = "AddrTxOutput";
-const std::string ADDR_TX_INOUT = "AddrTxInOut";
+const exploreKey_t ADDR_TX_INPUT(EXPLORE_KEY, "ATI");
+const exploreKey_t ADDR_TX_OUTPUT(EXPLORE_KEY, "ATO");
+const exploreKey_t ADDR_TX_INOUT(EXPLORE_KEY, "ATIO");
 // Addr Lookup
-const std::string ADDR_LOOKUP_OUTPUT = "AddrLookupOutput";
+const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, "ALO");
 // Addr Balance
-const std::string ADDR_BALANCE = "AddrBalance";
+const exploreKey_t ADDR_BALANCE(EXPLORE_KEY, "AB");
 // Addr Set
-const std::string ADDR_SET_BAL = "AddrSetBal";
+const exploreKey_t ADDR_SET_BAL(EXPLORE_KEY, "ASB");
 // Tx Info
-const std::string TX_INFO = "TxInfo";
+const exploreKey_t TX_INFO(EXPLORE_KEY, "TI");
 
 
 #endif  // _EXPLORECONSTANTS_H_

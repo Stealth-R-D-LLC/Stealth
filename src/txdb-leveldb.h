@@ -8,6 +8,8 @@
 
 #include "main.h"
 
+#include "ExploreConstants.hpp"
+
 #include <map>
 #include <string>
 #include <vector>
@@ -20,7 +22,7 @@ class ExploreOutputInfo;
 class ExploreInOutInfo;
 class ExploreTxInfo;
 
-typedef pair<string, string> ss_key_t;
+typedef pair<exploreKey_t, string> ss_key_t;
 typedef pair<uint256, int> txidn_key_t;
 typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
 
@@ -160,7 +162,8 @@ protected:
         CDataStream ssKey(SER_DISK, CLIENT_VERSION);
         ssKey.reserve(1000);
         ssKey << key;
-        if (activeBatch) {
+        if (activeBatch)
+        {
             activeBatch->Delete(ssKey.str());
             return true;
         }
@@ -179,6 +182,7 @@ protected:
         return true;
     }
 
+
     template<typename K>
     bool Exists(const K& key)
     {
@@ -193,7 +197,6 @@ protected:
                 return true;
             }
         }
-
 
         leveldb::Status status = pdb->Get(leveldb::ReadOptions(), ssKey.str(), &unused);
         return status.IsNotFound() == false;
@@ -238,13 +241,15 @@ public:
         return Write(std::string("version"), nVersion);
     }
 
-    bool ReadAddrQty(const std::string& t, const std::string& addr, int& qtyRet);
-    bool WriteAddrQty(const std::string& t, const std::string& addr, const int& qty);
+    bool EraseStartsWith(const std::string& strSearch);
+
+    bool ReadAddrQty(const exploreKey_t& t, const std::string& addr, int& qtyRet);
+    bool WriteAddrQty(const exploreKey_t& t, const std::string& addr, const int& qty);
 
      // Parameters - t:type, addr:address, qty:quantity,
      //              value:input_info|output_info|inout_lookup
     template<typename T>
-    bool ReadAddrTx(const string& t, const string& addr, const int& qty,
+    bool ReadAddrTx(const exploreKey_t& t, const string& addr, const int& qty,
                     T& value)
     {
         value.SetNull();
@@ -252,33 +257,34 @@ public:
         return ReadRecord(key, value);
     }
     template<typename T>
-    bool WriteAddrTx(const string& t, const string& addr, const int& qty,
+    bool WriteAddrTx(const exploreKey_t& t, const string& addr, const int& qty,
                      const T& value)
     {
         pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
         return Write(key, value);
     }
 
-    bool RemoveAddrTx(const std::string& t, const std::string& addr, const int& qty);
-    bool AddrTxExists(const std::string& t, const std::string& addr, const int& qty);
-    bool ReadAddrLookup(const std::string& t, const std::string& addr,
+    bool RemoveAddrTx(const exploreKey_t& t, const std::string& addr, const int& qty);
+    bool AddrTxExists(const exploreKey_t& t, const std::string& addr, const int& qty);
+    bool ReadAddrLookup(const exploreKey_t& t, const std::string& addr,
                         const uint256& txid, const int& n,
                         int& qtyRet);
-    bool WriteAddrLookup(const std::string& t, const std::string& addr,
+    bool WriteAddrLookup(const exploreKey_t& t, const std::string& addr,
                          const uint256& txid, const int& n,
                          const int& qty);
-    bool RemoveAddrLookup(const std::string& t, const std::string& addr,
+    bool RemoveAddrLookup(const exploreKey_t& t, const std::string& addr,
                           const uint256& txid, const int& n);
-    bool AddrLookupExists(const std::string& t, const std::string& addr,
+    bool AddrLookupExists(const exploreKey_t& t, const std::string& addr,
                           const uint256& txid, const int& n);
-    bool ReadAddrBalance(const std::string& t, const std::string& addr,
+    bool ReadAddrBalance(const exploreKey_t& t, const std::string& addr,
                          int64_t& bRet);
-    bool WriteAddrBalance(const std::string& t, const std::string& addr, const int64_t& b);
-    bool AddrBalanceExists(const std::string& t, const std::string& addr);
-    bool ReadAddrSet(const std::string& t, const int64_t b,
+    bool WriteAddrBalance(const exploreKey_t& t, const std::string& addr, const int64_t& b);
+    bool AddrBalanceExists(const exploreKey_t& t, const std::string& addr);
+    bool ReadAddrSet(const exploreKey_t& t, const int64_t b,
                      std::set<std::string>& sRet);
-    bool WriteAddrSet(const std::string& t, const int64_t b, const std::set<std::string>& s);
-    bool RemoveAddrSet(const std::string& t, const int64_t b);
+    bool WriteAddrSet(const exploreKey_t& t, const int64_t b, const std::set<std::string>& s);
+    bool RemoveAddrSet(const exploreKey_t& t, const int64_t b);
+
     bool ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet);
     bool WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo);
     bool RemoveTxInfo(const uint256& txid);
