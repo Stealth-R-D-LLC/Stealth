@@ -1,9 +1,11 @@
 # Setup OS X Build (bash script)
 
-CFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-CCFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-CXXFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
-CPPFLAGS="-isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX.sdk"
+ISYSROOT="-isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk"
+
+CFLAGS="${ISYSROOT}"
+CCFLAGS="${ISYSROOT}"
+CXXFLAGS="${ISYSROOT}"
+CPPFLAGS="${ISYSROOT}"
 
 BDB_INCLUDE_PATH="/usr/local/opt/berkeley-db@4/include"
 BDB_LIB_PATH="/usr/local/opt/berkeley-db@4/lib"
@@ -13,4 +15,4 @@ BOOST_INCLUDE_PATH="/usr/local/opt/boost/include"
 BOOST_LIB_PATH="/usr/local/opt/boost/lib"
 BOOST_LIB_SUFFIX="-mt"
 
-echo "OS X build environment setup."
+echo "Successfully setup OS X build environment."
