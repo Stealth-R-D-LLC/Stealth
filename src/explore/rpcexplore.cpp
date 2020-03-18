@@ -5,11 +5,61 @@
 #include "main.h"
 #include "bitcoinrpc.h"
 #include "txdb-leveldb.h"
+#include "base58.h"
 
 #include "explore.hpp"
 
+#include "hdkeys.h"
+
 using namespace json_spirit;
 using namespace std;
+
+Value getchildkey(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 2) || (params.size() > 3))
+    {
+        throw runtime_error(
+                "getchildkey <extended key> <child num> [extended=0]\n"
+                "Returns the balance of <address>.");
+    }
+
+    string strExtKey = params[0].get_str();
+
+    uchar_vector vchExtKey;
+    if (!DecodeBase58Check(strExtKey, vchExtKey))
+    {
+        throw runtime_error("Invalid extended key.");
+    }
+
+    int nChild = params[1].get_int();
+
+    if ((nChild < 0))
+    {
+        throw runtime_error("Child number should be positive.");
+    }
+
+    bool fIsExtended = false;
+    if (params.size() > 2)
+    {
+        fIsExtended = params[2].get_bool();
+    }
+
+    Bip32::HDKeychain hdkeychain(vchExtKey);
+    hdkeychain = hdkeychain.getChild((uint32_t)nChild);
+
+    string strChild;
+    if (fIsExtended)
+    {
+        strChild = EncodeBase58Check(hdkeychain.extkey());
+    }
+    else
+    {
+        strChild = uchar_vector(hdkeychain.key()).getHex();
+    }
+
+    return strChild;
+}
+        
 
 Value getaddressbalance(const Array &params, bool fHelp)
 {
@@ -40,7 +90,7 @@ Value getaddressbalance(const Array &params, bool fHelp)
 
 Value getaddressinfo(const Array &params, bool fHelp)
 {
-    if (fHelp || (params.size()  != 1))
+    if (fHelp || (params.size() != 1))
     {
         throw runtime_error(
                 "getaddressinfo <address>\n"

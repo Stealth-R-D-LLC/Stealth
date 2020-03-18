@@ -42,7 +42,8 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
  -I"$(CURDIR)/qpos" \
- -I"$(CURDIR)/explore"
+ -I"$(CURDIR)/explore" \
+ -I"$(CURDIR)/bip32"
 
 DEBUGFLAGS = -g
 
@@ -378,7 +379,10 @@ OBJS= \
     obj/ExploreOutputInfo.o \
     obj/ExploreTxInfo.o \
     obj/explore.o \
-    obj/rpcexplore.o
+    obj/rpcexplore.o \
+    obj/hdkeys.o \
+    obj/scrypt.o \
+    obj/secp256k1_openssl.o
 
 ifeq (${STEALTHTEXT}, 1)
     OBJS += obj/stealthtext.o
@@ -439,6 +443,13 @@ obj/%.o: qpos/%.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: explore/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: bip32/%.cpp
 	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \

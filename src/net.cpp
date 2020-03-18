@@ -1854,6 +1854,7 @@ void ThreadMessageHandler2(void* parg)
                     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
                 }
             }
+            pblock.reset();
         }
 
         // Wait and allow messages to bunch up.
