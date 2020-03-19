@@ -523,7 +523,7 @@ static bool ParseLength(
     if (nLengthBytes > 8)
         return false;
 
-    int64 nLength = 0;
+    int64_t nLength = 0;
     for (unsigned char i = 0; i < nLengthBytes; i++)
     {
         it++;

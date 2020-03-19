@@ -64,6 +64,16 @@ enum RPCErrorCode
     RPC_WALLET_WRONG_ENC_STATE      = -15, // Command given in wrong wallet encryption state (encrypting an encrypted wallet etc.)
     RPC_WALLET_ENCRYPTION_FAILED    = -16, // Failed to encrypt the wallet
     RPC_WALLET_ALREADY_UNLOCKED     = -17, // Wallet is already unlocked
+
+    // qPoS errors
+    RPC_QPOS_ALIAS_NOT_AVAILABLE       = -101, // asdf
+    RPC_QPOS_INVALID_QPOS_PUBKEY       = -102, // asdf
+    RPC_QPOS_INVALID_PAYOUT            = -103, // asdf
+    RPC_QPOS_STAKER_NONEXISTENT        = -104, // asdf
+    RPC_QPOS_STAKER_PRICE_TOO_LOW      = -105, // asdf
+    RPC_QPOS_STAKER_PRICE_TOO_HIGH     = -106, // asdf
+    RPC_QPOS_TRANSFER_UNACKNOWLEDGED   = -107, // asdf
+    RPC_QPOS_KEY_NOT_IN_LEDGER         = -108  // asdf
 };
 
 json_spirit::Object JSONRPCError(int code, const std::string& message);
@@ -87,12 +97,6 @@ void RPCTypeCheck(const json_spirit::Array& params,
 */
 void RPCTypeCheck(const json_spirit::Object& o,
                   const std::map<std::string, json_spirit::Value_type>& typesExpected, bool fAllowNull=false);
-
-
-
-void ScriptPubKeyToJSON(const CScript& scriptPubKey, json_spirit::Object& out);
-void TxToJSON(const CTransaction& tx, const uint256 hashBlock, json_spirit::Object& entry);
-
 
 typedef json_spirit::Value(*rpcfn_type)(const json_spirit::Array& params, bool fHelp);
 
@@ -129,9 +133,9 @@ public:
 
 extern const CRPCTable tableRPC;
 
-extern int64 nWalletUnlockTime;
-extern int64 AmountFromValue(const json_spirit::Value& value);
-extern json_spirit::Value ValueFromAmount(int64 amount);
+extern int64_t nWalletUnlockTime;
+extern int64_t AmountFromValue(const json_spirit::Value& value);
+extern json_spirit::Value ValueFromAmount(int64_t amount);
 extern double GetDifficulty(const CBlockIndex* blockindex = NULL);
 
 extern double GetPoSKernelPS();
@@ -220,7 +224,6 @@ extern json_spirit::Value getblockhash(const json_spirit::Array& params, bool fH
 extern json_spirit::Value getblock(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockbynumber(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getcheckpoint(const json_spirit::Array& params, bool fHelp);
-extern json_spirit::Value gettxout(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getnewstealthaddress(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value liststealthaddresses(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value importstealthaddress(const json_spirit::Array& params, bool fHelp);
@@ -228,5 +231,19 @@ extern json_spirit::Value sendtostealthaddress(const json_spirit::Array& params,
 extern json_spirit::Value clearwallettransactions(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value scanforalltxns(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value scanforstealthtxns(const json_spirit::Array& params, bool fHelp);
+// in rpcqpos.cpp
+extern json_spirit::Value getstakerprice(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakerid(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value purchasestaker(const json_spirit::Array &params, bool fHelp);
+extern json_spirit::Value setstakerowner(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value setstakerdelegate(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value setstakercontroller(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value enablestaker(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value disablestaker(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value claimqposbalance(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakerinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getqposinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value exitreplay(const json_spirit::Array& params, bool fHelp);
 
 #endif

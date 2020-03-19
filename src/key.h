@@ -85,6 +85,7 @@ public:
         return Hash(vchPubKey.begin(), vchPubKey.end());
     }
 
+
     bool IsValid() const {
         return vchPubKey.size() == 33 || vchPubKey.size() == 65;
     }
@@ -95,6 +96,16 @@ public:
 
     std::vector<unsigned char> Raw() const {
         return vchPubKey;
+    }
+
+    bool IsEmpty() const
+    {
+        return vchPubKey.empty();
+    }
+
+    void Clear()
+    {
+        vchPubKey.clear();
     }
 };
 

@@ -358,8 +358,14 @@ if __name__ == '__main__':
     blkindex = get_block_hashes(settings)
     blkset = mkblockset(blkindex)
 
-    if not "1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a" in blkset:
-        print("not found")
+
+    if "hash_genesis" in settings:
+      hash_genesis = settings['hash_genesis']
+    else:
+      hash_genesis = "1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a"
+
+    if not hash_genesis in blkset:
+        print("hash \"%s\" not found" % hash_genesis)
     else:
         copydata(settings, blkindex, blkset)
 

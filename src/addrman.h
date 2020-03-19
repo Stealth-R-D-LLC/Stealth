@@ -24,10 +24,10 @@ private:
     CNetAddr source;
 
     // last successful connection by us
-    int64 nLastSuccess;
+    int64_t nLastSuccess;
 
     // last try whatsoever by us:
-    // int64 CAddress::nLastTry
+    // int64_t CAddress::nLastTry
 
     // connection attempts since last successful attempt
     int nAttempts;
@@ -86,10 +86,10 @@ public:
     }
 
     // Determine whether the statistics about this entry are bad enough so that it can just be deleted
-    bool IsTerrible(int64 nNow = GetAdjustedTime()) const;
+    bool IsTerrible(int64_t nNow = GetAdjustedTime()) const;
 
     // Calculate the relative chance this entry should be given when selecting nodes to connect to
-    double GetChance(int64 nNow = GetAdjustedTime()) const;
+    double GetChance(int64_t nNow = GetAdjustedTime()) const;
 
 };
 
@@ -181,10 +181,10 @@ private:
     std::map<CNetAddr, int> mapAddr;
 
     // address verification tokens
-    std::map<CNetAddr, uint64> verificationToken;
+    std::map<CNetAddr, uint64_t> verificationToken;
 
     // address reconnect tokens
-    std::map<CNetAddr, uint64> reconnectToken;
+    std::map<CNetAddr, uint64_t> reconnectToken;
 
 
     // randomly-ordered vector of all nIds
@@ -227,13 +227,13 @@ protected:
     void MakeTried(CAddrInfo& info, int nId, int nOrigin);
 
     // Mark an entry "good", possibly moving it from "new" to "tried".
-    void Good_(const CService &addr, int64 nTime);
+    void Good_(const CService &addr, int64_t nTime);
 
     // Add an entry to the "new" table.
-    bool Add_(const CAddress &addr, const CNetAddr& source, int64 nTimePenalty);
+    bool Add_(const CAddress &addr, const CNetAddr& source, int64_t nTimePenalty);
 
     // Mark an entry as attempted to connect.
-    void Attempt_(const CService &addr, int64 nTime);
+    void Attempt_(const CService &addr, int64_t nTime);
 
 
     // Select an address to connect to.
@@ -249,7 +249,7 @@ protected:
     void GetAddr_(std::vector<CAddress> &vAddr);
 
     // Mark an entry as currently-connected-to.
-    void Connected_(const CService &addr, int64 nTime);
+    void Connected_(const CService &addr, int64_t nTime);
 
 public:
 
@@ -417,7 +417,7 @@ public:
     }
 
     // Add a single address.
-    bool Add(const CAddress &addr, const CNetAddr& source, int64 nTimePenalty = 0)
+    bool Add(const CAddress &addr, const CNetAddr& source, int64_t nTimePenalty = 0)
     {
         bool fRet = false;
         {
@@ -432,7 +432,7 @@ public:
     }
 
     // Add multiple addresses.
-    bool Add(const std::vector<CAddress> &vAddr, const CNetAddr& source, int64 nTimePenalty = 0)
+    bool Add(const std::vector<CAddress> &vAddr, const CNetAddr& source, int64_t nTimePenalty = 0)
     {
         int nAdd = 0;
         {
@@ -448,7 +448,7 @@ public:
     }
 
     // Mark an entry as accessible.
-    void Good(const CService &addr, int64 nTime = GetAdjustedTime())
+    void Good(const CService &addr, int64_t nTime = GetAdjustedTime())
     {
         {
             LOCK(cs);
@@ -459,7 +459,7 @@ public:
     }
 
     // Mark an entry as connection attempted to.
-    void Attempt(const CService &addr, int64 nTime = GetAdjustedTime())
+    void Attempt(const CService &addr, int64_t nTime = GetAdjustedTime())
     {
         {
             LOCK(cs);
@@ -469,7 +469,7 @@ public:
         }
     }
 
-    void SetReconnectToken(const CNetAddr &addr, uint64 reconnect_token)
+    void SetReconnectToken(const CNetAddr &addr, uint64_t reconnect_token)
     {
         {
             LOCK(cs);
@@ -479,7 +479,7 @@ public:
         }
     }
 
-    bool GetReconnectToken(const CNetAddr &addr, uint64& reconnect_token)
+    bool GetReconnectToken(const CNetAddr &addr, uint64_t& reconnect_token)
     {
         bool result = false;
         {
@@ -487,7 +487,7 @@ public:
             Check();
             std::map<
                 CNetAddr,
-                uint64
+                uint64_t
             >::const_iterator found = reconnectToken.find(
                 addr
             );
@@ -502,7 +502,7 @@ public:
         return result;
     }
 
-    void SetVerificationToken(const CNetAddr &addr, uint64 verification_token)
+    void SetVerificationToken(const CNetAddr &addr, uint64_t verification_token)
     {
         {
             LOCK(cs);
@@ -512,7 +512,7 @@ public:
         }
     }
 
-    bool CheckVerificationToken(const CNetAddr &addr, uint64 verification_token)
+    bool CheckVerificationToken(const CNetAddr &addr, uint64_t verification_token)
     {
         bool result = false;
         {
@@ -520,7 +520,7 @@ public:
             Check();
             std::map<
                 CNetAddr,
-                uint64
+                uint64_t
             >::const_iterator found = verificationToken.find(
                 addr
             );
@@ -563,7 +563,7 @@ public:
     }
 
     // Mark an entry as currently-connected-to.
-    void Connected(const CService &addr, int64 nTime = GetAdjustedTime())
+    void Connected(const CService &addr, int64_t nTime = GetAdjustedTime())
     {
         {
             LOCK(cs);

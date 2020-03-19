@@ -15,9 +15,8 @@
 
 #include "keystore.h"
 #include "bignum.h"
+#include "vchnum.hpp"
 #include "stealthaddress.h"
-
-typedef std::vector<unsigned char> valtype;
 
 class CTransaction;
 
@@ -90,11 +89,21 @@ enum txnouttype
 {
     TX_NONSTANDARD,
     // 'standard' transaction types:
-    TX_PUBKEY,
-    TX_PUBKEYHASH,
-    TX_SCRIPTHASH,
-    TX_MULTISIG,
-    TX_NULL_DATA
+    TX_PUBKEY,          // 1
+    TX_PUBKEYHASH,      // 2
+    TX_SCRIPTHASH,      // 3
+    TX_MULTISIG,        // 4
+    // qPoS (standard)
+    TX_PURCHASE1,       // 5
+    TX_PURCHASE3,       // 6
+    TX_SETOWNER,        // 7
+    TX_SETDELEGATE,     // 8 
+    TX_SETCONTROLLER,   // 9
+    TX_ENABLE,          // 10
+    TX_DISABLE,         // 11
+    TX_CLAIM,           // 12
+    // prunable
+    TX_NULL_DATA        // 13
 };
 
 class CNoDestination {
@@ -119,7 +128,7 @@ enum opcodetype
     // push value
     OP_0 = 0x00,
     OP_FALSE = OP_0,
-    OP_PUSHDATA1 = 0x4c,
+    OP_PUSHDATA1 = 0x4c,  // 0x4c = 76
     OP_PUSHDATA2 = 0x4d,
     OP_PUSHDATA4 = 0x4e,
     OP_1NEGATE = 0x4f,
@@ -249,7 +258,15 @@ enum opcodetype
     OP_NOP9 = 0xb8,
     OP_NOP10 = 0xb9,
 
-
+    // qPoS
+    OP_PURCHASE1     = 0xc1,  /* buy staker, set all keys the same */
+    OP_PURCHASE3     = 0xc2,  /* buy staker, set 3 potentiall different keys */
+    OP_SETOWNER      = 0xc3,  /* set staker owner key */
+    OP_SETDELEGATE   = 0xc4,  /* set staker delegate key */
+    OP_SETCONTROLLER = 0xc5,  /* set staker controller key */
+    OP_ENABLE        = 0xc6,  /* enable staker */
+    OP_DISABLE       = 0xc7,  /* disable staker */
+    OP_CLAIM         = 0xc8,  /* claim earnings, spendable */
 
     // template matching params
     OP_SMALLDATA = 0xf9,
@@ -296,7 +313,7 @@ inline std::string StackString(const std::vector<std::vector<unsigned char> >& v
 class CScript : public std::vector<unsigned char>
 {
 protected:
-    CScript& push_int64(int64 n)
+    CScript& push_int64(int64_t n)
     {
         if (n == -1 || (n >= 1 && n <= 16))
         {
@@ -310,7 +327,7 @@ protected:
         return *this;
     }
 
-    CScript& push_uint64(uint64 n)
+    CScript& push_uint64(uint64_t n)
     {
         if (n >= 1 && n <= 16)
         {
@@ -347,34 +364,34 @@ public:
 
 
     //explicit CScript(char b) is not portable.  Use 'signed char' or 'unsigned char'.
-    explicit CScript(signed char b)    { operator<<(b); }
-    explicit CScript(short b)          { operator<<(b); }
-    explicit CScript(int b)            { operator<<(b); }
-    explicit CScript(long b)           { operator<<(b); }
+    explicit CScript(signed char b)        { operator<<(b); }
+    explicit CScript(short b)              { operator<<(b); }
+    explicit CScript(int b)                { operator<<(b); }
+    explicit CScript(long b)               { operator<<(b); }
     explicit CScript(long long b)          { operator<<(b); }
-    explicit CScript(unsigned char b)  { operator<<(b); }
-    explicit CScript(unsigned int b)   { operator<<(b); }
-    explicit CScript(unsigned short b) { operator<<(b); }
-    explicit CScript(unsigned long b)  { operator<<(b); }
-    explicit CScript(unsigned long long b)         { operator<<(b); }
+    explicit CScript(unsigned char b)      { operator<<(b); }
+    explicit CScript(unsigned int b)       { operator<<(b); }
+    explicit CScript(unsigned short b)     { operator<<(b); }
+    explicit CScript(unsigned long b)      { operator<<(b); }
+    explicit CScript(unsigned long long b) { operator<<(b); }
 
-    explicit CScript(opcodetype b)     { operator<<(b); }
-    explicit CScript(const uint256& b) { operator<<(b); }
-    explicit CScript(const CBigNum& b) { operator<<(b); }
+    explicit CScript(opcodetype b)         { operator<<(b); }
+    explicit CScript(const uint256& b)     { operator<<(b); }
+    explicit CScript(const CBigNum& b)     { operator<<(b); }
     explicit CScript(const std::vector<unsigned char>& b) { operator<<(b); }
 
 
     //CScript& operator<<(char b) is not portable.  Use 'signed char' or 'unsigned char'.
-    CScript& operator<<(signed char b)    { return push_int64(b); }
-    CScript& operator<<(short b)          { return push_int64(b); }
-    CScript& operator<<(int b)            { return push_int64(b); }
-    CScript& operator<<(long b)           { return push_int64(b); }
+    CScript& operator<<(signed char b)        { return push_int64(b); }
+    CScript& operator<<(short b)              { return push_int64(b); }
+    CScript& operator<<(int b)                { return push_int64(b); }
+    CScript& operator<<(long b)               { return push_int64(b); }
     CScript& operator<<(long long b)          { return push_int64(b); }
-    CScript& operator<<(unsigned char b)  { return push_uint64(b); }
-    CScript& operator<<(unsigned int b)   { return push_uint64(b); }
-    CScript& operator<<(unsigned short b) { return push_uint64(b); }
-    CScript& operator<<(unsigned long b)  { return push_uint64(b); }
-    CScript& operator<<(unsigned long long b)         { return push_uint64(b); }
+    CScript& operator<<(unsigned char b)      { return push_uint64(b); }
+    CScript& operator<<(unsigned int b)       { return push_uint64(b); }
+    CScript& operator<<(unsigned short b)     { return push_uint64(b); }
+    CScript& operator<<(unsigned long b)      { return push_uint64(b); }
+    CScript& operator<<(unsigned long long b) { return push_uint64(b); }
 
     CScript& operator<<(opcodetype opcode)
     {
@@ -446,34 +463,49 @@ public:
     }
 
 
-    bool GetOp(iterator& pc, opcodetype& opcodeRet, std::vector<unsigned char>& vchRet)
+    // the original Script code had no way to template pushes,
+    // the fTemplate flag is needed to template pushes without dummy bytes
+    bool GetOp(iterator& pc,
+               opcodetype& opcodeRet,
+               std::vector<unsigned char>& vchRet,
+               bool fTemplate=false)
     {
          // Wrapper so it can be called with either iterator or const_iterator
          const_iterator pc2 = pc;
-         bool fRet = GetOp2(pc2, opcodeRet, &vchRet);
+         bool fRet = GetOp2(pc2, opcodeRet, &vchRet, fTemplate);
          pc = begin() + (pc2 - begin());
          return fRet;
     }
 
-    bool GetOp(iterator& pc, opcodetype& opcodeRet)
+    bool GetOp(iterator& pc,
+               opcodetype& opcodeRet,
+               bool fTemplate=false)
     {
          const_iterator pc2 = pc;
-         bool fRet = GetOp2(pc2, opcodeRet, NULL);
+         bool fRet = GetOp2(pc2, opcodeRet, NULL, fTemplate);
          pc = begin() + (pc2 - begin());
          return fRet;
     }
 
-    bool GetOp(const_iterator& pc, opcodetype& opcodeRet, std::vector<unsigned char>& vchRet) const
+    bool GetOp(const_iterator& pc,
+               opcodetype& opcodeRet,
+               std::vector<unsigned char>& vchRet,
+               bool fTemplate=false) const
     {
-        return GetOp2(pc, opcodeRet, &vchRet);
+        return GetOp2(pc, opcodeRet, &vchRet, fTemplate);
     }
 
-    bool GetOp(const_iterator& pc, opcodetype& opcodeRet) const
+    bool GetOp(const_iterator& pc,
+               opcodetype& opcodeRet,
+               bool fTemplate=false) const
     {
-        return GetOp2(pc, opcodeRet, NULL);
+        return GetOp2(pc, opcodeRet, NULL, fTemplate);
     }
 
-    bool GetOp2(const_iterator& pc, opcodetype& opcodeRet, std::vector<unsigned char>* pvchRet) const
+    bool GetOp2(const_iterator& pc,
+                opcodetype& opcodeRet,
+                std::vector<unsigned char>* pvchRet,
+                bool fTemplate) const
     {
         opcodeRet = OP_INVALIDOPCODE;
         if (pvchRet)
@@ -486,6 +518,8 @@ public:
             return false;
         unsigned int opcode = *pc++;
 
+        bool fScript = !fTemplate;
+
         // Immediate operand
         if (opcode <= OP_PUSHDATA4)
         {
@@ -496,30 +530,46 @@ public:
             }
             else if (opcode == OP_PUSHDATA1)
             {
-                if (end() - pc < 1)
-                    return false;
-                nSize = *pc++;
+                if (fScript)
+                {
+                    if (end() - pc < 1)
+                        return false;
+                    nSize = *pc++;
+                }
             }
             else if (opcode == OP_PUSHDATA2)
             {
-                if (end() - pc < 2)
-                    return false;
-                nSize = 0;
-                memcpy(&nSize, &pc[0], 2);
-                pc += 2;
+                if (fScript)
+                {
+                    if (end() - pc < 2)
+                        return false;
+                    nSize = 0;
+                    memcpy(&nSize, &pc[0], 2);
+                    pc += 2;
+                }
             }
             else if (opcode == OP_PUSHDATA4)
             {
-                if (end() - pc < 4)
-                    return false;
-                memcpy(&nSize, &pc[0], 4);
-                pc += 4;
+                if (fScript)
+                {
+                    if (end() - pc < 4)
+                        return false;
+                    memcpy(&nSize, &pc[0], 4);
+                    pc += 4;
+                }
             }
-            if (end() - pc < 0 || (unsigned int)(end() - pc) < nSize)
+            if (end() - pc < 0)
+            {
                 return false;
-            if (pvchRet)
-                pvchRet->assign(pc, pc + nSize);
-            pc += nSize;
+            }
+            if (fScript)
+            {
+                if ((unsigned int)(end() - pc) < nSize)
+                    return false;
+                if (pvchRet)
+                    pvchRet->assign(pc, pc + nSize);
+                pc += nSize;
+            }
         }
 
         opcodeRet = (opcodetype)opcode;

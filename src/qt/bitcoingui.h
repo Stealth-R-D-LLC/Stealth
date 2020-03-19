@@ -1,14 +1,14 @@
 #ifndef BITCOINGUI_H
 #define BITCOINGUI_H
 
+#include <cstdint>
+
 #include <QMainWindow>
 #include <QSystemTrayIcon>
 
 #include "qstealthgrid.h"
 #include "qstealthmain.h"
 #include "qbottombar.h"
-
-#include "util.h" // for uint64
 
 class TransactionTableModel;
 class ClientModel;
@@ -122,9 +122,9 @@ private:
 
     QMovie *syncIconMovie;
 
-    uint64 nMinMax;
-    uint64 nWeight;
-    uint64 nNetworkWeight;
+    uint64_t nMinMax;
+    uint64_t nWeight;
+    uint64_t nNetworkWeight;
 
     /** Create the main UI actions. */
     void createActions();

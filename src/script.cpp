@@ -19,6 +19,8 @@ using namespace boost;
 #include "util.h"
 #include "stealthaddress.h"
 
+#define OP(x) static_cast<opcodetype>(x)
+
 extern int nBestHeight;
 
 bool CheckSig(vector<unsigned char> vchSig, const vector<unsigned char> &vchPubKey, const CScript &scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType, int flags);
@@ -107,6 +109,14 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_PUBKEYHASH: return "pubkeyhash";
     case TX_SCRIPTHASH: return "scripthash";
     case TX_MULTISIG: return "multisig";
+    case TX_PURCHASE1: return "purchase1";
+    case TX_PURCHASE3: return "purchase3";
+    case TX_SETOWNER: return "setowner";
+    case TX_SETDELEGATE: return "setdelegate";
+    case TX_SETCONTROLLER: return "setcontroller";
+    case TX_ENABLE: return "enable";
+    case TX_DISABLE: return "disable";
+    case TX_CLAIM: return "claim";
     case TX_NULL_DATA: return "nulldata";
     }
     return NULL;
@@ -234,7 +244,7 @@ const char* GetOpName(opcodetype opcode)
 
     // expanson
     case OP_NOP1                   : return "OP_NOP1";
-    case OP_NOP2                   : return "OP_NOP2";
+    case OP_CHECKLOCKTIMEVERIFY    : return "OP_CHECKLOPTIMEVERIFY";
     case OP_NOP3                   : return "OP_NOP3";
     case OP_NOP4                   : return "OP_NOP4";
     case OP_NOP5                   : return "OP_NOP5";
@@ -243,6 +253,16 @@ const char* GetOpName(opcodetype opcode)
     case OP_NOP8                   : return "OP_NOP8";
     case OP_NOP9                   : return "OP_NOP9";
     case OP_NOP10                  : return "OP_NOP10";
+
+    // qPoS
+    case OP_PURCHASE1              : return "OP_PURCHASE1";
+    case OP_PURCHASE3              : return "OP_PURCHASE3";
+    case OP_SETOWNER               : return "OP_SETOWNER";
+    case OP_SETDELEGATE            : return "OP_SETDELEGATE";
+    case OP_SETCONTROLLER          : return "OP_SETCONTROLLER";
+    case OP_ENABLE                 : return "OP_ENABLE";
+    case OP_DISABLE                : return "OP_DISABLE";
+    case OP_CLAIM                  : return "OP_CLAIM";
 
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
 
@@ -384,7 +404,7 @@ static bool CheckLockTime(const CTransaction& txTo, unsigned int nIn, const CBig
 
     // Now that we know we're comparing apples-to-apples, the
     // comparison is a simple numeric one.
-    if (nLockTime > (int64)txTo.nLockTime)
+    if (nLockTime > (int64_t)txTo.nLockTime)
         return false;
 
     // Finally the nLockTime feature can be disabled and thus
@@ -540,6 +560,28 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                         return false;
                 }
                 break;
+
+                // qPoS: no script with these opcodes will be spendable
+                case OP_PURCHASE1: case OP_PURCHASE3:
+                case OP_SETOWNER: case OP_SETDELEGATE: case OP_SETCONTROLLER:
+                case OP_ENABLE: case OP_DISABLE:
+                {
+                    return false;
+                }
+
+                // qPoS OP_CLAIM pops 41 bytes of the amount off the stack
+                case OP_CLAIM:
+                {
+                    if (stack.size() < 41)
+                    {
+                        return false;
+                    }
+                    for (int i = 0; i < 41; ++i)
+                    {
+                        popstack(stack);
+                    }
+                    break;
+                }
 
                 case OP_IF:
                 case OP_NOTIF:
@@ -1272,14 +1314,6 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
     return true;
 }
 
-
-
-
-
-
-
-
-
 uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int nIn, int nHashType)
 {
     if (nIn >= txTo.vin.size())
@@ -1338,7 +1372,15 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
     // Serialize and hash
     CDataStream ss(SER_GETHASH, 0);
     ss.reserve(10000);
-    ss << txTmp << nHashType;
+    if (txTo.nVersion >= CTransaction::IMMALLEABLE_VERSION)
+    {
+        // prepend txid to stream
+        ss << txTo.GetHash() << txTmp << nHashType;
+    }
+    else
+    {
+        ss << txTmp << nHashType;
+    }
     return Hash(ss.begin(), ss.end());
 }
 
@@ -1374,12 +1416,12 @@ public:
         // (~200 bytes per cache entry times 50,000 entries)
         // Since there are a maximum of 20,000 signature operations per block
         // 50,000 is a reasonable default.
-        int64 nMaxCacheSize = GetArg("-maxsigcachesize", 50000);
+        int64_t nMaxCacheSize = GetArg("-maxsigcachesize", 50000);
         if (nMaxCacheSize <= 0) return;
 
         LOCK(cs_sigcache);
 
-        while (static_cast<int64>(setValid.size()) > nMaxCacheSize)
+        while (static_cast<int64_t>(setValid.size()) > nMaxCacheSize)
         {
             // Evict a random entry. Random because that helps
             // foil would-be DoS attackers who might try to pre-generate
@@ -1431,12 +1473,75 @@ bool CheckSig(vector<unsigned char> vchSig, const vector<unsigned char> &vchPubK
 }
 
 
-
-
-
-
-
-
+bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
+{
+    switch (t)
+    {
+    case TX_MULTISIG:
+      {
+        unsigned char m = vSolutions.front()[0];
+        unsigned char n = vSolutions.back()[0];
+        if (m<1 || n<1 || m>n || n>3 || (vSolutions.size() - 2) != n)
+        {
+            return false;
+        }
+        break;
+      }
+    case TX_PURCHASE1:
+    case TX_PURCHASE3:
+      {
+        if (vSolutions.size() < 1)
+        {
+            // this should never happen
+            return false;
+        }
+        valtype v = vSolutions.front();
+        if (v.size() != ((t == TX_PURCHASE1) ? 57 : 127))
+        {
+            return false;
+        }
+        valtype::const_iterator b = v.end() - 16;
+        valtype::const_iterator e;
+        for (e = b; e != v.end(); ++e)
+        {
+            if (*e == static_cast<unsigned char>(0))
+            {
+                break;
+            }
+        }
+        string s(b, e);
+        if (!AliasIsValid(s))
+        {
+            return false;
+        }
+        break;
+      }
+    case TX_SETOWNER:
+    case TX_SETCONTROLLER:
+        if (vSolutions.front().size() != 37)
+        {
+            return false;
+        }
+        break;
+    case TX_SETDELEGATE:
+        if (vSolutions.front().size() != 41)
+        {
+            return false;
+        }
+        break;
+    case TX_CLAIM:
+        if (vSolutions.front().size() != 41)
+        {
+            return false;
+        }
+        break;
+    case TX_NONSTANDARD:
+        return false;
+    default:
+        break;
+    }
+    return true;
+}
 
 //
 // Return public keys or hashes from scriptPubKey, for 'standard' transaction types.
@@ -1456,6 +1561,50 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // Sender provides N pubkeys, receivers provides M signatures
         mTemplates.insert(make_pair(TX_MULTISIG, CScript() << OP_SMALLINTEGER << OP_PUBKEYS << OP_SMALLINTEGER << OP_CHECKMULTISIG));
 
+        // qPoS transactions are not prunable, only TX_CLAIM is spendable
+        // PubKeys are 33 byte compressed keys
+        // name is 16 byte 0 padded at the end because canonical
+        //   pushes enforce data size < OP_PUSHDATA1 to be fixed width
+        //   and will not treat PURCHASE3 differently from PURCHASE1
+        // 0x00 < OpCodes < OP_PUSHDATA1 (0x4c == 76) specify size to push
+        //
+        // Buy a staker, all 3 keys are the same, amount is 8 byte
+        // size = 57 bytes (0x39)
+        // [size, data(amount, pubKey, name), OP_PURCHASE1]
+        mTemplates.insert(make_pair(TX_PURCHASE1, CScript() << OP(0x39) << OP_PURCHASE1));
+        // Buy a staker, all 3 keys are potentially unique, amount is 8 byte
+        // size = 127 bytes (pcm is a 4 byte unsigned int)
+        // [OP_PUSHDATA1, size, data(amount, ownerKey, delegateKey, controllerKey, pcm, name), OP_PURCHASE3]
+        mTemplates.insert(make_pair(TX_PURCHASE3, CScript() << OP_PUSHDATA1 << OP_PURCHASE3));
+        // Assign staker owner key (signatory of input must match owner of stakerID)
+        // size = 37 bytes (0x25)
+        // [size, data(stakerID, pubKey), OP_SETOWNER]
+        mTemplates.insert(make_pair(TX_SETOWNER, CScript() << OP(0x25) << OP_SETOWNER));
+        // Assign staker delegate key and payout (signatory of input must match owner of stakerID)
+        // size = 41 bytes (0x29) (pcm is a 4 byte unsigned int)
+        // [size, data(stakerID, pubKey, pcm), OP_SETDELEGATE]
+        mTemplates.insert(make_pair(TX_SETDELEGATE, CScript() << OP(0x29) << OP_SETDELEGATE));
+        // Assign staker controller key (signatory of input must match owner of stakerID)
+        // size = 37 bytes (0x25)
+        // [size, data(stakerID, pubKey), OP_SETCONTROLLER]
+        mTemplates.insert(make_pair(TX_SETCONTROLLER, CScript() << OP(0x25) << OP_SETCONTROLLER));
+        // Enable staker (signatory of input must match owner of stakerID)
+        // size = 4 bytes (0x04)
+        // [size, data(stakerID), OP_ENABLE]
+        mTemplates.insert(make_pair(TX_ENABLE, CScript() << OP(0x04) << OP_ENABLE));
+        // Disable staker (signatory of input must match owner of stakerID)
+        // size = 4 bytes (0x04)
+        // [size, data(stakerID), OP_DISABLE]
+        mTemplates.insert(make_pair(TX_DISABLE, CScript() << OP(0x04) << OP_DISABLE));
+
+        // Claim rewards from registry ledger, is spendable, use only bitcoin-style address
+        // Input pubKey is spent from registry ledger, amount is 8 byte unsigned int
+        // size = 41 bytes (0x29) = 33 bytes of pubkey + 8 bytes amount
+        // [size, data(pubKey, amount), OP_CLAIM, OP_DUP, OP_HASH160, OP_PUBKEYHASH, OP_EQUALVERIFY, OP_CHECKSIG]
+        mTemplates.insert(make_pair(TX_CLAIM, CScript() << OP(0x29) << OP_CLAIM << OP_DUP << OP_HASH160 <<
+                                                 OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
+
+
         // Empty, provably prunable, data-carrying output
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN));
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN << OP_SMALLDATA));
@@ -1472,10 +1621,13 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         return true;
     }
 
+    bool asdfd = 0;
+
     // Scan templates
     const CScript& script1 = scriptPubKey;
     BOOST_FOREACH(const PAIRTYPE(txnouttype, CScript)& tplate, mTemplates)
     {
+        if (asdfd) printf("asdf whichtype is '%s' (%d)\n", GetTxnOutputType(tplate.first), (int)tplate.first);
         const CScript& script2 = tplate.second;
         vSolutionsRet.clear();
 
@@ -1491,20 +1643,22 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             {
                 // Found a match
                 typeRet = tplate.first;
-                if (typeRet == TX_MULTISIG)
-                {
-                    // Additional checks for TX_MULTISIG:
-                    unsigned char m = vSolutionsRet.front()[0];
-                    unsigned char n = vSolutionsRet.back()[0];
-                    if (m < 1 || n < 1 || m > n || vSolutionsRet.size()-2 != n)
-                        return false;
-                }
-                return true;
+                // Do additional checks for matching types
+                return TxTypeIsStandard(tplate.first, vSolutionsRet);
             }
             if (!script1.GetOp(pc1, opcode1, vch1))
+            {
+                if (asdfd) printf("asdf cant' get op 1 (%d)\n", (int)opcode1);
                 break;
-            if (!script2.GetOp(pc2, opcode2, vch2))
+            }
+                if (asdfd) printf("asdf op 1 is %s (%d)\n", GetOpName(opcode1), (int)opcode1);
+            // get op for template, so last arg (fTemplate) is true
+            if (!script2.GetOp(pc2, opcode2, vch2, true))
+            {
+                if (asdfd) printf("asdf cant' get op 2 (%d)\n", (int)opcode2);
                 break;
+            }
+            if (asdfd) printf("asdf op 2 is %s (%d)\n", GetOpName(opcode2), (int)opcode2);
 
             // Template matching opcodes:
             if (opcode2 == OP_PUBKEYS)
@@ -1513,10 +1667,17 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                 {
                     vSolutionsRet.push_back(vch1);
                     if (!script1.GetOp(pc1, opcode1, vch1))
+                    {
+                        if (asdfd) printf("asdf cant' get op 1 for pubkeys\n");
                         break;
+                    }
                 }
-                if (!script2.GetOp(pc2, opcode2, vch2))
+                // get op for template, so last arg (fTemplate) is true
+                if (!script2.GetOp(pc2, opcode2, vch2, true))
+                {
+                    if (asdfd) printf("asdf cant' get op 2 for pubkeys\n");
                     break;
+                }
                 // Normal situation is to fall through
                 // to other if/else statements
             }
@@ -1524,13 +1685,19 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
             if (opcode2 == OP_PUBKEY)
             {
                 if (vch1.size() < 33 || vch1.size() > 120)
+                {
+                    if (asdfd) printf("asdf size wrong for pubkey\n");
                     break;
+                }
                 vSolutionsRet.push_back(vch1);
             }
             else if (opcode2 == OP_PUBKEYHASH)
             {
                 if (vch1.size() != sizeof(uint160))
+                {
+                    if (asdfd) printf("asdf size wrong for pubkeyhash\n");
                     break;
+                }
                 vSolutionsRet.push_back(vch1);
             }
             else if (opcode2 == OP_SMALLINTEGER)
@@ -1542,18 +1709,31 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
                     vSolutionsRet.push_back(valtype(1, n));
                 }
                 else
+                {
+                    if (asdfd) printf("asdf small integer missmatch\n");
                     break;
+                }
             }
             else if (opcode2 == OP_SMALLDATA)
             {
                 // small pushdata,  <= MAX_OP_RETURN_RELAY bytes
                 if (vch1.size() > MAX_OP_RETURN_RELAY)
+                {
+                    if (asdfd) printf("asdf vch1 too big for smalldata\n");
                     break;
+                }
             }
-            else if (opcode1 != opcode2 || vch1 != vch2)
+            else if ((opcode1 != opcode2) ||
+                     ((opcode2 > OP_PUSHDATA4) && (vch1 != vch2)))
             {
-                // Others must match exactly
+                if (asdfd) printf("asdf opcode1 is %d, opcode2 is %d\n", (int)opcode1, (int)opcode2);
+                // Others must match exactly, except for push vch
+                // Exempting push vch allows for templating pushes
                 break;
+            }
+            else if (opcode2 <= OP_PUSHDATA4)
+            {
+                vSolutionsRet.push_back(vch1);
             }
         }
     }
@@ -1606,7 +1786,9 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
 
     vector<valtype> vSolutions;
     if (!Solver(scriptPubKey, whichTypeRet, vSolutions))
+    {
         return false;
+    }
 
     CKeyID keyID;
     switch (whichTypeRet)
@@ -1618,7 +1800,8 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         keyID = CPubKey(vSolutions[0]).GetID();
         return Sign1(keyID, keystore, hash, nHashType, scriptSigRet);
     case TX_PUBKEYHASH:
-        keyID = CKeyID(uint160(vSolutions[0]));
+    case TX_CLAIM:
+        keyID = CKeyID(uint160(vSolutions.back()));
         if (!Sign1(keyID, keystore, hash, nHashType, scriptSigRet))
             return false;
         else
@@ -1630,10 +1813,11 @@ bool Solver(const CKeyStore& keystore, const CScript& scriptPubKey, uint256 hash
         return true;
     case TX_SCRIPTHASH:
         return keystore.GetCScript(uint160(vSolutions[0]), scriptSigRet);
-
     case TX_MULTISIG:
         scriptSigRet << OP_0; // workaround CHECKMULTISIG bug
         return (SignN(vSolutions, keystore, hash, nHashType, scriptSigRet));
+    default:
+        break;
     }
     return false;
 }
@@ -1642,12 +1826,20 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
 {
     switch (t)
     {
+    case TX_PURCHASE1:
+    case TX_PURCHASE3:
+    case TX_SETOWNER:
+    case TX_SETDELEGATE:
+    case TX_SETCONTROLLER:
+    case TX_ENABLE:
+    case TX_DISABLE:
     case TX_NONSTANDARD:
     case TX_NULL_DATA:
         return -1;
     case TX_PUBKEY:
         return 1;
     case TX_PUBKEYHASH:
+    case TX_CLAIM:
         return 2;
     case TX_MULTISIG:
         if (vSolutions.size() < 1 || vSolutions[0].size() < 1)
@@ -1662,21 +1854,7 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
 bool IsStandard(const CScript& scriptPubKey, txnouttype& whichType)
 {
     vector<valtype> vSolutions;
-    if (!Solver(scriptPubKey, whichType, vSolutions))
-        return false;
-
-    if (whichType == TX_MULTISIG)
-    {
-        unsigned char m = vSolutions.front()[0];
-        unsigned char n = vSolutions.back()[0];
-        // Support up to x-of-3 multisig txns as standard
-        if (n < 1 || n > 3)
-            return false;
-        if (m < 1 || m > n)
-            return false;
-    }
-
-    return whichType != TX_NONSTANDARD;
+    return Solver(scriptPubKey, whichType, vSolutions);
 }
 
 unsigned int HaveKeys(const vector<valtype>& pubkeys, const CKeyStore& keystore)
@@ -1728,8 +1906,9 @@ bool IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
         case TX_PUBKEY:
             keyID = CPubKey(vSolutions[0]).GetID();
             return keystore.HaveKey(keyID);
+        case TX_CLAIM:
         case TX_PUBKEYHASH:
-            keyID = CKeyID(uint160(vSolutions[0]));
+            keyID = CKeyID(uint160(vSolutions.back()));
             return keystore.HaveKey(keyID);
         case TX_SCRIPTHASH:
         {
@@ -1750,6 +1929,9 @@ bool IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
             vector<valtype> keys(vSolutions.begin()+1, vSolutions.begin()+vSolutions.size()-1);
             return HaveKeys(keys, keystore) == keys.size();
         }
+        // asdf should there be matches for qPoS commands? here or elsewhere?
+        default:
+            break;
     }
     return false;
 }
@@ -1770,9 +1952,9 @@ bool ExtractDestination(const CScript& scriptPubKey, CTxDestination& addressRet)
         addressRet = pubKey.GetID();
         return true;
     }
-    else if (whichType == TX_PUBKEYHASH)
+    else if ((whichType == TX_PUBKEYHASH) || (whichType == TX_CLAIM))
     {
-        addressRet = CKeyID(uint160(vSolutions[0]));
+        addressRet = CKeyID(uint160(vSolutions.back()));
         return true;
     }
     else if (whichType == TX_SCRIPTHASH)
@@ -1829,6 +2011,9 @@ bool ExtractDestinations(const CScript& scriptPubKey, txnouttype& typeRet, vecto
     addressRet.clear();
     typeRet = TX_NONSTANDARD;
     vector<valtype> vSolutions;
+
+
+
     if (!Solver(scriptPubKey, typeRet, vSolutions))
         return false;
     if (typeRet == TX_NULL_DATA){
@@ -2045,6 +2230,7 @@ static CScript CombineSignatures(CScript scriptPubKey, const CTransaction& txTo,
         return PushAll(sigs2);
     case TX_PUBKEY:
     case TX_PUBKEYHASH:
+    case TX_CLAIM:
         // Signatures are bigger than placeholders or empty scripts:
         if (sigs1.empty() || sigs1[0].empty())
             return PushAll(sigs2);
@@ -2075,8 +2261,9 @@ static CScript CombineSignatures(CScript scriptPubKey, const CTransaction& txTo,
         }
     case TX_MULTISIG:
         return CombineMultisig(scriptPubKey, txTo, nIn, vSolutions, sigs1, sigs2);
+    default:
+        break;
     }
-
     return CScript();
 }
 

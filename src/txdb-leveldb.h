@@ -37,6 +37,11 @@ public:
         delete activeBatch;
     }
 
+    bool ActiveBatchIsNull()   // asdf
+    {
+        return !bool(activeBatch);
+    }
+
     // Destroys the underlying shared global state accessed by this TxDB.
     void Close();
 
@@ -202,8 +207,10 @@ public:
     bool ReadCheckpointPubKey(std::string& strPubKey);
     bool WriteCheckpointPubKey(const std::string& strPubKey);
     bool LoadBlockIndex();
-private:
-    bool LoadBlockIndexGuts();
+    bool WriteRegistrySnapshot(int nHeight, const QPRegistry& registry);
+    bool ReadRegistrySnapshot(int nHeight, QPRegistry &registry);
+    bool ReadBestRegistrySnapshot(QPRegistry &registry);
+    bool EraseRegistrySnapshot(int nHeight);
 };
 
 
