@@ -289,6 +289,16 @@ public:
         return true;
     }
 
+    bool Set(const CKeyID &id, int nNetByte)
+    {
+        if ((nNetByte < 0) || (nNetByte > 255))
+        {
+            return false;
+        }
+        SetData(nNetByte, &id, 20);
+        return true;
+    }
+
     bool Set(const CScriptID &id) {
         SetData(fTestNet ? SCRIPT_ADDRESS_TEST : SCRIPT_ADDRESS, &id, 20);
         return true;

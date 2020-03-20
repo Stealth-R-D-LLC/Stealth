@@ -33,6 +33,7 @@ public:
     uint256 blockhash;
     unsigned int blocktime;
     int height;
+    int vtx;
     VecDest destinations;
     unsigned int vin_size;
     int txtype;
@@ -44,6 +45,7 @@ public:
     ExploreTxInfo(const uint256& blockhashIn,
                   const unsigned int blocktimeIn,
                   const int heightIn,
+                  const int vtxIn,
                   const VecDest& destinationsIn,
                   const unsigned int vin_sizeIn,
                   const int txtypeIn);
@@ -57,6 +59,7 @@ public:
         READWRITE(blockhash);
         READWRITE(blocktime);
         READWRITE(height);
+        READWRITE(vtx);
         READWRITE(destinations);
         READWRITE(vin_size);
         READWRITE(txtype);

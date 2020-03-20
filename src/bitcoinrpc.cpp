@@ -346,6 +346,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getaddressinfo",            &getaddressinfo,             false,  false },
     { "getaddressinputs",          &getaddressinputs,           false,  false },
     { "getaddressoutputs",         &getaddressoutputs,          false,  false },
+    { "gethdaccount",              &gethdaccount,               false,  false },
     { "getrichlistsize",           &getrichlistsize,            false,  false },
     { "getrichlist",               &getrichlist,                false,  false }
 };
@@ -1323,7 +1324,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "getchildkey"               && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getchildkey"               && n > 2)
-                                ConvertTo<bool>(params[2]);
+                                ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "getaddressinputs"          && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getaddressinputs"          && n > 2)

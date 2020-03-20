@@ -582,6 +582,7 @@ bool ExploreConnectTx(CTxDB& txdb,
                       const uint256& hashBlock,
                       const unsigned int nBlockTime,
                       const int nHeight,
+                      const int nVtx,
                       bool fReindex)
 {
     MapBalanceCounts mapAddressBalancesAdd;
@@ -630,7 +631,7 @@ bool ExploreConnectTx(CTxDB& txdb,
     VecDest vDest;
     ExploreGetDestinations(tx, vDest);
 
-    ExploreTxInfo txInfo(hashBlock, nBlockTime, nHeight,
+    ExploreTxInfo txInfo(hashBlock, nBlockTime, nHeight, nVtx,
                          vDest, tx.vin.size(), (int)txtype);
 
     txdb.WriteTxInfo(txid, txInfo);
@@ -659,15 +660,16 @@ bool ExploreConnectBlock(CTxDB& txdb,
         return error("ExploreConnectBlock() : TSNH block not in index");
     }
 
-    // iterate backwards through everything on the disconnect
+    int nVtx = 0;
     BOOST_FOREACH(const CTransaction& tx, block->vtx)
     {
         if (!ExploreConnectTx(txdb, tx, h,
-                              pindex->nTime, pindex->nHeight,
+                              pindex->nTime, pindex->nHeight, nVtx,
                               fReindex))
         {
             return false;
         }
+        nVtx += 1;
     }
     return true;
 }

@@ -29,6 +29,7 @@ void ExploreTxInfo::SetNull()
     blockhash = 0;
     blocktime = 0;
     height = -1;
+    vtx = -1;
     destinations.clear();
     vin_size = 0;
     txtype = (int)EXPLORE_TXTYPE_NONE;
@@ -42,6 +43,7 @@ ExploreTxInfo::ExploreTxInfo()
 ExploreTxInfo::ExploreTxInfo(const uint256& blockhashIn,
               const unsigned int blocktimeIn,
               const int heightIn,
+              const int vtxIn,
               const VecDest& destinationsIn,
               const unsigned int vin_sizeIn,
               const int txtypeIn)
@@ -50,6 +52,7 @@ ExploreTxInfo::ExploreTxInfo(const uint256& blockhashIn,
     blockhash = blockhashIn;
     blocktime = blocktimeIn;
     height = heightIn;
+    vtx = vtxIn;
     destinations = destinationsIn;
     vin_size = vin_sizeIn;
     txtype = txtypeIn;
@@ -67,6 +70,7 @@ void ExploreTxInfo::AsJSON(json_spirit::Object objRet) const
         dest.AsJSON(objDest);
         aryDest.push_back(objDest);
     }
+    objRet.push_back(json_spirit::Pair("vtx", (boost::int64_t)vtx));
     objRet.push_back(json_spirit::Pair("destinations", aryDest));
     objRet.push_back(json_spirit::Pair("vin_size",
                                        (boost::int64_t)vin_size));

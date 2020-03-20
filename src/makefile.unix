@@ -74,7 +74,8 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
  -I"$(CURDIR)/qpos" \
- -I"$(CURDIR)/explore"
+ -I"$(CURDIR)/explore" \
+ -I"$(CURDIR)/bip32"
 
 DEBUGFLAGS=-g
 
