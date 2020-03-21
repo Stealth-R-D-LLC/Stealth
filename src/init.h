@@ -17,5 +17,4 @@ void Shutdown(void* parg);
 bool AppInit2();
 std::string HelpMessage();
 
-unsigned short const TOR_PORT = chainParams.DEFAULT_TORPORT;
-#endif
+#endif  // BITCOIN_INIT_H

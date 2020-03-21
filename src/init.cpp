@@ -25,7 +25,7 @@
 #include <signal.h>
 #endif
 
-unsigned short onion_port = TOR_PORT;
+unsigned short onion_port = chainParams.DEFAULT_TORPORT;
 unsigned short p2p_port = GetDefaultPort();
 
 using namespace std;
