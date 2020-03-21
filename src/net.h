@@ -329,7 +329,13 @@ public:
         {
             LOCK(cs_inventory);
             if (!setInventoryKnown.count(inv))
+            {
                 vInventoryToSend.push_back(inv);
+                if (fDebugNet)
+                {
+                    printf("Inventory size is: %lu\n", vInventoryToSend.size());
+                }
+            }
         }
     }
 
