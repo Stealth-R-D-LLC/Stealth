@@ -333,7 +333,8 @@ public:
                 vInventoryToSend.push_back(inv);
                 if (fDebugNet)
                 {
-                    printf("Inventory size is: %lu\n", vInventoryToSend.size());
+                    printf("Inventory size is: %lu\n",
+                           (unsigned long)vInventoryToSend.size());
                 }
             }
         }

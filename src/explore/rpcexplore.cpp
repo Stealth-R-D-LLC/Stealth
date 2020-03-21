@@ -15,13 +15,14 @@
 using namespace json_spirit;
 using namespace std;
 
+static const unsigned int SEC_PER_DAY = 86400;
 
 // TODO: Use a proper data structure for all this
 // To save needless creation and destruction of data structures,
 // this comparator is highly specific to the ordering of the json_spirit
 // return values in GetInputInfo() and GetOutputInfo() below.
 // Take extra care when modifying this comparator or these two funcitons.
-// Orders by
+// Orders by:
 //   1. block height
 //   2. vtx index
 //   3. inputs before outputs
@@ -67,68 +68,9 @@ struct inout_comparator
 };
 
 
-Value getchildkey(const Array &params, bool fHelp)
-{
-    if (fHelp || (params.size() < 2) || (params.size() > 3))
-    {
-        throw runtime_error(
-                strprintf(
-                  "getchildkey <extended key> <child> [network byte]\n"
-                  "Returns key and address information about the child.\n"
-                  "The [network byte] defaults to %d",
-                  (int)CBitcoinAddress::PUBKEY_ADDRESS));
-    }
-
-    string strExtKey = params[0].get_str();
-
-    uchar_vector vchExtKey;
-    if (!DecodeBase58Check(strExtKey, vchExtKey))
-    {
-        throw runtime_error("Invalid extended key.");
-    }
-
-    int nChild = params[1].get_int();
-
-    if ((nChild < 0))
-    {
-        throw runtime_error("Child number should be positive.");
-    }
-
-    int nNetByte = (int)CBitcoinAddress::PUBKEY_ADDRESS;
-    if (params.size() > 2)
-    {
-        nNetByte = params[2].get_int();
-        if (nNetByte < 0)
-        {
-            throw runtime_error("Network byte must be at least 0.");
-        }
-        if (nNetByte > 255)
-        {
-            throw runtime_error("Network byte must no greater than 255.");
-        }
-    }
-
-    Bip32::HDKeychain hdkeychain(vchExtKey);
-    hdkeychain = hdkeychain.getChild((uint32_t)nChild);
-
-    string strChildExt(EncodeBase58Check(hdkeychain.extkey()));
-    uchar_vector vchChildPub = uchar_vector(hdkeychain.key());
-    string strChildPub = vchChildPub.getHex();
-
-    CPubKey pubKey(vchChildPub);
-    CKeyID keyID = pubKey.GetID();
-    CBitcoinAddress address;
-    address.Set(keyID, nNetByte);
-
-    Object obj;
-    obj.push_back(Pair("extended", strChildExt));
-    obj.push_back(Pair("pubkey", strChildPub));
-    obj.push_back(Pair("address", address.ToString()));
-
-    return obj;
-}
-
-
+//////////////////////////////////////////////////////////////////////////////
+//
+// Addresses
 
 Value getaddressbalance(const Array &params, bool fHelp)
 {
@@ -459,6 +401,72 @@ Value getaddressoutputs(const Array &params, bool fHelp)
 }
 
 
+//////////////////////////////////////////////////////////////////////////////
+//
+// HD Wallets
+
+Value getchildkey(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 2) || (params.size() > 3))
+    {
+        throw runtime_error(
+                strprintf(
+                  "getchildkey <extended key> <child> [network byte]\n"
+                  "Returns key and address information about the child.\n"
+                  "The [network byte] defaults to %d",
+                  (int)CBitcoinAddress::PUBKEY_ADDRESS));
+    }
+
+    string strExtKey = params[0].get_str();
+
+    uchar_vector vchExtKey;
+    if (!DecodeBase58Check(strExtKey, vchExtKey))
+    {
+        throw runtime_error("Invalid extended key.");
+    }
+
+    int nChild = params[1].get_int();
+
+    if ((nChild < 0))
+    {
+        throw runtime_error("Child number should be positive.");
+    }
+
+    int nNetByte = (int)CBitcoinAddress::PUBKEY_ADDRESS;
+    if (params.size() > 2)
+    {
+        nNetByte = params[2].get_int();
+        if (nNetByte < 0)
+        {
+            throw runtime_error("Network byte must be at least 0.");
+        }
+        if (nNetByte > 255)
+        {
+            throw runtime_error("Network byte must no greater than 255.");
+        }
+    }
+
+    Bip32::HDKeychain hdkeychain(vchExtKey);
+    hdkeychain = hdkeychain.getChild((uint32_t)nChild);
+
+    string strChildExt(EncodeBase58Check(hdkeychain.extkey()));
+    uchar_vector vchChildPub = uchar_vector(hdkeychain.key());
+    string strChildPub = vchChildPub.getHex();
+
+    CPubKey pubKey(vchChildPub);
+    CKeyID keyID = pubKey.GetID();
+    CBitcoinAddress address;
+    address.Set(keyID, nNetByte);
+
+    Object obj;
+    obj.push_back(Pair("extended", strChildExt));
+    obj.push_back(Pair("pubkey", strChildPub));
+    obj.push_back(Pair("address", address.ToString()));
+
+    return obj;
+}
+
+
 Value gethdaccount(const Array &params, bool fHelp)
 {
     if (fHelp || (params.size()  != 1))
@@ -538,6 +546,10 @@ Value gethdaccount(const Array &params, bool fHelp)
     return result;
 }
 
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Richlist
 
 Value getrichlistsize(const Array &params, bool fHelp)
 {
@@ -656,3 +668,190 @@ Value getrichlist(const Array &params, bool fHelp)
     return obj;
 }
 
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Blockchain Stats
+
+int64_t GetTxVolume(CBlockIndex *pindex)
+{
+    return pindex->nTxVolume;
+}
+
+int64_t GetXSTVolume(CBlockIndex *pindex)
+{
+    return pindex->nXSTVolume;
+}
+
+Value GetWindowedValue(const Array& params,
+                       int64_t (*pgetter)(CBlockIndex*),
+                       const string& strValueName)
+{
+    int nPeriod = params[0].get_int();
+    if (nPeriod < 1)
+    {
+        throw runtime_error(
+            "Period should be greater than 0.\n");
+    }
+    if ((unsigned int) nPeriod > 36525 * SEC_PER_DAY)
+    {
+        throw runtime_error(
+            "Period should be less than 100 years.\n");
+    }
+
+    int nWindow = params[1].get_int();
+    if (nWindow < 1)
+    {
+        throw runtime_error(
+            "Window size should be greater than 0.\n");
+    }
+    if (nWindow > nPeriod)
+    {
+        throw runtime_error(
+            "Window size should be less than or equal to period.\n");
+    }
+
+    int nGranularity = params[2].get_int();
+    if (nGranularity < 1)
+    {
+        throw runtime_error(
+            "Window spacing should be greater than 0.\n");
+    }
+    if (nGranularity > nWindow)
+    {
+        throw runtime_error(
+            "Window spacing should be less than or equal to window.\n");
+    }
+
+    if (pindexBest == NULL)
+    {
+        throw runtime_error("No blocks.\n");
+    }
+
+    unsigned int nTime = pindexBest->nTime;
+
+    // asdf use different block
+    if (nTime < pindexGenesisBlock->nTime)
+    {
+        throw runtime_error("TSNH: Invalid block time.\n");
+    }
+
+    unsigned int nPeriodEnd = nTime;
+    unsigned int nPeriodStart = 1 + nPeriodEnd - nPeriod;
+
+    vector<unsigned int> vBlockTimes;
+    vector<int64_t> vNumbers;
+    CBlockIndex *pindex = pindexBest;
+    while (pindex->pprev)
+    {
+        vBlockTimes.push_back(nTime);
+        int64_t number = pgetter(pindex);
+        vNumbers.push_back(number);
+        pindex = pindex->pprev;
+        nTime = pindex->nTime;
+        if (nTime < nPeriodStart)
+        {
+            break;
+        }
+    }
+
+    std::reverse(vBlockTimes.begin(), vBlockTimes.end());
+    std::reverse(vNumbers.begin(), vNumbers.end());
+
+    unsigned int nSizePeriod = vBlockTimes.size();
+
+    Array aryWindowStartTimes;
+    Array aryTotalBlocks;
+    Array aryTotals;
+
+    unsigned int nWindowStart = nPeriodStart;
+    unsigned int nWindowEnd = nWindowStart + nWindow - 1;
+
+    unsigned int idx = 0;
+    unsigned int idxNext = 0;
+    bool fNextUnknown = true;
+
+    while (nWindowEnd < nPeriodEnd)
+    {
+        if (fNextUnknown)
+        {
+            idxNext = idx;
+        }
+        else
+        {
+            fNextUnknown = true;
+        }
+        unsigned int nNextWindowStart = nWindowStart + nGranularity;
+        unsigned int nWindowBlocks = 0;
+        unsigned int nWindowTotal = 0;
+        for (idx = idxNext; idx < nSizePeriod; ++idx)
+        {
+            printf("idx is: %u\n", idx);
+            unsigned int nBlockTime = vBlockTimes[idx];
+            // assumes blocks are chronologically ordered
+            if (nBlockTime > nWindowEnd)
+            {
+                aryWindowStartTimes.push_back((boost::int64_t)nWindowStart);
+                aryTotals.push_back((boost::int64_t)nWindowTotal);
+                aryTotalBlocks.push_back((boost::int64_t)nWindowBlocks);
+                nWindowStart = nNextWindowStart;
+                nWindowEnd += nGranularity;
+                break;
+            }
+            nWindowBlocks += 1;
+            nWindowTotal += vNumbers[idx];
+            if (fNextUnknown && (nBlockTime >= nNextWindowStart))
+            {
+                idxNext = idx;
+                fNextUnknown = false;
+            }
+        }
+    }
+
+    Object obj;
+    obj.push_back(Pair("window_start", aryWindowStartTimes));
+    obj.push_back(Pair("number_blocks", aryTotalBlocks));
+    obj.push_back(Pair(strValueName, aryTotals));
+
+    return obj;
+}
+
+static const string strWindowHelp =
+            "  last window ends at time of most recent block\n"
+            "  - <period> : duration over which to calculate (sec)\n"
+            "  - <windowsize> : duration of each window (sec)\n"
+            "  - <windowspacing> : duration between start of consecutive windows (sec)\n"
+            "Returns an object with attributes:\n"
+            "  - window_start: starting time of each window\n"
+            "  - number_blocks: number of plocks in each window\n";
+
+Value getwindowedtxvolume(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getwindowedtxvolume <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - tx_volume: number of transactions in each window");
+
+    static const string strValueName = "tx_volume";
+
+    return GetWindowedValue(params, &GetTxVolume, strValueName);
+}
+
+
+Value getwindowedxstvolume(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getwindowedxstvolume <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - xst_volume: amount of xst transferred in each window");
+
+    static const string strValueName = "xst_volume";
+
+    return GetWindowedValue(params, &GetXSTVolume, strValueName);
+}
+
+#if 0
+Value getwindowedblockinterval(const Array& params, bool fHelp)
+#endif

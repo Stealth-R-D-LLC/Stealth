@@ -341,6 +341,7 @@ static const CRPCCommand vRPCCommands[] =
     // asdf move next 2 to rpcexplore.cpp
     { "getnewestblockbeforetime",  &getnewestblockbeforetime,   false,  false },
     { "getwindowedtxvolume",       &getwindowedtxvolume,        false,  false },
+    { "getwindowedxstvolume",      &getwindowedxstvolume,       false,  false },
     { "getchildkey",               &getchildkey,                false,  false },
     { "getaddressbalance",         &getaddressbalance,          false,  false },
     { "getaddressinfo",            &getaddressinfo,             false,  false },
@@ -1315,11 +1316,14 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     // explorer api methods
     if (strMethod == "getnewestblockbeforetime"  && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
-    if (strMethod == "getwindowedtxvolume"       && n > 0)
+    if (((strMethod == "getwindowedtxvolume") ||
+         (strMethod == "getwindowedxstvolume"))  && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
-    if (strMethod == "getwindowedtxvolume"       && n > 1)
+    if (((strMethod == "getwindowedtxvolume") ||
+         (strMethod == "getwindowedxstvolume"))  && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getwindowedtxvolume"       && n > 2)
+    if (((strMethod == "getwindowedtxvolume") ||
+         (strMethod == "getwindowedxstvolume"))  && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "getchildkey"               && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);

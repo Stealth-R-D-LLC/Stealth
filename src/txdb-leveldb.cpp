@@ -659,7 +659,7 @@ bool CTxDB::LoadBlockIndex()
             if (fDebugExplore)
             {
                 printf("==== loaded set of %lu with balance of %" PRId64 "\n",
-                       setAddr.size(), nBalance);
+                       (unsigned long)setAddr.size(), nBalance);
             }
             mapAddressBalances[nBalance] = setAddr.size();
             iter->Next();
