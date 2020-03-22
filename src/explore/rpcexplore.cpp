@@ -673,19 +673,38 @@ Value getrichlist(const Array &params, bool fHelp)
 //
 // Blockchain Stats
 
-int64_t GetTxVolume(CBlockIndex *pindex)
+class StatHelper
 {
-    return pindex->nTxVolume;
+public:
+    string name;
+    int64_t (*Get)(CBlockIndex*);
+    Value (*Convert)(const int64_t&);
+
+    StatHelper(const string& nameIn,
+               int64_t (*GetIn)(CBlockIndex*),
+               Value (*ConvertIn)(const int64_t&))
+    {
+        name = nameIn;
+        Get = GetIn;
+        Convert = ConvertIn;
+    }
+};
+
+
+Value ConvertToInt64(const int64_t& number)
+{
+    return static_cast<boost::int64_t>(number);
 }
 
-int64_t GetXSTVolume(CBlockIndex *pindex)
+
+Value ConvertToValue(const int64_t& amount)
 {
-    return pindex->nXSTVolume;
+    return ValueFromAmount(amount);
 }
+
 
 Value GetWindowedValue(const Array& params,
-                       int64_t (*pgetter)(CBlockIndex*),
-                       const string& strValueName)
+                       const StatHelper& helper)
 {
     int nPeriod = params[0].get_int();
     if (nPeriod < 1)
@@ -745,7 +764,7 @@ Value GetWindowedValue(const Array& params,
     while (pindex->pprev)
     {
         vBlockTimes.push_back(nTime);
-        int64_t number = pgetter(pindex);
+        int64_t number = helper.Get(pindex);
         vNumbers.push_back(number);
         pindex = pindex->pprev;
         nTime = pindex->nTime;
@@ -792,7 +811,7 @@ Value GetWindowedValue(const Array& params,
             if (nBlockTime > nWindowEnd)
             {
                 aryWindowStartTimes.push_back((boost::int64_t)nWindowStart);
-                aryTotals.push_back((boost::int64_t)nWindowTotal);
+                aryTotals.push_back(helper.Convert(nWindowTotal));
                 aryTotalBlocks.push_back((boost::int64_t)nWindowBlocks);
                 nWindowStart = nNextWindowStart;
                 nWindowEnd += nGranularity;
@@ -811,10 +830,11 @@ Value GetWindowedValue(const Array& params,
     Object obj;
     obj.push_back(Pair("window_start", aryWindowStartTimes));
     obj.push_back(Pair("number_blocks", aryTotalBlocks));
-    obj.push_back(Pair(strValueName, aryTotals));
+    obj.push_back(Pair(helper.name, aryTotals));
 
     return obj;
 }
+
 
 static const string strWindowHelp =
             "  last window ends at time of most recent block\n"
@@ -824,6 +844,12 @@ static const string strWindowHelp =
             "Returns an object with attributes:\n"
             "  - window_start: starting time of each window\n"
             "  - number_blocks: number of plocks in each window\n";
+
+
+int64_t GetTxVolume(CBlockIndex *pindex)
+{
+    return pindex->nTxVolume;
+}
 
 Value getwindowedtxvolume(const Array& params, bool fHelp)
 {
@@ -835,9 +861,16 @@ Value getwindowedtxvolume(const Array& params, bool fHelp)
 
     static const string strValueName = "tx_volume";
 
-    return GetWindowedValue(params, &GetTxVolume, strValueName);
+    StatHelper helper("tx_volume", &GetTxVolume, &ConvertToInt64);
+
+    return GetWindowedValue(params, helper);
 }
 
+
+int64_t GetXSTVolume(CBlockIndex *pindex)
+{
+    return pindex->nXSTVolume;
+}
 
 Value getwindowedxstvolume(const Array& params, bool fHelp)
 {
@@ -847,9 +880,9 @@ Value getwindowedxstvolume(const Array& params, bool fHelp)
             strWindowHelp +
             "  - xst_volume: amount of xst transferred in each window");
 
-    static const string strValueName = "xst_volume";
+    StatHelper helper("xst_volume", &GetXSTVolume, &ConvertToValue);
 
-    return GetWindowedValue(params, &GetXSTVolume, strValueName);
+    return GetWindowedValue(params, helper);
 }
 
 #if 0

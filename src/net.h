@@ -324,20 +324,23 @@ public:
         }
     }
 
-    void PushInventory(const CInv& inv)
+    bool PushInventory(const CInv& inv)
     {
         {
             LOCK(cs_inventory);
-            if (!setInventoryKnown.count(inv))
+            if (!setInventoryKnown.count(inv) &&
+                (vInventoryToSend.size() < (size_t)(2 * chainParams.GETBLOCKS_LIMIT)))
             {
                 vInventoryToSend.push_back(inv);
-                if (fDebugNet)
+                if (fDebugNet && ((vInventoryToSend.size() % 1000) == 0))
                 {
                     printf("Inventory size is: %lu\n",
                            (unsigned long)vInventoryToSend.size());
                 }
+                return true;
             }
         }
+        return false;
     }
 
     void AskFor(const CInv& inv)

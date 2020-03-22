@@ -4313,7 +4313,12 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
                            pnode->addrName.c_str(),
                            hash.ToString().c_str());
                 }
-                pnode->PushInventory(CInv(MSG_BLOCK, hash));
+                if (!pnode->PushInventory(CInv(MSG_BLOCK, hash)) && fDebugNet)
+                {
+                    printf("AcceptBlock(): couldn't push accepted block to %s\n  :%s\n",
+                           pnode->addrName.c_str(),
+                           hash.ToString().c_str());
+                }
             }
         }
     }
@@ -5865,7 +5870,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             {
                 if (fDebugNet)
                 {
-                    printf("  getblocks stopping at %d %s\n",
+                    printf("  getblocks stopping at %d\n    %s\n",
                            pindex->nHeight,
                            pindex->GetBlockHash().ToString().c_str());
                 }
@@ -5876,11 +5881,26 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     (hashStop != hashBestChain) &&
                     (pindex->GetBlockTime() + nStakeMinAge > pindexBest->GetBlockTime()))
                 {
-                    pfrom->PushInventory(CInv(MSG_BLOCK, hashBestChain));
+                    if (!pfrom->PushInventory(CInv(MSG_BLOCK, hashBestChain)) && fDebugNet)
+                    {
+                        printf("  couldn't push best chain inventory %d\n    %s\n",
+                               pindex->nHeight,
+                               pindex->GetBlockHash().ToString().c_str());
+                    }
                 }
                 break;
             }
-            pfrom->PushInventory(CInv(MSG_BLOCK, pindex->GetBlockHash()));
+            if (!pfrom->PushInventory(CInv(MSG_BLOCK, pindex->GetBlockHash())))
+            {
+                printf("couldn't push inventory %d to %s: stopping\n    %s\n",
+                       pindex->nHeight,
+                       pfrom->addrName.c_str(),
+                       pindex->GetBlockHash().ToString().c_str());
+                // When this block is requested, we'll send an inv that'll make them
+                // getblocks the next batch of inventory.
+                pfrom->hashContinue = pindex->GetBlockHash();
+                break;
+            }
             if (--nLimit <= 0)
             {
                 if (fDebugNet)

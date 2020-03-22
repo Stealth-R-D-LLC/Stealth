@@ -262,10 +262,10 @@ ChainParams::ChainParams()
     DEFAULT_BANSCORE = 100;
 
     // max per connection receive buffer, x1000 bytes
-    DEFAULT_MAXRECEIVEBUFFER = 5000;
+    DEFAULT_MAXRECEIVEBUFFER = 10000;
 
     // max per connection send buffer, x1000 bytes
-    DEFAULT_MAXSENDBUFFER = 1000;
+    DEFAULT_MAXSENDBUFFER = 4000;
 
     // default 24 hr ban (seconds)
     DEFAULT_BANTIME = 60 * 60 * 24;
