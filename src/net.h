@@ -326,21 +326,34 @@ public:
 
     bool PushInventory(const CInv& inv)
     {
+        static const size_t nMaxInvSize = (size_t)(2 * chainParams.GETBLOCKS_LIMIT);
         {
             LOCK(cs_inventory);
-            if (!setInventoryKnown.count(inv) &&
-                (vInventoryToSend.size() < (size_t)(2 * chainParams.GETBLOCKS_LIMIT)))
+            if (setInventoryKnown.count(inv))
             {
-                vInventoryToSend.push_back(inv);
-                if (fDebugNet && ((vInventoryToSend.size() % 1000) == 0))
+                if (fDebugNet)
                 {
-                    printf("Inventory size is: %lu\n",
-                           (unsigned long)vInventoryToSend.size());
+                    printf("inventory known\n");
                 }
-                return true;
+                return false;
+            }
+            if (vInventoryToSend.size() >= nMaxInvSize)
+            {
+                if (fDebugNet)
+                {
+                    printf("inventory exceeds %lu\n",
+                           (unsigned long)nMaxInvSize);
+                }
+                return false;
+            }
+            vInventoryToSend.push_back(inv);
+            if (fDebugNet && ((vInventoryToSend.size() % 1000) == 0))
+            {
+                printf("Inventory size is: %lu\n",
+                       (unsigned long)vInventoryToSend.size());
             }
         }
-        return false;
+        return true;
     }
 
     void AskFor(const CInv& inv)
