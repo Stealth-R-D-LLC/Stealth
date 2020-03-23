@@ -843,7 +843,7 @@ static const string strWindowHelp =
             "  - <windowspacing> : duration between start of consecutive windows (sec)\n"
             "Returns an object with attributes:\n"
             "  - window_start: starting time of each window\n"
-            "  - number_blocks: number of plocks in each window\n";
+            "  - number_blocks: number of blocks in each window\n";
 
 
 int64_t GetTxVolume(CBlockIndex *pindex)
@@ -851,11 +851,11 @@ int64_t GetTxVolume(CBlockIndex *pindex)
     return pindex->nTxVolume;
 }
 
-Value getwindowedtxvolume(const Array& params, bool fHelp)
+Value gettxvolume(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "getwindowedtxvolume <period> <windowsize> <windowspacing>\n" +
+            "gettxvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - tx_volume: number of transactions in each window");
 
@@ -872,11 +872,11 @@ int64_t GetXSTVolume(CBlockIndex *pindex)
     return pindex->nXSTVolume;
 }
 
-Value getwindowedxstvolume(const Array& params, bool fHelp)
+Value getxstvolume(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
         throw runtime_error(
-            "getwindowedxstvolume <period> <windowsize> <windowspacing>\n" +
+            "getxstvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - xst_volume: amount of xst transferred in each window");
 
@@ -885,6 +885,29 @@ Value getwindowedxstvolume(const Array& params, bool fHelp)
     return GetWindowedValue(params, helper);
 }
 
-#if 0
-Value getwindowedblockinterval(const Array& params, bool fHelp)
-#endif
+int64_t GetBlockInterval(CBlockIndex *pindex)
+{
+    int64_t interval;
+    if (pindex->pnext)
+    {
+        interval = (int64_t)(pindex->pnext->nTime - pindex->nTime);
+    }
+    else
+    {
+        interval = GetAdjustedTime() - (int64_t)pindex->nTime;
+    }
+    return interval;
+}
+
+Value getblockinterval(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getblockinterval <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - block_interval: total block interval for the window in seconds");
+
+    StatHelper helper("block_interval", &GetBlockInterval, &ConvertToInt64);
+
+    return GetWindowedValue(params, helper);
+}
