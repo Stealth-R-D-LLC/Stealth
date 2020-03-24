@@ -678,30 +678,76 @@ class StatHelper
 public:
     string name;
     int64_t (*Get)(CBlockIndex*);
-    Value (*Convert)(const int64_t&);
+    Value (*Reduce)(const vector<int64_t>&);
 
     StatHelper(const string& nameIn,
                int64_t (*GetIn)(CBlockIndex*),
-               Value (*ConvertIn)(const int64_t&))
+               Value (*ReduceIn)(const vector<int64_t>&))
     {
         name = nameIn;
         Get = GetIn;
-        Convert = ConvertIn;
+        Reduce = ReduceIn;
     }
 };
 
 
-Value ConvertToInt64(const int64_t& number)
+int64_t Sum(const vector<int64_t>& vNumbers)
 {
-    return static_cast<boost::int64_t>(number);
+    int64_t sum = 0;
+    BOOST_FOREACH(const int64_t& value, vNumbers)
+    {
+        sum += value;
+    }
+    return sum;
+}
+
+Value SumAsInt64(const vector<int64_t>& vNumbers)
+{
+    return static_cast<boost::int64_t>(Sum(vNumbers));
+}
+
+Value SumAsValue(const vector<int64_t>& vNumbers)
+{
+    return ValueFromAmount(Sum(vNumbers));
 }
 
 
-Value ConvertToValue(const int64_t& amount)
+double Mean(const vector<int64_t>& vNumbers)
 {
-    return ValueFromAmount(amount);
+    if (vNumbers.empty())
+    {
+        return numeric_limits<double>::max();
+    }
+    int64_t sum = Sum(vNumbers);
+    return static_cast<double>(sum) / static_cast<double>(vNumbers.size());
 }
 
+Value MeanAsReal(const vector<int64_t>& vNumbers)
+{
+    return Mean(vNumbers);
+}
+
+double RMSD(const vector<int64_t>& vNumbers)
+{
+    if (vNumbers.empty())
+    {
+        return numeric_limits<double>::max();
+    }
+    double mean = Mean(vNumbers);
+    double sumsq = 0.0;
+    BOOST_FOREACH(const int64_t& value, vNumbers)
+    {
+        double d = static_cast<double>(value) - mean;
+        sumsq += d * d;
+    }
+    double variance = sumsq / static_cast<double>(vNumbers.size());
+    return sqrt(variance);
+}
+
+Value RMSDAsReal(const vector<int64_t>& vNumbers)
+{
+    return RMSD(vNumbers);
+}
 
 Value GetWindowedValue(const Array& params,
                        const StatHelper& helper)
@@ -802,7 +848,7 @@ Value GetWindowedValue(const Array& params,
         }
         unsigned int nNextWindowStart = nWindowStart + nGranularity;
         unsigned int nWindowBlocks = 0;
-        unsigned int nWindowTotal = 0;
+        vector<int64_t> vWindowValues;
         for (idx = idxNext; idx < nSizePeriod; ++idx)
         {
             printf("idx is: %u\n", idx);
@@ -811,14 +857,14 @@ Value GetWindowedValue(const Array& params,
             if (nBlockTime > nWindowEnd)
             {
                 aryWindowStartTimes.push_back((boost::int64_t)nWindowStart);
-                aryTotals.push_back(helper.Convert(nWindowTotal));
+                aryTotals.push_back(helper.Reduce(vWindowValues));
                 aryTotalBlocks.push_back((boost::int64_t)nWindowBlocks);
                 nWindowStart = nNextWindowStart;
                 nWindowEnd += nGranularity;
                 break;
             }
             nWindowBlocks += 1;
-            nWindowTotal += vNumbers[idx];
+            vWindowValues.push_back(vNumbers[idx]);
             if (fNextUnknown && (nBlockTime >= nNextWindowStart))
             {
                 idxNext = idx;
@@ -861,7 +907,7 @@ Value gettxvolume(const Array& params, bool fHelp)
 
     static const string strValueName = "tx_volume";
 
-    StatHelper helper("tx_volume", &GetTxVolume, &ConvertToInt64);
+    StatHelper helper("tx_volume", &GetTxVolume, &SumAsInt64);
 
     return GetWindowedValue(params, helper);
 }
@@ -880,7 +926,7 @@ Value getxstvolume(const Array& params, bool fHelp)
             strWindowHelp +
             "  - xst_volume: amount of xst transferred in each window");
 
-    StatHelper helper("xst_volume", &GetXSTVolume, &ConvertToValue);
+    StatHelper helper("xst_volume", &GetXSTVolume, &SumAsValue);
 
     return GetWindowedValue(params, helper);
 }
@@ -907,7 +953,33 @@ Value getblockinterval(const Array& params, bool fHelp)
             strWindowHelp +
             "  - block_interval: total block interval for the window in seconds");
 
-    StatHelper helper("block_interval", &GetBlockInterval, &ConvertToInt64);
+    StatHelper helper("block_interval", &GetBlockInterval, &SumAsInt64);
+
+    return GetWindowedValue(params, helper);
+}
+
+Value getblockintervalmean(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getblockintervalmean <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - block_interval_mean: rmsd of the block intervals for the window in seconds");
+
+    StatHelper helper("block_interval_mean", &GetBlockInterval, &MeanAsReal);
+
+    return GetWindowedValue(params, helper);
+}
+
+Value getblockintervalrmsd(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getblockintervalrmsd <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - block_interval_rmsd: rmsd of the block intervals for the window in seconds");
+
+    StatHelper helper("block_interval_rmsd", &GetBlockInterval, &RMSDAsReal);
 
     return GetWindowedValue(params, helper);
 }

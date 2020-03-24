@@ -62,7 +62,8 @@ private:
                                       uint32_t &nMaxRet) const;
     bool GetStakerForAlias(const std::string &sAlias,
                            QPStaker &qStakerRet) const;
-    bool StakerProducedBlock(unsigned int nID, int64_t nReward);
+    bool StakerProducedBlock(const CBlockIndex *const pindex,
+                             int64_t nReward);
     bool StakerMissedBlock(unsigned int nID);
     bool DisqualifyStaker(unsigned int nID);
     bool TerminateStaker(unsigned int nID);

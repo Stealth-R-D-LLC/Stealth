@@ -368,13 +368,6 @@ bool RewindRegistry(CTxDB &txdb,
                 break;
             }
         }
-
-        // don't try to read more snapshots than there could possibly be
-        if (nReadSnapCount >= SNAPSHOTS_TO_KEEP)
-        {
-            pregistry->SetNull();
-            break;
-        }
     }
 
     uint256 hashRegistry = pregistry->GetBlockHash();

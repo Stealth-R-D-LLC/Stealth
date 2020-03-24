@@ -23,8 +23,6 @@ static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_TIME;
 static const int64_t DOCK_INACTIVE_FRACTION = 310000000000;
 // number of blocks between snapshots
 static const unsigned int BLOCKS_PER_SNAPSHOT = 24;
-// number of snapshots to keep
-static const unsigned int SNAPSHOTS_TO_KEEP = 180;
 // min and max staker alias lengths
 static const unsigned int QP_MIN_ALIAS_LENGTH = 3;
 static const unsigned int QP_MAX_ALIAS_LENGTH = 16;
@@ -70,5 +68,7 @@ inline ProofTypes operator&(ProofTypes a, ProofTypes b)
 
 uint32_t bit_length(uint32_t v);
 uint32_t uisqrt(uint32_t n);
+uint64_t bit_length(uint64_t v);
+uint64_t uisqrt(uint64_t n);
 
 #endif  /* _QPCONSTANTS_H_ */

@@ -832,8 +832,10 @@ bool QPRegistry::GetStakerForAlias(const string &sAlias,
 // this will only be called for a block that is being added to the end of the
 // chain so that the Registry state is synchronous with the block
 // same goes for StakerMissedBlock
-bool QPRegistry::StakerProducedBlock(unsigned int nID, int64_t nReward)
+bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
+                                     int64_t nReward)
 {
+    unsigned int nID = pindex->nStakerID;
     QPStaker *pstaker;
     if (!GetStaker(nID, pstaker))
     {
@@ -843,7 +845,8 @@ bool QPRegistry::StakerProducedBlock(unsigned int nID, int64_t nReward)
     unsigned int nSeniority = (nIDCounter + 1) - nID;
     powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), true);
     int64_t nOwnerReward, nDelegateReward;
-    pstaker->ProducedBlock(nReward,
+    pstaker->ProducedBlock(pindex->phashBlock,
+                           nReward,
                            fPrevBlockWasProduced,
                            nOwnerReward,
                            nDelegateReward);
@@ -1110,9 +1113,6 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                queue.GetCurrentSlotEnd(),
                GetPicoPower(),
                queue.ToString().c_str());
-
-        unsigned int n = BLOCKS_PER_SNAPSHOT * SNAPSHOTS_TO_KEEP;
-        txdb.EraseRegistrySnapshot(pindex->nHeight - n);
     }
 
     if (GetFork(pindex->nHeight + 1) >= XST_FORKQPOS)
@@ -1245,7 +1245,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                          "block already produced for this slot");
         }
         int64_t nReward = GetQPoSReward(pindex->pprev);
-        if (!StakerProducedBlock(pindex->nStakerID, nReward))
+        if (!StakerProducedBlock(pindex, nReward))
         {
             return error("UpdateOnNewBlock(): no staker with ID %u",
                          pindex->nStakerID);

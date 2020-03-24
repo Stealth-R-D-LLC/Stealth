@@ -343,6 +343,8 @@ static const CRPCCommand vRPCCommands[] =
     { "gettxvolume",               &gettxvolume,                false,  false },
     { "getxstvolume",              &getxstvolume,               false,  false },
     { "getblockinterval",          &getblockinterval,           false,  false },
+    { "getblockintervalmean",      &getblockintervalmean,       false,  false },
+    { "getblockintervalrmsd",      &getblockintervalrmsd,       false,  false },
     { "getchildkey",               &getchildkey,                false,  false },
     { "getaddressbalance",         &getaddressbalance,          false,  false },
     { "getaddressinfo",            &getaddressinfo,             false,  false },
@@ -1319,15 +1321,21 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
                                 ConvertTo<boost::int64_t>(params[0]);
     if (((strMethod == "gettxvolume")             ||
          (strMethod == "getxstvolume")            ||
-         (strMethod == "getblockinterval")) && n > 0)
+         (strMethod == "getblockinterval")        ||
+         (strMethod == "getblockintervalmean")    ||
+          (strMethod == "getblockintervalrmsd")) && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
     if (((strMethod == "gettxvolume") ||
          (strMethod == "getxstvolume")            ||
-         (strMethod == "getblockinterval")) && n > 1)
+         (strMethod == "getblockinterval")        ||
+         (strMethod == "getblockintervalmean")    ||
+         (strMethod == "getblockintervalrmsd")) && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (((strMethod == "gettxvolume") ||
          (strMethod == "getxstvolume")            ||
-         (strMethod == "getblockinterval")) && n > 2)
+         (strMethod == "getblockinterval")        ||
+         (strMethod == "getblockintervalmean")    ||
+         (strMethod == "getblockintervalrmsd")) && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
     if (strMethod == "getchildkey"               && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);

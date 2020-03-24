@@ -24,6 +24,7 @@ private:
     uint32_t nBlocksMissed;
     uint32_t nBlocksAssigned;
     uint32_t nBlocksSeen;
+    uint256 hashBlockMostRecent;
     uint32_t nPrevBlocksMissed;
     uint32_t nPcmDelegatePayout;
     bool fEnabled;
@@ -50,6 +51,8 @@ public:
     uint32_t GetBlocksAssigned() const;
     uint32_t GetBlocksSeen() const;
     uint32_t GetNetBlocks() const;
+    uint256 GetHashBlockMostRecent() const;
+    int GetHeightMostRecent() const;
     unsigned int GetWeight(unsigned int nSeniority) const;
     uint32_t GetDelegatePayout() const;
     bool IsEnabled() const;
@@ -66,7 +69,8 @@ public:
                 json_spirit::Object &objRet,
                 bool fWithRecentBlocks=false) const;
 
-    void ProducedBlock(int64_t nBlockReward,
+    void ProducedBlock(const uint256 *const phashBlock,
+                       int64_t nBlockReward,
                        bool fPrevDidProduceBlock,
                        int64_t& nReward,
                        int64_t& nDelegateReward);
@@ -91,6 +95,7 @@ public:
         READWRITE(nBlocksMissed);
         READWRITE(nBlocksAssigned);
         READWRITE(nBlocksSeen);
+        READWRITE(hashBlockMostRecent);
         READWRITE(nPrevBlocksMissed);
         READWRITE(nPcmDelegatePayout);
         READWRITE(fEnabled);

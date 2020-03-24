@@ -234,6 +234,8 @@ extern json_spirit::Value getnewestblockbeforetime(const json_spirit::Array& par
 extern json_spirit::Value gettxvolume(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getxstvolume(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockinterval(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockintervalmean(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockintervalrmsd(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getchildkey(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressbalance(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinfo(const json_spirit::Array& params, bool fHelp);

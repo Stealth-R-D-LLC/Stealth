@@ -4,6 +4,8 @@
 
 #include "QPStaker.hpp"
 
+#include "main.h"
+
 using namespace json_spirit;
 using namespace std;
 
@@ -32,6 +34,7 @@ void QPStaker::Reset()
     nBlocksMissed = 0;
     nBlocksAssigned = 0;
     nBlocksSeen = 0;
+    hashBlockMostRecent = 0;
     nPrevBlocksMissed = 0;
     nPcmDelegatePayout = 0;
     fEnabled = false;
@@ -90,6 +93,20 @@ uint32_t QPStaker::GetNetBlocks() const
         return 0;
     }
     return nBlocksProduced - nBlocksMissed;
+}
+
+uint256 QPStaker::GetHashBlockMostRecent() const
+{
+    return hashBlockMostRecent;
+}
+
+int QPStaker::GetHeightMostRecent() const
+{
+    if (mapBlockIndex.count(hashBlockMostRecent))
+    {
+        return mapBlockIndex[hashBlockMostRecent]->nHeight;
+    }
+    return -1;
 }
 
 // Returns 1 even when missed blocks outnumber produced blocks.
@@ -204,6 +221,10 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nBlocksSeen)));
     objRet.push_back(Pair("prev_blocks_missed",
                           static_cast<int64_t>(nPrevBlocksMissed)));
+    objRet.push_back(Pair("hash_most_recent_block",
+                          hashBlockMostRecent.GetHex()));
+    objRet.push_back(Pair("height_most_recent_block",
+                          static_cast<int64_t>(GetHeightMostRecent())));
 
     if (!objMeta.empty())
     {
@@ -223,13 +244,15 @@ void QPStaker::AsJSON(unsigned int nID,
     }
 }
 
-void QPStaker::ProducedBlock(int64_t nBlockReward,
+void QPStaker::ProducedBlock(const uint256 *const phashBlock,
+                             int64_t nBlockReward,
                              bool fPrevDidProduceBlock,
                              int64_t& nOwnerRewardRet,
                              int64_t& nDelegateRewardRet)
 {
     nBlocksProduced += 1;
     nBlocksAssigned += 1;
+    hashBlockMostRecent = *phashBlock;
     bRecentBlocks <<= 1;        // FIXME: use modular
     bRecentBlocks[0] = true;    // FIXME: use modular
 
