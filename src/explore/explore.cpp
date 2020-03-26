@@ -261,6 +261,11 @@ bool ExploreConnectInput(CTxDB& txdb,
         {
             return error("ExploreConnectInput() : could not write input in-out");
         }
+        if (fDebugExplore)
+        {
+            printf("EXPLORE connecting INPUT in-out %d\n   %d:%s\n",
+                   nQtyInOuts, n, txid.GetHex().c_str());
+        }
 
        /***************************************************************
         * 4. update the balance
@@ -479,6 +484,11 @@ bool ExploreConnectOutput(CTxDB& txdb,
         if (!txdb.WriteAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, newInOut))
         {
             return error("ExploreConnectOutput() : could not write output in-out");
+        }
+        if (fDebugExplore)
+        {
+            printf("EXPLORE connecting OUTPUT in-out %d\n   %d:%s\n",
+                   nQtyInOuts, n, txid.GetHex().c_str());
         }
 
        /***************************************************************
@@ -819,6 +829,12 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         {
             return error("ExploreDisconnectOutput() : could not write qty in-outs");
         }
+        if (fDebugExplore)
+        {
+            printf("EXPLORE disconnecting OUTPUT in-out %d\n   %d:%s\n",
+                   nQtyInOuts, n, txid.GetHex().c_str());
+        }
+
 
        /***************************************************************
         * 4. update the balance
@@ -1038,6 +1054,12 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             return error("ExploreDisconnectInput() : could not write qty in-outs");
         }
+        if (fDebugExplore)
+        {
+            printf("EXPLORE disconnecting INPUT in-out %d\n   %d:%s\n",
+                   nQtyInOuts, n, txid.GetHex().c_str());
+        }
+
 
 
        /***************************************************************

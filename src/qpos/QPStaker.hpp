@@ -6,6 +6,8 @@
 #define _QPSTAKER_H_ 1
 
 #include "QPConstants.hpp"
+#include "QPTxDetails.hpp"
+
 #include "key.h"
 #include "serialize.h"
 
@@ -13,6 +15,7 @@
 
 #include <bitset>
 
+class CBlockIndex;
 
 class QPStaker
 {
@@ -20,6 +23,10 @@ private:
     int nVersion;
     std::bitset<QP_RECENT_BLOCKS> bRecentBlocks;
     std::bitset<QP_RECENT_BLOCKS> bPrevRecentBlocks;
+    uint256 hashBlockCreated;
+    uint256 hashTxCreated;
+    unsigned int nOutCreated;
+    int64_t nPrice;
     uint32_t nBlocksProduced;
     uint32_t nBlocksMissed;
     uint32_t nBlocksAssigned;
@@ -40,10 +47,15 @@ public:
     CPubKey pubkeyDelegate;
     CPubKey pubkeyController;
     QPStaker();
-    QPStaker(CPubKey pubkeyIn);
+    QPStaker(const QPTxDetails& deet);
     void Reset();
     uint32_t GetRecentBlocksProduced() const;
     uint32_t GetPrevRecentBlocksProduced() const;
+    uint256 GetHashBlockCreated() const;
+    const CBlockIndex* GetBlockCreated() const;
+    uint256 GetHashTxCreated() const;
+    unsigned int GetNOutCreated() const;
+    int64_t GetPrice() const;
     uint32_t GetRecentBlocksMissed() const;
     uint32_t GetPrevRecentBlocksMissed() const;
     uint32_t GetBlocksProduced() const;
@@ -52,7 +64,7 @@ public:
     uint32_t GetBlocksSeen() const;
     uint32_t GetNetBlocks() const;
     uint256 GetHashBlockMostRecent() const;
-    int GetHeightMostRecent() const;
+    const CBlockIndex* GetBlockMostRecent() const;
     unsigned int GetWeight(unsigned int nSeniority) const;
     uint32_t GetDelegatePayout() const;
     bool IsEnabled() const;
@@ -91,6 +103,10 @@ public:
         nVersion = this->nVersion;
         READWRITE(bRecentBlocks);
         READWRITE(bPrevRecentBlocks);
+        READWRITE(hashBlockCreated);
+        READWRITE(hashTxCreated);
+        READWRITE(nOutCreated);
+        READWRITE(nPrice);
         READWRITE(nBlocksProduced);
         READWRITE(nBlocksMissed);
         READWRITE(nBlocksAssigned);

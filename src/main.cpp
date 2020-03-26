@@ -99,7 +99,7 @@ int64_t nReserveBalance = 0;
 //
 
 int GetFork(int nHeight)
-{   
+{
     static const map<int, int> mapForks = fTestNet ? chainParams.mapForksTestNet :
                                                      chainParams.mapForksMainNet;
     static const map<int, int>::const_iterator b = mapForks.begin();
@@ -128,9 +128,9 @@ int GetFork(int nHeight)
 
 int GetMinPeerProtoVersion(int nHeight)
 {
-    static const map<int, int>::const_iterator b = 
+    static const map<int, int>::const_iterator b =
                                    chainParams.mapProtocolVersions.begin();
-    static const map<int, int>::const_iterator e = 
+    static const map<int, int>::const_iterator e =
                                    chainParams.mapProtocolVersions.end();
     assert(b != e);
 
@@ -1167,13 +1167,13 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
 bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
                              const MapPrevTx &mapInputs,
                              unsigned int nTime,
-                             const vector<QPoSTxDetails> &vDeets,
+                             const vector<QPTxDetails> &vDeets,
                              const CBlockIndex *pindexPrev,
                              map<string, qpos_purchase> &mapPurchasesRet,
                              map<unsigned int, vector<qpos_setkey> > &mapSetKeysRet,
                              map<CPubKey, vector<qpos_claim> > &mapClaimsRet,
                              map<unsigned int, vector<qpos_setmeta> > &mapSetMetasRet,
-                             vector<QPoSTxDetails> &vDeetsRet) const
+                             vector<QPTxDetails> &vDeetsRet) const
 {
     bool fPurchasesChecked = false;
     bool fSetKeysChecked = false;
@@ -1181,7 +1181,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
     bool fClaimChecked = false;
     bool fSetMetasChecked = false;
     // validate the candidate qPoS transactions
-    BOOST_FOREACH(const QPoSTxDetails &deet, vDeets)
+    BOOST_FOREACH(const QPTxDetails &deet, vDeets)
     {
         switch (static_cast<txnouttype>(deet.t))
         {
@@ -1320,19 +1320,25 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
 
 // use only for fully validated transactions, no real checks are performed
 // returns true if any of the qPoS transactions need inputs
-bool CTransaction::GetQPoSTxDetails(vector<QPoSTxDetails> &vDeets) const
+bool CTransaction::GetQPTxDetails(const uint256& hashBlock,
+                                  vector<QPTxDetails> &vDeets) const
 {
+    uint256 hashTx(GetHash());
     bool fNeedsInputs = false;
     vector<valtype> vSolutions;
     txnouttype whichType;
-    BOOST_FOREACH(const CTxOut &txout, vout)
+    for (unsigned int nOut = 0; nOut < vout.size(); ++nOut)
     {
+        const CTxOut& txout = vout[nOut];
         if (!Solver(txout.scriptPubKey, whichType, vSolutions))
         {
             continue;
         }
-        QPoSTxDetails deets;
+        QPTxDetails deets;
         deets.t = whichType;
+        deets.hash = hashBlock;
+        deets.txid = hashTx;
+        deets.n = nOut;
         switch (whichType)
         {
         case TX_PURCHASE1:
@@ -1365,7 +1371,6 @@ bool CTransaction::GetQPoSTxDetails(vector<QPoSTxDetails> &vDeets) const
     }
     return fNeedsInputs;
 }
-
 
 bool CTransaction::ReadFromDisk(CTxDB& txdb, COutPoint prevout, CTxIndex& txindexRet)
 {
@@ -1901,15 +1906,15 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }
 
     // TODO: some duplicate work on claims here
-    std::vector<QPoSTxDetails> vDeets;
-    tx.GetQPoSTxDetails(vDeets);
+    std::vector<QPTxDetails> vDeets;
+    tx.GetQPTxDetails(0, vDeets);
     if (!vDeets.empty())
     {
         map<string, qpos_purchase> mapPurchasesTx;
         map<unsigned int, vector<qpos_setkey> > mapSetKeysTx;
         map<CPubKey, vector<qpos_claim> > mapClaimsTx;
         map<unsigned int, vector<qpos_setmeta> > mapSetMetasTx;
-        std::vector<QPoSTxDetails> vDeetsTx;
+        std::vector<QPTxDetails> vDeetsTx;
 
         if (!tx.CheckQPoS(pregistryMain,
                           mapInputs,
@@ -2999,7 +3004,7 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                           QPRegistry *pregistryTemp, bool fJustCheck)
 {
-    vector<QPoSTxDetails> vDeets;
+    vector<QPTxDetails> vDeets;
     // Check it again in case a previous version let a bad block in
     // fCheckSig was always true here by default
     if (!CheckBlock(pregistryTemp, vDeets, pindex->pprev,
@@ -3815,7 +3820,7 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
 
 
 bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
-                        vector<QPoSTxDetails> &vDeetsRet,
+                        vector<QPTxDetails> &vDeetsRet,
                         CBlockIndex* pindexPrev,
                         bool fCheckPOW,
                         bool fCheckMerkleRoot,
@@ -3825,6 +3830,8 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     int nThisHeight = pindexPrev->nHeight + 1;
     int nFork = GetFork(nThisHeight);
     int nBlockFork = GetFork(nHeight);
+
+    uint256 hashBlock(GetHash());
 
     // These are checks that are independent of context
     // that can be verified before saving an orphan block.
@@ -3839,7 +3846,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     }
 
     // Check proof of work matches claimed amount
-    if (fCheckPOW && IsProofOfWork() && !CheckProofOfWork(GetHash(), nBits))
+    if (fCheckPOW && IsProofOfWork() && !CheckProofOfWork(hashBlock, nBits))
     {
         return DoS(50, error("CheckBlock() : proof of work failed"));
     }
@@ -3858,7 +3865,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                          "queue_start=%u\n    "
                          "slot=%u, current window=(%u, %u)\n",
                        GetAdjustedTime(),
-                       GetHash().ToString().c_str(),
+                       hashBlock.ToString().c_str(),
                        nHeight, nStakerID, nTime,
                        pregistryTemp->GetRound(),
                        pregistryTemp->GetRoundSeed(),
@@ -4067,10 +4074,10 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
         vDeetsRet.clear();
         BOOST_FOREACH(const CTransaction &tx, vtx)
         {
-            vector<QPoSTxDetails> vDeets;
+            vector<QPTxDetails> vDeets;
             MapPrevTx mapInputs;
             // round up candidate qPoS transactions without any validation
-            bool fNeedsInputs = tx.GetQPoSTxDetails(vDeets);
+            bool fNeedsInputs = tx.GetQPTxDetails(hashBlock, vDeets);
             if (fNeedsInputs)
             {
                 // pre-fill mapInputs with prevouts in this (same) block
@@ -4205,7 +4212,7 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
             return error("AcceptBlock() : block's timestamp is too early");
         }
     }
-    else if ((GetBlockTime() <= pindexPrev->GetMedianTimePast()) || 
+    else if ((GetBlockTime() <= pindexPrev->GetMedianTimePast()) ||
             ((GetBlockTime() + chainParams.nMaxClockDrift) < pindexPrev->GetBlockTime()))
     {
         return error("AcceptBlock() : block's timestamp is too early");
@@ -4422,14 +4429,14 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     if (fJustCheck)
     {
         printf("ProcessBlock(): just checking block\n");
-        vector<QPoSTxDetails> vDeets;
+        vector<QPTxDetails> vDeets;
         fCheckOK = pblock->CheckBlock(pregistryTemp.get(), vDeets, pindexBest,
                                       true, true, false, false);
     }
     else
     {
         printf("ProcessBlock(): fully checking block\n");
-        vector<QPoSTxDetails> vDeets;
+        vector<QPTxDetails> vDeets;
         fCheckOK = pblock->CheckBlock(pregistryTemp.get(), vDeets, pindexBest);
     }
 

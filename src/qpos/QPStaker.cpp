@@ -9,7 +9,38 @@
 using namespace json_spirit;
 using namespace std;
 
+extern CBlockIndex* pindexBest;
+
 extern Value ValueFromAmount(int64_t amount);
+
+
+void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
+{
+    objRet.clear();
+    objRet.push_back(Pair("hash", pindex->phashBlock->GetHex()));
+    if (pindex)
+    {
+        objRet.push_back(Pair("height",
+                              static_cast<int64_t>(pindex->nHeight)));
+        if (pindex->IsInMainChain())
+        {
+            objRet.push_back(Pair("isinmainchain", true));
+            objRet.push_back(Pair("confirmations",
+                                 pindexBest->nHeight + 1 - pindex->nHeight));
+        }
+        else
+        {
+            objRet.push_back(Pair("isinmainchain", false));
+        }
+    }
+    else
+    {
+        // this should never happen
+        objRet.push_back(Pair("height", -1));
+    }
+}
+
+
 
 QPStaker::QPStaker()
 {
@@ -19,11 +50,15 @@ QPStaker::QPStaker()
     Reset();
 }
 
-QPStaker::QPStaker(CPubKey pubkeyIn)
+QPStaker::QPStaker(const QPTxDetails& deet)
 {
-    pubkeyOwner = pubkeyIn;
-    pubkeyDelegate = pubkeyIn;
-    pubkeyController = pubkeyIn;
+    pubkeyOwner = deet.keys[0];
+    pubkeyDelegate = pubkeyOwner;
+    pubkeyController = pubkeyOwner;
+    hashBlockCreated = deet.hash;
+    hashTxCreated  = deet.txid;
+    nOutCreated = static_cast<unsigned int>(deet.n);
+    nPrice = deet.value;
     Reset();
 }
 
@@ -66,6 +101,37 @@ uint32_t QPStaker::GetPrevRecentBlocksMissed() const
     return min(nPrevBlocksMissed, m);
 }
 
+uint256 QPStaker::GetHashBlockCreated() const
+{
+    return hashBlockCreated;
+}
+
+const CBlockIndex* QPStaker::GetBlockCreated() const
+{
+    map<uint256, CBlockIndex*>::iterator mi =
+                         mapBlockIndex.find(hashBlockCreated);
+    if (mi != mapBlockIndex.end())
+    {
+        return (*mi).second;
+    }
+    return NULL;
+}
+
+uint256 QPStaker::GetHashTxCreated() const
+{
+    return hashTxCreated;
+}
+
+unsigned int QPStaker::GetNOutCreated() const
+{
+    return nOutCreated;
+}
+
+int64_t QPStaker::GetPrice() const
+{
+    return nPrice;
+}
+
 uint32_t QPStaker::GetBlocksProduced() const
 {
     return nBlocksProduced;
@@ -100,13 +166,15 @@ uint256 QPStaker::GetHashBlockMostRecent() const
     return hashBlockMostRecent;
 }
 
-int QPStaker::GetHeightMostRecent() const
+const CBlockIndex* QPStaker::GetBlockMostRecent() const
 {
-    if (mapBlockIndex.count(hashBlockMostRecent))
+    map<uint256, CBlockIndex*>::iterator mi =
+                         mapBlockIndex.find(hashBlockMostRecent);
+    if (mi != mapBlockIndex.end())
     {
-        return mapBlockIndex[hashBlockMostRecent]->nHeight;
+        return (*mi).second;
     }
-    return -1;
+    return NULL;
 }
 
 // Returns 1 even when missed blocks outnumber produced blocks.
@@ -203,6 +271,11 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("alias", sAlias));
     objRet.push_back(Pair("id", static_cast<int64_t>(nID)));
     objRet.push_back(Pair("version", nVersion));
+    Object objBlockCreated;
+    BlockAsJSONLite(GetBlockCreated(), objBlockCreated);
+    objRet.push_back(Pair("block_created", objBlockCreated));
+    objRet.push_back(Pair("txid_created", hashBlockCreated.GetHex()));
+    objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
     objRet.push_back(Pair("qualified", !fDisqualified));
     objRet.push_back(Pair("enabled", fEnabled));
     objRet.push_back(Pair("weight",
@@ -221,10 +294,13 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nBlocksSeen)));
     objRet.push_back(Pair("prev_blocks_missed",
                           static_cast<int64_t>(nPrevBlocksMissed)));
-    objRet.push_back(Pair("hash_most_recent_block",
-                          hashBlockMostRecent.GetHex()));
-    objRet.push_back(Pair("height_most_recent_block",
-                          static_cast<int64_t>(GetHeightMostRecent())));
+
+    if (hashBlockMostRecent != 0)
+    {
+        Object objBlockMR;
+        BlockAsJSONLite(GetBlockMostRecent(), objBlockMR);
+        objRet.push_back(Pair("most_recent_block", objBlockMR));
+    }
 
     if (!objMeta.empty())
     {
@@ -233,14 +309,10 @@ void QPStaker::AsJSON(unsigned int nID,
 
     if (fWithRecentBlocks)
     {
-        Array aryRecentBlocks, aryPrevRecentBlocks;
-        for (unsigned int i = 0; i < QP_RECENT_BLOCKS; ++i)
-        {
-            aryRecentBlocks.push_back((int)bRecentBlocks[i]);
-            aryPrevRecentBlocks.push_back((int)bPrevRecentBlocks[i]);
-        }
-        objRet.push_back(Pair("recent_blocks", aryRecentBlocks));
-        objRet.push_back(Pair("prev_recent_blocks", aryPrevRecentBlocks));
+        objRet.push_back(Pair("recent_blocks",
+                              BitsetAsHex(bRecentBlocks)));
+        objRet.push_back(Pair("prev_recent_blocks",
+                              BitsetAsHex(bPrevRecentBlocks)));
     }
 }
 

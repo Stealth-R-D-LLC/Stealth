@@ -2958,8 +2958,8 @@ string CWallet::CreateQPoSTx(const string &txid,
         // explicitly ensure unused because change goes back to funding source
         reservekeyUnused.ReturnKey();
 
-        std::vector<QPoSTxDetails> vDeets;
-        wtxNew.GetQPoSTxDetails(vDeets);
+        std::vector<QPTxDetails> vDeets;
+        wtxNew.GetQPTxDetails(0, vDeets);
         if (vDeets.empty())
         {
             return _("CreateQPoSTx(): no qPoS details gotten");
@@ -2972,7 +2972,7 @@ string CWallet::CreateQPoSTx(const string &txid,
         map<unsigned int, vector<qpos_setkey> > mapSetKeysTx;
         map<CPubKey, vector<qpos_claim> > mapClaimsTx;
         map<unsigned int, vector<qpos_setmeta> > mapSetMetasTx;
-        std::vector<QPoSTxDetails> vDeetsTx;
+        std::vector<QPTxDetails> vDeetsTx;
 
         if (!wtxNew.CheckQPoS(pregistryMain,
                               mapInputs,

@@ -6,6 +6,7 @@
 #define _STEALTHQPOS_H_ 1
 
 #include "QPConstants.hpp"
+#include "QPTxDetails.hpp"
 
 #include "script.h"
 
@@ -59,57 +60,15 @@ struct qpos_setmeta
     std::string value;
 };
 
-// general purpose, can be used for any qpos tx type
-class QPoSTxDetails
-{
-public:
-    int t;               // indicates how to use data fields
-    unsigned int id;            // staker ID (0 if N/A)
-    std::string alias;          // alias (empty if N/A)
-    std::vector<CPubKey> keys;  // length 1 or 3, latter for TX_PURCHASE3 only
-    int32_t pcm;                // nonzero if TX_PURCHASE3 or TX_SETDELEGATE
-    int64_t value;        // claim value (nonzero if TX_CLAIM)
-    std::string meta_key;       // meta key (empty if N/A)
-    std::string meta_value;     // meta value (empty if N/A)
-    void Clear()
-    {
-        id = 0;
-        alias = "";
-        keys.clear();
-        pcm = 0;
-        value = 0;
-    }
-    void SetNull()
-    {
-        t = TX_NONSTANDARD;
-        Clear();
-    }
-    QPoSTxDetails()
-    {
-        SetNull();
-    }
-    IMPLEMENT_SERIALIZE
-    (
-        READWRITE(t);
-        READWRITE(id);
-        READWRITE(alias);
-        READWRITE(keys);
-        READWRITE(pcm);
-        READWRITE(value);
-        READWRITE(meta_key);
-        READWRITE(meta_value);
-    )
-};
-
 void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet);
-void ExtractPurchase(const valtype &vch, QPoSTxDetails &deetsRet);
+void ExtractPurchase(const valtype &vch, QPTxDetails &deetsRet);
 void ExtractSetKey(const valtype &vch, qpos_setkey &setkeyRet);
-void ExtractSetKey(const valtype &vch, QPoSTxDetails &deetsRet);
+void ExtractSetKey(const valtype &vch, QPTxDetails &deetsRet);
 void ExtractSetState(const valtype &vch, qpos_setstate &setstateRet);
-void ExtractSetState(const valtype &vch, QPoSTxDetails &deetsRet);
+void ExtractSetState(const valtype &vch, QPTxDetails &deetsRet);
 void ExtractClaim(const valtype &vch, qpos_claim &claimRet);
-void ExtractClaim(const valtype &vch, QPoSTxDetails &deetsRet);
+void ExtractClaim(const valtype &vch, QPTxDetails &deetsRet);
 void ExtractSetMeta(const valtype &vch, qpos_setmeta &setmetaRet);
-void ExtractSetMeta(const valtype &vch, QPoSTxDetails &deetsRet);
+void ExtractSetMeta(const valtype &vch, QPTxDetails &deetsRet);
 
 #endif  /* _STEALTHQPOS_H_ */

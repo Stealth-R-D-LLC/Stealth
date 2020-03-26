@@ -2,8 +2,9 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "main.h"
 #include "qPoS.hpp"
+
+#include "main.h"
 
 #include "boost/assign.hpp"
 
@@ -80,7 +81,7 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
     }
 }
 
-void ExtractPurchase(const valtype &vch, QPoSTxDetails &deetsRet)
+void ExtractPurchase(const valtype &vch, QPTxDetails &deetsRet)
 {
     deetsRet.Clear();
     qpos_purchase purchase;
@@ -122,7 +123,7 @@ void ExtractSetKey(const valtype &vch, qpos_setkey &setkeyRet)
     }
 }
 
-void ExtractSetKey(const valtype &vch, QPoSTxDetails &deetsRet)
+void ExtractSetKey(const valtype &vch, QPTxDetails &deetsRet)
 {
     deetsRet.Clear();
     qpos_setkey setkey;
@@ -148,7 +149,7 @@ void ExtractSetState(const valtype &vch, qpos_setstate &setstateRet)
     setstateRet.id = GETUINT(first, last);
 }
 
-void ExtractSetState(const valtype &vch, QPoSTxDetails &deetsRet)
+void ExtractSetState(const valtype &vch, QPTxDetails &deetsRet)
 {
     deetsRet.Clear();
     qpos_setstate setstate;
@@ -173,7 +174,7 @@ void ExtractClaim(const valtype &vch, qpos_claim &claimRet)
     claimRet.value = GETUINT64(first, last);
 }
 
-void ExtractClaim(const valtype &vch, QPoSTxDetails &deetsRet)
+void ExtractClaim(const valtype &vch, QPTxDetails &deetsRet)
 {
     deetsRet.Clear();
     qpos_claim claim;
@@ -225,7 +226,7 @@ void ExtractSetMeta(const valtype &vch, qpos_setmeta &setmetaRet)
     setmetaRet.value = string(first, e);
 }
 
-void ExtractSetMeta(const valtype &vch, QPoSTxDetails &deetsRet)
+void ExtractSetMeta(const valtype &vch, QPTxDetails &deetsRet)
 {
     deetsRet.Clear();
     qpos_setmeta setmeta;

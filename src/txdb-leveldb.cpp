@@ -865,7 +865,7 @@ bool CTxDB::LoadBlockIndex()
         }
         // check level 1: verify block validity
         // check level 7: verify block signature too
-        vector<QPoSTxDetails> vDeets;
+        vector<QPTxDetails> vDeets;
         if ((nCheckLevel > 0) &&
             !block.CheckBlock(pregistryCheck, vDeets, pindex->pprev))
         {

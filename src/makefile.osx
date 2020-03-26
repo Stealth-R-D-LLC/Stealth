@@ -366,6 +366,7 @@ OBJS= \
     obj/aliases.o \
     obj/meta.o \
     obj/qPoS.o \
+    obj/QPTxDetails.o \
     obj/QPStaker.o \
     obj/QPQueue.o \
     obj/QPPowerElement.o \

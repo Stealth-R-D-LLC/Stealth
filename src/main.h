@@ -852,16 +852,17 @@ public:
     bool CheckQPoS(const QPRegistry *pregistryTemp,
                    const MapPrevTx &mapInputs,
                    unsigned int nTime,
-                   const std::vector<QPoSTxDetails> &vDeets,
+                   const std::vector<QPTxDetails> &vDeets,
                    const CBlockIndex *pindexPrev,
                    std::map<string, qpos_purchase> &mapPurchasesRet,
                    std::map<unsigned int, std::vector<qpos_setkey> > &mapSetKeysRet,
                    std::map<CPubKey, std::vector<qpos_claim> > &mapClaimsRet,
                    std::map<unsigned int, std::vector<qpos_setmeta> > &mapSetMetasRet,
-                   std::vector<QPoSTxDetails> &vDeetsRet) const;
+                   std::vector<QPTxDetails> &vDeetsRet) const;
 
     // faster, returns operational data only, not for validation
-    bool GetQPoSTxDetails(std::vector<QPoSTxDetails> &vDeets) const;
+    bool GetQPTxDetails(const uint256& hashBlock,
+                        std::vector<QPTxDetails> &vDeets) const;
 
     bool ReadFromDisk(CTxDB& txdb, COutPoint prevout, CTxIndex& txindexRet);
     bool ReadFromDisk(CTxDB& txdb, COutPoint prevout);
@@ -1385,7 +1386,7 @@ public:
                          const uint256& hashProof,
                          QPRegistry *pregistryTemp);
     bool CheckBlock(QPRegistry *pregistryTemp,
-                    std::vector<QPoSTxDetails> &vDeetsRet,
+                    std::vector<QPTxDetails> &vDeetsRet,
                     CBlockIndex* pindexPrev,
                     bool fCheckPOW=true,
                     bool fCheckMerkleRoot=true,
@@ -1458,7 +1459,7 @@ public:
     int nHeight;
     int nStakerID;
     // non-header info
-    std::vector<QPoSTxDetails> vDeets;
+    std::vector<QPTxDetails> vDeets;
 
 
     CBlockIndex()
@@ -1541,11 +1542,12 @@ public:
         {
             SetQuantumProofOfStake();
         }
+        uint256 hashBlock(block.GetHash());
         vDeets.clear();
         BOOST_FOREACH(const CTransaction &tx, block.vtx)
         {
-           std::vector<QPoSTxDetails> vDeetsTx;
-           tx.GetQPoSTxDetails(vDeetsTx);
+           std::vector<QPTxDetails> vDeetsTx;
+           tx.GetQPTxDetails(hashBlock, vDeetsTx);
            vDeets.insert(vDeets.end(), vDeetsTx.begin(), vDeetsTx.end());
         }
     }

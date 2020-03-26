@@ -74,11 +74,12 @@ private:
     void PurgeLowBalances(int64_t nMoneySupply);
     bool NewQueue(unsigned int nTime0, const uint256 &prevHash);
     unsigned int IncrementID();
-    bool ApplyPurchase(const QPoSTxDetails &deet);
-    bool ApplySetKey(const QPoSTxDetails &deet);
-    bool ApplySetState(const QPoSTxDetails &deet);
-    bool ApplyClaim(const QPoSTxDetails &deet, int64_t nBlockTime);
-    bool ApplySetMeta(const QPoSTxDetails &deet);
+    bool ApplyPurchase(const QPTxDetails& deet);
+    bool ApplySetKey(const QPTxDetails &deet);
+    bool ApplySetState(const QPTxDetails &deet);
+    bool ApplyClaim(const QPTxDetails &deet, int64_t nBlockTime);
+
+    bool ApplySetMeta(const QPTxDetails &deet);
 public:
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;

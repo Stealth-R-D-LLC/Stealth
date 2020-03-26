@@ -343,6 +343,36 @@ inline void PrintHex(const std::vector<unsigned char>& vch, const char* pszForma
     printf(pszFormat, HexStr(vch, fSpaces).c_str());
 }
 
+
+template<typename T>
+std::string BitsetAsHex(const T& b)
+{
+    unsigned int nBytes = sizeof(b) / 8;
+    unsigned int nChars = nBytes * 2;
+    char psz[nChars + 1];
+    // this loop is fine-grained because one cannot
+    // rely on the precise implementation of a bitset
+    for (unsigned int i = 0; i < nBytes; ++i)
+    {
+        unsigned char byte = 0;
+        for (unsigned int j = 0; j < 8; ++j)
+        {
+            if (j)
+            {
+                byte <<= 1;
+            }
+            unsigned int idx = i * 8 + j;
+            if (b[idx])
+            {
+                byte |= 1;
+            }
+        }
+        strprintf(psz + i * 2, "%02x", byte);
+    }
+    return std::string(psz, psz + nChars);
+}
+
+
 inline int64_t GetPerformanceCounter()
 {
     int64_t nCounter = 0;

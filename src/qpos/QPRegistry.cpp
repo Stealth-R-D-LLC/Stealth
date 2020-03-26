@@ -1263,13 +1263,13 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 }
 
 // this is where new stakers are born
-bool QPRegistry::ApplyPurchase(const QPoSTxDetails &deet)
+bool QPRegistry::ApplyPurchase(const QPTxDetails &deet)
 {
     if (deet.keys.empty())
     {
         return error("ApplyPurchase(): no keys");
     }
-    QPStaker staker(deet.keys[0]);
+    QPStaker staker(deet);
 
     if (deet.t == TX_PURCHASE1)
     {
@@ -1305,6 +1305,7 @@ bool QPRegistry::ApplyPurchase(const QPoSTxDetails &deet)
     {
         return error("ApplyPurchase(): staker can't set alias");
     }
+
     unsigned int nID = IncrementID();
     mapStakers[nID] = staker;
     ActivatePubKey(deet.keys[0]);
@@ -1316,7 +1317,7 @@ bool QPRegistry::ApplyPurchase(const QPoSTxDetails &deet)
     return true;
 }
 
-bool QPRegistry::ApplySetKey(const QPoSTxDetails &deet)
+bool QPRegistry::ApplySetKey(const QPTxDetails &deet)
 {
     if (!mapStakers.count(deet.id))
     {
@@ -1348,7 +1349,7 @@ bool QPRegistry::ApplySetKey(const QPoSTxDetails &deet)
     return true;
 }
 
-bool QPRegistry::ApplySetState(const QPoSTxDetails &deet)
+bool QPRegistry::ApplySetState(const QPTxDetails &deet)
 {
     if (!mapStakers.count(deet.id))
     {
@@ -1372,7 +1373,7 @@ bool QPRegistry::ApplySetState(const QPoSTxDetails &deet)
     return true;
 }
 
-bool QPRegistry::ApplyClaim(const QPoSTxDetails &deet, int64_t nBlockTime)
+bool QPRegistry::ApplyClaim(const QPTxDetails &deet, int64_t nBlockTime)
 {
     if (deet.t != TX_CLAIM)
     {
@@ -1393,7 +1394,7 @@ bool QPRegistry::ApplyClaim(const QPoSTxDetails &deet, int64_t nBlockTime)
     return true;
 }
 
-bool QPRegistry::ApplySetMeta(const QPoSTxDetails &deet)
+bool QPRegistry::ApplySetMeta(const QPTxDetails &deet)
 {
     if (deet.t != TX_SETMETA)
     {
@@ -1412,7 +1413,7 @@ bool QPRegistry::ApplySetMeta(const QPoSTxDetails &deet)
 // way to continue
 void QPRegistry::ApplyOps(const CBlockIndex *const pindex)
 {
-    BOOST_FOREACH(const QPoSTxDetails &deet, pindex->vDeets)
+    BOOST_FOREACH(const QPTxDetails &deet, pindex->vDeets)
     {
         switch (deet.t)
         {
