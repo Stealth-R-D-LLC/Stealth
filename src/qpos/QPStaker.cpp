@@ -274,7 +274,7 @@ void QPStaker::AsJSON(unsigned int nID,
     Object objBlockCreated;
     BlockAsJSONLite(GetBlockCreated(), objBlockCreated);
     objRet.push_back(Pair("block_created", objBlockCreated));
-    objRet.push_back(Pair("txid_created", hashBlockCreated.GetHex()));
+    objRet.push_back(Pair("txid_created", hashTxCreated.GetHex()));
     objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
     objRet.push_back(Pair("qualified", !fDisqualified));
     objRet.push_back(Pair("enabled", fEnabled));

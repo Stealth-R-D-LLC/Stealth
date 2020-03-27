@@ -344,30 +344,34 @@ inline void PrintHex(const std::vector<unsigned char>& vch, const char* pszForma
 }
 
 
+// Represent a bitset as hex.
+// The returned value is essentially a hex number.
+// Low bits of this hex number are low indices of the bitset.
 template<typename T>
 std::string BitsetAsHex(const T& b)
 {
-    unsigned int nBytes = sizeof(b) / 8;
+    unsigned int nSize = b.size();
+    unsigned int nBytes = nSize / 8;
     unsigned int nChars = nBytes * 2;
     char psz[nChars + 1];
-    // this loop is fine-grained because one cannot
-    // rely on the precise implementation of a bitset
+    // This loop is bitwise because one cannot
+    // rely on the precise implementation of a bitset.
     for (unsigned int i = 0; i < nBytes; ++i)
     {
-        unsigned char byte = 0;
+        unsigned int byte = 0;
         for (unsigned int j = 0; j < 8; ++j)
         {
             if (j)
             {
                 byte <<= 1;
             }
-            unsigned int idx = i * 8 + j;
+            unsigned int idx = nSize - (i * 8 + j) - 1;
             if (b[idx])
             {
                 byte |= 1;
             }
         }
-        strprintf(psz + i * 2, "%02x", byte);
+        sprintf(psz + i * 2, "%02x", byte);
     }
     return std::string(psz, psz + nChars);
 }

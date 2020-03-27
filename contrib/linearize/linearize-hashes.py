@@ -1,4 +1,4 @@
-#! /usr/bin/env python
+#! /usr/bin/env python3
 #
 # linearize-hashes.py:  List blocks in a linear, no-fork version of the chain.
 #
@@ -43,7 +43,7 @@ class BitcoinRPC:
       return None
 
     body = resp.read()
-    resp_obj = json.loads(body)
+    resp_obj = json.loads(body.decode('utf-8'))
     if resp_obj is None:
       print("JSON-RPC: cannot JSON-decode body")
       return None

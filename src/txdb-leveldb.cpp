@@ -592,21 +592,26 @@ bool CTxDB::LoadBlockIndex()
             pindexGenesisBlock = pindexNew;
         }
 
-        if (!pindexNew->CheckIndex()) {
+        if (!pindexNew->CheckIndex())
+        {
             delete iterator;
             return error("LoadBlockIndex() : CheckIndex failed at %d", pindexNew->nHeight);
         }
 
         // NovaCoin: build setStakeSeen
         if (pindexNew->IsProofOfStake())
+        {
             setStakeSeen.insert(make_pair(pindexNew->prevoutStake, pindexNew->nStakeTime));
+        }
 
         iterator->Next();
     }
     delete iterator;
 
     if (fRequestShutdown)
+    {
         return true;
+    }
 
     if (fWithExploreAPI && !GetBoolArg("-reindexexplore", false))
     {
