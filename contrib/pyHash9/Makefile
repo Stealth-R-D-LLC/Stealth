@@ -12,7 +12,7 @@ VPATH = ../../src
 
 CC = gcc
 CXX = g++
-LDFLAGS = -shared -fpic ${PYLIBDIR}
+LDFLAGS = -shared -fPIC ${PYLIBDIR}
 
 PROGS = pyHash9
 

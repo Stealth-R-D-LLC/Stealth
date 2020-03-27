@@ -21,8 +21,18 @@ This module is useful for chain linearization and third party toolchains.
 
 ### Linux
 
-The default version of python for Linux now defaults to Python 3
+The version of python for Linux now defaults to Python 3
 because official support for Python 2 has been discontinued.
+
+It is necessary to install the Python 3 headers and libraries
+and to link them to `/usr/local/`. These commands are system specific.
+Ensure to link the `libpython*.a` built with PIC enabled. For example:
+
+    % sudo apt-get install python3-dev libpython3-all-dev
+    % sudo ln -s /usr/lib/python3.5/config-3.5m-x86_64-linux-gnu/libpython3.5m-pic.a /usr/local/lib/libpython.a
+    % sudo ln -s /usr/include/python3.5m /usr/local/include/python
+
+Then build:
 
     % cd pyHash9
     % make
