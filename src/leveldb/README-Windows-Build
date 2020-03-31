@@ -1,1 +1,0 @@
-TARGET_OS=OS_WINDOWS_CROSSCOMPILE make staticlibs
