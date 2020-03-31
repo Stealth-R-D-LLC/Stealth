@@ -350,6 +350,7 @@ inline void PrintHex(const std::vector<unsigned char>& vch, const char* pszForma
 template<typename T>
 std::string BitsetAsHex(const T& b)
 {
+    std::string strResult;
     unsigned int nSize = b.size();
     unsigned int nBytes = nSize / 8;
     char psz[3];
