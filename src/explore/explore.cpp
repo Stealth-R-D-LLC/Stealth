@@ -17,6 +17,8 @@ using namespace std;
 
 bool fWithExploreAPI = false;
 bool fDebugExplore = false;
+bool fReindexExplore = false;
+
 int64_t nMaxDust = chainParams.DEFAULT_MAXDUST;
 
 // As an STL map, this is ordered decreasing (big balances first).
@@ -31,6 +33,7 @@ MapBalanceCounts mapAddressBalances;
 //
 // functions
 //
+
 
 void ExploreGetDestinations(const CTransaction& tx, VecDest& vret)
 {
@@ -110,8 +113,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
-                         set<int64_t>& setAddressBalancesRemoveRet,
-                         bool fReindex)
+                         set<int64_t>& setAddressBalancesRemoveRet)
 {
     const CTxIn& txIn = tx.vin[n];
     const CTxOut txOut = GetOutputFor(txIn, mapInputs);
@@ -214,7 +216,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             return error("ExploreConnectInput() : TSNH negative number of inputs");
         }
         nQtyInputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs) && !fReindex)
+        if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs))
         {
             // This should never happen, input tx already exists
             return error("ExploreConnectInput() : TSNH input tx already exists");
@@ -245,7 +247,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             return error("ExploreConnectInput() : TSNH negative number of in-outs");
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts) && !fReindex)
+        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, input in-out tx already exists
             return error("ExploreConnectInput() : TSNH input in-out tx already exists");
@@ -256,12 +258,12 @@ bool ExploreConnectInput(CTxDB& txdb,
             return error("ExploreConnectInput() : could not write qty of in-outs");
         }
         // write the in-out record
-        ExploreInOutLookup newInOut(nQtyInOuts, true);
+        ExploreInOutLookup newInOut(nQtyInputs, true);
         if (!txdb.WriteAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, newInOut))
         {
             return error("ExploreConnectInput() : could not write input in-out");
         }
-        if (fDebugExplore)
+        if (fDebugExplore && !fReindexExplore)
         {
             printf("EXPLORE connecting INPUT in-out %d\n   %d:%s\n",
                    nQtyInOuts, n, txid.GetHex().c_str());
@@ -372,8 +374,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
                          const unsigned int n,
                          const uint256& txid,
                          MapBalanceCounts& mapAddressBalancesAddRet,
-                         set<int64_t>& setAddressBalancesRemoveRet,
-                         bool fReindex)
+                         set<int64_t>& setAddressBalancesRemoveRet)
 {
     if (tx.IsCoinStake() && (n == 0))
     {
@@ -422,7 +423,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return error("ExploreConnectOutput() : TSNH negative number of outputs");
         }
         nQtyOutputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs) && !fReindex)
+        if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs))
         {
             // This should never happen, output tx already exists
             return error("ExploreConnectOutput() : TSNH output tx already exists");
@@ -443,7 +444,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         * 2. add the output lookup
         ***************************************************************/
         // ensure the output lookup does not exist
-        if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n) && !fReindex)
+        if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
         {
             // This should never happen, output lookup already exists
             return error("ExploreConnectOutput() : TSNH output lookup already exists");
@@ -469,7 +470,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return error("ExploreConnectOutput() : TSNH negative number of in-outs");
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts) && !fReindex)
+        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, output in-out tx already exists
             return error("ExploreConnectOutput() : TSNH output in-out tx already exists");
@@ -480,12 +481,12 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return error("ExploreConnectOutput() : could not write qty of in-outs");
         }
         // write the in-out record
-        ExploreInOutLookup newInOut(nQtyInOuts, false);
+        ExploreInOutLookup newInOut(nQtyOutputs, false);
         if (!txdb.WriteAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, newInOut))
         {
             return error("ExploreConnectOutput() : could not write output in-out");
         }
-        if (fDebugExplore)
+        if (fDebugExplore && !fReindexExplore)
         {
             printf("EXPLORE connecting OUTPUT in-out %d\n   %d:%s\n",
                    nQtyInOuts, n, txid.GetHex().c_str());
@@ -592,8 +593,7 @@ bool ExploreConnectTx(CTxDB& txdb,
                       const uint256& hashBlock,
                       const unsigned int nBlockTime,
                       const int nHeight,
-                      const int nVtx,
-                      bool fReindex)
+                      const int nVtx)
 {
     MapBalanceCounts mapAddressBalancesAdd;
     set<int64_t> setAddressBalancesRemove;
@@ -625,8 +625,7 @@ bool ExploreConnectTx(CTxDB& txdb,
         {
             ExploreConnectInput(txdb, tx, n, mapInputs, txid,
                                 mapAddressBalancesAdd,
-                                setAddressBalancesRemove,
-                                fReindex);
+                                setAddressBalancesRemove);
         }
     }
 
@@ -634,8 +633,7 @@ bool ExploreConnectTx(CTxDB& txdb,
     {
         ExploreConnectOutput(txdb, tx, n, txid,
                              mapAddressBalancesAdd,
-                             setAddressBalancesRemove,
-                             fReindex);
+                             setAddressBalancesRemove);
     }
 
     VecDest vDest;
@@ -653,9 +651,7 @@ bool ExploreConnectTx(CTxDB& txdb,
     return true;
 }
 
-bool ExploreConnectBlock(CTxDB& txdb,
-                         const CBlock *const block,
-                         bool fReindex)
+bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block)
 {
     const uint256 h = block->GetHash();
 
@@ -670,12 +666,20 @@ bool ExploreConnectBlock(CTxDB& txdb,
         return error("ExploreConnectBlock() : TSNH block not in index");
     }
 
+    if (h == hashGenesisBlock)
+    {
+        if (fDebugExplore)
+        {
+            printf("ExploreConnectBlock(): writing explore sentinel\n");
+        }
+        txdb.WriteExploreSentinel();
+    }
+
     int nVtx = 0;
     BOOST_FOREACH(const CTransaction& tx, block->vtx)
     {
         if (!ExploreConnectTx(txdb, tx, h,
-                              pindex->nTime, pindex->nHeight, nVtx,
-                              fReindex))
+                              pindex->nTime, pindex->nHeight, nVtx))
         {
             return false;
         }
@@ -807,10 +811,12 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         {
             return error("ExploreDisconnectOutput() : could not read in-out");
         }
-        if (storedInOut.GetID() != nOutputID)
+        if (storedInOut.GetID() != nQtyOutStored)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreDisconnectOutput() : TSNH stored in-out doesn't match");
+            return error("ExploreDisconnectOutput() : TSNH stored in-out doesn't match\n"
+                         "  Qty:%d, ID: %d\n  %d:%s",
+                         nQtyInOuts, storedInOut.GetID(), n, txid.GetHex().c_str());
         }
         if (storedInOut.IsInput())
         {
@@ -818,7 +824,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             return error("ExploreDisconnectOutput() : TSNH stored is an input");
         }
         // finalize removal
-        if (!txdb.RemoveAddrTx(ADDR_TX_INOUT, strAddr, nOutputID))
+        if (!txdb.RemoveAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             return error("ExploreDisconnectOutput() : could not remove in-out");
         }
@@ -829,7 +835,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         {
             return error("ExploreDisconnectOutput() : could not write qty in-outs");
         }
-        if (fDebugExplore)
+        if (fDebugExplore && !fReindexExplore)
         {
             printf("EXPLORE disconnecting OUTPUT in-out %d\n   %d:%s\n",
                    nQtyInOuts, n, txid.GetHex().c_str());
@@ -1032,10 +1038,12 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             return error("ExploreDisconnectInput() : could not read in-out");
         }
-        if (storedInOut.GetID() != nQtyInOuts)
+        if (storedInOut.GetID() != nQtyInStored)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreDisconnectInput() : TSNH stored in-out doesn't match");
+            return error("ExploreDisconnectInput() : TSNH stored in-out doesn't match\n"
+                         "  Qty:%d, ID: %d\n  %d:%s",
+                         nQtyInOuts, storedInOut.GetID(), n, txid.GetHex().c_str());
         }
         if (storedInOut.IsOutput())
         {
@@ -1054,7 +1062,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             return error("ExploreDisconnectInput() : could not write qty in-outs");
         }
-        if (fDebugExplore)
+        if (fDebugExplore && !fReindexExplore)
         {
             printf("EXPLORE disconnecting INPUT in-out %d\n   %d:%s\n",
                    nQtyInOuts, n, txid.GetHex().c_str());

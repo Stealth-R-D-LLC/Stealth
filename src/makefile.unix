@@ -77,7 +77,7 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/explore" \
  -I"$(CURDIR)/bip32"
 
-DEBUGFLAGS=-g
+DEBUGFLAGS = -g
 
 CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
 
@@ -445,13 +445,14 @@ ifeq (${STEALTHTEXT}, 1)
 	@echo "Building libcryptopp ..."; cd libcryptopp; make libcryptopp.a; cd ..;
 endif
 
-LIBS += $(CURDIR)/leveldb/out-static/libleveldb.a $(CURDIR)/leveldb/out-static/libmemenv.a
+LIBS += $(CURDIR)/leveldb/build/libleveldb.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
 OBJS += obj/txdb-leveldb.o
-leveldb/out-static/libleveldb.a:
-	@echo "Building LevelDB ..."; cd leveldb; make staticlibs; cd ..;
-obj/txdb-leveldb.o: leveldb/out-static/libleveldb.a
+leveldb/build/libleveldb.a:
+	@echo "Building LevelDB ..."; cd leveldb; mkdir -p build; cd build; \
+                cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build .
+obj/txdb-leveldb.o: leveldb/build/libleveldb.a
 
 
 # auto-generated dependencies:
@@ -588,7 +589,7 @@ else
     LIBCRYPTOPP =
 endif
 
-StealthCoind: leveldb/out-static/libleveldb.a $(LIBCRYPTOPP) \
+StealthCoind: leveldb/build/libleveldb.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
 

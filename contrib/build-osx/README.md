@@ -76,7 +76,14 @@ BOOST_LIB_SUFFIX="-mt"
 
 ## Make
 
-To build first source the appropriate setup script:
+The building process requires [cmake](https://cmake.org/).
+Install it with homebrew:
+
+```bash
+brew install cmake
+```
+
+Building on OSX requires sourcing the appropriate setup script:
 
 **bash:**
 

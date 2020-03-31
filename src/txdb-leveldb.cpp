@@ -200,19 +200,30 @@ bool CTxDB::ScanBatch(const CDataStream &key, string *value, bool *deleted) cons
         throw runtime_error(status.ToString());
     }
     return scanner.foundEntry;
-
 }
 
-bool CTxDB::EraseStartsWith(const string& strSearch)
+bool CTxDB::EraseStartsWith(const string& strSentinel,
+                            const string& strSearch,
+                            bool fActiveBatchOK)
 {
+    if ((!fActiveBatchOK) && activeBatch)
+    {
+        return error("EraseStartsWith(): active batch not allowed");
+    }
     int count = 0;
     int xcount = 0;
     leveldb::Iterator *iter = pdb->NewIterator(leveldb::ReadOptions());
-    iter->SeekToFirst();
+    iter->Seek(strSentinel);
+    // don't erase the sentinel
+    iter->Next();
+    if (!TxnBegin())
+    {
+        return error("EraseStartsWith() : first TxnBegin failed");
+    }
     while (iter->Valid())
     {
         xcount += 1;
-        if (xcount % 100000 == 0)
+        if (fDebugExplore && (xcount % 100000 == 0))
         {
             printf("examined %d records\n", xcount);
         }
@@ -236,18 +247,34 @@ bool CTxDB::EraseStartsWith(const string& strSearch)
                 continue;
             }
         }
+        if ((xcount > 0) && ((count % 10000) == 0))
+        {
+            if (!TxnCommit())
+            {
+                return error("EraseStartsWith() : TxnCommit failed");
+            }
+            if (!TxnBegin())
+            {
+                return error("EraseStartsWith() : TxnBegin failed");
+            }
+        }
         if ((count == 1) || ((count > 0) && ((count % 100000) == 0)))
         {
+            string strKeyType;
+            ssKey >> strKeyType;
             printf("EraseStartsWith(): erased %d records\n", count);
+            printf("   prefix: %s, type:%s\n", strPrefix.c_str(),
+                                               strKeyType.c_str());
         }
         count += 1;
+        string strKeyDel(ssKey.full_str());
         if (activeBatch)
         {
-            activeBatch->Delete(ssKey.str());
+            activeBatch->Delete(strKeyDel);
         }
         else
         {
-            leveldb::Status status = pdb->Delete(leveldb::WriteOptions(), ssKey.str());
+            leveldb::Status status = pdb->Delete(leveldb::WriteOptions(), strKeyDel);
             if (!status.ok())
             {
                 return error("TSNH: Can't erase record type \"%s\".",
@@ -256,9 +283,17 @@ bool CTxDB::EraseStartsWith(const string& strSearch)
         }
         iter->Next();
     }
+    if (!TxnCommit())
+    {
+        return error("EraseStartsWith() : final TxnCommit failed");
+    }
     return true;
 }
 
+bool CTxDB::WriteExploreSentinel(int value)
+{
+    return Write(EXPLORE_SENTINEL, value);
+}
 
 /*  AddrQty
  *  Parameters - t:type, addr:address, qty:quantity

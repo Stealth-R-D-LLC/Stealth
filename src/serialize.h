@@ -816,10 +816,16 @@ public:
         return (std::string(begin(), end()));
     }
 
+    std::string full_str() const
+    {
+        return (std::string(begin0(), end()));
+    }
 
     //
     // Vector subset
     //
+    const_iterator begin0() const                    { return vch.begin(); }
+    iterator begin0()                                { return vch.begin(); }
     const_iterator begin() const                     { return vch.begin() + nReadPos; }
     iterator begin()                                 { return vch.begin() + nReadPos; }
     const_iterator end() const                       { return vch.end(); }

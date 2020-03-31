@@ -26,6 +26,15 @@ typedef pair<exploreKey_t, string> ss_key_t;
 typedef pair<uint256, int> txidn_key_t;
 typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
 
+template<typename K>
+std::string DBKeyToString(K& key)
+{
+    CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+    ssKey.reserve(1000);
+    ssKey << key;
+    return ssKey.str();
+}
+
 // Class that provides access to a LevelDB. Note that this class is frequently
 // instantiated on the stack and then destroyed again, so instantiation has to
 // be very cheap. Unfortunately that means, a CTxDB instance is actually just a
@@ -241,8 +250,11 @@ public:
         return Write(std::string("version"), nVersion);
     }
 
-    bool EraseStartsWith(const std::string& strSearch);
+    bool EraseStartsWith(const string& strSentinel,
+                         const string& strSearch,
+                         bool fActiveBatchOK);
 
+    bool WriteExploreSentinel(int value=0);
     bool ReadAddrQty(const exploreKey_t& t, const std::string& addr, int& qtyRet);
     bool WriteAddrQty(const exploreKey_t& t, const std::string& addr, const int& qty);
 

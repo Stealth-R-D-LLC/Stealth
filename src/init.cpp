@@ -1033,10 +1033,12 @@ bool AppInit2()
         if (walletdb.ReadBestBlock(locator))
             pindexRescan = locator.GetBlockIndex();
     }
-    if (pindexBest != pindexRescan && pindexBest && pindexRescan && pindexBest->nHeight > pindexRescan->nHeight)
+    if (pindexBest != pindexRescan && pindexBest && pindexRescan &&
+        pindexBest->nHeight > pindexRescan->nHeight)
     {
         uiInterface.InitMessage(_("Rescanning..."));
-        printf("Rescanning last %i blocks (from block %i)...\n", pindexBest->nHeight - pindexRescan->nHeight, pindexRescan->nHeight);
+        printf("Rescanning last %i blocks (from block %i)...\n",
+               pindexBest->nHeight - pindexRescan->nHeight, pindexRescan->nHeight);
         nStart = GetTimeMillis();
         pwalletMain->ScanForWalletTransactions(pindexRescan, true);
         printf(" rescan      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
@@ -1044,31 +1046,43 @@ bool AppInit2()
 
     // ********************************************************* Step 9: import blocks
 
-    bool fReindexExplore = (GetBoolArg("-reindexexplore", false) && fWithExploreAPI);
+    fReindexExplore = (GetBoolArg("-reindexexplore", false) && fWithExploreAPI);
+    if (fReindexExplore)
+    {
+        uiInterface.InitMessage(_("Clearing existing Explore API records for reindex."));
+        printf("Clearing existing Explore API records for reindex.\n");
+        string strSentinel = DBKeyToString(EXPLORE_SENTINEL);
+        CTxDB txdb;
+        txdb.EraseStartsWith(strSentinel, EXPLORE_KEY, false);
+    }
 
     if (mapArgs.count("-loadblock"))
     {
-        fReindexExplore = false;
         uiInterface.InitMessage(_("Importing blockchain data file."));
 
         BOOST_FOREACH(string strFile, mapMultiArgs["-loadblock"])
         {
             FILE *file = fopen(strFile.c_str(), "rb");
             if (file)
+            {
                 LoadExternalBlockFile(file);
+                fReindexExplore = false;
+            }
         }
     }
 
     filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
-    if (filesystem::exists(pathBootstrap)) {
-        fReindexExplore = false;
+    if (filesystem::exists(pathBootstrap))
+    {
         uiInterface.InitMessage(_("Importing bootstrap blockchain data file."));
 
         FILE *file = fopen(pathBootstrap.string().c_str(), "rb");
-        if (file) {
+        if (file)
+        {
             filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
             LoadExternalBlockFile(file);
             RenameOver(pathBootstrap, pathBootstrapOld);
+            fReindexExplore = false;
         }
     }
 
@@ -1087,13 +1101,14 @@ bool AppInit2()
             }
             CBlock block;
             block.ReadFromDisk(pindex, true);
-            if (!ExploreConnectBlock(txdb, &block, true))
+            if (!ExploreConnectBlock(txdb, &block))
             {
                 Shutdown(NULL);
             }
             count += 1;
             pindex = pindex->pnext;
         }
+        fReindexExplore = false;
     }
 
 

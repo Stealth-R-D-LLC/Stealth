@@ -2993,6 +2993,11 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         SyncWithWallets(tx, this, false, false);
     }
 
+    if (fDebugExplore)
+    {
+        printf("DisconnectBlock(): %s done\n", pindex->GetBlockHash().ToString().c_str());
+    }
+
     if (fWithExploreAPI)
     {
         ExploreDisconnectBlock(txdb, this);
@@ -3218,6 +3223,12 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
         SyncWithWallets(tx, this, true);
     }
 
+    if (fDebugExplore)
+    {
+        printf("ConnectBlock(): %s done\n", pindex->GetBlockHash().ToString().c_str());
+    }
+
+
     if (fWithExploreAPI)
     {
         ExploreConnectBlock(txdb, this);
@@ -3249,16 +3260,28 @@ bool static Reorganize(CTxDB& txdb,
     // List of what to disconnect
     vector<CBlockIndex*> vDisconnect;
     for (CBlockIndex* pindex = pindexBest; pindex != pfork; pindex = pindex->pprev)
+    {
         vDisconnect.push_back(pindex);
+    }
 
     // List of what to connect
     vector<CBlockIndex*> vConnect;
     for (CBlockIndex* pindex = pindexNew; pindex != pfork; pindex = pindex->pprev)
+    {
         vConnect.push_back(pindex);
+    }
     reverse(vConnect.begin(), vConnect.end());
 
-    printf("REORGANIZE: Disconnect %" PRIszu " blocks; %s..%s\n", vDisconnect.size(), pfork->GetBlockHash().ToString().c_str(), pindexBest->GetBlockHash().ToString().c_str());
-    printf("REORGANIZE: Connect %" PRIszu " blocks; %s..%s\n", vConnect.size(), pfork->GetBlockHash().ToString().c_str(), pindexNew->GetBlockHash().ToString().c_str());
+    printf("REORGANIZE: Disconnect %" PRIszu " blocks\n   %s to\n   %s\n",
+           vDisconnect.size(),
+           pindexBest->GetBlockHash().ToString().c_str(),
+           pfork->pnext->GetBlockHash().ToString().c_str());
+    printf("REORGANIZE: Fork at \n   %s\n",
+           pfork->GetBlockHash().ToString().c_str());
+    printf("REORGANIZE: Connect %" PRIszu " blocks\n   %s to\n   %s\n",
+           vConnect.size(),
+           pfork->pnext->GetBlockHash().ToString().c_str(),
+           pindexNew->GetBlockHash().ToString().c_str());
 
     // Disconnect shorter branch
     list<CTransaction> vResurrect;
@@ -3267,6 +3290,7 @@ bool static Reorganize(CTxDB& txdb,
         CBlock block;
         if (!block.ReadFromDisk(pindex))
             return error("Reorganize() : ReadFromDisk for disconnect failed");
+
         if (!block.DisconnectBlock(txdb, pindex))
             return error("Reorganize() : DisconnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
 

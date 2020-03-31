@@ -32,6 +32,8 @@ const int MASK_ADDR_TX = ~FLAG_ADDR_TX;
 
 const std::string EXPLORE_KEY = "EXPK";
 
+// Explore Sentinel lexigraphical first key for iterating
+const exploreKey_t EXPLORE_SENTINEL(EXPLORE_KEY, "");
 // Addr Qty
 const exploreKey_t ADDR_QTY_INPUT(EXPLORE_KEY, "AQI");
 const exploreKey_t ADDR_QTY_OUTPUT(EXPLORE_KEY, "AQO");

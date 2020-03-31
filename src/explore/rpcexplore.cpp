@@ -676,17 +676,21 @@ Value getrichlist(const Array &params, bool fHelp)
 class StatHelper
 {
 public:
-    string name;
+    string label;
     int64_t (*Get)(CBlockIndex*);
     Value (*Reduce)(const vector<int64_t>&);
 
-    StatHelper(const string& nameIn,
+    StatHelper(const string& labelIn,
                int64_t (*GetIn)(CBlockIndex*),
                Value (*ReduceIn)(const vector<int64_t>&))
     {
-        name = nameIn;
+        label = labelIn;
         Get = GetIn;
         Reduce = ReduceIn;
+    }
+    string GetLabel() const
+    {
+        return label;
     }
 };
 
@@ -876,7 +880,7 @@ Value GetWindowedValue(const Array& params,
     Object obj;
     obj.push_back(Pair("window_start", aryWindowStartTimes));
     obj.push_back(Pair("number_blocks", aryTotalBlocks));
-    obj.push_back(Pair(helper.name, aryTotals));
+    obj.push_back(Pair(helper.GetLabel(), aryTotals));
 
     return obj;
 }
@@ -940,7 +944,8 @@ int64_t GetBlockInterval(CBlockIndex *pindex)
     }
     else
     {
-        interval = GetAdjustedTime() - (int64_t)pindex->nTime;
+        // doubling is an application of the Copernican Principle
+        interval = 2 * (GetAdjustedTime() - (int64_t)pindex->nTime);
     }
     return interval;
 }
