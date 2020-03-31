@@ -3272,16 +3272,30 @@ bool static Reorganize(CTxDB& txdb,
     }
     reverse(vConnect.begin(), vConnect.end());
 
-    printf("REORGANIZE: Disconnect %" PRIszu " blocks\n   %s to\n   %s\n",
-           vDisconnect.size(),
-           pindexBest->GetBlockHash().ToString().c_str(),
-           pfork->pnext->GetBlockHash().ToString().c_str());
-    printf("REORGANIZE: Fork at \n   %s\n",
-           pfork->GetBlockHash().ToString().c_str());
-    printf("REORGANIZE: Connect %" PRIszu " blocks\n   %s to\n   %s\n",
-           vConnect.size(),
-           pfork->pnext->GetBlockHash().ToString().c_str(),
-           pindexNew->GetBlockHash().ToString().c_str());
+    if (pfork->pnext)
+    {
+        printf("REORGANIZE: Disconnect %" PRIszu " blocks\n   %s to\n   %s\n",
+               vDisconnect.size(),
+               pindexBest->GetBlockHash().ToString().c_str(),
+               pfork->pnext->GetBlockHash().ToString().c_str());
+        printf("REORGANIZE: Fork at \n   %s\n",
+               pfork->GetBlockHash().ToString().c_str());
+        printf("REORGANIZE: Connect %" PRIszu " blocks\n   %s to\n   %s\n",
+               vConnect.size(),
+               pfork->pnext->GetBlockHash().ToString().c_str(),
+               pindexNew->GetBlockHash().ToString().c_str());
+    }
+    else
+    {
+        printf("REORGANIZE: Disconnect %" PRIszu " blocks\n   %s to\n   %s->next\n",
+               vDisconnect.size(),
+               pindexBest->GetBlockHash().ToString().c_str(),
+               pfork->GetBlockHash().ToString().c_str());
+        printf("REORGANIZE: Connect %" PRIszu " blocks\n   %s->next to\n   %s\n",
+               vConnect.size(),
+               pfork->GetBlockHash().ToString().c_str(),
+               pindexNew->GetBlockHash().ToString().c_str());
+    }
 
     // Disconnect shorter branch
     list<CTransaction> vResurrect;
