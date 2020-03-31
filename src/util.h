@@ -352,8 +352,7 @@ std::string BitsetAsHex(const T& b)
 {
     unsigned int nSize = b.size();
     unsigned int nBytes = nSize / 8;
-    unsigned int nChars = nBytes * 2;
-    char psz[nChars + 1];
+    char psz[3];
     // This loop is bitwise because one cannot
     // rely on the precise implementation of a bitset.
     for (unsigned int i = 0; i < nBytes; ++i)
@@ -371,9 +370,10 @@ std::string BitsetAsHex(const T& b)
                 byte |= 1;
             }
         }
-        sprintf(psz + i * 2, "%02x", byte);
+        sprintf(psz, "%02x", byte);
+        strResult += std::string(psz, psz + 2);
     }
-    return std::string(psz, psz + nChars);
+    return strResult;
 }
 
 
