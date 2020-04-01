@@ -687,6 +687,10 @@ bool CTxDB::LoadBlockIndex()
             ssKey.write(iter->key().data(), iter->key().size());
             CDataStream ssValue(SER_DISK, CLIENT_VERSION);
             ssValue.write(iter->value().data(), iter->value().size());
+            if (fRequestShutdown)
+            {
+                break;
+            }
             // Did we reach the end of the address sets?
             string strDBLabel;
             ssKey >> strDBLabel;
