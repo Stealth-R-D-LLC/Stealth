@@ -350,6 +350,12 @@ bool error(const char *format, ...)
     return false;
 }
 
+bool error(const string& str)
+{
+    printf("ERROR: %s\n", str.c_str());
+    return false;
+}
+
 
 bool warning(const char *format, ...)
 {

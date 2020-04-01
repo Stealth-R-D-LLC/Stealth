@@ -34,6 +34,28 @@ MapBalanceCounts mapAddressBalances;
 // functions
 //
 
+bool _Err(const char *pmsg,
+          const string& strAddr,
+          int nID,
+          const uint256& txid,
+          int n,
+          const uint256& hashPrev=0,
+          int nPrev=-1)
+{
+    string result(pmsg);
+    result += strprintf("\n    %s (record ID=%d):\n  this: %s-%d",
+                        strAddr.c_str(), nID,
+                        txid.GetHex().c_str(), n);
+
+    if ((hashPrev > 0) && (nPrev >= 0))
+    {
+        result += strprintf("\n  prev: %s-%d",
+                            hashPrev.GetHex().c_str(), nPrev);
+    }
+
+    return error(result);
+}
+
 
 void ExploreGetDestinations(const CTransaction& tx, VecDest& vret)
 {
@@ -152,46 +174,47 @@ bool ExploreConnectInput(CTxDB& txdb,
                                  strAddr, txIn.prevout.hash, txIn.prevout.n,
                                  nOutputID))
         {
-            return error("ExploreConnectInput() : could not read prev output ID\n"
-                         "    %s:\n  %s-%d (%d)\n",
-                                       strAddr.c_str(),
-                                       txIn.prevout.hash.ToString().c_str(),
-                                       txIn.prevout.n,
-                                       nOutputID);
+            return _Err("ExploreConnectInput(): can't read prev output ID",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
+
         if (nOutputID < 1)
         {
             // This should never happen : invalid output ID
-            return error("ExploreConnectInput() : invalid output ID\n"
-                         "    %s (OutputID=%d):\n  this: %s-%d\n  prev: %s-%d\n",
-                                       strAddr.c_str(),
-                                       nOutputID,
-                                       txid.GetHex().c_str(),
-                                       n,
-                                       txIn.prevout.hash.GetHex().c_str(),
-                                       txIn.prevout.n);
+            return _Err("ExploreConnectInput(): TSNH invalid output ID",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that the explore db and chain are synced
         ExploreOutputInfo storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
-            return error("ExploreConnectInput() : could not read prev output");
+            return _Err("ExploreConnectInput(): can't read prev output",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
         if (storedOut.txid != txIn.prevout.hash)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreConnectInput() : TSNH stored prev tx doesn't match");
+            return _Err("ExploreConnectInput() : TSNH stored prev tx doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.vout != txIn.prevout.n)
         {
             // This should never happen, stored n doesn't match output n
-            return error("ExploreConnectInput() : TSNH stored prev vout doesn't match");
+            return _Err("ExploreConnectInput(): TSNH stored prev vout doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.IsSpent())
         {
             // This should never happen, stored output is spent
-            return error("ExploreConnectInput() : TSNH stored prev output is spent");
+            return _Err("ExploreConnectInput(): TSNH stored prev output is spent",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
         // write the previous output back, marked as spent
@@ -199,7 +222,9 @@ bool ExploreConnectInput(CTxDB& txdb,
         if (!txdb.WriteAddrTx(ADDR_TX_OUTPUT,
                               strAddr, nOutputID, storedOut))
         {
-            return error("ExploreConnectInput() : could not write prev output");
+            return _Err("ExploreConnectInput(): can't write prev output",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
        /***************************************************************
@@ -208,29 +233,39 @@ bool ExploreConnectInput(CTxDB& txdb,
         int nQtyInputs;
         if (!txdb.ReadAddrQty(ADDR_QTY_INPUT, strAddr, nQtyInputs))
         {
-            return error("ExploreConnectInput() : could not read qty inputs");
+            return _Err("ExploreConnectInput() : can't read qty inputs",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nQtyInputs < 0)
         {
             // This should never happen: negative number of inputs
-            return error("ExploreConnectInput() : TSNH negative number of inputs");
+            return _Err("ExploreConnectInput() : TSNH negative inputs",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         nQtyInputs += 1;
         if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs))
         {
             // This should never happen, input tx already exists
-            return error("ExploreConnectInput() : TSNH input tx already exists");
+            return _Err("ExploreConnectInput() : TSNH input tx exists",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // write the new index record
         if (!txdb.WriteAddrQty(ADDR_QTY_INPUT, strAddr, nQtyInputs))
         {
-            return error("ExploreConnectInput() : could not write qty of inputs");
+            return _Err("ExploreConnectInput() : can't write qty of inputs",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // write the input record
         ExploreInputInfo newIn(txid, n, txIn.prevout.hash, txIn.prevout.n);
         if (!txdb.WriteAddrTx(ADDR_TX_INPUT, strAddr, nQtyInputs, newIn))
         {
-            return error("ExploreConnectInput() : could not write input");
+            return _Err("ExploreConnectInput() : can't write input",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
        /***************************************************************
@@ -239,34 +274,47 @@ bool ExploreConnectInput(CTxDB& txdb,
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreConnectInput() : could not read qty in-outs");
+            return _Err("ExploreConnectInput() : can't read qty in-outs",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nQtyInOuts < 0)
         {
             // This should never happen: negative number of in-outs
-            return error("ExploreConnectInput() : TSNH negative number of in-outs");
+            return _Err("ExploreConnectInput() : TSNH negative in-outs",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         nQtyInOuts += 1;
         if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, input in-out tx already exists
-            return error("ExploreConnectInput() : TSNH input in-out tx already exists");
+            return _Err("ExploreConnectInput() : TSNH input in-out tx exists",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // write the new index record
         if (!txdb.WriteAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreConnectInput() : could not write qty of in-outs");
+            return _Err("ExploreConnectInput() : can't write qty of in-outs",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // write the in-out record
         ExploreInOutLookup newInOut(nQtyInputs, true);
         if (!txdb.WriteAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, newInOut))
         {
-            return error("ExploreConnectInput() : could not write input in-out");
+            return _Err("ExploreConnectInput() : can't write input in-out",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (fDebugExplore && !fReindexExplore)
         {
-            printf("EXPLORE connecting INPUT in-out %d\n   %d:%s\n",
-                   nQtyInOuts, n, txid.GetHex().c_str());
+            printf("EXPLORE connecting INPUT in-out (%d)\n"
+                   "   %s - %d\n   %d:%s\n",
+                   nQtyInOuts,
+                   strAddr.c_str(), nQtyInputs,
+                   n, txid.GetHex().c_str());
         }
 
        /***************************************************************
@@ -276,18 +324,24 @@ bool ExploreConnectInput(CTxDB& txdb,
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
-            return error("ExploreConnectInput() : could not read addr balance");
+            return _Err("ExploreConnectInput() : can't read addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nValue > nBalanceOld)
         {
             // This should never happen: output value exceeds balance
-            return error("ExploreConnectInput() : TSNH prev output value exceeds balance");
+            return _Err("ExploreConnectInput() : TSNH prev output value exceeds balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         int64_t nBalanceNew = nBalanceOld - nValue;
         // no desire to remove evidence of this address here, even if no balance
         if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
         {
-            return error("ExploreConnectInput() : could not write addr balance");
+            return _Err("ExploreConnectInput() : can't write addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
        /***************************************************************
@@ -309,7 +363,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             {
                 if (!txdb.RemoveAddrSet(ADDR_SET_BAL, nBalanceOld))
                 {
-                    return error("ExploreConnectInput() : could not remove addr set");
+                    return error("ExploreConnectInput() : can't remove addr set");
                 }
                 mapAddressBalancesAddRet.erase(nBalanceOld);
                 setAddressBalancesRemoveRet.insert(nBalanceOld);
@@ -318,7 +372,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             {
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceOld, setAddr))
                 {
-                    return error("ExploreConnectInput() : could not write addr set");
+                    return error("ExploreConnectInput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceOld] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceOld);
@@ -329,7 +383,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             {
                 if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreConnectInput() : could not read addr set %s",
+                    return error("ExploreConnectInput() : can't read addr set %s",
                                  FormatMoney(nBalanceNew).c_str());
                 }
                 if (setAddr.insert(strAddr).second == false)
@@ -340,7 +394,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                 }
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreConnectInput() : could not write addr set");
+                    return error("ExploreConnectInput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceNew] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceNew);
@@ -415,29 +469,34 @@ bool ExploreConnectOutput(CTxDB& txdb,
         int nQtyOutputs;
         if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddr, nQtyOutputs))
         {
-            return error("ExploreConnectOutput() : could not read qty outputs");
+            return _Err("ExploreConnectOutput() : can't read qty outputs",
+                        strAddr, nQtyOutputs, txid, n);
         }
         if (nQtyOutputs < 0)
         {
             // This should never happen: negative number of outputs
-            return error("ExploreConnectOutput() : TSNH negative number of outputs");
+            return _Err("ExploreConnectOutput() : TSNH negative outputs",
+                        strAddr, nQtyOutputs, txid, n);
         }
         nQtyOutputs += 1;
         if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs))
         {
             // This should never happen, output tx already exists
-            return error("ExploreConnectOutput() : TSNH output tx already exists");
+            return _Err("ExploreConnectOutput() : TSNH output tx exists",
+                        strAddr, nQtyOutputs, txid, n);
         }
         // write the new index record
         if (!txdb.WriteAddrQty(ADDR_QTY_OUTPUT, strAddr, nQtyOutputs))
         {
-            return error("ExploreConnectOutput() : could not write qty of outputs");
+            return _Err("ExploreConnectOutput() : can't write qty of outputs",
+                        strAddr, nQtyOutputs, txid, n);
         }
         // write the output record
         ExploreOutputInfo newOut(txid, n, txOut.nValue);
         if (!txdb.WriteAddrTx(ADDR_TX_OUTPUT, strAddr, nQtyOutputs, newOut))
         {
-            return error("ExploreConnectOutput() : could not write output");
+            return _Err("ExploreConnectOutput() : can't write output",
+                        strAddr, nQtyOutputs, txid, n);
         }
 
        /***************************************************************
@@ -447,13 +506,15 @@ bool ExploreConnectOutput(CTxDB& txdb,
         if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
         {
             // This should never happen, output lookup already exists
-            return error("ExploreConnectOutput() : TSNH output lookup already exists");
+            return _Err("ExploreConnectOutput() : TSNH lookup exists",
+                        strAddr, nQtyOutputs, txid, n);
         }
         // fetch the OutputID
         if (!txdb.WriteAddrLookup(ADDR_LOOKUP_OUTPUT, strAddr, txid, n,
                                                      nQtyOutputs))
         {
-            return error("ExploreConnectOutput() : could not write output lookup");
+            return _Err("ExploreConnectOutput() : can't write lookup",
+                        strAddr, nQtyOutputs, txid, n);
         }
 
        /***************************************************************
@@ -462,34 +523,42 @@ bool ExploreConnectOutput(CTxDB& txdb,
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreConnectOutput() : could not read qty in-outs");
+            return _Err("ExploreConnectOutput() : can't read qty in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (nQtyInOuts < 0)
         {
             // This should never happen: negative number of in-outs
-            return error("ExploreConnectOutput() : TSNH negative number of in-outs");
+            return _Err("ExploreConnectOutput() : TSNH negative in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         nQtyInOuts += 1;
         if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, output in-out tx already exists
-            return error("ExploreConnectOutput() : TSNH output in-out tx already exists");
+            return _Err("ExploreConnectOutput() : TSNH output in-out tx exists",
+                        strAddr, nQtyInOuts, txid, n);
         }
         // write the new index record
         if (!txdb.WriteAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreConnectOutput() : could not write qty of in-outs");
+            return _Err("ExploreConnectOutput() : can't write qty of in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         // write the in-out record
         ExploreInOutLookup newInOut(nQtyOutputs, false);
         if (!txdb.WriteAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, newInOut))
         {
-            return error("ExploreConnectOutput() : could not write output in-out");
+            return _Err("ExploreConnectOutput() : can't write output in-out",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (fDebugExplore && !fReindexExplore)
         {
-            printf("EXPLORE connecting OUTPUT in-out %d\n   %d:%s\n",
-                   nQtyInOuts, n, txid.GetHex().c_str());
+            printf("EXPLORE connecting OUTPUT in-out (%d)\n"
+                   "   %s - %d\n   %d:%s\n",
+                   nQtyInOuts,
+                   strAddr.c_str(), nQtyOutputs,
+                   n, txid.GetHex().c_str());
         }
 
        /***************************************************************
@@ -499,13 +568,15 @@ bool ExploreConnectOutput(CTxDB& txdb,
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
-            return error("ExploreConnectOutput() : could not read addr balance");
+            return _Err("ExploreConnectOutput() : can't read addr balance",
+                        strAddr, -1, txid, n);
         }
         int64_t nBalanceNew = nBalanceOld + nValue;
         // no desire to remove evidence of this address here, even if no balance
         if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
         {
-            return error("ExploreConnectOutput() : could not write addr balance");
+            return _Err("ExploreConnectOutput() : can't write addr balance",
+                        strAddr, -1, txid, n);
         }
 
        /***************************************************************
@@ -527,7 +598,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             {
                 if (!txdb.RemoveAddrSet(ADDR_SET_BAL, nBalanceOld))
                 {
-                    return error("ExploreConnectOutput() : could not remove addr set");
+                    return error("ExploreConnectOutput() : can't remove addr set");
                 }
                 mapAddressBalancesAddRet.erase(nBalanceOld);
                 setAddressBalancesRemoveRet.insert(nBalanceOld);
@@ -536,7 +607,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             {
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceOld, setAddr))
                 {
-                    return error("ExploreConnectOutput() : could not write addr set");
+                    return error("ExploreConnectOutput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceOld] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceOld);
@@ -548,7 +619,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         {
             if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreConnectOutput() : could not read addr set %s",
+                return error("ExploreConnectOutput() : can't read addr set %s",
                              FormatMoney(nBalanceNew).c_str());
             }
             if (setAddr.insert(strAddr).second == false)
@@ -559,7 +630,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             }
             if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreConnectOutput() : could not write addr set");
+                return error("ExploreConnectOutput() : can't write addr set");
             }
             mapAddressBalancesAddRet[nBalanceNew] = setAddr.size();
             setAddressBalancesRemoveRet.erase(nBalanceNew);
@@ -731,17 +802,20 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         if (!txdb.ReadAddrLookup(ADDR_LOOKUP_OUTPUT, strAddr, txid, n,
                                                      nOutputID))
         {
-            return error("ExploreDisconnectOutput() : could not read output ID");
+            return _Err("ExploreDisconnectOutput() : can't read output ID",
+                        strAddr, nOutputID, txid, n);
         }
         if (nOutputID < 1)
         {
             // This should never happen : invalid output ID
-            return error("ExploreDisconnectOutput() : invalid output ID");
+            return _Err("ExploreDisconnectOutput() : invalid output ID",
+                        strAddr, nOutputID, txid, n);
         }
         // finalize removal of the lookup
         if (!txdb.RemoveAddrLookup(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
         {
-            return error("ExploreDisconnectOutput() : could not remove the output lookup");
+            return _Err("ExploreDisconnectOutput() : can't remove lookup",
+                        strAddr, nOutputID, txid, n);
         }
 
        /***************************************************************
@@ -750,45 +824,53 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         int nQtyOutStored;
         if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddr, nQtyOutStored))
         {
-            return error("ExploreDisconnectOutput() : could not read qty outputs");
+            return _Err("ExploreDisconnectOutput() : can't read qty outputs",
+                        strAddr, nOutputID, txid, n);
         }
         if (nQtyOutStored != nOutputID)
         {
             // This should never happen : output ID mismatch
-            return error("ExploreDisconnectOutput() : TSNH output ID mismatch");
+            return _Err("ExploreDisconnectOutput() : TSNH output ID mismatch",
+                        strAddr, nOutputID, txid, n);
         }
         // for sanity: check that the explore db and chain are synced
         ExploreOutputInfo storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
-            return error("ExploreDisconnectOutput() : could not read output");
+            return _Err("ExploreDisconnectOutput() : can't read output",
+                        strAddr, nOutputID, txid, n);
         }
         if (storedOut.txid != txid)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreDisconnectOutput() : TSNH stored tx doesn't match");
+            return _Err("ExploreDisconnectOutput() : TSNH stored tx doesn't match",
+                        strAddr, nOutputID, txid, n);
         }
         if (storedOut.vout != n)
         {
             // This should never happen, stored n doesn't match output n
-            return error("ExploreDisconnectOutput() : TSNH stored vout doesn't match");
+            return _Err("ExploreDisconnectOutput() : TSNH stored vout doesn't match",
+                        strAddr, nOutputID, txid, n);
         }
         if (storedOut.IsSpent())
         {
             // This should never happne, stored output is spent
-            return error("ExploreDisconnectOutput() : TSNH stored output is spent");
+            return _Err("ExploreDisconnectOutput() : TSNH stored output is spent",
+                        strAddr, nOutputID, txid, n);
         }
         // finalize removal
         if (!txdb.RemoveAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID))
         {
-            return error("ExploreDisconnectOutput() : could not remove output");
+            return _Err("ExploreDisconnectOutput() : can't remove output",
+                        strAddr, nOutputID, txid, n);
         }
         int nQtyOutputs = nQtyOutStored - 1;
         // there is no desire to remove evidence of this address here,
         // so we don't test for 0 outputs, etc
         if (!txdb.WriteAddrQty(ADDR_QTY_OUTPUT, strAddr, nQtyOutputs))
         {
-            return error("ExploreDisconnectOutput() : could not write qty outputs");
+            return _Err("ExploreDisconnectOutput() : can't write qty outputs",
+                        strAddr, nQtyOutputs, txid, n);
         }
 
        /***************************************************************
@@ -798,49 +880,56 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreConnectOutput() : could not read qty in-outs");
+            return _Err("ExploreConnectOutput() : can't read qty in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (nQtyInOuts < 1)
         {
             // This should never happen: negative number of in-outs
-            return error("ExploreConnectOutput() : TSNH no in-outs");
+            return _Err("ExploreConnectOutput() : TSNH no in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         // read the in-out lookup
         ExploreInOutLookup storedInOut;
         if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, storedInOut))
         {
-            return error("ExploreDisconnectOutput() : could not read in-out");
+            return _Err("ExploreDisconnectOutput() : can't read in-out",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (storedInOut.GetID() != nQtyOutStored)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreDisconnectOutput() : TSNH stored in-out doesn't match\n"
-                         "  Qty:%d, ID: %d\n  %d:%s",
-                         nQtyInOuts, storedInOut.GetID(), n, txid.GetHex().c_str());
+            return _Err("ExploreDisconnectOutput() : TSNH stored in-out doesn't match",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (storedInOut.IsInput())
         {
             // This should never happen, stored is an input
-            return error("ExploreDisconnectOutput() : TSNH stored is an input");
+            return _Err("ExploreDisconnectOutput() : TSNH stored is an input",
+                        strAddr, nQtyInOuts, txid, n);
         }
         // finalize removal
         if (!txdb.RemoveAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreDisconnectOutput() : could not remove in-out");
+            return _Err("ExploreDisconnectOutput() : can't remove in-out",
+                        strAddr, nQtyInOuts, txid, n);
         }
         nQtyInOuts -= 1;
         // there is no desire to remove evidence of this address here,
         // so we don't test for 0 outputs, etc
         if (!txdb.WriteAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreDisconnectOutput() : could not write qty in-outs");
+            return _Err("ExploreDisconnectOutput() : can't write qty in-outs",
+                        strAddr, nQtyInOuts, txid, n);
         }
         if (fDebugExplore && !fReindexExplore)
         {
-            printf("EXPLORE disconnecting OUTPUT in-out %d\n   %d:%s\n",
-                   nQtyInOuts, n, txid.GetHex().c_str());
+            printf("EXPLORE disconnecting OUTPUT in-out (%d)\n"
+                   "   %s - %d\n   %d:%s\n",
+                   nQtyInOuts,
+                   strAddr.c_str(), nQtyOutStored,
+                   n, txid.GetHex().c_str());
         }
-
 
        /***************************************************************
         * 4. update the balance
@@ -849,18 +938,21 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
-            return error("ExploreDisconnectOutput() : could not read addr balance");
+            return _Err("ExploreDisconnectOutput() : can't read addr balance",
+                        strAddr, -1, txid, n);
         }
         if (nValue > nBalanceOld)
         {
             // This should never happen: output value exceeds balance
-            return error("ExploreDisconnectOutput() : TSNH output value exceeds balance");
+            return _Err("ExploreDisconnectOutput() : TSNH output value exceeds balance",
+                        strAddr, -1, txid, n);
         }
         int64_t nBalanceNew = nBalanceOld - nValue;
         // no desire to remove evidence of this address here, even if no balance
         if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
         {
-            return error("ExploreDisconnectOutput() : could not write addr balance");
+            return _Err("ExploreDisconnectOutput() : can't write addr balance",
+                        strAddr, -1, txid, n);
         }
 
        /***************************************************************
@@ -882,7 +974,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             {
                 if (!txdb.RemoveAddrSet(ADDR_SET_BAL, nBalanceOld))
                 {
-                    return error("ExploreDisconnectOutput() : could not remove addr set");
+                    return error("ExploreDisconnectOutput() : can't remove addr set");
                 }
                 mapAddressBalancesAddRet.erase(nBalanceOld);
                 setAddressBalancesRemoveRet.insert(nBalanceOld);
@@ -891,7 +983,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             {
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceOld, setAddr))
                 {
-                    return error("ExploreDisconnectOutput() : could not write addr set");
+                    return error("ExploreDisconnectOutput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceOld] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceOld);
@@ -902,7 +994,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             {
                 if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreDisconnectOutput() : could not read addr set %s",
+                    return error("ExploreDisconnectOutput() : can't read addr set %s",
                                  FormatMoney(nBalanceNew).c_str());
                 }
                 if (setAddr.insert(strAddr).second == false)
@@ -913,7 +1005,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
                 }
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
                 {
-                    return error("ExploreDisconnectOutput() : could not write addr set");
+                    return error("ExploreDisconnectOutput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceNew] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceNew);
@@ -983,39 +1075,53 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         int nQtyInStored;
         if (!txdb.ReadAddrQty(ADDR_QTY_INPUT, strAddr, nQtyInStored))
         {
-            return error("ExploreDisconnectInput() : could not read qty inputs");
+            return _Err("ExploreDisconnectInput() : can't read qty inputs",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nQtyInStored < 1)
         {
             // This should never happen: no input found
-            return error("ExploreDisconnectInput() : TSNH no input found");
+            return _Err("ExploreDisconnectInput() : TSNH no input found",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that db and chain are synced
         ExploreInputInfo storedIn;
         if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, nQtyInStored, storedIn))
         {
-            return error("ExploreDisconnectInput() : could not read input");
+            return _Err("ExploreDisconnectInput() : can't read input",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedIn.txid != txid)
         {
             // This should never happen, stored tx doesn't match input tx
-            return error("ExploreDisconnectInput() : TSNH stored input tx doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored input tx doesn't match",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedIn.vin != n)
         {
             // This should never happen, stored doesn't match input n
-            return error("ExploreDisconnectInput() : TSNH stored input n doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored input n doesn't match",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // finalize removal
         if (!txdb.RemoveAddrTx(ADDR_TX_INPUT, strAddr, nQtyInStored))
         {
-            return error("ExploreDisconnectInput() : could not remove input");
+            return _Err("ExploreDisconnectInput() : can't remove input",
+                        strAddr, nQtyInStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         int nQtyInputs = nQtyInStored - 1;
         // no need to remove evidence of this address here even if balance is 0
         if (!txdb.WriteAddrQty(ADDR_QTY_INPUT, strAddr, nQtyInputs))
         {
-            return error("ExploreDisconnectInput() : could not write qty of inputs");
+            return _Err("ExploreDisconnectInput() : can't write qty of inputs",
+                        strAddr, nQtyInputs, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
 
@@ -1025,50 +1131,63 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreDisconnectInput() : could not read qty in-outs");
+            return _Err("ExploreDisconnectInput() : can't read qty in-outs",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nQtyInOuts < 1)
         {
             // This should never happen : no in-outs
-            return error("ExploreDisconnectInput() : TSNH no in-outs found");
+            return _Err("ExploreDisconnectInput() : TSNH no in-outs found",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that the explore db and chain are synced
         ExploreInOutLookup storedInOut;
         if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts, storedInOut))
         {
-            return error("ExploreDisconnectInput() : could not read in-out");
+            return _Err("ExploreDisconnectInput() : can't read in-out",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedInOut.GetID() != nQtyInStored)
         {
             // This should never happen, stored tx doesn't match
-            return error("ExploreDisconnectInput() : TSNH stored in-out doesn't match\n"
-                         "  Qty:%d, ID: %d\n  %d:%s",
-                         nQtyInOuts, storedInOut.GetID(), n, txid.GetHex().c_str());
+            return _Err("ExploreDisconnectInput() : TSNH stored in-out doesn't match",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedInOut.IsOutput())
         {
             // This should never happen, stored is an output
-            return error("ExploreDisconnectInput() : TSNH stored is an output");
+            return _Err("ExploreDisconnectInput() : TSNH stored is an output",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // finalize removal
         if (!txdb.RemoveAddrTx(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreDisconnectInput() : could not remove in-out");
+            return _Err("ExploreDisconnectInput() : can't remove in-out",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         nQtyInOuts -= 1;
         // there is no desire to remove evidence of this address here,
         // so we don't test for 0 outputs, etc
         if (!txdb.WriteAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return error("ExploreDisconnectInput() : could not write qty in-outs");
+            return _Err("ExploreDisconnectInput() : can't write qty in-outs",
+                        strAddr, nQtyInOuts, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (fDebugExplore && !fReindexExplore)
         {
-            printf("EXPLORE disconnecting INPUT in-out %d\n   %d:%s\n",
-                   nQtyInOuts, n, txid.GetHex().c_str());
+            printf("EXPLORE disconnecting INPUT in-out (%d)\n"
+                   "   %s - %d\n   %d:%s\n",
+                   nQtyInOuts,
+                   strAddr.c_str(), nQtyInStored,
+                   n, txid.GetHex().c_str());
         }
-
-
 
        /***************************************************************
         * 3. mark the prevout as unspent
@@ -1079,49 +1198,67 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                                  strAddr, txIn.prevout.hash, txIn.prevout.n,
                                  nOutputID))
         {
-            return error("ExploreDisconnectInput() : could not read output ID");
+            return _Err("ExploreDisconnectInput() : can't read output ID",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (nOutputID < 1)
         {
             // This should never happen : invalid output ID
-            return error("ExploreDisconnectInput() : invalid output ID");
+            return _Err("ExploreDisconnectInput() : invalid output ID",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that the explore db and chain are synced
         ExploreOutputInfo storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
-            return error("ExploreDisconnectInput() : could not read output");
+            return _Err("ExploreDisconnectInput() : can't read output",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.txid != txIn.prevout.hash)
         {
             // This should never happen, stored txid doesn't match
-            return error("ExploreDisconnectInput() : TSNH stored txid doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored txid doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.vout != txIn.prevout.n)
         {
             // This should never happen, stored vout doesn't match output n
-            return error("ExploreDisconnectInput() : TSNH stored vout doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored vout doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.next_txid != txid)
         {
             // This should never happen, stored next_txid doesn't match txid
-            return error("ExploreDisconnectInput() : TSNH stored next_txid doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored next_txid doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.next_vin != n)
         {
             // This should never happen, stored next_vin doesn't match output n
-            return error("ExploreDisconnectInput() : TSNH stored next_vin doesn't match");
+            return _Err("ExploreDisconnectInput() : TSNH stored next_vin doesn't match",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         if (storedOut.IsUnspent())
         {
             // This should never happen (and is redundant), stored prev output is unspent
-            return error("ExploreDisconnectInput() : TSNH stored prev output is unspent");
+            return _Err("ExploreDisconnectInput() : TSNH stored prev output is unspent",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         // write the prev output as unspent
         storedOut.Unspend();
         if (!txdb.WriteAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
-            return error("ExploreDisconnectInput() : could not write output as spent");
+            return _Err("ExploreDisconnectInput() : can't write output as spent",
+                        strAddr, nOutputID, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
        /***************************************************************
@@ -1131,13 +1268,17 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         int64_t nBalanceOld;
         if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
         {
-            return error("ExploreDisconnectTx() : could not read addr balance");
+            return _Err("ExploreDisconnectTx() : can't read addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
         int64_t nBalanceNew = nBalanceOld + nValue;
         // no desire to remove evidence of this address here, even if no balance
         if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
         {
-            return error("ExploreDisconnectInput() : could not write addr balance");
+            return _Err("ExploreDisconnectInput() : can't write addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
         }
 
        /***************************************************************
@@ -1159,7 +1300,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
             {
                 if (!txdb.RemoveAddrSet(ADDR_SET_BAL, nBalanceOld))
                 {
-                    return error("ExploreDisconnectInput() : could not remove addr set");
+                    return error("ExploreDisconnectInput() : can't remove addr set");
                 }
                 mapAddressBalancesAddRet.erase(nBalanceOld);
                 setAddressBalancesRemoveRet.insert(nBalanceOld);
@@ -1168,7 +1309,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
             {
                 if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceOld, setAddr))
                 {
-                    return error("ExploreDisconnectInput() : could not write addr set");
+                    return error("ExploreDisconnectInput() : can't write addr set");
                 }
                 mapAddressBalancesAddRet[nBalanceOld] = setAddr.size();
                 setAddressBalancesRemoveRet.erase(nBalanceOld);
@@ -1180,7 +1321,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         {
             if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreDisconnectInput() : could not read addr set %s",
+                return error("ExploreDisconnectInput() : can't read addr set %s",
                              FormatMoney(nBalanceNew).c_str());
             }
             if (setAddr.insert(strAddr).second == false)
@@ -1191,7 +1332,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
             }
             if (!txdb.WriteAddrSet(ADDR_SET_BAL, nBalanceNew, setAddr))
             {
-                return error("ExploreDisconnectInput() : could not write addr set");
+                return error("ExploreDisconnectInput() : can't write addr set");
             }
             mapAddressBalancesAddRet[nBalanceNew] = setAddr.size();
             setAddressBalancesRemoveRet.erase(nBalanceNew);

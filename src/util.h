@@ -194,6 +194,7 @@ std::string real_strprintf(const std::string &format, int dummy, ...);
 std::string vstrprintf(const char *format, va_list ap);
 
 bool ATTR_WARN_PRINTF(1,2) error(const char *format, ...);
+bool error(const std::string& str);
 bool ATTR_WARN_PRINTF(1,2) warning(const char *format, ...);
 
 /* Redefine printf so that it directs output to debug.log
