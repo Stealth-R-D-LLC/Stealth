@@ -913,7 +913,7 @@ bool AppInit2()
     }
 
     uiInterface.InitMessage(_("Loading block index..."));
-    printf("Loading block index...\n");
+    printf("AppInit2(): Loading block index...\n");
     nStart = GetTimeMillis();
     if (!LoadBlockIndex())
         return InitError(_("Error loading blkindex.dat"));

@@ -671,6 +671,8 @@ bool CTxDB::LoadBlockIndex()
            iter = pdb->NewIterator(leveldb::ReadOptions());
         }
         iter->Seek(ssStartKey.str());
+        // don't try to process the sentinel as a set.
+        iter->Next();
         int nCountSets = 0;
         // Now read each entry.
         while (iter->Valid())
@@ -685,10 +687,16 @@ bool CTxDB::LoadBlockIndex()
             ssKey.write(iter->key().data(), iter->key().size());
             CDataStream ssValue(SER_DISK, CLIENT_VERSION);
             ssValue.write(iter->value().data(), iter->value().size());
-            exploreKey_t expkType;
-            ssKey >> expkType;
-            // Did we reach the end of the data to read?
-            if (fRequestShutdown || expkType != ADDR_SET_BAL)
+            // Did we reach the end of the address sets?
+            string strDBLabel;
+            ssKey >> strDBLabel;
+            if (strDBLabel != EXPLORE_KEY)
+            {
+                break;
+            }
+            string strTypeLabel;
+            ssKey >> strTypeLabel;
+            if (strTypeLabel != ADDR_SET_BAL_LABEL)
             {
                 break;
             }

@@ -33,24 +33,47 @@ const int MASK_ADDR_TX = ~FLAG_ADDR_TX;
 const std::string EXPLORE_KEY = "EXPK";
 
 // Explore Sentinel lexigraphical first key for iterating
-const exploreKey_t EXPLORE_SENTINEL(EXPLORE_KEY, "");
+const std::string EXPLORE_SENTINEL_LABEL = "";
+const exploreKey_t EXPLORE_SENTINEL(EXPLORE_KEY, EXPLORE_SENTINEL_LABEL);
+
 // Addr Qty
-const exploreKey_t ADDR_QTY_INPUT(EXPLORE_KEY, "AQI");
-const exploreKey_t ADDR_QTY_OUTPUT(EXPLORE_KEY, "AQO");
-const exploreKey_t ADDR_QTY_INOUT(EXPLORE_KEY, "AQIO");
-const exploreKey_t ADDR_QTY_UNSPENT(EXPLORE_KEY, "AQU");
+const std::string ADDR_QTY_INPUT_LABEL = "AQI";
+const exploreKey_t ADDR_QTY_INPUT(EXPLORE_KEY, ADDR_QTY_INPUT_LABEL);
+
+const std::string ADDR_QTY_OUTPUT_LABEL = "AQO";
+const exploreKey_t ADDR_QTY_OUTPUT(EXPLORE_KEY, ADDR_QTY_OUTPUT_LABEL);
+
+const std::string ADDR_QTY_INOUT_LABEL = "AQIO";
+const exploreKey_t ADDR_QTY_INOUT(EXPLORE_KEY, ADDR_QTY_INOUT_LABEL);
+
+const std::string ADDR_QTY_UNSPENT_LABEL = "AQU";
+const exploreKey_t ADDR_QTY_UNSPENT(EXPLORE_KEY, ADDR_QTY_UNSPENT_LABEL);
+
 // Addr Tx
-const exploreKey_t ADDR_TX_INPUT(EXPLORE_KEY, "ATI");
-const exploreKey_t ADDR_TX_OUTPUT(EXPLORE_KEY, "ATO");
-const exploreKey_t ADDR_TX_INOUT(EXPLORE_KEY, "ATIO");
+const std::string ADDR_TX_INPUT_LABEL = "ATI";
+const exploreKey_t ADDR_TX_INPUT(EXPLORE_KEY, ADDR_TX_INPUT_LABEL);
+
+const std::string ADDR_TX_OUTPUT_LABEL = "ATO";
+const exploreKey_t ADDR_TX_OUTPUT(EXPLORE_KEY, ADDR_TX_OUTPUT_LABEL);
+
+const std::string ADDR_TX_INOUT_LABEL = "ATIO";
+const exploreKey_t ADDR_TX_INOUT(EXPLORE_KEY, ADDR_TX_INOUT_LABEL);
+
 // Addr Lookup
-const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, "ALO");
+const std::string ADDR_LOOKUP_OUTPUT_LABEL = "ALO";
+const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, ADDR_LOOKUP_OUTPUT_LABEL);
+
 // Addr Balance
-const exploreKey_t ADDR_BALANCE(EXPLORE_KEY, "AB");
+const std::string ADDR_BALANCE_LABEL = "AB";
+const exploreKey_t ADDR_BALANCE(EXPLORE_KEY, ADDR_BALANCE_LABEL);
+
 // Addr Set
-const exploreKey_t ADDR_SET_BAL(EXPLORE_KEY, "ASB");
+const std::string ADDR_SET_BAL_LABEL = "ASB";
+const exploreKey_t ADDR_SET_BAL(EXPLORE_KEY, ADDR_SET_BAL_LABEL);
+
 // Tx Info
-const exploreKey_t TX_INFO(EXPLORE_KEY, "TI");
+const std::string TX_INFO_LABEL = "TI";
+const exploreKey_t TX_INFO(EXPLORE_KEY, TX_INFO_LABEL);
 
 
 #endif  // _EXPLORECONSTANTS_H_
