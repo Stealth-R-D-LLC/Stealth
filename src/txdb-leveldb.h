@@ -211,6 +211,39 @@ protected:
         return status.IsNotFound() == false;
     }
 
+    // IsViable() has slightly different semantics from Exist().
+    // The latter will return true even when the record is marked
+    // for deletion in the active batch but hasn't yet been deleted
+    // on disk. The former will return true only if the record
+    // is both found somewhere and not marked for deletion anywhere.
+    template<typename K>
+    bool IsViable(const K& key)
+    {
+        CDataStream ssKey(SER_DISK, CLIENT_VERSION);
+        ssKey.reserve(1000);
+        ssKey << key;
+        std::string unused;
+
+        if (activeBatch)
+        {
+            bool deleted;
+            if (ScanBatch(ssKey, &unused, &deleted))
+            {
+                if (deleted)
+                {
+                    return false;
+                }
+                else
+                {
+                    return true;
+                }
+            }
+        }
+
+        leveldb::Status status = pdb->Get(leveldb::ReadOptions(),ssKey.str(), &unused);
+        return status.IsNotFound() == false;
+    }
+
     template<typename K, typename T>
     bool ReadRecord(const K& key, T& value)
     {
@@ -222,7 +255,7 @@ protected:
     template<typename K>
     bool RemoveRecord(const K& key)
     {
-        if (Exists(key))
+        if (IsViable(key))
         {
             return Erase(key);
         }
@@ -277,7 +310,7 @@ public:
     }
 
     bool RemoveAddrTx(const exploreKey_t& t, const std::string& addr, const int& qty);
-    bool AddrTxExists(const exploreKey_t& t, const std::string& addr, const int& qty);
+    bool AddrTxIsViable(const exploreKey_t& t, const std::string& addr, const int& qty);
     bool ReadAddrLookup(const exploreKey_t& t, const std::string& addr,
                         const uint256& txid, const int& n,
                         int& qtyRet);
@@ -286,12 +319,12 @@ public:
                          const int& qty);
     bool RemoveAddrLookup(const exploreKey_t& t, const std::string& addr,
                           const uint256& txid, const int& n);
-    bool AddrLookupExists(const exploreKey_t& t, const std::string& addr,
-                          const uint256& txid, const int& n);
+    bool AddrLookupIsViable(const exploreKey_t& t, const std::string& addr,
+                            const uint256& txid, const int& n);
     bool ReadAddrBalance(const exploreKey_t& t, const std::string& addr,
                          int64_t& bRet);
     bool WriteAddrBalance(const exploreKey_t& t, const std::string& addr, const int64_t& b);
-    bool AddrBalanceExists(const exploreKey_t& t, const std::string& addr);
+    bool AddrBalanceIsViable(const exploreKey_t& t, const std::string& addr);
     bool ReadAddrSet(const exploreKey_t& t, const int64_t b,
                      std::set<std::string>& sRet);
     bool WriteAddrSet(const exploreKey_t& t, const int64_t b, const std::set<std::string>& s);

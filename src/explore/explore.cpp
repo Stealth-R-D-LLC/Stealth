@@ -245,7 +245,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         nQtyInputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INPUT, strAddr, nQtyInputs))
+        if (txdb.AddrTxIsViable(ADDR_TX_INPUT, strAddr, nQtyInputs))
         {
             // This should never happen, input tx already exists
             return _Err("ExploreConnectInput() : TSNH input tx exists",
@@ -286,7 +286,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
+        if (txdb.AddrTxIsViable(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, input in-out tx already exists
             return _Err("ExploreConnectInput() : TSNH input in-out tx exists",
@@ -479,7 +479,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
                         strAddr, nQtyOutputs, txid, n);
         }
         nQtyOutputs += 1;
-        if (txdb.AddrTxExists(ADDR_TX_OUTPUT, strAddr, nQtyOutputs))
+        if (txdb.AddrTxIsViable(ADDR_TX_OUTPUT, strAddr, nQtyOutputs))
         {
             // This should never happen, output tx already exists
             return _Err("ExploreConnectOutput() : TSNH output tx exists",
@@ -503,7 +503,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         * 2. add the output lookup
         ***************************************************************/
         // ensure the output lookup does not exist
-        if (txdb.AddrLookupExists(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
+        if (txdb.AddrLookupIsViable(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
         {
             // This should never happen, output lookup already exists
             return _Err("ExploreConnectOutput() : TSNH lookup exists",
@@ -533,7 +533,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
                         strAddr, nQtyInOuts, txid, n);
         }
         nQtyInOuts += 1;
-        if (txdb.AddrTxExists(ADDR_TX_INOUT, strAddr, nQtyInOuts))
+        if (txdb.AddrTxIsViable(ADDR_TX_INOUT, strAddr, nQtyInOuts))
         {
             // This should never happen, output in-out tx already exists
             return _Err("ExploreConnectOutput() : TSNH output in-out tx exists",
@@ -808,7 +808,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         if (nOutputID < 1)
         {
             // This should never happen : invalid output ID
-            return _Err("ExploreDisconnectOutput() : invalid output ID",
+            return _Err("ExploreDisconnectOutput() : TSNH invalid output ID",
                         strAddr, nOutputID, txid, n);
         }
         // finalize removal of the lookup

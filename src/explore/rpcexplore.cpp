@@ -85,7 +85,7 @@ Value getaddressbalance(const Array &params, bool fHelp)
 
     CTxDB txdb;
 
-    if (!txdb.AddrBalanceExists(ADDR_BALANCE, strAddress))
+    if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
     {
         throw runtime_error("Address does not exist.");
     }
@@ -103,7 +103,7 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
 {
     CTxDB txdb;
 
-    if (!txdb.AddrBalanceExists(ADDR_BALANCE, strAddress))
+    if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
     {
         throw runtime_error("Address does not exist.");
     }
@@ -504,7 +504,7 @@ Value gethdaccount(const Array &params, bool fHelp)
         address.Set(keyID);
         string strAddress = address.ToString();
 
-        if (!txdb.AddrBalanceExists(ADDR_BALANCE, strAddress))
+        if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
         {
             break;
         }

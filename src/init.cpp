@@ -1108,6 +1108,17 @@ bool AppInit2()
             count += 1;
             pindex = pindex->pnext;
         }
+        if (pindex != pindexBest)
+        {
+            printf("AppInit2(): Can't find forward path through best chain\n");
+            Shutdown(NULL);
+        }
+        CBlock blockBest;
+        blockBest.ReadFromDisk(pindex, true);
+        if (!ExploreConnectBlock(txdb, &blockBest))
+        {
+            Shutdown(NULL);
+        }
         fReindexExplore = false;
     }
 

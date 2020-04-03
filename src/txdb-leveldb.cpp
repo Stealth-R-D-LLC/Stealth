@@ -318,10 +318,10 @@ bool CTxDB::RemoveAddrTx(const exploreKey_t& t, const string& addr, const int& q
     pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
     return RemoveRecord(key);
 }
-bool CTxDB::AddrTxExists(const exploreKey_t& t, const string& addr, const int& qty)
+bool CTxDB::AddrTxIsViable(const exploreKey_t& t, const string& addr, const int& qty)
 {
     pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
-    return Exists(key);
+    return IsViable(key);
 }
 
 
@@ -350,11 +350,11 @@ bool CTxDB::RemoveAddrLookup(const exploreKey_t& t, const string& addr,
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
    return RemoveRecord(key);
 }
-bool CTxDB::AddrLookupExists(const exploreKey_t& t, const string& addr,
-                             const uint256& txid, const int& n)
+bool CTxDB::AddrLookupIsViable(const exploreKey_t& t, const string& addr,
+                               const uint256& txid, const int& n)
 {
    lookup_key_t key = make_pair(make_pair(t, addr), make_pair(txid, n));
-   return Exists(key);
+   return IsViable(key);
 }
 
 /*  AddrBalance
@@ -372,10 +372,10 @@ bool CTxDB::WriteAddrBalance(const exploreKey_t& t, const string& addr, const in
     ss_key_t key = make_pair(t, addr);
     return Write(key, b);
 }
-bool CTxDB::AddrBalanceExists(const exploreKey_t& t, const std::string& addr)
+bool CTxDB::AddrBalanceIsViable(const exploreKey_t& t, const std::string& addr)
 {
     ss_key_t key = make_pair(t, addr);
-    return Exists(key);
+    return IsViable(key);
 }
 
 /*  AddrSet
@@ -661,7 +661,7 @@ bool CTxDB::LoadBlockIndex()
         CDataStream ssStartKey(SER_DISK, CLIENT_VERSION);
         // As a sentinel for this search, nMaxDust
         ssStartKey << make_pair(ADDR_SET_BAL, nMaxDust);
-        if (!Exists(ssStartKey))
+        if (!IsViable(ssStartKey))
         {
            set<string> setAddrSentinel;
            if (!Write(ssStartKey, setAddrSentinel))
