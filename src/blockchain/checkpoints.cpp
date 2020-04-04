@@ -8,7 +8,7 @@
 #include "checkpoints.h"
 #include "main.h"
 #include "uint256.h"
-#include "txdb.h"
+#include "txdb-leveldb.h"
 
 namespace Checkpoints
 {

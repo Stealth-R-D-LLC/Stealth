@@ -410,11 +410,10 @@ endif
 LIBS += $(CURDIR)/leveldb/build/libleveldb.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
-OBJS += obj/txdb-leveldb.o
 leveldb/build/libleveldb.a:
-	@echo "Building LevelDB ..."; cd leveldb; mkdir -p build; cd build; \
+	@echo "Building LevelDB ..." && cd leveldb && mkdir -p build && cd build && \
                 cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build .
-obj/txdb-leveldb.o: leveldb/build/libleveldb.a
+obj/db-leveldb.o: leveldb/build/libleveldb.a
 
 
 # auto-generated dependencies:
