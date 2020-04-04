@@ -20,15 +20,16 @@ This wallet supports the `stake=0` option in the StealthCoin.conf file to disabl
 # Ports
 
 * P2P: `4437`
-* Test P2P: `4438`
+* Testnet P2P: `4438`
 * RPC: `46502`
-* Test RPC: `46503`
+* Testnet RPC: `46503`
 
 # Application
 
 * Daemon Name: `StealthCoind`
 * Conf File (Case Sensitive): `StealthCoin.conf`
-* Addresses: Start with "S"
+* Addresses: Usually start with "S"
+* Testnet Addresses: Usually start with "m"
 
 Application Directories
 =======================
