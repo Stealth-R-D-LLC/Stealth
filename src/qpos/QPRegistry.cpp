@@ -39,6 +39,7 @@ void QPRegistry::SetNull()
     mapLastClaim.clear();
     mapActive.clear();
     mapAliases.clear();
+    bRecentBlocks.reset();
     nIDCounter = 0;
     nIDSlotPrev = 0;
     fCurrentBlockWasProduced = false;
@@ -332,6 +333,11 @@ void QPRegistry::AsJSON(Object &objRet) const
         objSlot.push_back(Pair("id", static_cast<int64_t>(nID)));
         objSlot.push_back(Pair("start_time", static_cast<int64_t>(w.start)));
         objSlot.push_back(Pair("end_time", static_cast<int64_t>(w.end)));
+
+        QPSlotStatus status;
+        queue.GetStatusForSlot(slot, status);
+        string strStatus(GetSlotStatusType(status));
+        objSlot.push_back(Pair("status", strStatus));
         aryQueue.push_back(objSlot);
     }
     unsigned int nCurrentSlot = queue.GetCurrentSlot();
@@ -399,6 +405,8 @@ void QPRegistry::AsJSON(Object &objRet) const
     objRet.push_back(Pair("should_roll_back", fShouldRollback));
     objRet.push_back(Pair("counter_next",
                           static_cast<int64_t>(nIDCounter + 1)));
+    objRet.push_back(Pair("recent_blocks",
+                          BitsetAsHex(bRecentBlocks)));
     objRet.push_back(Pair("current_block_was_produced",
                           fCurrentBlockWasProduced));
     objRet.push_back(Pair("prev_block_was_produced",
@@ -409,6 +417,7 @@ void QPRegistry::AsJSON(Object &objRet) const
     objRet.push_back(Pair("prev_pico_power", GetPicoPowerPrev()));
     objRet.push_back(Pair("current_pico_power", GetPicoPowerCurrent()));
     objRet.push_back(Pair("queue", aryQueue));
+    objRet.push_back(Pair("queue_blocks", HexStr(queue.GetBlockStats())));
     objRet.push_back(Pair("stakers", objStakers));
     objRet.push_back(Pair("balances", objBalances));
 }
@@ -449,6 +458,7 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     mapActive = pother->mapActive;
     mapAliases = pother->mapAliases;
     queue = pother->queue;
+    bRecentBlocks = pother->bRecentBlocks;
     nIDCounter = pother->nIDCounter;
     nIDSlotPrev = pother->nIDSlotPrev;
     fCurrentBlockWasProduced = pother->fCurrentBlockWasProduced;
@@ -856,6 +866,8 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
         mapBalances[pstaker->pubkeyDelegate] += nDelegateReward;
     }
     DisqualifyStakerIfNecessary(nID, pstaker);
+    bRecentBlocks <<= 1;
+    bRecentBlocks[0] = true;
     fCurrentBlockWasProduced = true;
     fPrevBlockWasProduced = true;
     return true;
@@ -886,6 +898,7 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID)
                nBlockHeight);
     }
     DisqualifyStakerIfNecessary(nID, pstaker);
+    bRecentBlocks <<= 1;
     fPrevBlockWasProduced = false;
     return true;
 }
@@ -1250,7 +1263,12 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
             return error("UpdateOnNewBlock(): no staker with ID %u",
                          pindex->nStakerID);
         }
-
+        if (queue.SlotProduced(nStakerSlot) == 0)
+        {
+            // this should never happen because the slot was already checked
+            return error("UpdateOnNewBlock(): TSNH no such slot %u",
+                         nStakerSlot);
+        }
         map<unsigned int, QPStaker>::iterator it;
         for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
         {

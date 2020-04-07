@@ -65,6 +65,8 @@ QPStaker::QPStaker(const QPTxDetails& deet)
 void QPStaker::Reset()
 {
     nVersion = QPStaker::CURRENT_VERSION;
+    bRecentBlocks.reset();
+    bPrevRecentBlocks.reset();
     nBlocksProduced = 0;
     nBlocksMissed = 0;
     nBlocksAssigned = 0;
@@ -91,13 +93,13 @@ uint32_t QPStaker::GetPrevRecentBlocksProduced() const
 
 uint32_t QPStaker::GetRecentBlocksMissed() const
 {
-    uint32_t m = QP_RECENT_BLOCKS - GetRecentBlocksProduced();
+    uint32_t m = QP_STAKER_RECENT_BLOCKS - GetRecentBlocksProduced();
     return min(nBlocksMissed, m);
 }
 
 uint32_t QPStaker::GetPrevRecentBlocksMissed() const
 {
-    uint32_t m = QP_RECENT_BLOCKS - GetPrevRecentBlocksProduced();
+    uint32_t m = QP_STAKER_RECENT_BLOCKS - GetPrevRecentBlocksProduced();
     return min(nPrevBlocksMissed, m);
 }
 
@@ -180,7 +182,7 @@ const CBlockIndex* QPStaker::GetBlockMostRecent() const
 // Returns 1 even when missed blocks outnumber produced blocks.
 // The reason is that noobs deserve a chance to get on their feet.
 // MissedBlock() deactivates any who have a net 0 blocks after
-// seeing at least 4x QP_RECENT_BLOCKS (QP_NOOB_BLOCKS), so the
+// seeing at least 4x QP_STAKER_RECENT_BLOCKS (QP_NOOB_BLOCKS), so the
 // opportunity to miss a lot of blocks is limited.
 unsigned int QPStaker::GetWeight(unsigned int nSeniority) const
 {
@@ -209,7 +211,7 @@ bool QPStaker::ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const
     return (GetPrevRecentBlocksMissed() > nPrevRecentBlocksMissedMax) ||
            ((nBlocksSeen > QP_NOOB_BLOCKS) &&
             ((GetNetBlocks() <= 0) ||
-             (GetRecentBlocksMissed() > (QP_RECENT_BLOCKS / 2))));
+             (GetRecentBlocksMissed() > (QP_STAKER_RECENT_BLOCKS / 2))));
 }
 
 int64_t QPStaker::GetTotalEarned() const

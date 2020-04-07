@@ -9,7 +9,15 @@
 
 #include <utility>
 
+
 #define QPQueueIterator std::vector<unsigned int>::const_iterator
+
+typedef std::vector<unsigned char> valtype;
+
+unsigned int BitIsOn(const valtype& vch, unsigned int nBit);
+unsigned int SetBit(valtype& vch, unsigned int nBit);
+const char* GetSlotStatusType(const QPSlotStatus status);
+const char* GetSlotStatusAbbrev(const QPSlotStatus status);
 
 class QPWindow
 {
@@ -23,7 +31,6 @@ public:
     }
 };
 
-
 class QPQueue
 {
 private:
@@ -31,6 +38,7 @@ private:
     unsigned int nCurrentSlot;
     unsigned int nSlotTime0;
     std::vector<unsigned int> vStakerIDs;
+    valtype vchBlockStats;
 public:
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;
@@ -39,11 +47,14 @@ public:
     QPQueue(unsigned int nSlotTime0In,
             const std::vector<unsigned int>& vStakerIDsIn);
     void SetNull();
+    unsigned int GetCurrentSlot() const;
+    const std::vector<unsigned int>& GetStakerIDs() const;
+    const valtype& GetBlockStats() const;
     bool GetIDForSlot(unsigned int slot, unsigned int &nIDRet) const;
     bool GetSlotForID(unsigned int nID, unsigned int &nSlotRet) const;
     bool GetWindowForID(unsigned int nID, QPWindow &pairWindow) const;
     bool GetWindowForSlot(unsigned int nSlot, QPWindow &pairWindow) const;
-    unsigned int GetCurrentSlot() const;
+    bool GetStatusForSlot(unsigned int nSlot, QPSlotStatus &status) const;
     unsigned int GetMinTime() const;
     unsigned int GetMaxTime() const;
     bool GetSlotStartTime(unsigned int nSlot, unsigned int &nTimeRet) const;
@@ -60,6 +71,7 @@ public:
     unsigned int Size() const;
     std::string ToString() const;
     bool IsEmpty() const;
+    unsigned int SlotProduced(unsigned int nSlot);
     bool IncrementSlot();
     void Reset();
 
@@ -70,6 +82,7 @@ public:
         READWRITE(nCurrentSlot);
         READWRITE(nSlotTime0);
         READWRITE(vStakerIDs);
+        READWRITE(vchBlockStats);
     )
 };
 

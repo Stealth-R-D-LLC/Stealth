@@ -11,8 +11,9 @@
 
 static const uint64_t TRIL = 1000000000000;  // trillion, 1e12
 
-static const unsigned int QP_RECENT_BLOCKS = 4096;
-static const unsigned int QP_NOOB_BLOCKS = QP_RECENT_BLOCKS * 2;
+static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 2048;
+static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
+static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
 // makes it hard to game the rotation
 static const int QP_ROUNDS = 16;
 // block target time
@@ -37,6 +38,16 @@ static const unsigned int QP_MIN_SECS_PER_CLAIM = 60 * 60 * 24;  // 1 day
 static const uint64_t QP_MIN_PICO_POWER = 510000000000u;
 // return string when no alias or name exists for a staker
 static const std::string STRING_NO_ALIAS = "*";
+
+// because of asynchronous clock, there is no such thing as (hit | current)
+enum QPSlotStatus
+{
+    QPSLOT_INVALID  = 0,
+    QPSLOT_MISSED   = 1 << 0,
+    QPSLOT_HIT      = 1 << 1,
+    QPSLOT_CURRENT  = 1 << 2,
+    QPSLOT_FUTURE   = 1 << 3
+};
 
 enum QPKeyType
 {

@@ -21,8 +21,8 @@ class QPStaker
 {
 private:
     int nVersion;
-    std::bitset<QP_RECENT_BLOCKS> bRecentBlocks;
-    std::bitset<QP_RECENT_BLOCKS> bPrevRecentBlocks;
+    std::bitset<QP_STAKER_RECENT_BLOCKS> bRecentBlocks;
+    std::bitset<QP_STAKER_RECENT_BLOCKS> bPrevRecentBlocks;
     uint256 hashBlockCreated;
     uint256 hashTxCreated;
     unsigned int nOutCreated;

@@ -38,6 +38,7 @@ private:
     std::map<CPubKey, int> mapActive;
     std::map<std::string, std::pair<unsigned int, std::string> > mapAliases;
     QPQueue queue;
+    std::bitset<QP_REGISTRY_RECENT_BLOCKS> bRecentBlocks;
     unsigned int nIDCounter;
     unsigned int nIDSlotPrev;
     bool fCurrentBlockWasProduced;
@@ -175,6 +176,7 @@ public:
         READWRITE(mapBalances);
         READWRITE(mapAliases);
         READWRITE(queue);
+        READWRITE(bRecentBlocks);
         READWRITE(nIDCounter);
         READWRITE(nIDSlotPrev);
         READWRITE(fCurrentBlockWasProduced);

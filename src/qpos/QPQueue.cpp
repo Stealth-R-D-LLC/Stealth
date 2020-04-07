@@ -9,6 +9,67 @@
 
 using namespace std;
 
+
+unsigned int BitIsOn(const valtype& vch, unsigned int nBit)
+{
+    unsigned int nByte = nBit / 8;
+    unsigned int nSize = vch.size();
+    if (nByte >= nSize)
+    {
+        return 0;
+    }
+    return vch[nByte] & (0x80 >> (nBit % 8));
+}
+
+unsigned int SetBit(valtype& vch, unsigned int nBit)
+{
+     unsigned int nByte = nBit / 8;
+     unsigned int nSize = vch.size();
+     if (nByte >= nSize)
+     {
+         return 0;
+     }
+     unsigned char& chByte = vch[nByte];
+     unsigned int nBitValue = 0x80 >> (nBit % 8);
+     chByte |= nBitValue;
+     return nBitValue;
+}
+
+
+const char* GetSlotStatusType(const QPSlotStatus status)
+{
+    switch (status)
+    {
+    case QPSLOT_INVALID:
+        return "invalid";
+    case QPSLOT_MISSED:
+        return "missed";
+    case QPSLOT_HIT:
+        return "produced";
+    case QPSLOT_CURRENT:
+        return "current";
+    case QPSLOT_FUTURE:
+        return "future";
+    }
+}
+
+const char* GetSlotStatusAbbrev(const QPSlotStatus status)
+{
+    switch (status)
+    {
+    case QPSLOT_INVALID:
+        return "!";
+    case QPSLOT_MISSED:
+        return "x";
+    case QPSLOT_HIT:
+        return "+";
+    case QPSLOT_CURRENT:
+        return "-";
+    case QPSLOT_FUTURE:
+        return "o";
+    }
+}
+
 QPQueue::QPQueue()
 {
     SetNull();
@@ -22,6 +83,16 @@ QPQueue::QPQueue(unsigned int nSlotTime0In,
     nCurrentSlot = 0;
     nSlotTime0 = nSlotTime0In;
     vStakerIDs = vStakerIDsIn;
+    unsigned int nSize = vStakerIDs.size();
+    if (nSize % 8 == 0)
+    {
+        vchBlockStats.resize(nSize / 8);
+    }
+    else
+    {
+        vchBlockStats.resize((nSize / 8) + 1);
+    }
+    fill(vchBlockStats.begin(), vchBlockStats.end(), 0);
 }
 
 void QPQueue::SetNull()
@@ -30,6 +101,22 @@ void QPQueue::SetNull()
     nCurrentSlot = 0;
     nSlotTime0 = 0;
     vStakerIDs.clear();
+    vchBlockStats.clear();
+}
+
+unsigned int QPQueue::GetCurrentSlot() const
+{
+    return nCurrentSlot;
+}
+
+const std::vector<unsigned int>& QPQueue::GetStakerIDs() const
+{
+    return vStakerIDs;
+}
+
+const valtype& QPQueue::GetBlockStats() const
+{
+    return vchBlockStats;
 }
 
 bool QPQueue::GetIDForSlot(unsigned int slot, unsigned int &nIDRet) const
@@ -84,9 +171,36 @@ bool QPQueue::GetWindowForSlot(unsigned int nSlot, QPWindow& windowRet) const
     return true;
 }
 
-unsigned int QPQueue::GetCurrentSlot() const
+bool QPQueue::GetStatusForSlot(unsigned int nSlot, QPSlotStatus& status) const
 {
-    return nCurrentSlot;
+    if (nSlot >= vStakerIDs.size())
+    {
+        status = QPSLOT_INVALID;
+        return false;
+    }
+    if (nSlot > nCurrentSlot)
+    {
+        status = QPSLOT_FUTURE;
+    }
+    else
+    {
+        unsigned int nBit = nSlot +
+                            (vchBlockStats.size() * 8) -
+                            vStakerIDs.size();
+        if (BitIsOn(vchBlockStats, nBit))
+        {
+            status = QPSLOT_HIT;
+        }
+        else if (nSlot == nCurrentSlot)
+        {
+            status = QPSLOT_CURRENT;
+        }
+        else
+        {
+            status = QPSLOT_MISSED;
+        }
+    }
+    return true;
 }
 
 unsigned int QPQueue::GetMinTime() const
@@ -195,7 +309,14 @@ string QPQueue::ToString() const
     ostringstream ss;
     for (int i = 0; i < n; ++i)
     {
-        ss << i << ":" << vStakerIDs[i];
+        QPSlotStatus status;
+        if (!GetStatusForSlot(i, status))
+        {
+            // this should never happen: practically impossible
+            printf("QPQueue::ToString() TSNH No such slot\n");
+        }
+        const char* chStat = GetSlotStatusAbbrev(status);
+        ss << chStat << i << ":" << vStakerIDs[i];
         if (i < last)
         {
             ss << ",";
@@ -204,6 +325,12 @@ string QPQueue::ToString() const
     string sSlots = ss.str();
     return strprintf("QPQueue: start=%u, current_slot=%u,\n     slots=%s",
                      nSlotTime0, nCurrentSlot, sSlots.c_str());
+}
+
+unsigned int QPQueue::SlotProduced(unsigned int nSlot)
+{
+    unsigned int nBit = nSlot + (vchBlockStats.size() * 8) - vStakerIDs.size();
+    return SetBit(vchBlockStats, nBit);
 }
 
 bool QPQueue::IncrementSlot()
