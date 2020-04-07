@@ -1126,6 +1126,16 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                queue.GetCurrentSlotEnd(),
                GetPicoPower(),
                queue.ToString().c_str());
+
+        static const unsigned int N = BLOCKS_PER_SNAPSHOT * RECENT_SNAPSHOTS;
+        static const unsigned int M = BLOCKS_PER_SNAPSHOT *
+                                      PERMANENT_SNAPSHOT_RATIO;
+
+        int nHeightErase = pindex->nHeight - N;
+        if (nHeightErase % M != 0)
+        {
+            txdb.EraseRegistrySnapshot(nHeightErase);
+        }
     }
 
     if (GetFork(pindex->nHeight + 1) >= XST_FORKQPOS)

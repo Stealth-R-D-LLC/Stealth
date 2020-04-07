@@ -11,7 +11,7 @@
 
 static const uint64_t TRIL = 1000000000000;  // trillion, 1e12
 
-static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 2048;
+static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 32768;
 static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
 static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
 // makes it hard to game the rotation
@@ -24,6 +24,10 @@ static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_TIME;
 static const int64_t DOCK_INACTIVE_FRACTION = 310000000000;
 // number of blocks between snapshots
 static const unsigned int BLOCKS_PER_SNAPSHOT = 24;
+// number of recent snapshots to keep
+static const unsigned int RECENT_SNAPSHOTS = 144;
+// number of snapshots per permanent snapshot
+static const unsigned int PERMANENT_SNAPSHOT_RATIO = 90;
 // min and max staker alias lengths
 static const unsigned int QP_MIN_ALIAS_LENGTH = 3;
 static const unsigned int QP_MAX_ALIAS_LENGTH = 16;

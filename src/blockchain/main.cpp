@@ -4422,6 +4422,12 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     bool fAllowDuplicateStake = (fIsBootstrap && GetBoolArg("-permitdirtybootstrap", false));
     // Check for duplicate
     uint256 hash = pblock->GetHash();
+    if (hash == (fTestNet ? chainParams.hashGenesisBlockTestNet : hashGenesisBlock))
+    {
+        // not an error, but return false because it was not processed
+        printf("ProcessBlock() : skipping genesis block\n   %s\n", hash.ToString().c_str());
+        return false;
+    }
     if (mapBlockIndex.count(hash))
         return error("ProcessBlock() : already have block %d %s", mapBlockIndex[hash]->nHeight, hash.ToString().c_str());
     if (mapOrphanBlocks.count(hash))

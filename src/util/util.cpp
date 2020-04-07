@@ -1329,7 +1329,8 @@ void AddTimeData(const CNetAddr& ip, int64_t nTime)
             static bool fDone;
             if (!fDone)
             {
-                // If nobody has a time different than ours but within 5 minutes of ours, give a warning
+                // If nobody has a time different than ours but
+                // within 5 minutes of ours, give a warning
                 bool fMatch = false;
                 BOOST_FOREACH(int64_t nOffset, vSorted)
                     if (nOffset != 0 && abs64(nOffset) < 5 * 60)
@@ -1338,10 +1339,21 @@ void AddTimeData(const CNetAddr& ip, int64_t nTime)
                 if (!fMatch)
                 {
                     fDone = true;
-                    string strMessage = _("Warning: Please check that your computer's date and time are correct! If your clock is wrong Stealth will not work properly.");
-                    strMiscWarning = strMessage;
-                    printf("*** %s\n", strMessage.c_str());
-                    uiInterface.ThreadSafeMessageBox(strMessage+" ", string("Stealth"), CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION);
+                    // Junaeth (qPoS) does not rely on clock offset
+                    //    so the warning is useles.
+                    if (GetFork(nBestHeight + 1) < XST_FORKQPOS)
+                    {
+                        string strMessage = _(
+                              "Warning: Please check that your computer's "
+                              "date and time are correct! If your clock is "
+                              "wrong, Stealth will not work properly.");
+                        strMiscWarning = strMessage;
+                        printf("*** %s\n", strMessage.c_str());
+                        uiInterface.ThreadSafeMessageBox(
+                                      strMessage+" ", string("Stealth"),
+                                      (CClientUIInterface::OK |
+                                       CClientUIInterface::ICON_EXCLAMATION));
+                    }
                 }
             }
         }
