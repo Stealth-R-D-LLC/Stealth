@@ -51,6 +51,7 @@ const char* GetSlotStatusType(const QPSlotStatus status)
     case QPSLOT_FUTURE:
         return "future";
     }
+    return "invalid";
 }
 
 const char* GetSlotStatusAbbrev(const QPSlotStatus status)
@@ -68,6 +69,7 @@ const char* GetSlotStatusAbbrev(const QPSlotStatus status)
     case QPSLOT_FUTURE:
         return "o";
     }
+    return "!";
 }
 
 QPQueue::QPQueue()
