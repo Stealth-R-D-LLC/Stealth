@@ -25,7 +25,36 @@ unsigned int nModifierInterval = MODIFIER_INTERVAL;
 static std::map<int, unsigned int> mapStakeModifierCheckpoints =
     boost::assign::map_list_of
              (        0, 0xfd11f4e7u )
-             (   114200, 0xe2232be0u )
+	     (     1000, 0x83f19dde )
+	     (     5112, 0xf6e34cdf )
+	     (    10000, 0xd49a345e )
+	     (    15000, 0xfe433950 )
+	     (    19000, 0x3c937cb1 )
+	     (    51100, 0xb6f9b591 )
+	     (    83500, 0x5d8183c5 )
+	     (   100500, 0x6de26a9d )
+	     (   114200, 0xe2232be0 )
+	     (   150000, 0xd9ad1258 )
+	     (   200000, 0x02e1f910 )
+	     (   347000, 0x7f780f29 )
+	     (   400000, 0xa77d9d5d )
+	     (   600000, 0x0e891ae0 )
+	     (   800000, 0xa6b7b05b )
+	     (  1000000, 0x22ada3c1 )
+	     (  1200000, 0x57d163db )
+	     (  1400000, 0x08715cda )
+	     (  1600000, 0x27ec1a09 )
+	     (  1800000, 0x78cc8bb4 )
+	     (  2000000, 0xd040473c )
+	     (  2107000, 0xc728e3a3 )
+	     (  2200000, 0x91ecd3c1 )
+	     (  2400000, 0xa7331ec6 )
+	     (  2600000, 0xdffdaed7 )
+	     (  2800000, 0xfe96e010 )
+	     (  3000000, 0x6936c08a )
+	     (  3159232, 0x74bfdbcb )
+	
+       
 	;
 
 
