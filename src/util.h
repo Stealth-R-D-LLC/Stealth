@@ -115,6 +115,9 @@ T* alignup(T* p)
 #define S_IWUSR             0200
 #endif
 #else
+#ifdef __APPLE__
+#define MSG_NOSIGNAL        0
+#endif
 #define MAX_PATH            1024
 inline void Sleep(int64 n)
 {

@@ -57,7 +57,7 @@ uint256 hashBestChain = 0;
 CBlockIndex* pindexBest = NULL;
 int64 nTimeBestReceived = 0;
 
-static const int GETBLOCKS_LIMIT = 2000;
+const int GETBLOCKS_LIMIT = 2000;
 
 
 CMedianFilter<int> cPeerBlockCounts(5, 0); // Amount of blocks that other nodes claim to have
@@ -88,7 +88,7 @@ int64 nReserveBalance = 0;
 //
 
 int GetFork(int nHeight)
-{   
+{
     // Make sure Heights are ascending!
     const int aForks[2][TOTAL_FORKS][2] =
                                      {
@@ -111,9 +111,9 @@ int GetFork(int nHeight)
     const int idx = fTestNet ? 1 : 0;
     int nFork = aForks[idx][0][1];
     for (int i = 1; i < TOTAL_FORKS; ++i)
-    {  
+    {
        if (aForks[idx][i][0] > nHeight)
-       {   
+       {
            break;
        }
        nFork = aForks[idx][i][1];
@@ -611,13 +611,13 @@ bool CTransaction::CheckTransaction() const
         if (GetFork(nBestHeight+1) >= XST_FORK004)
         {
             if (txout.nValue < 0)
-                return DoS(100, 
+                return DoS(100,
                   error("CTransaction::CheckTransaction() : txout.nValue negative"));
         }
         else
         {
             if ((!txout.IsEmpty()) && txout.nValue < MIN_TXOUT_AMOUNT)
-                return DoS(100, 
+                return DoS(100,
                   error("CTransaction::CheckTransaction() : txout.nValue below minimum"));
         }
 
@@ -1150,7 +1150,7 @@ int64 GetProofOfWorkReward(int nHeight, int64 nFees, uint256 prevHash)
         else if (nHeight < GetPoWCutoff())
             nSubsidy = 1000 * COIN;  // was 1 coin
     }
-    
+
     return nSubsidy + nFees;
 }
 
@@ -1168,8 +1168,8 @@ int64 GetProofOfStakeReward(int64 nCoinAge, unsigned int nBits, int nHeight)
     return nSubsidy;
 }
 
-static const int64 nTargetTimespan = 60 * 30; // 30 blocks  
-static const int64 nTargetSpacingWorkMax = 3 * nStakeTargetSpacing; 
+static const int64 nTargetTimespan = 60 * 30; // 30 blocks
+static const int64 nTargetSpacingWorkMax = 3 * nStakeTargetSpacing;
 
 //
 // maximum nBits value could possible be required nTime after
@@ -1218,7 +1218,7 @@ const CBlockIndex* GetLastBlockIndex(const CBlockIndex* pindex, bool fProofOfSta
     return pindex;
 }
 
-unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake) 
+unsigned int GetNextTargetRequired(const CBlockIndex* pindexLast, bool fProofOfStake)
 {
     CBigNum bnTargetLimit = bnProofOfWorkLimit;
 
@@ -2064,7 +2064,7 @@ bool CBlock::SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew)
 // ppcoin: total coin age spent in transaction, in the unit of coin-days.
 // Only those coins meeting minimum age requirement counts. As those
 // transactions not in main chain are not currently indexed so we
-// might not find out about their coin age. Older transactions are 
+// might not find out about their coin age. Older transactions are
 // guaranteed to be in main chain by sync-checkpoint. This rule is
 // introduced to help nodes establish a consistent view of the coin
 // age (trust score) of competing branches.
@@ -2498,8 +2498,32 @@ bool CBlock::AcceptBlock()
     {
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
-            if (nBestHeight > (pnode->nStartingHeight != -1 ? pnode->nStartingHeight - 2000 : nBlockEstimate))
-                pnode->PushInventory(CInv(MSG_BLOCK, hash));
+        {
+            int nHeightMin;
+            if (pnode->nStartingHeight < 0)
+            {
+                nHeightMin = nBlockEstimate;
+            }
+            else
+            {
+                nHeightMin = pnode->nStartingHeight - 2000;
+            }
+            if (nBestHeight > nHeightMin)
+            {
+                if (fDebugNet)
+                {
+                    printf("AcceptBlock(): pushing accepted block to %s\n  :%s\n",
+                           pnode->addrName.c_str(),
+                           hash.ToString().c_str());
+                }
+                if (!pnode->PushInventory(CInv(MSG_BLOCK, hash)) && fDebugNet)
+                {
+                    printf("AcceptBlock(): couldn't push accepted block to %s\n  :%s\n",
+                           pnode->addrName.c_str(),
+                           hash.ToString().c_str());
+                }
+            }
+        }
     }
 
     // ppcoin: check pending sync-checkpoint
@@ -2527,7 +2551,7 @@ CBigNum CBlockIndex::GetBlockTrust() const
         CBigNum bnPoWTrust = (bnProofOfWorkLimit / (bnTarget+1));
         return bnPoWTrust > 1 ? bnPoWTrust : 1;
     }
-} 
+}
 
 bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, unsigned int nRequired, unsigned int nToCheck)
 {
@@ -3558,7 +3582,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     if (inv.hash == pfrom->hashContinue)
                     {
                         // ppcoin: send latest proof-of-work block to allow the
-                        // download node to accept as orphan (proof-of-stake 
+                        // download node to accept as orphan (proof-of-stake
                         // block might be rejected by stake connection check)
                         vector<CInv> vInv;
                         vInv.push_back(CInv(MSG_BLOCK, GetLastBlockIndex(pindexBest, false)->GetBlockHash()));
@@ -3626,18 +3650,36 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             if (pindex->GetBlockHash() == hashStop)
             {
-                if (fDebug) {
-                  printf("  getblocks stopping at %d %s\n",
+                if (fDebugNet) {
+                  printf("  getblocks stopping at %d\n    %s\n",
                          pindex->nHeight,
                          pindex->GetBlockHash().ToString().substr(0,20).c_str());
                 }
                 // ppcoin: tell downloading node about the latest block if it's
                 // without risk being rejected due to stake connection check
-                if (hashStop != hashBestChain && pindex->GetBlockTime() + nStakeMinAge > pindexBest->GetBlockTime())
-                    pfrom->PushInventory(CInv(MSG_BLOCK, hashBestChain));
+                if ((hashStop != hashBestChain) &&
+                    (pindex->GetBlockTime() + nStakeMinAge) > pindexBest->GetBlockTime())
+                {
+                    if (!pfrom->PushInventory(CInv(MSG_BLOCK, hashBestChain)) && fDebugNet)
+                    {
+                        printf("  couldn't push best chain inventory %d\n    %s\n",
+                               pindex->nHeight,
+                               pindex->GetBlockHash().ToString().c_str());
+                    }
+                }
                 break;
             }
-            pfrom->PushInventory(CInv(MSG_BLOCK, pindex->GetBlockHash()));
+            if (!pfrom->PushInventory(CInv(MSG_BLOCK, pindex->GetBlockHash())))
+            {
+                printf("couldn't push inventory %d to %s: stopping\n    %s\n",
+                       pindex->nHeight,
+                       pfrom->addrName.c_str(),
+                       pindex->GetBlockHash().ToString().c_str());
+                // When this block is requested, we'll send an inv that'll make them
+                // getblocks the next batch of inventory.
+                pfrom->hashContinue = pindex->GetBlockHash();
+                break;
+            }
             if (--nLimit <= 0)
             {
                 // When this block is requested, we'll send an inv that'll make them
@@ -4313,7 +4355,7 @@ public:
 uint64 nLastBlockTx = 0;
 uint64 nLastBlockSize = 0;
 int64 nLastCoinStakeSearchInterval = 0;
- 
+
 // We want to sort transactions by priority and fee, so:
 typedef boost::tuple<double, double, CTransaction*> TxPriority;
 class TxPriorityCompare
@@ -4857,7 +4899,7 @@ void StealthMinter(CWallet *pwallet, bool fProofOfStake)
             {
                 if (!pblock->SignBlock(*pwalletMain))
                     continue;
-                printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str()); 
+                printf("CPUMiner : proof-of-stake block found %s\n", pblock->GetHash().ToString().c_str());
                 SetThreadPriority(THREAD_PRIORITY_NORMAL);
                 CheckWork(pblock.get(), *pwalletMain, reservekey);
                 SetThreadPriority(THREAD_PRIORITY_LOWEST);
@@ -4916,9 +4958,9 @@ void StealthMinter(CWallet *pwallet, bool fProofOfStake)
                         dHashesPerSec = 1000.0 * nHashCounter / (GetTimeMillis() - nHPSTimerStart);
                         nHPSTimerStart = GetTimeMillis();
                         nHashCounter = 0;
-                        
+
                             printf("hashmeter %3d CPUs %6.0f khash/s\n", vnThreadsRunning[THREAD_MINTER], dHashesPerSec/1000.0);
-                        
+
                     }
                 }
             }
