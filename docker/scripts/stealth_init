@@ -15,8 +15,12 @@ disablewallet=${DISABLEWALLET:-1}
 printtoconsole=${PRINTTOCONSOLE:-1}
 rpcuser=${RPCUSER:-stealthcoinrpc}
 rpcpassword=${RPCPASSWORD:-`dd if=/dev/urandom bs=33 count=1 2>/dev/null | base64`}
-gen=0
 server=1
+daemon=1
+debug=0
+debugnet=1
+debugqpos=1
+testnet=${TESTNET:-1}
 EOF
 
 fi

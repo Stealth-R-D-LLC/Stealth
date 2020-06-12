@@ -12,6 +12,7 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys C70EF1F0305A1ADB998
 # install dependencies
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \ 
+	cmake \
 	build-essential \
 	libssl-dev \
 	ibdb4.8-dev \
@@ -26,20 +27,23 @@ RUN apt-get update \
 WORKDIR /stealth
 
 # fetch the compressed source of stealth
-ADD https://github.com/StealthSend/Stealth/archive/master.tar.gz .
+ADD https://github.com/StealthSend/Stealth/archive/qpos-3.0.tar.gz .
 
 # unpack the source of stealth
-RUN tar xvzf ./*master*.tar.gz
+RUN tar xvzf ./*qpos*.tar.gz
 
 # clean up after
 RUN mv ./Stealth-*/* .
-RUN rm -Rf ./Stealth-* ./*master*.tar.gz
+RUN rm -Rf ./Stealth-* ./*qpos*.tar.gz
 
 # change the workdir to source of stealth
 WORKDIR /stealth/src
 
 # build stealth from source
-RUN make -f makefile.unix
+RUN make -f makefile.unix clean
+
+# build stealth from source
+RUN make -f makefile.unix 
 
 # change to main workspace
 WORKDIR /stealth
