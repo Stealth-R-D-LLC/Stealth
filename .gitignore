@@ -169,3 +169,6 @@ src/libcryptopp/*.o
 src/libcryptopp/adhoc.cpp
 src/libcryptopp/cryptest.exe
 src/libcryptopp/libcryptopp.a
+
+
+.idea
