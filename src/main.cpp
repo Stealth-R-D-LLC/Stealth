@@ -2383,7 +2383,7 @@ bool CBlock::CheckBlock(bool fCheckPOW, bool fCheckMerkleRoot, bool fCheckSig) c
 }
 
 
-bool CBlock::AcceptBlock()
+bool CBlock::AcceptBlock(bool fIsBootstrap)
 {
     // Check for duplicate
     uint256 hash = GetHash();
@@ -2465,15 +2465,14 @@ bool CBlock::AcceptBlock()
 
 
     // ppcoin: check that the block satisfies synchronized checkpoint
-    if (!Checkpoints::CheckSync(hash, pindexPrev))
+    // xst:
+    //   1. don't even warn if bootstrapping
+    //   2. sync checkpoints are getting phased out, so ignored by default
+    if (!(fIsBootstrap || GetBoolArg("-nosynccheckpoints", true)))
     {
-        if(!GetBoolArg("-nosynccheckpoints", false))
+        if (!Checkpoints::CheckSync(hash, pindexPrev))
         {
             return error("AcceptBlock() : rejected by synchronized checkpoint");
-        }
-        else
-        {
-            strMiscWarning = _("WARNING: syncronized checkpoint violation detected, but skipped!");
         }
     }
 
@@ -2681,7 +2680,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool fIsBootstrap)
     }
 
     // Store to disk
-    if (!pblock->AcceptBlock())
+    if (!pblock->AcceptBlock(fIsBootstrap))
         return error("ProcessBlock() : AcceptBlock FAILED");
 
     // Recursively process any orphan blocks that depended on this one
@@ -2695,7 +2694,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool fIsBootstrap)
              ++mi)
         {
             CBlock* pblockOrphan = (*mi).second;
-            if (pblockOrphan->AcceptBlock())
+            if (pblockOrphan->AcceptBlock(fIsBootstrap))
                 vWorkQueue.push_back(pblockOrphan->GetHash());
             mapOrphanBlocks.erase(pblockOrphan->GetHash());
             setStakeSeenOrphan.erase(pblockOrphan->GetProofOfStake());

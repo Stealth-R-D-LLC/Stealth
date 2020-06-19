@@ -26,7 +26,7 @@ extern const std::string CLIENT_DATE;
 #define DISPLAY_VERSION_MAJOR       2
 #define DISPLAY_VERSION_MINOR       2
 #define DISPLAY_VERSION_REVISION    0
-#define DISPLAY_VERSION_BUILD       1
+#define DISPLAY_VERSION_BUILD       2
 
 //
 // network protocol versioning
@@ -49,6 +49,7 @@ extern const std::string CLIENT_DATE;
 //         2.2.0.0 : Removing all traces of tx timestamp
 //                   Immaleable transaction IDs
 //         2.2.0.1 : Fixing malloc error on sending inv
+//         2.2.0.2 : Speeding sync by basically ignoring sync checkpoints
 static const int PROTOCOL_VERSION = 62200;
 
 // intial proto version, to be increased after version/verack negotiation
