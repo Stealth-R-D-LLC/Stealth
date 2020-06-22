@@ -4,11 +4,11 @@
 PYINCDIR = -I/usr/local/include/python
 PYLIBDIR = -L/usr/local/lib
 
-INCDIRS = $(PYINCDIR) -I../../src
+INCDIRS = $(PYINCDIR) -I../../src/crypto -I../../src/primitives
 CFLAGS = -g -Wall -fPIC
 CXXFLAGS = -g -Wall -fPIC -std=c++11
 
-VPATH = ../../src
+VPATH = ../../src/crypto
 
 CC = gcc
 CXX = g++
