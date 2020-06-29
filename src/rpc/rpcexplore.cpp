@@ -31,14 +31,6 @@ struct inout_comparator
 {
     bool operator() (const Object& objL, const Object& objR) const
     {
-        if (objL[0].value_.get_int() < objR[0].value_.get_int())
-        {
-            return true;
-        }
-        if (objL[0].value_.get_int() > objR[0].value_.get_int())
-        {
-            return false;
-        }
         if (objL[1].value_.get_int() < objR[1].value_.get_int())
         {
             return true;
@@ -47,19 +39,27 @@ struct inout_comparator
         {
             return false;
         }
-        if (objL[2].name_ < objR[2].name_)
-        {
-            return true;
-        }
-        if (objL[2].name_ > objR[2].name_)
-        {
-            return false;
-        }
         if (objL[2].value_.get_int() < objR[2].value_.get_int())
         {
             return true;
         }
         if (objL[2].value_.get_int() > objR[2].value_.get_int())
+        {
+            return false;
+        }
+        if (objL[3].name_ < objR[3].name_)
+        {
+            return true;
+        }
+        if (objL[3].name_ > objR[3].name_)
+        {
+            return false;
+        }
+        if (objL[3].value_.get_int() < objR[3].value_.get_int())
+        {
+            return true;
+        }
+        if (objL[3].value_.get_int() > objR[3].value_.get_int())
         {
             return false;
         }
@@ -195,6 +195,7 @@ void GetInputInfo(CTxDB& txdb,
     }
     // do not change the ordering of these key-value pairs
     // because they are used for sorting with inout_comparator above
+    objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vin", (boost::int64_t)input.vin));
@@ -205,7 +206,8 @@ void GetInputInfo(CTxDB& txdb,
     objRet.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
     objRet.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
     objRet.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
-    // asdf objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+    // TODO: add this at some point?
+    // objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
 }
 
 
@@ -302,6 +304,7 @@ void GetOutputInfo(CTxDB& txdb,
     }
     // do not change the ordering of these key-value pairs
     // because they are used for sorting with inout_comparator above
+    objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vout", (boost::int64_t)output.vout));
@@ -526,11 +529,11 @@ Value gethdaccount(const Array &params, bool fHelp)
             Object entry;
             if (inout.IsInput())
             {
-                GetInputInfo(txdb, strAddress, inout.nID, entry);
+                GetInputInfo(txdb, strAddress, inout.GetID(), entry);
             }
             else
             {
-                GetOutputInfo(txdb, strAddress, inout.nID, entry);
+                GetOutputInfo(txdb, strAddress, inout.GetID(), entry);
             }
 
             setObj.insert(entry);
