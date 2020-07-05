@@ -1316,7 +1316,6 @@ Value gettransaction(const Array& params, bool fHelp)
         unsigned int nTimeBlock;
         if (GetTransaction(hash, tx, hashBlock, nTimeBlock))
         {
-            entry.push_back(Pair("txid", hash.GetHex()));
             TxToJSON(tx, 0, entry);
             if (hashBlock == 0)
                 entry.push_back(Pair("confirmations", 0));

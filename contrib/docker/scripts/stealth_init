@@ -1,0 +1,32 @@
+#!/bin/bash
+
+set -ex
+
+b58alpha='123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz'
+
+if [ ! -e "$HOME/.StealthCoin/StealthCoin.conf" ]; then
+
+    mkdir -p $HOME/.StealthCoin
+
+    # This shouldn't be in the Dockerfile or containers built from
+    # the same image will have the same credentials.
+    echo "Creating StealthCoin.conf"
+
+    # Seed a base58 random password for JSON RPC server.
+    cat <<EOF > $HOME/.StealthCoin/StealthCoin.conf
+printtoconsole=${PRINTTOCONSOLE:-0}
+rpcuser=${RPCUSER:-stealthrpc}
+rpcpassword=${RPCPASSWORD:-`</dev/urandom tr -dc ${b58alpha} | head -c40`}
+server=1
+daemon=0
+debug=0
+debugnet=0
+debugqpos=0
+testnet=${TESTNET:-0}
+EOF
+
+fi
+
+cat $HOME/.StealthCoin/StealthCoin.conf
+
+echo "Initialization completed successfully."

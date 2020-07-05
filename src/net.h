@@ -24,9 +24,11 @@ class CNode;
 class CBlockIndex;
 extern int nBestHeight;
 
+extern const int GETBLOCKS_LIMIT;
 
-inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer", 5*1000); }
-inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 1*1000); }
+
+inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer", 10*1000); }
+inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer", 4*1000); }
 
 void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);
@@ -315,13 +317,36 @@ public:
         }
     }
 
-    void PushInventory(const CInv& inv)
+    bool PushInventory(const CInv& inv)
     {
+        static const size_t nMaxInvSize = (size_t)(2 * GETBLOCKS_LIMIT);
         {
             LOCK(cs_inventory);
-            if (!setInventoryKnown.count(inv))
-                vInventoryToSend.push_back(inv);
+            if (setInventoryKnown.count(inv))
+            {
+                if (fDebugNet)
+                {
+                    printf("inventory known\n");
+                }
+                return false;
+            }
+            if (vInventoryToSend.size() >= nMaxInvSize)
+            {
+                if (fDebugNet)
+                {
+                    printf("inventory exceeds %lu\n",
+                           (unsigned long)nMaxInvSize);
+                }
+                return false;
+            }
+            vInventoryToSend.push_back(inv);
+            if (fDebugNet && ((vInventoryToSend.size() % 1000) == 0))
+            {
+                printf("Inventory size is: %lu\n",
+                       (unsigned long)vInventoryToSend.size());
+            }
         }
+        return true;
     }
 
     void AskFor(const CInv& inv)

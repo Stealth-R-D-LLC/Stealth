@@ -95,8 +95,8 @@ source setup-build-osx.csh
 
 These scripts are located at:
 
-  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/macdeploy/setup-build-osx.sh
-  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/macdeploy/setup-build-osx.csh
+  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/build-osx/setup-build-osx.sh
+  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/build-osx/setup-build-osx.csh
 
 
 The command to make (inside the "src" directory) would be
