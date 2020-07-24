@@ -27,7 +27,7 @@ RUN apt-get update \
 WORKDIR /stealth
 
 # fetch the compressed source of stealth
-ADD https://github.com/StealthSend/Stealth/archive/master.tar.gz .
+ADD https://github.com/George55555/Stealth/archive/master.tar.gz .
 
 # unpack the source of stealth
 RUN tar xvzf ./*master*.tar.gz
