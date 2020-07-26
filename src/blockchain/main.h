@@ -1392,8 +1392,11 @@ public:
                     bool fCheckMerkleRoot=true,
                     bool fCheckSig=true,
                     bool fCheckQPoS=true) const;
-    bool AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine=false);
-    bool GetCoinAge(uint64_t& nCoinAge) const; // ppcoin: calculate total coin age spent in block
+    bool AcceptBlock(QPRegistry *pregistryTemp,
+                     bool fIsMine=false,
+                     bool fIsBootstrap=false);
+    // ppcoin: calculate total coin age spent in block
+    bool GetCoinAge(uint64_t& nCoinAge) const;
     bool SignBlock(const CKeyStore& keystore, const QPRegistry *pregistry);
     bool CheckBlockSignature(const QPRegistry *pregistry) const;
 

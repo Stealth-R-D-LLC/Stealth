@@ -4172,7 +4172,9 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
 }
 
 
-bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
+bool CBlock::AcceptBlock(QPRegistry *pregistryTemp,
+                         bool fIsMine,
+                         bool fIsBootstrap)
 {
     int nFork = GetFork(nBestHeight + 1);
 
@@ -4290,16 +4292,14 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp, bool fIsMine)
 
 
     // ppcoin: check that the block satisfies synchronized checkpoint
-    // xst: sync checkpoints are getting phased out, so ignored by default
-    if (!Checkpoints::CheckSync(hash, pindexPrev))
+    // xst:
+    //   1. don't even warn if bootstrapping
+    //   2. sync checkpoints are getting phased out, so ignored by default
+    if (!(fIsBootstrap || GetBoolArg("-nosynccheckpoints", true)))
     {
-        if(!GetBoolArg("-nosynccheckpoints", true))
+        if (!Checkpoints::CheckSync(hash, pindexPrev))
         {
             return error("AcceptBlock() : rejected by synchronized checkpoint");
-        }
-        else
-        {
-            strMiscWarning = _("WARNING: syncronized checkpoint violation detected, but skipped!");
         }
     }
 
@@ -4653,7 +4653,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     }
 
     // Store to disk
-    if (!pblock->AcceptBlock(pregistryTemp.get(), fIsMine))
+    if (!pblock->AcceptBlock(pregistryTemp.get(), fIsMine, fIsBootstrap))
     {
         return error("ProcessBlock() : AcceptBlock FAILED %s", hash.ToString().c_str());
     }
@@ -4669,7 +4669,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
              ++mi)
         {
             CBlock* pblockOrphan = (*mi).second;
-            if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine))
+            if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine, fIsBootstrap))
             {
                 printf("ProcessBlock(): accept orphan %s success\n",
                        pblockOrphan->GetHash().ToString().c_str());
