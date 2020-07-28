@@ -659,20 +659,8 @@ bool CTxDB::LoadBlockIndex()
         leveldb::Iterator *iter = pdb->NewIterator(leveldb::ReadOptions());
         // Seek to start key.
         CDataStream ssStartKey(SER_DISK, CLIENT_VERSION);
-        // As a sentinel for this search, nMaxDust
-        ssStartKey << make_pair(ADDR_SET_BAL, nMaxDust);
-        if (!IsViable(ssStartKey))
-        {
-           set<string> setAddrSentinel;
-           if (!Write(ssStartKey, setAddrSentinel))
-           {
-               return error("LoadBlockIndex() : could not write sentinel address set");
-           }
-           iter = pdb->NewIterator(leveldb::ReadOptions());
-        }
+        ssStartKey << make_pair(ADDR_SET_BAL, 0);
         iter->Seek(ssStartKey.str());
-        // don't try to process the sentinel as a set.
-        iter->Next();
         int nCountSets = 0;
         // Now read each entry.
         while (iter->Valid())
@@ -708,12 +696,13 @@ bool CTxDB::LoadBlockIndex()
             ssKey >> nBalance;
             set<string> setAddr;
             ssValue >> setAddr;
+            unsigned int sizeSetAddr = setAddr.size();
             if (fDebugExplore)
             {
                 printf("==== loaded set of %lu with balance of %" PRId64 "\n",
-                       (unsigned long)setAddr.size(), nBalance);
+                       (unsigned long)sizeSetAddr, nBalance);
             }
-            mapAddressBalances[nBalance] = setAddr.size();
+            mapAddressBalances[nBalance] = sizeSetAddr;
             iter->Next();
         }
 
