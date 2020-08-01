@@ -464,12 +464,12 @@ Value getaddressinouts(const Array &params, bool fHelp)
     if (fHelp || (params.size()  < 1) || (params.size() > 3))
     {
         throw runtime_error(
-                "getaddressoutputs <address> [start] [max]\n"
+                "getaddressinouts <address> [start] [max]\n"
                 "Returns [max] inputs + outputs of <address> beginning with [start]\n"
                 "  For example, if [start]=101 and [max]=100 means to\n"
-                "  return the second 100 outputs (if possible).\n"
-                "    [start] is the nth output (default: 1)\n"
-                "    [max] is the max outputs to return (default: 100)");
+                "  return the second 100 in-outs (if possible).\n"
+                "    [start] is the nth in-out (default: 1)\n"
+                "    [max] is the max in-outs to return (default: 100)");
     }
 
     string strAddress = params[0].get_str();
