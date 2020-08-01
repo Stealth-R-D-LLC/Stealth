@@ -139,6 +139,7 @@ bool ExploreConnectInput(CTxDB& txdb,
 {
     const CTxIn& txIn = tx.vin[n];
     const CTxOut txOut = GetOutputFor(txIn, mapInputs);
+    const int64_t nValue = txOut.nValue;
     const CScript &script = txOut.scriptPubKey;
     txnouttype typetxo;
     vector<valtype> vSolutions;
@@ -260,7 +261,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // write the input record
-        ExploreInputInfo newIn(txid, n, txIn.prevout.hash, txIn.prevout.n);
+        ExploreInputInfo newIn(txid, n, txIn.prevout.hash, txIn.prevout.n, nValue);
         if (!txdb.WriteAddrTx(ADDR_TX_INPUT, strAddr, nQtyInputs, newIn))
         {
             return _Err("ExploreConnectInput() : can't write input",
@@ -320,9 +321,8 @@ bool ExploreConnectInput(CTxDB& txdb,
        /***************************************************************
         * 4. update the balance
         ***************************************************************/
-        int64_t nValue = txOut.nValue;
         int64_t nBalanceOld;
-        if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
         {
             return _Err("ExploreConnectInput() : can't read addr balance",
                         strAddr, -1, txid, n,
@@ -337,15 +337,33 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
         int64_t nBalanceNew = nBalanceOld - nValue;
         // no desire to remove evidence of this address here, even if no balance
-        if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
         {
             return _Err("ExploreConnectInput() : can't write addr balance",
                         strAddr, -1, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
 
+
        /***************************************************************
-        * 5. update the balance sets (for rich list, etc)
+        * 5. update the value out (new input increases value out)
+        ***************************************************************/
+        int64_t nValueOut;
+        if (!txdb.ReadAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
+        {
+            return _Err("ExploreConnectInput() : can't read addr value out",
+                        strAddr, -1, txid, n);
+        }
+        nValueOut += nValue;
+        if (!txdb.WriteAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
+        {
+            return _Err("ExploreConnectInput() : can't write addr value out",
+                        strAddr, -1, txid, n);
+        }
+
+
+       /***************************************************************
+        * 6. update the balance sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -436,6 +454,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         return true;
     }
     const CTxOut& txOut = tx.vout[n];
+    const int64_t nValue = txOut.nValue;
     const CScript &script = txOut.scriptPubKey;
     txnouttype typetxo;
     vector<valtype> vSolutions;
@@ -564,18 +583,32 @@ bool ExploreConnectOutput(CTxDB& txdb,
        /***************************************************************
         * 4. update the balance
         ***************************************************************/
-        int64_t nValue = txOut.nValue;
         int64_t nBalanceOld;
-        if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
         {
             return _Err("ExploreConnectOutput() : can't read addr balance",
                         strAddr, -1, txid, n);
         }
         int64_t nBalanceNew = nBalanceOld + nValue;
-        // no desire to remove evidence of this address here, even if no balance
-        if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
         {
             return _Err("ExploreConnectOutput() : can't write addr balance",
+                        strAddr, -1, txid, n);
+        }
+
+       /***************************************************************
+        * 5. update the value in (new output increases value in)
+        ***************************************************************/
+        int64_t nValueIn;
+        if (!txdb.ReadAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
+        {
+            return _Err("ExploreConnectOutput() : can't read addr value in",
+                        strAddr, -1, txid, n);
+        }
+        nValueIn += nValue;
+        if (!txdb.WriteAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
+        {
+            return _Err("ExploreConnectOutput() : can't write addr value in",
                         strAddr, -1, txid, n);
         }
 
@@ -767,6 +800,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
                              set<int64_t>& setAddressBalancesRemoveRet)
 {
     const CTxOut& txOut = tx.vout[n];
+    const int64_t nValue = txOut.nValue;
     const CScript &script = txOut.scriptPubKey;
     txnouttype typetxo;
     vector<valtype> vSolutions;
@@ -934,9 +968,8 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
        /***************************************************************
         * 4. update the balance
         ***************************************************************/
-        int64_t nValue = txOut.nValue;
         int64_t nBalanceOld;
-        if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
         {
             return _Err("ExploreDisconnectOutput() : can't read addr balance",
                         strAddr, -1, txid, n);
@@ -949,14 +982,37 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
         int64_t nBalanceNew = nBalanceOld - nValue;
         // no desire to remove evidence of this address here, even if no balance
-        if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
         {
             return _Err("ExploreDisconnectOutput() : can't write addr balance",
                         strAddr, -1, txid, n);
         }
 
        /***************************************************************
-        * 5. update the balance sets (for rich list, etc)
+        * 5. update the value in (removed output decreases value in)
+        ***************************************************************/
+        int64_t nValueIn;
+        if (!txdb.ReadAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
+        {
+            return _Err("ExploreDisconnectOutput() : can't read addr value in",
+                        strAddr, -1, txid, n);
+        }
+        if (nValue > nValueIn)
+        {
+            // This should never happen: output value exceeds address value in
+            return _Err("ExploreDisconnectOutput() : TSNH output value exceeds value in",
+                        strAddr, -1, txid, n);
+        }
+        nValueIn -= nValue;
+        // no desire to remove evidence of this address here, even if no value in 
+        if (!txdb.WriteAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
+        {
+            return _Err("ExploreDisconnectOutput() : can't write addr value in",
+                        strAddr, -1, txid, n);
+        }
+
+       /***************************************************************
+        * 6. update the balance sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -1044,6 +1100,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
 {
     const CTxIn& txIn = tx.vin[n];
     const CTxOut txOut = GetOutputFor(txIn, mapInputs);
+    const int64_t nValue = txOut.nValue;
     const CScript &script = txOut.scriptPubKey;
     txnouttype typetxo;
     vector<valtype> vSolutions;
@@ -1264,17 +1321,15 @@ bool ExploreDisconnectInput(CTxDB& txdb,
        /***************************************************************
         * 4. update the balance
         ***************************************************************/
-        int64_t nValue = txOut.nValue;
         int64_t nBalanceOld;
-        if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddr, nBalanceOld))
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
         {
             return _Err("ExploreDisconnectTx() : can't read addr balance",
                         strAddr, -1, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         int64_t nBalanceNew = nBalanceOld + nValue;
-        // no desire to remove evidence of this address here, even if no balance
-        if (!txdb.WriteAddrBalance(ADDR_BALANCE, strAddr, nBalanceNew))
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
         {
             return _Err("ExploreDisconnectInput() : can't write addr balance",
                         strAddr, -1, txid, n,
@@ -1282,7 +1337,31 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the balance address sets (for rich list, etc)
+        * 5. update the value out (removed input decreases value out)
+        ***************************************************************/
+        int64_t nValueOut;
+        if (!txdb.ReadAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
+        {
+            return _Err("ExploreDisconnectInput() : can't read addr value out",
+                        strAddr, -1, txid, n);
+        }
+        if (nValue > nValueOut)
+        {
+            // This should never happen: output value exceeds address value out
+            return _Err("ExploreDisconnectInput() : TSNH prev output value exceeds value out",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        nValueOut -= nValue;
+        // don't remove evidence of this address here, even if no value out
+        if (!txdb.WriteAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
+        {
+            return _Err("ExploreDisconnectInput() : can't write addr value out",
+                        strAddr, -1, txid, n);
+        }
+
+       /***************************************************************
+        * 6. update the balance address sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here

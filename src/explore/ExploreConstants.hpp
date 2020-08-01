@@ -63,9 +63,15 @@ const exploreKey_t ADDR_TX_INOUT(EXPLORE_KEY, ADDR_TX_INOUT_LABEL);
 const std::string ADDR_LOOKUP_OUTPUT_LABEL = "ALO";
 const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, ADDR_LOOKUP_OUTPUT_LABEL);
 
-// Addr Balance
+// Addr Value
 const std::string ADDR_BALANCE_LABEL = "AB";
 const exploreKey_t ADDR_BALANCE(EXPLORE_KEY, ADDR_BALANCE_LABEL);
+
+const std::string ADDR_VALUEIN_LABEL = "AVI";
+const exploreKey_t ADDR_VALUEIN(EXPLORE_KEY, ADDR_VALUEIN_LABEL);
+
+const std::string ADDR_VALUEOUT_LABEL = "AVO";
+const exploreKey_t ADDR_VALUEOUT(EXPLORE_KEY, ADDR_VALUEOUT_LABEL);
 
 // Addr Set
 const std::string ADDR_SET_BAL_LABEL = "ASB";

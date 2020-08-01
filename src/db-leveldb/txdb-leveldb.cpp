@@ -357,22 +357,24 @@ bool CTxDB::AddrLookupIsViable(const exploreKey_t& t, const string& addr,
    return IsViable(key);
 }
 
-/*  AddrBalance
- *  Parameters - t:type, addr:address, b:balance
+
+/*  AddrValue
+ *  Parameters - t:type, addr:address, v:value
  */
-bool CTxDB::ReadAddrBalance(const exploreKey_t& t, const string& addr,
-                            int64_t& bRet)
+bool CTxDB::ReadAddrValue(const exploreKey_t& t, const string& addr,
+                          int64_t& vRet)
 {
-    bRet = 0;
+    vRet = 0;
     ss_key_t key = make_pair(t, addr);
-    return ReadRecord(key, bRet);
+    return ReadRecord(key, vRet);
 }
-bool CTxDB::WriteAddrBalance(const exploreKey_t& t, const string& addr, const int64_t& b)
+bool CTxDB::WriteAddrValue(const exploreKey_t& t, const string& addr,
+                           const int64_t& v)
 {
     ss_key_t key = make_pair(t, addr);
-    return Write(key, b);
+    return Write(key, v);
 }
-bool CTxDB::AddrBalanceIsViable(const exploreKey_t& t, const std::string& addr)
+bool CTxDB::AddrValueIsViable(const exploreKey_t& t, const std::string& addr)
 {
     ss_key_t key = make_pair(t, addr);
     return IsViable(key);
