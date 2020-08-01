@@ -173,6 +173,7 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
     objRet.push_back(Pair("inputs", (boost::int64_t)nQtyInputs));
     objRet.push_back(Pair("sent", ValueFromAmount(nValueOut)));
     objRet.push_back(Pair("unspent", (boost::int64_t)nQtyUnspent));
+    objRet.push_back(Pair("in-outs", (boost::int64_t)(nQtyOutputs + nQtyInputs)));
     objRet.push_back(Pair("height", (boost::int64_t)nBestHeight));
 }
 
@@ -452,7 +453,7 @@ void GetAddrInOuts(CTxDB& txdb,
                    setInOutObj_t& setObj)
 {
     int nStop = min(nStart + nMax - 1, nQtyInOuts);
-    for (int i = 1; i <= nStop; ++i)
+    for (int i = nStart; i <= nStop; ++i)
     {
         GetAddrInOut(txdb, strAddress, i, setObj);
     }
