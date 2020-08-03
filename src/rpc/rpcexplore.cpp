@@ -31,27 +31,11 @@ struct inout_comparator
 {
     bool operator() (const Object& objL, const Object& objR) const
     {
-        if (objL[0].value_.get_int() < objR[0].value_.get_int())
-        {
-            return true;
-        }
-        if (objL[0].value_.get_int() > objR[0].value_.get_int())
-        {
-            return false;
-        }
         if (objL[1].value_.get_int() < objR[1].value_.get_int())
         {
             return true;
         }
         if (objL[1].value_.get_int() > objR[1].value_.get_int())
-        {
-            return false;
-        }
-        if (objL[2].name_ < objR[2].name_)
-        {
-            return true;
-        }
-        if (objL[2].name_ > objR[2].name_)
         {
             return false;
         }
@@ -63,9 +47,27 @@ struct inout_comparator
         {
             return false;
         }
+        if (objL[3].name_ < objR[3].name_)
+        {
+            return true;
+        }
+        if (objL[3].name_ > objR[3].name_)
+        {
+            return false;
+        }
+        if (objL[3].value_.get_int() < objR[3].value_.get_int())
+        {
+            return true;
+        }
+        if (objL[3].value_.get_int() > objR[3].value_.get_int())
+        {
+            return false;
+        }
         return true;
     }
 };
+
+typedef set<Object, inout_comparator> setInOutObj_t;
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -85,13 +87,13 @@ Value getaddressbalance(const Array &params, bool fHelp)
 
     CTxDB txdb;
 
-    if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
+    if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
     {
         throw runtime_error("Address does not exist.");
     }
 
     int64_t nBalance;
-    if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddress, nBalance))
+    if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddress, nBalance))
     {
          throw runtime_error("TSNH: Can't read balance.");
     }
@@ -103,15 +105,27 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
 {
     CTxDB txdb;
 
-    if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
+    if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
     {
         throw runtime_error("Address does not exist.");
     }
 
     int64_t nBalance;
-    if (!txdb.ReadAddrBalance(ADDR_BALANCE, strAddress, nBalance))
+    if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddress, nBalance))
     {
          throw runtime_error("TSNH: Can't read balance.");
+    }
+
+    int nQtyOutputs;
+    if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddress, nQtyOutputs))
+    {
+         throw runtime_error("TSNH: Can't read number of outputs.");
+    }
+
+    int64_t nValueIn;
+    if (!txdb.ReadAddrValue(ADDR_VALUEIN, strAddress, nValueIn))
+    {
+         throw runtime_error("TSNH: Can't read total value in.");
     }
 
     int nQtyInputs;
@@ -120,10 +134,10 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
          throw runtime_error("TSNH: Can't read number of inputs.");
     }
 
-    int nQtyOutputs;
-    if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddress, nQtyOutputs))
+    int64_t nValueOut;
+    if (!txdb.ReadAddrValue(ADDR_VALUEOUT, strAddress, nValueOut))
     {
-         throw runtime_error("TSNH: Can't read number of outputs.");
+         throw runtime_error("TSNH: Can't read total value out.");
     }
 
     int nRank = 0;
@@ -154,9 +168,12 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
     objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("balance", ValueFromAmount(nBalance)));
     objRet.push_back(Pair("rank", (boost::int64_t)nRank));
-    objRet.push_back(Pair("inputs", (boost::int64_t)nQtyInputs));
     objRet.push_back(Pair("outputs", (boost::int64_t)nQtyOutputs));
+    objRet.push_back(Pair("received", ValueFromAmount(nValueIn)));
+    objRet.push_back(Pair("inputs", (boost::int64_t)nQtyInputs));
+    objRet.push_back(Pair("sent", ValueFromAmount(nValueOut)));
     objRet.push_back(Pair("unspent", (boost::int64_t)nQtyUnspent));
+    objRet.push_back(Pair("in-outs", (boost::int64_t)(nQtyOutputs + nQtyInputs)));
     objRet.push_back(Pair("height", (boost::int64_t)nBestHeight));
 }
 
@@ -195,6 +212,7 @@ void GetInputInfo(CTxDB& txdb,
     }
     // do not change the ordering of these key-value pairs
     // because they are used for sorting with inout_comparator above
+    objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vin", (boost::int64_t)input.vin));
@@ -205,7 +223,9 @@ void GetInputInfo(CTxDB& txdb,
     objRet.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
     objRet.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
     objRet.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
-    // asdf objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+    objRet.push_back(Pair("amount", ValueFromAmount(input.amount)));
+    // TODO: add this at some point?
+    // objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
 }
 
 
@@ -302,6 +322,7 @@ void GetOutputInfo(CTxDB& txdb,
     }
     // do not change the ordering of these key-value pairs
     // because they are used for sorting with inout_comparator above
+    objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vout", (boost::int64_t)output.vout));
@@ -401,6 +422,111 @@ Value getaddressoutputs(const Array &params, bool fHelp)
 }
 
 
+void GetAddrInOut(CTxDB& txdb,
+                   const string& strAddress,
+                   const int i,
+                   setInOutObj_t& setObj)
+{
+    ExploreInOutLookup inout;
+    if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddress, i, inout))
+    {
+        throw runtime_error("TSNH: Problem reading inout.");
+    }
+    Object entry;
+    if (inout.IsInput())
+    {
+        GetInputInfo(txdb, strAddress, inout.GetID(), entry);
+    }
+    else
+    {
+        GetOutputInfo(txdb, strAddress, inout.GetID(), entry);
+    }
+    setObj.insert(entry);
+}
+
+
+void GetAddrInOuts(CTxDB& txdb,
+                   const string& strAddress,
+                   const int nStart,
+                   const int nMax,
+                   const int nQtyInOuts,
+                   setInOutObj_t& setObj)
+{
+    int nStop = min(nStart + nMax - 1, nQtyInOuts);
+    for (int i = nStart; i <= nStop; ++i)
+    {
+        GetAddrInOut(txdb, strAddress, i, setObj);
+    }
+}
+
+
+Value getaddressinouts(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size()  < 1) || (params.size() > 3))
+    {
+        throw runtime_error(
+                "getaddressinouts <address> [start] [max]\n"
+                "Returns [max] inputs + outputs of <address> beginning with [start]\n"
+                "  For example, if [start]=101 and [max]=100 means to\n"
+                "  return the second 100 in-outs (if possible).\n"
+                "    [start] is the nth in-out (default: 1)\n"
+                "    [max] is the max in-outs to return (default: 100)");
+    }
+
+    string strAddress = params[0].get_str();
+
+    CTxDB txdb;
+
+    int nQtyInOuts;
+    if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+    {
+         throw runtime_error("TSNH: Can't read number of in-outs.");
+    }
+
+    Array result;
+
+    if (nQtyInOuts == 0)
+    {
+        return result;
+    }
+
+    int nStart = 1;
+    if (params.size() > 1)
+    {
+        nStart = params[1].get_int();
+        if (nStart < 1)
+        {
+            throw runtime_error("Start must be greater than 0.");
+        }
+        if (nStart > nQtyInOuts)
+        {
+            throw runtime_error(
+                    strprintf("Start must be less than %d.", nQtyInOuts));
+        }
+    }
+
+    int nMax = 100;
+    if (params.size() > 2)
+    {
+        nMax = params[2].get_int();
+        if (nMax < 1)
+        {
+            throw runtime_error("Max must be greater than 0.");
+        }
+    }
+
+    setInOutObj_t setObj;
+    GetAddrInOuts(txdb, strAddress, nStart, nMax, nQtyInOuts, setObj);
+
+    BOOST_FOREACH(const Object& item, setObj)
+    {
+        result.push_back(item);
+    }
+
+    return result;
+}
+
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // HD Wallets
@@ -490,7 +616,7 @@ Value gethdaccount(const Array &params, bool fHelp)
 
     CTxDB txdb;
 
-    set<Object, inout_comparator> setObj;
+    setInOutObj_t setObj;
 
     // gather external
     for (uint32_t nChild = 0; nChild < chainParams.MAX_HD_CHILDREN; ++nChild)
@@ -504,7 +630,7 @@ Value gethdaccount(const Array &params, bool fHelp)
         address.Set(keyID);
         string strAddress = address.ToString();
 
-        if (!txdb.AddrBalanceIsViable(ADDR_BALANCE, strAddress))
+        if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
         {
             break;
         }
@@ -515,25 +641,9 @@ Value gethdaccount(const Array &params, bool fHelp)
              throw runtime_error("TSNH: Can't read number of in-outs.");
         }
 
-        for (unsigned int i = 1; i <= (unsigned int)nQtyInOuts; ++i)
+        for (int i = 1; i <= nQtyInOuts; ++i)
         {
-            ExploreInOutLookup inout;
-            if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddress, i, inout))
-            {
-                throw runtime_error("TSNH: Problem reading inout.");
-            }
-
-            Object entry;
-            if (inout.IsInput())
-            {
-                GetInputInfo(txdb, strAddress, inout.nID, entry);
-            }
-            else
-            {
-                GetOutputInfo(txdb, strAddress, inout.nID, entry);
-            }
-
-            setObj.insert(entry);
+            GetAddrInOut(txdb, strAddress, i, setObj);
         }
     }
 

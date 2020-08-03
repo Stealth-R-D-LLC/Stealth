@@ -3,7 +3,11 @@
 
 #### BUILD STAGE ####
 FROM ubuntu:xenial as build
+<<<<<<< HEAD
 LABEL maintainer="Ivan Rimac <ivan@barrage.net>"
+=======
+LABEL maintainer="Ivan Rimac <ivan@33barrage.com>"
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 
 # add bitcoin repo so we can install all dependencies
 RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys C70EF1F0305A1ADB9986DBD8D46F45428842CE5E && \
@@ -11,7 +15,11 @@ RUN apt-key adv --keyserver keyserver.ubuntu.com --recv-keys C70EF1F0305A1ADB998
 
 # install dependencies
 RUN apt-get update \
+<<<<<<< HEAD
 	&& apt-get install -y --no-install-recommends \
+=======
+	&& apt-get install -y --no-install-recommends \ 
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 	cmake \
 	build-essential \
 	libssl-dev \
@@ -30,20 +38,32 @@ WORKDIR /stealth
 ADD https://github.com/StealthSend/Stealth/archive/qpos-3.0.tar.gz .
 
 # unpack the source of stealth
+<<<<<<< HEAD
 RUN tar xvzf ./*qpos*.tar.gz
 
 # clean up after
 RUN mv ./Stealth-*/* .
 RUN rm -Rf ./Stealth-* ./*qpos*.tar.gz
+=======
+RUN tar xvzf ./*qpos-3.0*.tar.gz
+
+# clean up after
+RUN mv ./Stealth-*/* .
+RUN rm -Rf ./Stealth-* ./*qpos-3.0*.tar.gz
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 
 # change the workdir to source of stealth
 WORKDIR /stealth/src
 
 # build stealth from source
+<<<<<<< HEAD
 RUN make -f makefile.unix clean
 
 # build stealth from source
 RUN make -f makefile.unix
+=======
+RUN make -f makefile.unix 
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 
 # change to main workspace
 WORKDIR /stealth
@@ -71,7 +91,11 @@ RUN set -x \
 	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # move repo binaries to local bin directory
+<<<<<<< HEAD
 COPY scripts /usr/local/bin
+=======
+COPY ./scripts /usr/local/bin
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 COPY docker-entrypoint.sh /usr/local/bin/
 
 # make them executable

@@ -12,10 +12,10 @@ class ExploreInOutLookup
 {
 private:
     int nVersion;
+    int nID;
+
 public:
     static const int CURRENT_VERSION = 1;
-
-    int nID;
 
     void SetNull();
 

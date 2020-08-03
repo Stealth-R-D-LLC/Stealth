@@ -15,6 +15,7 @@ void ExploreInputInfo::SetNull()
     vin = 0;
     prev_txid = 0;
     prev_vout = 0;
+    amount = 0;
 }
 
 ExploreInputInfo::ExploreInputInfo()
@@ -25,13 +26,15 @@ ExploreInputInfo::ExploreInputInfo()
 ExploreInputInfo::ExploreInputInfo(const uint256& txidIn,
                                    const unsigned int vinIn,
                                    const uint256& prev_txidIn,
-                                   const int prev_voutIn)
+                                   const int prev_voutIn,
+                                   const int64_t amountIn)
 {
     nVersion = ExploreInputInfo::CURRENT_VERSION;
     txid = txidIn;
     vin = vinIn;
     prev_txid = prev_txidIn;
     prev_vout = prev_voutIn;
+    amount = amountIn;
 }
 
 void ExploreInputInfo::AsJSON(json_spirit::Object& objRet) const
@@ -42,4 +45,6 @@ void ExploreInputInfo::AsJSON(json_spirit::Object& objRet) const
     objRet.push_back(json_spirit::Pair("prev_txid", prev_txid.GetHex()));
     objRet.push_back(json_spirit::Pair("prev_vout",
                                        (boost::int64_t)prev_vout));
+    objRet.push_back(json_spirit::Pair("amount",
+                                       ValueFromAmount(amount)));
 }

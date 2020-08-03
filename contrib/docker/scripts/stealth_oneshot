@@ -2,12 +2,31 @@
 
 set -ex
 
+<<<<<<< HEAD
+=======
+# use new var _BOOTSTRAP to remember user setting
+if [ -e "$HOME/.StealthCoin/StealthCoin.conf" ]; then
+    # Refuse bootstrap if Stealth has already been initialized.
+    # If user wants to bootstrap again, create another container,
+    # which is takes marginal time by comparison.
+    export _BOOTSTRAP=0
+else
+    # bootstrap unless explicitly refused
+    if [ "${DOWNLOAD_BOOTSTRAP:-1}" = "1" ]; then
+        export _BOOTSTRAP=1
+    else
+        export _BOOTSTRAP=0
+    fi
+fi
+
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 # Generate StealthCoin.conf
 stealth_init
 
 if [ $# -gt 0 ]; then
     args=("$@")
 else
+<<<<<<< HEAD
     args=("-rpcallowip=127.0.0.1")
 fi
 
@@ -15,5 +34,14 @@ fi
 #if [ 1 = $DOWNLOAD_BOOTSTRAP ]; then
 #	stealth_download_bootstrap
 #fi
+=======
+    args=("-rpcallowip=*")
+fi
+
+# Download and extract bootstrap file if requested
+if [ $_BOOTSTRAP = 1 ]; then
+    stealth_download_bootstrap
+fi
+>>>>>>> 4cd08c1e322db9e08929def6fce4b8095306744f
 
 exec StealthCoind "${args[@]}"

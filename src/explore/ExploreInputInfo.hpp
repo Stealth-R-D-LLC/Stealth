@@ -7,8 +7,10 @@
 
 #include "uint256.h"
 #include "serialize.h"
+#include "bitcoinrpc.h"
 
 #include "json/json_spirit_utils.h"
+
 
 
 class ExploreInputInfo
@@ -21,6 +23,7 @@ public:
     unsigned int vin;
     uint256 prev_txid;
     int prev_vout;
+    int64_t amount;
 
     void SetNull();
 
@@ -29,7 +32,8 @@ public:
     ExploreInputInfo(const uint256& txidIn,
                      const unsigned int vinIn,
                      const uint256& prev_txidIn,
-                     const int prev_voutIn);
+                     const int prev_voutIn,
+                     const int64_t amountIn);
 
     void AsJSON(json_spirit::Object& objRet) const;
 
@@ -41,6 +45,7 @@ public:
         READWRITE(vin);
         READWRITE(prev_txid);
         READWRITE(prev_vout);
+        READWRITE(amount);
     )
 };
 

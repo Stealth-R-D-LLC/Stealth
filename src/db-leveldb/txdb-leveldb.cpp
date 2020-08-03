@@ -357,22 +357,24 @@ bool CTxDB::AddrLookupIsViable(const exploreKey_t& t, const string& addr,
    return IsViable(key);
 }
 
-/*  AddrBalance
- *  Parameters - t:type, addr:address, b:balance
+
+/*  AddrValue
+ *  Parameters - t:type, addr:address, v:value
  */
-bool CTxDB::ReadAddrBalance(const exploreKey_t& t, const string& addr,
-                            int64_t& bRet)
+bool CTxDB::ReadAddrValue(const exploreKey_t& t, const string& addr,
+                          int64_t& vRet)
 {
-    bRet = 0;
+    vRet = 0;
     ss_key_t key = make_pair(t, addr);
-    return ReadRecord(key, bRet);
+    return ReadRecord(key, vRet);
 }
-bool CTxDB::WriteAddrBalance(const exploreKey_t& t, const string& addr, const int64_t& b)
+bool CTxDB::WriteAddrValue(const exploreKey_t& t, const string& addr,
+                           const int64_t& v)
 {
     ss_key_t key = make_pair(t, addr);
-    return Write(key, b);
+    return Write(key, v);
 }
-bool CTxDB::AddrBalanceIsViable(const exploreKey_t& t, const std::string& addr)
+bool CTxDB::AddrValueIsViable(const exploreKey_t& t, const std::string& addr)
 {
     ss_key_t key = make_pair(t, addr);
     return IsViable(key);
@@ -659,20 +661,8 @@ bool CTxDB::LoadBlockIndex()
         leveldb::Iterator *iter = pdb->NewIterator(leveldb::ReadOptions());
         // Seek to start key.
         CDataStream ssStartKey(SER_DISK, CLIENT_VERSION);
-        // As a sentinel for this search, nMaxDust
-        ssStartKey << make_pair(ADDR_SET_BAL, nMaxDust);
-        if (!IsViable(ssStartKey))
-        {
-           set<string> setAddrSentinel;
-           if (!Write(ssStartKey, setAddrSentinel))
-           {
-               return error("LoadBlockIndex() : could not write sentinel address set");
-           }
-           iter = pdb->NewIterator(leveldb::ReadOptions());
-        }
+        ssStartKey << make_pair(ADDR_SET_BAL, 0);
         iter->Seek(ssStartKey.str());
-        // don't try to process the sentinel as a set.
-        iter->Next();
         int nCountSets = 0;
         // Now read each entry.
         while (iter->Valid())
@@ -708,12 +698,13 @@ bool CTxDB::LoadBlockIndex()
             ssKey >> nBalance;
             set<string> setAddr;
             ssValue >> setAddr;
+            unsigned int sizeSetAddr = setAddr.size();
             if (fDebugExplore)
             {
                 printf("==== loaded set of %lu with balance of %" PRId64 "\n",
-                       (unsigned long)setAddr.size(), nBalance);
+                       (unsigned long)sizeSetAddr, nBalance);
             }
-            mapAddressBalances[nBalance] = setAddr.size();
+            mapAddressBalances[nBalance] = sizeSetAddr;
             iter->Next();
         }
 

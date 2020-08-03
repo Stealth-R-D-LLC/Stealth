@@ -321,10 +321,11 @@ public:
                           const uint256& txid, const int& n);
     bool AddrLookupIsViable(const exploreKey_t& t, const std::string& addr,
                             const uint256& txid, const int& n);
-    bool ReadAddrBalance(const exploreKey_t& t, const std::string& addr,
-                         int64_t& bRet);
-    bool WriteAddrBalance(const exploreKey_t& t, const std::string& addr, const int64_t& b);
-    bool AddrBalanceIsViable(const exploreKey_t& t, const std::string& addr);
+    bool ReadAddrValue(const exploreKey_t& t, const std::string& addr,
+                       int64_t& vRet);
+    bool WriteAddrValue(const exploreKey_t& t, const std::string& addr,
+                        const int64_t& v);
+    bool AddrValueIsViable(const exploreKey_t& t, const std::string& addr);
     bool ReadAddrSet(const exploreKey_t& t, const int64_t b,
                      std::set<std::string>& sRet);
     bool WriteAddrSet(const exploreKey_t& t, const int64_t b, const std::set<std::string>& s);
