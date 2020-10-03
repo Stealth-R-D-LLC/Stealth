@@ -156,8 +156,8 @@ bool QPQueue::GetWindowForID(unsigned int nID, QPWindow& windowRet) const
         return false;
     }
     unsigned int start = nSlotTime0 + (QP_TARGET_TIME * slot);
-        windowRet.start = start;
-        windowRet.end = start + QP_TARGET_TIME - 1;
+    windowRet.start = start;
+    windowRet.end = start + QP_TARGET_TIME - 1;
     return true;
 }
 

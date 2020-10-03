@@ -236,6 +236,8 @@ extern json_spirit::Value getxstvolume(const json_spirit::Array& params, bool fH
 extern json_spirit::Value getblockinterval(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockintervalmean(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockintervalrmsd(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getpicopowermean(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value gethourlymissed(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getchildkey(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressbalance(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinfo(const json_spirit::Array& params, bool fHelp);
@@ -267,6 +269,10 @@ extern json_spirit::Value claimqposbalance(const json_spirit::Array& params, boo
 extern json_spirit::Value setstakermeta(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakerinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getblockschedule(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakersranked(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakersummary(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getrecentqueue(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value exitreplay(const json_spirit::Array& params, bool fHelp);
 

@@ -1451,6 +1451,7 @@ public:
     // block stats
     unsigned int nTxVolume;
     int64_t nXSTVolume;
+    uint64_t nPicoPower;
 
     // block header: all blocks
     int nVersion;
@@ -1485,6 +1486,7 @@ public:
         // block stats
         nTxVolume = 0;
         nXSTVolume = 0;
+        nPicoPower     = 0;
 
         nVersion       = 0;
         hashMerkleRoot = 0;
@@ -1533,6 +1535,7 @@ public:
 
         nTxVolume = block.GetTxVolume();
         nXSTVolume = block.GetValueOut();
+        nPicoPower = 0;
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
@@ -1783,6 +1786,7 @@ public:
         // block stats
         READWRITE(nTxVolume);
         READWRITE(nXSTVolume);
+        READWRITE(nPicoPower);
 
         // block header
         READWRITE(this->nVersion);

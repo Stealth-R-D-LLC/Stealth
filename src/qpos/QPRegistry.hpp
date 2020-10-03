@@ -7,6 +7,7 @@
 
 #include "qPoS.hpp"
 #include "QPQueue.hpp"
+#include "QPSlotInfo.hpp"
 #include "QPPowerRound.hpp"
 #include "aliases.hpp"
 #include "meta.hpp"
@@ -17,7 +18,11 @@
 
 class CBlockIndex;
 
-typedef std::map<unsigned int, QPStaker>::const_iterator QPRegistryIterator;
+typedef std::map<unsigned int, QPStaker> QPMapStakers;
+typedef QPMapStakers::const_iterator QPRegistryIterator;
+
+typedef std::map<unsigned int, const QPStaker*> QPMapPStakers;
+typedef QPMapPStakers::const_iterator QPRegistryPIterator;
 
 typedef boost::variate_generator<boost::mt19937&,
                                  boost::uniform_int<> > QPShuffler;
@@ -32,12 +37,13 @@ private:
     int nVersion;
     unsigned int nRound;
     uint32_t nRoundSeed;
-    std::map<unsigned int, QPStaker> mapStakers;
+    QPMapStakers mapStakers;
     std::map<CPubKey, int64_t> mapBalances;
     std::map<CPubKey, int64_t> mapLastClaim;
     std::map<CPubKey, int> mapActive;
     std::map<std::string, std::pair<unsigned int, std::string> > mapAliases;
     QPQueue queue;
+    QPQueue queuePrev;
     std::bitset<QP_REGISTRY_RECENT_BLOCKS> bRecentBlocks;
     unsigned int nIDCounter;
     unsigned int nIDSlotPrev;
@@ -57,20 +63,17 @@ private:
     bool fShouldRollback;
 
     unsigned int Size() const;
-    unsigned int GetCurrentIDCounter() const;
     unsigned int GetIDForPrevSlot() const;
     bool GetPrevRecentBlocksMissedMax(unsigned int nID,
                                       uint32_t &nMaxRet) const;
-    bool GetStakerForAlias(const std::string &sAlias,
-                           QPStaker &qStakerRet) const;
+    QPStaker* GetStakerForID(unsigned int nID);
+    QPStaker* GetStakerForAlias(const std::string &sAlias);
     bool StakerProducedBlock(const CBlockIndex *const pindex,
                              int64_t nReward);
     bool StakerMissedBlock(unsigned int nID);
     bool DisqualifyStaker(unsigned int nID);
-    bool TerminateStaker(unsigned int nID);
     bool DisqualifyStakerIfNecessary(unsigned int nID,
-                                     const QPStaker* staker);
-    void TerminateDisqualifiedStakers();
+                                     const QPStaker* pstaker);
     bool DockInactiveKeys(int64_t nMoneySupply);
     void PurgeLowBalances(int64_t nMoneySupply);
     bool NewQueue(unsigned int nTime0, const uint256 &prevHash);
@@ -96,15 +99,36 @@ public:
     uint256 GetHashLastBlockPrev1Queue() const;
     uint256 GetHashLastBlockPrev2Queue() const;
     uint256 GetHashLastBlockPrev3Queue() const;
+    int64_t GetTotalEarned() const;
+    unsigned int GetNumberOf(bool (QPStaker::* f)() const) const;
+    unsigned int GetNumberProductive() const;
+    unsigned int GetNumberEnabled() const;
+    unsigned int GetNumberDisabled() const;
     unsigned int GetNumberQualified() const;
+    unsigned int GetNumberDisqualified() const;
     bool IsQualifiedStaker(unsigned int nStakerID) const;
     bool TimestampIsValid(unsigned int nStakerID, unsigned int nTime) const;
-    bool TimeIsInCurrentSlotWindow(unsigned int nTime) const;
     unsigned int GetQueueMinTime() const;
     unsigned int GetCurrentSlot() const;
     unsigned int GetCurrentSlotStart() const;
     unsigned int GetCurrentSlotEnd() const;
+    bool TimeIsInCurrentSlotWindow(unsigned int nTime) const;
+    unsigned int GetCurrentID() const;
+    void GetSlotsInfo(int64_t nTime,
+                      unsigned int nSlotFirst,
+                      const QPQueue& q,
+                      std::vector<QPSlotInfo> &vRet) const;
+    void GetCurrentSlotsInfo(int64_t nTime,
+                             unsigned int nSlotFirst,
+                             std::vector<QPSlotInfo> &vRet) const;
+    void GetPreviousSlotsInfo(int64_t nTime,
+                              unsigned int nSlotFirst,
+                              std::vector<QPSlotInfo> &vRet) const;
     bool CurrentBlockWasProduced() const;
+    unsigned int GetRecentBlocksSize() const;
+    int GetRecentBlock(unsigned int n) const;
+    unsigned int GetCurrentIDCounter() const;
+    unsigned int GetNextIDCounter() const;
     bool GetBalanceForPubKey(const CPubKey &key, int64_t &nBalanceRet) const;
     bool PubKeyIsInLedger(const CPubKey &key) const;
     bool PubKeyActiveCount(const CPubKey &key, int &nCountRet) const;
@@ -138,8 +162,14 @@ public:
     void GetCertifiedNodes(std::vector<std::string> &vNodesRet) const;
     bool IsCertifiedNode(const std::string &sNodeAddress) const;
 
-    bool GetStaker(unsigned int nID, QPStaker &StakerRet) const;
-    bool GetStaker(unsigned int nID, QPStaker* &pStakerRet);
+    const QPStaker* GetStaker(unsigned int nID) const;
+
+    const QPStaker* GetNewestStaker() const;
+
+    void GetEnabledStakers(std::vector<const QPStaker*> &vRet) const;
+    void GetDisabledStakers(std::vector<const QPStaker*> &vRet) const;
+    void GetStakers(std::vector<const QPStaker*> &vRet) const;
+    void GetStakers(QPMapPStakers &mapRet) const;
 
     void CheckSynced();
     void Copy(const QPRegistry *const pother);
@@ -176,6 +206,7 @@ public:
         READWRITE(mapBalances);
         READWRITE(mapAliases);
         READWRITE(queue);
+        READWRITE(queuePrev);
         READWRITE(bRecentBlocks);
         READWRITE(nIDCounter);
         READWRITE(nIDSlotPrev);

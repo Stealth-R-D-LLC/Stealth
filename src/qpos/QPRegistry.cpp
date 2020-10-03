@@ -54,6 +54,7 @@ void QPRegistry::SetNull()
     hashLastBlockPrev3Queue = hashBlock;
     fIsInReplayMode = true;
     queue.SetNull();
+    queuePrev.SetNull();
     powerRoundPrev.SetNull();
     powerRoundCurrent.SetNull();
     fShouldRollback = false;
@@ -94,7 +95,6 @@ uint256 QPRegistry::GetHashLastBlockPrev1Queue() const
     return hashLastBlockPrev1Queue;
 }
 
-
 uint256 QPRegistry::GetHashLastBlockPrev2Queue() const
 {
     return hashLastBlockPrev2Queue;
@@ -105,13 +105,26 @@ uint256 QPRegistry::GetHashLastBlockPrev3Queue() const
     return hashLastBlockPrev3Queue;
 }
 
-unsigned int QPRegistry::GetNumberQualified() const
+int64_t QPRegistry::GetTotalEarned() const
+{
+    int64_t total = 0;
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        total += it->second.GetTotalEarned();
+    }
+    return total;
+}
+
+
+
+unsigned int QPRegistry::GetNumberOf(bool (QPStaker::* f)() const) const
 {
     unsigned int count = 0;
     QPRegistryIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
-        if (!it->second.IsDisqualified())
+        if ((it->second.*f)())
         {
             count += 1;
         }
@@ -119,14 +132,41 @@ unsigned int QPRegistry::GetNumberQualified() const
     return count;
 }
 
+unsigned int QPRegistry::GetNumberProductive() const
+{
+    return GetNumberOf(&QPStaker::IsProductive);
+}
+
+unsigned int QPRegistry::GetNumberEnabled() const
+{
+    return GetNumberOf(&QPStaker::IsEnabled);
+}
+
+unsigned int QPRegistry::GetNumberDisabled() const
+{
+    return GetNumberOf(&QPStaker::IsDisabled);
+}
+
+unsigned int QPRegistry::GetNumberQualified() const
+{
+    return GetNumberOf(&QPStaker::IsQualified);
+}
+
+unsigned int QPRegistry::GetNumberDisqualified() const
+{
+    return GetNumberOf(&QPStaker::IsDisqualified);
+}
+
+
+
 bool QPRegistry::IsQualifiedStaker(unsigned int nStakerID) const
 {
-    QPStaker staker;
-    if (!GetStaker(nStakerID, staker))
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
     {
         return false;
     }
-    return !staker.IsDisqualified();
+    return pstaker->IsQualified();
 }
 
 bool QPRegistry::TimestampIsValid(unsigned int nStakerID,
@@ -191,9 +231,65 @@ bool QPRegistry::TimeIsInCurrentSlotWindow(unsigned int nTime) const
     return queue.TimeIsInCurrentSlotWindow(nTime);
 }
 
+unsigned int QPRegistry::GetCurrentID() const
+{
+    return queue.GetCurrentID();
+}
+
+void QPRegistry::GetSlotsInfo(int64_t nTime,
+                              unsigned int nSlotFirst,
+                              const QPQueue& q,
+                              std::vector<QPSlotInfo> &vRet) const
+{
+    vRet.clear();
+    for (unsigned int slot = nSlotFirst; slot < q.Size(); ++slot)
+    {
+        vRet.push_back(QPSlotInfo(nTime, slot, q));
+    }
+}
+
+void QPRegistry::GetCurrentSlotsInfo(int64_t nTime,
+                                     unsigned int nSlotFirst,
+                                     std::vector<QPSlotInfo> &vRet) const
+{
+    return GetSlotsInfo(nTime, nSlotFirst, queue, vRet);
+}
+
+void QPRegistry::GetPreviousSlotsInfo(int64_t nTime,
+                                      unsigned int nSlotFirst,
+                                      std::vector<QPSlotInfo> &vRet) const
+{
+    return GetSlotsInfo(nTime, nSlotFirst, queuePrev, vRet);
+}
+
+
 bool QPRegistry::CurrentBlockWasProduced() const
 {
     return fCurrentBlockWasProduced;
+}
+
+unsigned int QPRegistry::GetRecentBlocksSize() const
+{
+    return bRecentBlocks.size();
+}
+
+int QPRegistry::GetRecentBlock(unsigned int n) const
+{
+    if (n >= bRecentBlocks.size())
+    {
+        return -1;
+    }
+    return bRecentBlocks[n];
+}
+
+unsigned int QPRegistry::GetCurrentIDCounter() const
+{
+    return nIDCounter;
+}
+
+unsigned int QPRegistry::GetNextIDCounter() const
+{
+    return nIDCounter + 1;
 }
 
 bool QPRegistry::GetBalanceForPubKey(const CPubKey &key,
@@ -271,51 +367,69 @@ bool QPRegistry::CanClaim(const CPubKey &key,
 
 bool QPRegistry::GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
-    QPStaker staker;
-    if (!GetStaker(nStakerID, staker))
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
     {
         return error("GetOwnerKey(): no such staker %u", nStakerID);
     }
-    keyRet = staker.pubkeyOwner;
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetOwnerKey(): staker is disqualified %u", nStakerID);
+    }
+    keyRet = pstaker->pubkeyOwner;
     return true;
 }
 
 bool QPRegistry::GetDelegateKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
-    QPStaker staker;
-    if (!GetStaker(nStakerID, staker))
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
     {
         return error("GetDelegateKey(): no such staker %u", nStakerID);
     }
-    keyRet = staker.pubkeyDelegate;
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetDelegateKey(): staker is disqualified %u", nStakerID);
+    }
+    keyRet = pstaker->pubkeyDelegate;
     return true;
 }
 
 bool QPRegistry::GetControllerKey(unsigned int nStakerID,
                                   CPubKey &keyRet) const
 {
-    QPStaker staker;
-    if (!GetStaker(nStakerID, staker))
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
     {
         return error("GetControllerKey(): no such staker %u", nStakerID);
     }
-    keyRet = staker.pubkeyController;
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetControllerKey(): staker is disqualified %u",
+                     nStakerID);
+    }
+    keyRet = pstaker->pubkeyController;
     return true;
 }
 
 bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
                            unsigned int &nWeightRet) const
 {
-    QPStaker staker;
-    if (!GetStaker(nStakerID, staker))
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
     {
         return error("GetKeyForID() : no staker for ID %d", nStakerID);
+    }
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetStakerWeight(): staker is disqualified %u",
+                     nStakerID);
     }
     // sanity assertion, should never fail
     assert ((nIDCounter + 1) > nStakerID);
     // higher number equates to more seniority
     unsigned int nSeniority = (nIDCounter + 1) - nStakerID;
-    nWeightRet = staker.GetWeight(nSeniority);
+    nWeightRet = pstaker->GetWeight(nSeniority);
     return true;
 }
 
@@ -346,7 +460,10 @@ void QPRegistry::AsJSON(Object &objRet) const
     QPRegistryIterator mit;
     for (mit = mapStakers.begin(); mit != mapStakers.end(); ++mit)
     {
-        vIDs.push_back(make_pair(mit->first, &(mit->second)));
+        if (mit->second.IsQualified())
+        {
+            vIDs.push_back(make_pair(mit->first, &(mit->second)));
+        }
     }
 
     sort(vIDs.begin(), vIDs.end());
@@ -426,11 +543,16 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
                                  Object &objRet,
                                  bool fWithRecentBlocks) const
 {
-    QPStaker staker;
-    if (GetStaker(nID, staker))
+    const QPStaker* pstaker = GetStaker(nID);
+    if (pstaker)
     {
-        unsigned int nSeniority = (nIDCounter + 1) - nID;
-        staker.AsJSON(nID, nSeniority, objRet, true);
+        unsigned int nSeniority = pstaker->IsDisqualified() ?
+                                              0 : (nIDCounter + 1) - nID;
+        pstaker->AsJSON(nID, nSeniority, objRet, true);
+    }
+    else
+    {
+        objRet.clear();
     }
 }
 
@@ -458,6 +580,7 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     mapActive = pother->mapActive;
     mapAliases = pother->mapAliases;
     queue = pother->queue;
+    queuePrev = pother->queuePrev;
     bRecentBlocks = pother->bRecentBlocks;
     nIDCounter = pother->nIDCounter;
     nIDSlotPrev = pother->nIDSlotPrev;
@@ -503,10 +626,14 @@ bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
     {
         return false;
     }
-    QPStaker *pstaker;
-    if (!GetStaker(nID, pstaker))
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
     {
         return error("SetStakerAlias(): no staker with ID %u", nID);
+    }
+    if (pstaker->IsDisqualified())
+    {
+        return error("SetStakerAlias(): staker %u is disqualified", nID);
     }
     if (!pstaker->SetAlias(sAlias))
     {
@@ -516,47 +643,69 @@ bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
     return true;
 }
 
-bool QPRegistry::GetStaker(unsigned int nID, QPStaker* &pstakerRet)
+const QPStaker* QPRegistry::GetStaker(unsigned int nID) const
 {
-    bool result = false;
     if ((nID > 0) && (nID <= nIDCounter))
     {
-        map<unsigned int, QPStaker>::iterator iter;
-        for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
+        QPRegistryIterator iter = mapStakers.find(nID);
+        if (iter != mapStakers.end())
         {
-            if (iter->first == nID)
-            {
-                result = true;
-                pstakerRet = &(iter->second);
-                break;
-            }
+            return &(iter->second);
         }
     }
-    return result;
+    return NULL;
 }
 
-bool QPRegistry::GetStaker(unsigned int nID, QPStaker &stakerRet) const
+const QPStaker* QPRegistry::GetNewestStaker() const
 {
-    bool result = false;
-    if ((nID > 0) && (nID <= nIDCounter))
+    return GetStaker(nIDCounter);
+}
+
+void QPRegistry::GetEnabledStakers(vector<const QPStaker*> &vRet) const
+{
+    vRet.clear();
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
-        map<unsigned int, QPStaker>::const_iterator iter;
-        for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
+        if (it->second.IsEnabled())
         {
-            if (iter->first == nID)
-            {
-                result = true;
-                stakerRet = iter->second;
-                break;
-            }
+            vRet.push_back(&(it->second));
         }
     }
-    return result;
 }
 
-unsigned int QPRegistry::GetCurrentIDCounter() const
+
+void QPRegistry::GetDisabledStakers(vector<const QPStaker*> &vRet) const
 {
-    return nIDCounter;
+    vRet.clear();
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        if (it->second.IsDisabled())
+        {
+            vRet.push_back(&(it->second));
+        }
+    }
+}
+
+void QPRegistry::GetStakers(vector<const QPStaker*> &vRet) const
+{
+    vRet.clear();
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        vRet.push_back(&(it->second));
+    }
+}
+
+void QPRegistry::GetStakers(QPMapPStakers &mapRet) const
+{
+    mapRet.clear();
+    QPRegistryIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        mapRet[it->first] = &(it->second);
+    }
 }
 
 unsigned int QPRegistry::GetIDForCurrentSlot() const
@@ -625,6 +774,10 @@ void QPRegistry::GetCertifiedNodes(vector<string> &vNodesRet) const
     QPRegistryIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
+        if (it->second.IsDisqualified())
+        {
+            continue;
+        }
         string sValue;
         if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
         {
@@ -638,6 +791,10 @@ bool QPRegistry::IsCertifiedNode(const string &sNodeAddress) const
     QPRegistryIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
+        if (it->second.IsDisqualified())
+        {
+            continue;
+        }
         string sValue;
         if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
         {
@@ -733,7 +890,7 @@ bool QPRegistry::GetPrevRecentBlocksMissedMax(unsigned int nID,
     uint32_t n = 0;
     uint32_t total = 0;
     vector<uint32_t> vMissed;
-    map<unsigned int, QPStaker>::const_iterator it;
+    QPRegistryIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->first == nID)
@@ -783,26 +940,24 @@ bool QPRegistry::GetIDForAlias(const string &sAlias,
 {
     string sKey = ToLowercaseSafe(sAlias);
     map<string, pair<unsigned int, string> >::const_iterator it;
-    for (it = mapAliases.begin(); it != mapAliases.end(); ++it)
+    it = mapAliases.find(sKey);
+    if (it == mapAliases.end())
     {
-        if (it->first == sKey)
-        {
-            nIDRet = it->second.first;
-            return true;
-        }
+        return false;
     }
-    return false;
+    nIDRet = it->second.first;
+    return true;
 }
 
 bool QPRegistry::GetAliasForID(unsigned int nID,
                                string &sAliasRet) const
 {
-    QPStaker staker;
-    if (!GetStaker(nID, staker))
+    const QPStaker* pstaker = GetStaker(nID);
+    if (!pstaker)
     {
         return error("GetAliasForID(): no such staker");
     }
-    sAliasRet = staker.GetAlias();
+    sAliasRet = pstaker->GetAlias();
     return true;
 }
 
@@ -812,8 +967,8 @@ string QPRegistry::GetAliasForID(unsigned int nID)
     {
         return STRING_NO_ALIAS;
     }
-    QPStaker *pstaker;
-    if (!GetStaker(nID, pstaker))
+    const QPStaker* pstaker = GetStaker(nID);
+    if (!pstaker)
     {
         printf("GetAliasForID(): ERROR: no such staker");
         return STRING_NO_ALIAS;
@@ -821,21 +976,34 @@ string QPRegistry::GetAliasForID(unsigned int nID)
     return pstaker->GetAlias();
 }
 
-bool QPRegistry::GetStakerForAlias(const string &sAlias,
-                                   QPStaker &qStakerRet) const
+
+QPStaker* QPRegistry::GetStakerForID(unsigned int nID)
+{
+    if ((nID > 0) && (nID <= nIDCounter))
+    {
+        QPMapStakers::iterator iter = mapStakers.find(nID);
+        if (iter != mapStakers.end())
+        {
+            return &(iter->second);
+        }
+    }
+    return NULL;
+}
+
+QPStaker* QPRegistry::GetStakerForAlias(const string &sAlias)
 {
     unsigned int nID;
     if (!GetIDForAlias(sAlias, nID))
     {
-        return false;
+        return NULL;
     }
-    QPStaker staker;
-    if (!GetStaker(nID, staker))
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
     {
-        return error("GetStakerForAlias(): alias and ID mismatch");
+        printf("GetStakerForAlias(): alias and ID mismatch\n");
+        return NULL;
     }
-    qStakerRet = staker;
-    return true;
+    return pstaker;
 }
 
 
@@ -846,12 +1014,16 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
                                      int64_t nReward)
 {
     unsigned int nID = pindex->nStakerID;
-    QPStaker *pstaker;
-    if (!GetStaker(nID, pstaker))
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
     {
         return error("StakerProducedBlock(): unknown ID %d", nID);
     }
-    pstaker = &(mapStakers[nID]);
+    if (pstaker->IsDisqualified())
+    {
+        return error("StakerProducedBlock(): TSNH staker %d disqualified", nID);
+    }
+    pstaker = &mapStakers[nID];
     unsigned int nSeniority = (nIDCounter + 1) - nID;
     powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), true);
     int64_t nOwnerReward, nDelegateReward;
@@ -875,12 +1047,15 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
 
 bool QPRegistry::StakerMissedBlock(unsigned int nID)
 {
-    QPStaker *pstaker;
-    if (!GetStaker(nID, pstaker))
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
     {
         return error("StakerMissedBlock(): unknown ID %d", nID);
     }
-    pstaker = &(mapStakers[nID]);
+    if (pstaker->IsDisqualified())
+    {
+        return error("StakerMissedBlock(): TSNH staker %d disqualified", nID);
+    }
     unsigned int nSeniority = (nIDCounter + 1) - nID;
     powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), false);
     pstaker->MissedBlock(fPrevBlockWasProduced);
@@ -905,33 +1080,21 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID)
 
 bool QPRegistry::DisqualifyStaker(unsigned int nID)
 {
-    QPStaker *pstaker;
-    if (!GetStaker(nID, pstaker))
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
     {
-        return error("StakerMissedBlock(): unknown ID");
+        return error("DisqualifyStaker(): unknown ID");
+    }
+    if (pstaker->IsDisqualified())
+    {
+        return error("DisqualifyStaker(): staker already disqualified");
     }
     pstaker->Disqualify();
     return true;
 }
 
-bool QPRegistry::TerminateStaker(unsigned int nID)
-{
-    unsigned int j = mapStakers.erase(nID);
-    if (j < 1)
-    {
-        return error("TerminateStaker(): no such staker %d", nID);
-    }
-    else if (j > 1)
-    {
-        return error("TerminateStaker(): more than one staker %d", nID);
-    }
-    printf("TerminateStaker(): terminating staker %u\n", nID);
-    return true;
-}
-
-
 bool QPRegistry::DisqualifyStakerIfNecessary(unsigned int nID,
-                                             const QPStaker *pstaker)
+                                             const QPStaker* pstaker)
 {
     bool fResult = true;
     if (fTestNet)
@@ -1005,6 +1168,7 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
         }
     }
 
+    queuePrev = queue;
     queue = QPQueue(nTime0, vIDs);
     nRound += 1;
     nRoundSeed = seed;
@@ -1022,23 +1186,6 @@ unsigned int QPRegistry::IncrementID()
     return nIDCounter;
 }
 
-void QPRegistry::TerminateDisqualifiedStakers()
-{
-    vector<unsigned int> vTerminate;
-    map<unsigned int, QPStaker>::const_iterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
-    {
-        if (it->second.IsDisqualified())
-        {
-            vTerminate.push_back(it->first);
-        }
-    }
-    vector<unsigned int>::const_iterator jt;
-    for (jt = vTerminate.begin(); jt != vTerminate.end(); ++jt)
-    {
-        TerminateStaker(*jt);
-    }
-}
 
 bool QPRegistry::DockInactiveKeys(int64_t nMoneySupply)
 {
@@ -1160,7 +1307,6 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
             }
             if (!queue.IncrementSlot())
             {
-                TerminateDisqualifiedStakers();
                 DockInactiveKeys(pindex->nMoneySupply);
                 PurgeLowBalances(pindex->nMoneySupply);
                 if (!NewQueue(queue.GetMaxTime() + 1, hashBlock))
@@ -1208,6 +1354,10 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                                   bool fWriteLog)
 {
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
+    // Q: Why do we update on new time before updating the registry
+    //    for the new block?
+    // A: Because we can't advance the queue until we have an event (block)
+    //    that says to what time we should advance the queue.
     if (!UpdateOnNewTime(pindex->nTime, pindexPrev, fWriteSnapshot, fWriteLog))
     {
         return error("UpdateOnNewBlock(): could not update on new time for %s",
@@ -1279,10 +1429,13 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
             return error("UpdateOnNewBlock(): TSNH no such slot %u",
                          nStakerSlot);
         }
-        map<unsigned int, QPStaker>::iterator it;
+        QPMapStakers::iterator it;
         for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
         {
-            it->second.SawBlock();
+            if (it->second.IsQualified())
+            {
+                it->second.SawBlock();
+            }
         }
     }
     nBlockHeight = pindex->nHeight;
@@ -1351,6 +1504,10 @@ bool QPRegistry::ApplySetKey(const QPTxDetails &deet)
     {
         return error("ApplySetKey(): no such staker");
     }
+    if (mapStakers[deet.id].IsDisqualified())
+    {
+        return error("ApplySetKey(): staker is disqualified");
+    }
     if (deet.keys.size() != 1)
     {
         return error("ApplySetKey(): wrong number of keys");
@@ -1382,6 +1539,10 @@ bool QPRegistry::ApplySetState(const QPTxDetails &deet)
     if (!mapStakers.count(deet.id))
     {
         return error("ApplySetState(): no such staker");
+    }
+    if (mapStakers[deet.id].IsDisqualified())
+    {
+        return error("ApplySetState(): staker is disqualified");
     }
     if (deet.t == TX_ENABLE)
     {
@@ -1431,6 +1592,10 @@ bool QPRegistry::ApplySetMeta(const QPTxDetails &deet)
     if (!mapStakers.count(deet.id))
     {
         return error("ApplySetMeta(): no such staker");
+    }
+    if (mapStakers[deet.id].IsDisqualified())
+    {
+        return error("ApplySetMeta(): staker is disqualified");
     }
     mapStakers[deet.id].SetMeta(deet.meta_key, deet.meta_value);
     return true;

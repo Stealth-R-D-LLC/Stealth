@@ -41,7 +41,6 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
 }
 
 
-
 QPStaker::QPStaker()
 {
     pubkeyOwner = CPubKey();
@@ -75,11 +74,23 @@ void QPStaker::Reset()
     nPrevBlocksMissed = 0;
     nPcmDelegatePayout = 0;
     fEnabled = false;
-    fDisqualified = false;
+    fQualified = true;
     nTotalEarned = 0;
     sAlias = "";
     mapMeta.clear();
 }
+
+
+const QPRecentBlocks& QPStaker::GetRecentBlocks() const
+{
+    return bRecentBlocks;
+}
+
+const QPRecentBlocks& QPStaker::GetPrevRecentBlocks() const
+{
+    return bPrevRecentBlocks;
+}
+
 
 uint32_t QPStaker::GetRecentBlocksProduced() const
 {
@@ -179,6 +190,17 @@ const CBlockIndex* QPStaker::GetBlockMostRecent() const
     return NULL;
 }
 
+
+bool QPStaker::DidMissMostRecentBlock() const
+{
+    return !bRecentBlocks[0];
+}
+
+bool QPStaker::DidProduceMostRecentBlock() const
+{
+    return bRecentBlocks[0];
+}
+
 // Returns 1 even when missed blocks outnumber produced blocks.
 // The reason is that noobs deserve a chance to get on their feet.
 // MissedBlock() deactivates any who have a net 0 blocks after
@@ -195,14 +217,29 @@ uint32_t QPStaker::GetDelegatePayout() const
     return nPcmDelegatePayout;
 }
 
+bool QPStaker::IsProductive() const
+{
+    return GetTotalEarned() > 0;
+}
+
 bool QPStaker::IsEnabled() const
 {
-    return fEnabled;
+    return fQualified && fEnabled;
+}
+
+bool QPStaker::IsDisabled() const
+{
+    return !(fQualified && fEnabled);
+}
+
+bool QPStaker::IsQualified() const
+{
+    return fQualified;
 }
 
 bool QPStaker::IsDisqualified() const
 {
-    return fDisqualified;
+    return !fQualified;
 }
 
 
@@ -278,7 +315,7 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("block_created", objBlockCreated));
     objRet.push_back(Pair("txid_created", hashTxCreated.GetHex()));
     objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
-    objRet.push_back(Pair("qualified", !fDisqualified));
+    objRet.push_back(Pair("qualified", fQualified));
     objRet.push_back(Pair("enabled", fEnabled));
     objRet.push_back(Pair("weight",
                           static_cast<int64_t>(GetWeight(nSeniority))));
@@ -296,6 +333,15 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nBlocksSeen)));
     objRet.push_back(Pair("prev_blocks_missed",
                           static_cast<int64_t>(nPrevBlocksMissed)));
+
+    double dProductivity =  (static_cast<double>(nBlocksProduced) /
+                             static_cast<double>(nBlocksAssigned)) * 100;
+
+    objRet.push_back(Pair("percent_productivity",
+                          strprintf("%0.4f", dProductivity)));
+
+    objRet.push_back(Pair("latest_assignment",
+                          bool(bRecentBlocks[0])));
 
     if (hashBlockMostRecent != 0)
     {
@@ -405,7 +451,7 @@ void QPStaker::Disable()
 void QPStaker::Disqualify()
 {
     fEnabled = false;
-    fDisqualified = true;
+    fQualified = false;
 }
 
 bool QPStaker::SetAlias(const string &sAliasIn)

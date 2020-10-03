@@ -561,6 +561,384 @@ Value getqposinfo(const Array& params, bool fHelp)
     return obj;
 }
 
+
+Value getblockschedule(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "getblockschedule <blocks>\n"
+            "Returns details of StealthNodes in the block schedule.\n"
+            "<blocks> is the max number of blocks to report before and\n"
+            "   after the current block.");
+    }
+
+    int nBlocks = params[0].get_int();
+    if (nBlocks < 0)
+    {
+        throw runtime_error("blocks must be positive");
+    }
+
+    int64_t nTime = GetAdjustedTime();
+    unsigned int nCounterNext = pregistryMain->GetNextIDCounter();
+    int nHeight = pregistryMain->GetBlockHeight();
+    unsigned int nCurrentSlot = pregistryMain->GetCurrentSlot();
+
+    vector<QPSlotInfo> vPrevious;
+    pregistryMain->GetPreviousSlotsInfo(nTime, 0, vPrevious);
+    vector<QPSlotInfo> vCurrent;
+    pregistryMain->GetCurrentSlotsInfo(nTime, 0, vCurrent);
+
+    int nSizePrevious = static_cast<int>(vPrevious.size());
+    int nSizeCurrent = static_cast<int>(vCurrent.size());
+    int nSizeAll = static_cast<int>(nSizePrevious + nSizeCurrent);
+
+    vector<QPSlotInfo> vAll;
+    vAll.reserve(nSizeAll);
+    vAll.insert(vAll.end(), vPrevious.begin(), vPrevious.end());
+    vAll.insert(vAll.end(), vCurrent.begin(), vCurrent.end());
+
+    vector<string> vStatus;
+    vStatus.reserve(nSizeAll);
+    vector<QPSlotInfo>::const_iterator it;
+    int nIndex = -1;
+    int nIndexNow = -1;
+    for (it = vAll.begin(); it < vAll.end(); ++it)
+    {
+        nIndex += 1;
+        bool fQueueIsOld = (nIndex < nSizePrevious);
+        string strStatus = it->GetRelativeStatusType(fQueueIsOld);
+        if (nIndexNow == -1)
+        {
+            if (strStatus == "future")
+            {
+                nIndexNow = nIndex - 1;
+            }
+            else if (strStatus == "current")
+            {
+                nIndexNow = nIndex;
+            }
+        }
+        vStatus.push_back(strStatus);
+    }
+
+    if (nIndexNow == -1)
+    {
+        if (nCurrentSlot == vCurrent.back().nSlot)
+        {
+            // end of current queue, with produced block
+            // TODO: make temp registry and append to all
+            nIndexNow = nSizeAll;
+        }
+        else
+        {
+            // this should never happen: no current slot
+            throw runtime_error("TSNH: no current slot");
+        }
+    }
+
+    int nStart = max(0, nIndexNow - nBlocks);
+    int nStop = min(nSizeAll - 1, nIndexNow + nBlocks);
+
+    int nLookBack = nIndexNow - nStart;
+    int nMissingBefore = nBlocks - nLookBack;
+    int nLookForward = nStop - nIndexNow;
+    int nMissingAfter = nBlocks - nLookForward;
+
+    int nOffset = -nLookBack;
+    Array aryStakers;
+    for (int i = nStart; i <= nStop; ++i)
+    {
+        const QPSlotInfo& info = vAll[i];
+        unsigned int nID = info.nStakerID;
+        const QPStaker* pstaker = pregistryMain->GetStaker(nID);
+        if (!pstaker)
+        {
+            // this should never happen: no such staker
+            throw runtime_error("TSNH: no such staker");
+        }
+
+        Object objStkr;
+        unsigned int nSeniority =  nCounterNext - nID;
+        pstaker->AsJSON(nID, nSeniority, objStkr);
+        if (i < nSizePrevious)
+        {
+            objStkr.push_back(Pair("queue", "previous"));
+        }
+        else
+        {
+            objStkr.push_back(Pair("queue", "current"));
+        }
+        objStkr.push_back(Pair("slot", (int64_t)info.nSlot));
+        string strStatus = info.GetStatusType();
+        objStkr.push_back(Pair("status", strStatus));
+        int64_t nSchedule = (int64_t)nOffset *  QP_TARGET_TIME;
+        objStkr.push_back(Pair("relative_schedule", nSchedule));
+        objStkr.push_back(Pair("relative_status", vStatus[i]));
+        aryStakers.push_back(objStkr);
+        nOffset += 1;
+    }
+
+    Object result;
+    result.push_back(Pair("call_time", (int64_t)nTime));
+    result.push_back(Pair("latest_block_height", (boost::int64_t)nHeight));
+    result.push_back(Pair("missing_before", (int64_t)nMissingBefore));
+    result.push_back(Pair("missing_after", (int64_t)nMissingAfter));
+    result.push_back(Pair("schedule", aryStakers));
+
+    return result;
+}
+
+
+Value getstakersranked(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+    {
+        throw runtime_error(
+            "getstakersranked\n"
+            "Returns details of StealthNodes in descending weight.");
+    }
+
+    QPMapPStakers mapStakers;
+    pregistryMain->GetStakers(mapStakers);
+    const unsigned int nCounterNext = pregistryMain->GetNextIDCounter();
+    vector<pair<unsigned int, unsigned int> > vWeights;
+    QPRegistryPIterator mit;
+    for (mit = mapStakers.begin(); mit != mapStakers.end(); ++mit)
+    {
+        if (mit->second->IsQualified())
+        {
+            unsigned int nID = mit->first;
+            const QPStaker* pstaker = mit->second;
+            unsigned int nSeniority = nCounterNext - nID;
+            unsigned int nWeight = pstaker->GetWeight(nSeniority);
+            vWeights.push_back(make_pair(nWeight, nID));
+        }
+    }
+
+    // rank goes in reverse order of weight
+    sort(vWeights.begin(), vWeights.end());
+    reverse(vWeights.begin(), vWeights.end());
+
+    Array aryStakers;
+    vector<pair<unsigned int, unsigned int> >::const_iterator vit;
+    for (vit = vWeights.begin(); vit != vWeights.end(); ++vit)
+    {
+        unsigned int nID = vit->second;
+        const QPStaker* pstaker = mapStakers[nID];
+        Object objStkr;
+        unsigned int nSeniority =  nCounterNext - nID;
+        pstaker->AsJSON(nID, nSeniority, objStkr);
+        aryStakers.push_back(objStkr);
+    }
+
+    return aryStakers;
+}
+
+
+
+Value getstakersummary(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+    {
+        throw runtime_error(
+            "getstakersummary\n"
+            "Returns a summary of the state and activity of StealthNodes.");
+    }
+
+    const CBlockIndex* pindex = pindexBest;
+
+    int64_t nTime = GetAdjustedTime();
+
+    // latest staker
+    unsigned int nIDLatest = pindex->nStakerID;
+    if (nIDLatest == 0)
+    {
+        throw runtime_error("Latest block has no staker.");
+    }
+    const QPStaker* pstakerLatest = pregistryMain->GetStaker(nIDLatest);
+    if (!pstakerLatest)
+    {
+        // this should never happen: the latest staker isn't in registry
+        throw runtime_error("TSNH: Latest staker is not in registry.");
+    }
+
+    // next staker
+    unsigned int nIDNext = pregistryMain->GetCurrentID();
+    if (nIDNext == 0)
+    {
+        throw runtime_error("Next slot has no staker.");
+    }
+    unsigned int nSlotNext = pregistryMain->GetCurrentSlot();
+    const QPStaker* pstakerNext = pregistryMain->GetStaker(nIDNext);
+    if (!pstakerNext)
+    {
+        // this should never happen: the latest staker isn't in registry
+        throw runtime_error("TSNH: Next staker is not in registry.");
+    }
+
+    // the queue
+    vector<QPSlotInfo> vSlotsInfo;
+    pregistryMain->GetCurrentSlotsInfo(nTime, 0, vSlotsInfo);
+    int64_t nMissedQueue = 0;
+    int64_t nProducedQueue = 0;
+    Array aryRemaining;
+    for (unsigned int i = 0; i < vSlotsInfo.size(); ++i)
+    {
+        const QPSlotInfo& slot = vSlotsInfo[i];
+        if (slot.status == QPSLOT_MISSED)
+        {
+            nMissedQueue += 1;
+        }
+        else if (slot.status == QPSLOT_HIT)
+        {
+            nProducedQueue += 1;
+        }
+        if (i >= nSlotNext)
+        {
+            string strAlias;
+            if (!pregistryMain->GetAliasForID(slot.nStakerID, strAlias))
+            {
+                // this should never happen: can't get the alias
+                throw runtime_error("TSNH: Can't get queued staker's alias.");
+            }
+            aryRemaining.push_back(strAlias);
+        }
+    }
+    int64_t nRemainingQueue = static_cast<int64_t>(aryRemaining.size());
+
+    // enabled
+    int64_t nMissedRecently = 0;
+    int64_t nProducedRecently = 0;
+    int64_t nPriceNewest = -1;
+    unsigned int nIDNewest = pregistryMain->GetCurrentIDCounter();
+    QPMapPStakers mapStakers;
+    pregistryMain->GetStakers(mapStakers);
+    QPRegistryPIterator it;
+    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    {
+        if (it->second->IsEnabled())
+        {
+            if (it->second->DidMissMostRecentBlock())
+            {
+                nMissedRecently += 1;
+            }
+            else
+            {
+                nProducedRecently += 1;
+            }
+        }
+        if (it->first == nIDNewest)
+        {
+            nPriceNewest = it->second->GetPrice();
+        }
+    }
+    int64_t nPriceNext = GetStakerPrice(pregistryMain, pindex, true);
+
+    Object obj;
+    // time
+    obj.push_back(Pair("call_time", nTime));
+    // states of stakers
+    obj.push_back(Pair("enabled_stakers",
+                       (boost::int64_t)pregistryMain->GetNumberEnabled()));
+    obj.push_back(Pair("disabled_stakers",
+                       (boost::int64_t)pregistryMain->GetNumberDisabled()));
+    obj.push_back(Pair("terminated_stakers",
+                       (boost::int64_t)pregistryMain->GetNumberDisqualified()));
+    obj.push_back(Pair("productive_stakers",
+                       (boost::int64_t)pregistryMain->GetNumberProductive()));
+    obj.push_back(Pair("missed_recently", nMissedRecently));
+    obj.push_back(Pair("produced_recently", nProducedRecently));
+    // earned
+    obj.push_back(Pair("total_xst_earned",
+                       ValueFromAmount(pregistryMain->GetTotalEarned())));
+    // latest staker
+    obj.push_back(Pair("latest_staker_id", (boost::int64_t)nIDLatest));
+    obj.push_back(Pair("latest_staker_alias", pstakerLatest->GetAlias()));
+    // latest block
+    obj.push_back(Pair("latest_block_height",
+                  (boost::int64_t)pindex->nHeight));
+    obj.push_back(Pair("latest_block_tx_volume",
+                  ValueFromAmount(pindex->nTxVolume)));
+    obj.push_back(Pair("latest_block_xst_volume",
+                  ValueFromAmount(pindex->nXSTVolume)));
+    // pico power
+    obj.push_back(Pair("pico_power",
+                  pregistryMain->GetPicoPower()));
+    obj.push_back(Pair("prev_pico_power",
+                  pregistryMain->GetPicoPowerPrev()));
+    obj.push_back(Pair("current_pico_power",
+                  pregistryMain->GetPicoPowerCurrent()));
+    // next staker
+    obj.push_back(Pair("next_staker_id", (boost::int64_t)nIDNext));
+    obj.push_back(Pair("next_staker_alias", pstakerNext->GetAlias()));
+    // queue
+    obj.push_back(Pair("missed_queue", nMissedQueue));
+    obj.push_back(Pair("produced_queue", nProducedQueue));
+    obj.push_back(Pair("remaining_queue", nRemainingQueue));
+    obj.push_back(Pair("remaining_queue_aliases", aryRemaining));
+    // prices
+    obj.push_back(Pair("newest_staker_price",
+                  ValueFromAmount(nPriceNewest)));
+    obj.push_back(Pair("next_staker_price",
+                  ValueFromAmount(nPriceNext)));
+
+    return obj;
+}
+
+Value getrecentqueue(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "getrecentqueue <blocks>\n"
+            "<blocks> is the number of blocks to look back\n"
+            "Returns a 1,0 array, where 1 is a hit and 0 is a miss.");
+    }
+
+    int nBlocks = params[0].get_int();
+
+    if (nBlocks < 1)
+    {
+        throw runtime_error("Number of blocks is less than 1.");
+    }
+
+    if (nBlocks > (int)pregistryMain->GetRecentBlocksSize())
+    {
+        throw runtime_error(
+                strprintf("Number of blocks greater than %u.",
+                          pregistryMain->GetRecentBlocksSize()));
+    }
+
+    int nFinish = pindexBest->nHeight;
+
+    if (nBlocks > (nFinish + 1))
+    {
+        throw runtime_error(
+                strprintf("Number of blocks greater than chain height %u.",
+                          nFinish));
+    }
+
+    int nStart = (nFinish + 1) - nBlocks;
+
+    Object obj;
+    Array ary;
+    for (int i = nBlocks - 1; i >= 0; --i)
+    {
+        int f = pregistryMain->GetRecentBlock((unsigned int)i);
+        if ((f < 0) || (f > 1))
+        {
+            throw runtime_error("TSNH: unexpected bad number of blocks");
+        }
+        ary.push_back(f);
+    }
+    obj.push_back(Pair("first", (boost::int64_t)nStart));
+    obj.push_back(Pair("last", (boost::int64_t)nFinish));
+    obj.push_back(Pair("data", ary));
+
+    return obj;
+}
+
 Value getqposbalance(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)

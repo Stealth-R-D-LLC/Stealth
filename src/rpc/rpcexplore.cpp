@@ -805,7 +805,7 @@ public:
 };
 
 
-int64_t Sum(const vector<int64_t>& vNumbers)
+int64_t IntSum(const vector<int64_t>& vNumbers)
 {
     int64_t sum = 0;
     BOOST_FOREACH(const int64_t& value, vNumbers)
@@ -815,39 +815,55 @@ int64_t Sum(const vector<int64_t>& vNumbers)
     return sum;
 }
 
-Value SumAsInt64(const vector<int64_t>& vNumbers)
+Value SumAsAmount(const vector<int64_t>& vNumbers)
 {
-    return static_cast<boost::int64_t>(Sum(vNumbers));
+    return static_cast<boost::int64_t>(IntSum(vNumbers));
 }
 
-Value SumAsValue(const vector<int64_t>& vNumbers)
+Value SumAsIntValue(const vector<int64_t>& vNumbers)
 {
-    return ValueFromAmount(Sum(vNumbers));
+    return ValueFromAmount(IntSum(vNumbers));
 }
 
 
-double Mean(const vector<int64_t>& vNumbers)
+double RealMean(const vector<int64_t>& vNumbers)
 {
     if (vNumbers.empty())
     {
         return numeric_limits<double>::max();
     }
-    int64_t sum = Sum(vNumbers);
+    int64_t sum = IntSum(vNumbers);
     return static_cast<double>(sum) / static_cast<double>(vNumbers.size());
 }
 
-Value MeanAsReal(const vector<int64_t>& vNumbers)
+Value MeanAsRealValue(const vector<int64_t>& vNumbers)
 {
-    return Mean(vNumbers);
+    return RealMean(vNumbers);
 }
 
-double RMSD(const vector<int64_t>& vNumbers)
+int64_t IntMean(const vector<int64_t>& vNumbers)
+{
+    if (vNumbers.empty())
+    {
+        return numeric_limits<int64_t>::max();
+    }
+    int64_t sum = IntSum(vNumbers);
+    return sum / static_cast<int64_t>(vNumbers.size());
+}
+
+
+Value MeanAsIntValue(const vector<int64_t>& vNumbers)
+{
+    return IntMean(vNumbers);
+}
+
+double RealRMSD(const vector<int64_t>& vNumbers)
 {
     if (vNumbers.empty())
     {
         return numeric_limits<double>::max();
     }
-    double mean = Mean(vNumbers);
+    double mean = RealMean(vNumbers);
     double sumsq = 0.0;
     BOOST_FOREACH(const int64_t& value, vNumbers)
     {
@@ -858,9 +874,9 @@ double RMSD(const vector<int64_t>& vNumbers)
     return sqrt(variance);
 }
 
-Value RMSDAsReal(const vector<int64_t>& vNumbers)
+Value RMSDAsRealValue(const vector<int64_t>& vNumbers)
 {
-    return RMSD(vNumbers);
+    return RealRMSD(vNumbers);
 }
 
 Value GetWindowedValue(const Array& params,
@@ -965,7 +981,6 @@ Value GetWindowedValue(const Array& params,
         vector<int64_t> vWindowValues;
         for (idx = idxNext; idx < nSizePeriod; ++idx)
         {
-            printf("idx is: %u\n", idx);
             unsigned int nBlockTime = vBlockTimes[idx];
             // assumes blocks are chronologically ordered
             if (nBlockTime > nWindowEnd)
@@ -1014,14 +1029,16 @@ int64_t GetTxVolume(CBlockIndex *pindex)
 Value gettxvolume(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
             "gettxvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - tx_volume: number of transactions in each window");
+    }
 
     static const string strValueName = "tx_volume";
 
-    StatHelper helper("tx_volume", &GetTxVolume, &SumAsInt64);
+    StatHelper helper("tx_volume", &GetTxVolume, &SumAsIntValue);
 
     return GetWindowedValue(params, helper);
 }
@@ -1035,12 +1052,14 @@ int64_t GetXSTVolume(CBlockIndex *pindex)
 Value getxstvolume(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
             "getxstvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - xst_volume: amount of xst transferred in each window");
+    }
 
-    StatHelper helper("xst_volume", &GetXSTVolume, &SumAsValue);
+    StatHelper helper("xst_volume", &GetXSTVolume, &SumAsIntValue);
 
     return GetWindowedValue(params, helper);
 }
@@ -1063,12 +1082,14 @@ int64_t GetBlockInterval(CBlockIndex *pindex)
 Value getblockinterval(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
             "getblockinterval <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - block_interval: total block interval for the window in seconds");
+    }
 
-    StatHelper helper("block_interval", &GetBlockInterval, &SumAsInt64);
+    StatHelper helper("block_interval", &GetBlockInterval, &SumAsIntValue);
 
     return GetWindowedValue(params, helper);
 }
@@ -1076,12 +1097,14 @@ Value getblockinterval(const Array& params, bool fHelp)
 Value getblockintervalmean(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
             "getblockintervalmean <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - block_interval_mean: rmsd of the block intervals for the window in seconds");
+    }
 
-    StatHelper helper("block_interval_mean", &GetBlockInterval, &MeanAsReal);
+    StatHelper helper("block_interval_mean", &GetBlockInterval, &MeanAsRealValue);
 
     return GetWindowedValue(params, helper);
 }
@@ -1089,12 +1112,177 @@ Value getblockintervalmean(const Array& params, bool fHelp)
 Value getblockintervalrmsd(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
             "getblockintervalrmsd <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - block_interval_rmsd: rmsd of the block intervals for the window in seconds");
+    }
 
-    StatHelper helper("block_interval_rmsd", &GetBlockInterval, &RMSDAsReal);
+    StatHelper helper("block_interval_rmsd", &GetBlockInterval, &RMSDAsRealValue);
 
     return GetWindowedValue(params, helper);
+}
+
+int64_t GetPicoPower(CBlockIndex *pindex)
+{
+    return static_cast<int64_t>(pindex->nPicoPower);
+}
+
+Value getpicopowermean(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 3)
+        throw runtime_error(
+            "getpicopowermean <period> <windowsize> <windowspacing>\n" +
+            strWindowHelp +
+            "  - pico_power_mean: mean expressed in units of 1e-12 power");
+
+    StatHelper helper("pico_power_mean", &GetPicoPower, &MeanAsIntValue);
+
+    return GetWindowedValue(params, helper);
+}
+
+Value gethourlymissed(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "gethourlymissed <hours>\n"
+            "  - hours: number of hours to look back");
+    }
+
+    static const int nStartQPoS = GetPoSCutoff();
+
+    // these will likely be user parameters in a future generalized RPC
+    // first version is implicit 1 hr / window
+    static const int64_t nSecondsPerWindow = 3600;
+
+    static const int64_t nBlocksPerWindow = nSecondsPerWindow / QP_TARGET_TIME;
+
+    if (pindexBest == NULL)
+    {
+        throw runtime_error("No blocks.\n");
+    }
+
+    int nWindows = params[0].get_int();
+
+    if (nWindows < 1)
+    {
+        throw runtime_error("Number of windows must be greater than 0.");
+    }
+
+    CBlockIndex* pindex = pindexBest;
+
+    // constrain window boundaries to multiples of QP_TARGET_TIME
+    int64_t nTimeNow = QP_TARGET_TIME * (pindex->nTime / QP_TARGET_TIME) ;
+    int64_t nTimeBeginning = nTimeNow - (nWindows * nSecondsPerWindow);
+    int64_t nTimeLater = nTimeNow;
+    int64_t nTimeEarlier = nTimeLater - nSecondsPerWindow;
+    int nHeightLater = pindex->nHeight;
+    int nOvershoot = 0;
+    bool fComplete = false;
+
+    vector<int> vMissed;
+    while (nHeightLater > nStartQPoS)
+    {
+        if (!pindex->pprev)
+        {
+            // this should never happen: no earlier block
+            throw runtime_error("TSNH: No earlier block.");
+        }
+        pindex = pindex->pprev;
+        if (pindex->nTime <= nTimeEarlier)
+        {
+            //
+            //      + + + o o + + +
+            //      <-> <-> <-> <->
+            //      1 2 3 4 5 6 7 8
+            //        ~
+            //
+            // Imagine 4 windows, 2 slots per window, we iterate backwards.
+            // We start at window 7-8.
+            // A complication arises with window 5-6.
+            // The window 3-4 ends with a miss (o), so we have to
+            // overshoot (backwards), to the previous block (+, slot 3).
+            // We calculate the number of slots from 6 to 3, which
+            // is 3 (4 - 1 = 3). Windows are 2 slots in width, however,
+            // so the overshoot is 3 - 2 = 1.
+            // We subtract this overshoot of 1 from the number missed,
+            // calculated from the times of blocks at slot 6 and slot 3
+            // (amounting to slots 4, 5, and 6).
+            // Slot 4 is essentially the overshoot (~).
+            // Among slots 4, 5 , and 6, there are 2 misses.
+            // However, the overshoot is 1, so subtracting the overshoot
+            // from misses yields 2 - 1 = 1 (misses - overshoot = 1).
+            // This overshoot carries to the next (earlier) window 3-4,
+            // and is added to the number of misses we would calculate,
+            // starting at block 3 and looking backwards, stopping
+            // at block 2, which is the first hit earlier than window 3-4.
+            // In this case, misses = 0 (calculated over just block 3)
+            // and undershoot = 1, where undershoot is just the overshoot
+            // carried from window 5-6 (block 4 was the overshoot).
+            // So, for window 3-4, the total missed is 1:
+            //           0 + 1 = 1 (misses + undershoot = 1).
+
+            int nBlocks = nHeightLater - pindex->nHeight;
+
+            // See above: nOvershoot is carried and applied as undershoot
+            int nMissed = nOvershoot + nBlocksPerWindow - nBlocks;
+            int nTimeOvershoot = (nTimeEarlier - pindex->nTime);
+            // Take modulo nBlocksPerWindow because nTimeOvershoot could span
+            // more than 1 window. In these cases, there will be full
+            // windows that have no blocks.
+            nOvershoot = (nTimeOvershoot / QP_TARGET_TIME) % nBlocksPerWindow;
+            nMissed -= nOvershoot;
+            vMissed.push_back(nMissed);
+            nTimeLater = nTimeEarlier;
+            nTimeEarlier = nTimeLater - nSecondsPerWindow;
+            // Fills in max missed for every full window without a block.
+            for (int i = 0; i < (nTimeOvershoot / nBlocksPerWindow); ++i)
+            {
+                // Exclude windows with slots beyond the desired interval.
+                if (nTimeEarlier < nTimeBeginning)
+                {
+                    fComplete = true;
+                    break;
+                }
+                vMissed.push_back(nBlocksPerWindow);
+                nTimeLater = nTimeEarlier;
+                nTimeEarlier = nTimeLater - nSecondsPerWindow;
+            }
+            if (fComplete)
+            {
+                break;
+            }
+            else if (pindex->nTime <= nTimeBeginning)
+            {
+                fComplete = true;
+                break;
+            }
+            nHeightLater = pindex->nHeight;
+        }
+    }
+
+    if (!fComplete)
+    {
+        throw runtime_error("Not enough blocks for hours.");
+    }
+
+    // sanity check
+    if ((int)vMissed.size() != nWindows)
+    {
+        // this should never happen: number of windows mismatch
+        throw runtime_error(
+                strprintf("TSNH: window mismatch, %d expected, %lu observed",
+                          nWindows, vMissed.size()));
+    }
+
+    Array result;
+    // reverse results to make windows chronological
+    for (int i = vMissed.size() - 1; i >= 0; --i)
+    {
+        result.push_back(vMissed[i]);
+    }
+
+    return result;
 }

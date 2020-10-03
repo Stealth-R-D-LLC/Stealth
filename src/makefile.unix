@@ -430,6 +430,7 @@ OBJS= \
     obj/QPPowerElement.o \
     obj/QPPowerRound.o \
     obj/QPRegistry.o \
+    obj/QPSlotInfo.o \
     obj/rpcqpos.o \
     obj/syncregistry.o \
     obj/ExploreDestination.o \

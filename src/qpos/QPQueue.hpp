@@ -6,6 +6,7 @@
 #define _QPQUEUE_H_ 1
 
 #include "QPStaker.hpp"
+#include "QPWindow.hpp"
 
 #include <utility>
 
@@ -19,17 +20,6 @@ unsigned int SetBit(valtype& vch, unsigned int nBit);
 const char* GetSlotStatusType(const QPSlotStatus status);
 const char* GetSlotStatusAbbrev(const QPSlotStatus status);
 
-class QPWindow
-{
-public:
-    unsigned int start;
-    unsigned int end;
-    QPWindow()
-    {
-        start = 0;
-        end = 0;
-    }
-};
 
 class QPQueue
 {

@@ -15,14 +15,16 @@
 
 #include <bitset>
 
+typedef std::bitset<QP_STAKER_RECENT_BLOCKS> QPRecentBlocks;
+
 class CBlockIndex;
 
 class QPStaker
 {
 private:
     int nVersion;
-    std::bitset<QP_STAKER_RECENT_BLOCKS> bRecentBlocks;
-    std::bitset<QP_STAKER_RECENT_BLOCKS> bPrevRecentBlocks;
+    QPRecentBlocks bRecentBlocks;
+    QPRecentBlocks bPrevRecentBlocks;
     uint256 hashBlockCreated;
     uint256 hashTxCreated;
     unsigned int nOutCreated;
@@ -35,7 +37,7 @@ private:
     uint32_t nPrevBlocksMissed;
     uint32_t nPcmDelegatePayout;
     bool fEnabled;
-    bool fDisqualified;
+    bool fQualified;
     int64_t nTotalEarned;
     std::string sAlias;
     std::map<std::string, std::string> mapMeta;
@@ -49,6 +51,8 @@ public:
     QPStaker();
     QPStaker(const QPTxDetails& deet);
     void Reset();
+    const QPRecentBlocks& GetRecentBlocks() const;
+    const QPRecentBlocks& GetPrevRecentBlocks() const;
     uint32_t GetRecentBlocksProduced() const;
     uint32_t GetPrevRecentBlocksProduced() const;
     uint256 GetHashBlockCreated() const;
@@ -65,9 +69,14 @@ public:
     uint32_t GetNetBlocks() const;
     uint256 GetHashBlockMostRecent() const;
     const CBlockIndex* GetBlockMostRecent() const;
+    bool DidMissMostRecentBlock() const;
+    bool DidProduceMostRecentBlock() const;
     unsigned int GetWeight(unsigned int nSeniority) const;
     uint32_t GetDelegatePayout() const;
+    bool IsProductive() const;
     bool IsEnabled() const;
+    bool IsDisabled() const;
+    bool IsQualified() const;
     bool IsDisqualified() const;
     bool ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const;
     int64_t GetTotalEarned() const;
@@ -115,7 +124,7 @@ public:
         READWRITE(nPrevBlocksMissed);
         READWRITE(nPcmDelegatePayout);
         READWRITE(fEnabled);
-        READWRITE(fDisqualified);
+        READWRITE(fQualified);
         READWRITE(nTotalEarned);
         READWRITE(sAlias);
         READWRITE(pubkeyOwner);

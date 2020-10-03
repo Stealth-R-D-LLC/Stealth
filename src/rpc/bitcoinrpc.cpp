@@ -335,6 +335,10 @@ static const CRPCCommand vRPCCommands[] =
     { "claimqposbalance",       &claimqposbalance,       false,  true  },
     { "getstakerinfo",          &getstakerinfo,          false,  false },
     { "getqposinfo",            &getqposinfo,            false,  false },
+    { "getblockschedule",       &getblockschedule,       false,  false },
+    { "getstakersranked",       &getstakersranked,       false,  false },
+    { "getstakersummary",       &getstakersummary,       false,  false },
+    { "getrecentqueue",         &getrecentqueue,         false,  false },
     { "getqposbalance",         &getqposbalance,         false,  false },
     { "exitreplay",             &exitreplay,             false,  false },
     // explorer api
@@ -345,6 +349,8 @@ static const CRPCCommand vRPCCommands[] =
     { "getblockinterval",          &getblockinterval,           false,  false },
     { "getblockintervalmean",      &getblockintervalmean,       false,  false },
     { "getblockintervalrmsd",      &getblockintervalrmsd,       false,  false },
+    { "getpicopowermean",          &getpicopowermean,           false,  false },
+    { "gethourlymissed",           &gethourlymissed,            false,  false },
     { "getchildkey",               &getchildkey,                false,  false },
     { "getaddressbalance",         &getaddressbalance,          false,  false },
     { "getaddressinfo",            &getaddressinfo,             false,  false },
@@ -1317,6 +1323,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "claimqposbalance"       && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "setstakermeta"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getqposinfo"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getblockschedule"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getrecentqueue"         && n > 0) ConvertTo<boost::int64_t>(params[0]);
     // explorer api methods
     if (strMethod == "getnewestblockbeforetime"  && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
@@ -1324,41 +1332,46 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
          (strMethod == "getxstvolume")            ||
          (strMethod == "getblockinterval")        ||
          (strMethod == "getblockintervalmean")    ||
-          (strMethod == "getblockintervalrmsd")) && n > 0)
+         (strMethod == "getblockintervalrmsd")    ||
+         (strMethod == "getpicopowermean")) && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
     if (((strMethod == "gettxvolume") ||
          (strMethod == "getxstvolume")            ||
          (strMethod == "getblockinterval")        ||
          (strMethod == "getblockintervalmean")    ||
-         (strMethod == "getblockintervalrmsd")) && n > 1)
+         (strMethod == "getblockintervalrmsd")    ||
+         (strMethod == "getpicopowermean")) && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (((strMethod == "gettxvolume") ||
          (strMethod == "getxstvolume")            ||
          (strMethod == "getblockinterval")        ||
          (strMethod == "getblockintervalmean")    ||
-         (strMethod == "getblockintervalrmsd")) && n > 2)
+         (strMethod == "getblockintervalrmsd")    ||
+         (strMethod == "getpicopowermean")) && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "getchildkey"               && n > 1)
-                                ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getchildkey"               && n > 2)
-                                ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "getaddressinputs"          && n > 1)
-                                ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getaddressinputs"          && n > 2)
-                                ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "getaddressoutputs"         && n > 1)
-                                ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getaddressoutputs"         && n > 2)
-                                ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "getaddressinouts"          && n > 1)
-                                ConvertTo<boost::int64_t>(params[1]);
-    if (strMethod == "getaddressinouts"          && n > 2)
-                                ConvertTo<boost::int64_t>(params[2]);
-    if (strMethod == "getrichlistsize"           && n > 0)
+    if (strMethod == "gethourlymissed"          && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
-    if (strMethod == "getrichlist"               && n > 0)
+    if (strMethod == "getchildkey"              && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getchildkey"              && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddressinputs"         && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddressinputs"         && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddressoutputs"        && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddressoutputs"        && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddressinouts"         && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddressinouts"         && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getrichlistsize"          && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
-    if (strMethod == "getrichlist"               && n > 1)
+    if (strMethod == "getrichlist"              && n > 0)
+                                ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getrichlist"              && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
 
     return params;

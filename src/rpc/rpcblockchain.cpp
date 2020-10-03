@@ -99,6 +99,7 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
             result.push_back(Pair("confirmations", 0));
             result.push_back(Pair("depth", nConfs));
         }
+        result.push_back(Pair("pico_power", blockindex->nPicoPower));
     }
     else
     {

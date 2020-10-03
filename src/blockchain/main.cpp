@@ -3773,6 +3773,8 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
                      pindexNew->nHeight, nStakeModifier);
     }
 
+    pindexNew->nPicoPower = pregistryTemp->GetPicoPower();
+
     // Add to mapBlockIndex
     map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     if (pindexNew->IsProofOfStake())
