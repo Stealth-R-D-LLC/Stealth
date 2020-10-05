@@ -859,7 +859,7 @@ Value getstakersummary(const Array& params, bool fHelp)
     obj.push_back(Pair("latest_block_height",
                   (boost::int64_t)pindex->nHeight));
     obj.push_back(Pair("latest_block_tx_volume",
-                  ValueFromAmount(pindex->nTxVolume)));
+                  (boost::int64_t)pindex->nTxVolume));
     obj.push_back(Pair("latest_block_xst_volume",
                   ValueFromAmount(pindex->nXSTVolume)));
     // pico power
@@ -893,7 +893,8 @@ Value getrecentqueue(const Array& params, bool fHelp)
         throw runtime_error(
             "getrecentqueue <blocks>\n"
             "<blocks> is the number of blocks to look back\n"
-            "Returns a 1,0 array, where 1 is a hit and 0 is a miss.");
+            "Returns a 1,0 array, where 1 is a hit and 0 is a miss.\n"
+            "The array is ordered chronologically.");
     }
 
     int nBlocks = params[0].get_int();
