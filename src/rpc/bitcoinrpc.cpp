@@ -336,8 +336,10 @@ static const CRPCCommand vRPCCommands[] =
     { "getstakerinfo",          &getstakerinfo,          false,  false },
     { "getqposinfo",            &getqposinfo,            false,  false },
     { "getblockschedule",       &getblockschedule,       false,  false },
-    { "getstakersranked",       &getstakersranked,       false,  false },
+    { "getstakersbyid",         &getstakersbyid,         false,  false },
+    { "getstakersbyweight",     &getstakersbyweight,     false,  false },
     { "getstakersummary",       &getstakersummary,       false,  false },
+    { "getstakerpriceinfo",     &getstakerpriceinfo,     false,  false },
     { "getrecentqueue",         &getrecentqueue,         false,  false },
     { "getqposbalance",         &getqposbalance,         false,  false },
     { "exitreplay",             &exitreplay,             false,  false },
@@ -1324,6 +1326,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "setstakermeta"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getqposinfo"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getblockschedule"       && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getstakersbyid"         && n > 0) ConvertTo<bool>(params[0]);
+    if (strMethod == "getstakerpriceinfo"     && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getrecentqueue"         && n > 0) ConvertTo<boost::int64_t>(params[0]);
     // explorer api methods
     if (strMethod == "getnewestblockbeforetime"  && n > 0)

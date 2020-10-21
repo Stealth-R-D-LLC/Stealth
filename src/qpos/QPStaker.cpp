@@ -22,6 +22,8 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
     {
         objRet.push_back(Pair("height",
                               static_cast<int64_t>(pindex->nHeight)));
+        objRet.push_back(Pair("time",
+                              static_cast<int64_t>(pindex->nTime)));
         if (pindex->IsInMainChain())
         {
             objRet.push_back(Pair("isinmainchain", true));
@@ -315,6 +317,7 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("block_created", objBlockCreated));
     objRet.push_back(Pair("txid_created", hashTxCreated.GetHex()));
     objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
+    objRet.push_back(Pair("price", ValueFromAmount(nPrice)));
     objRet.push_back(Pair("qualified", fQualified));
     objRet.push_back(Pair("enabled", fEnabled));
     objRet.push_back(Pair("weight",

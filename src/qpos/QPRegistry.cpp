@@ -691,10 +691,18 @@ void QPRegistry::GetDisabledStakers(vector<const QPStaker*> &vRet) const
 void QPRegistry::GetStakers(vector<const QPStaker*> &vRet) const
 {
     vRet.clear();
-    QPRegistryIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    for (unsigned int n = 1; n <= nIDCounter; ++n)
     {
-        vRet.push_back(&(it->second));
+        QPRegistryIterator it = mapStakers.find(n);
+        if (it == mapStakers.end())
+        {
+            // this should never happen: no such ID
+            printf("GetStakers(): TSNH No such ID %u\n", n);
+        }
+        else
+        {
+            vRet.push_back(&(it->second));
+        }
     }
 }
 

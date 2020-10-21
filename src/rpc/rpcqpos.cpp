@@ -43,7 +43,9 @@ Value getstakerprice(const Array& params, bool fHelp)
             "getstakerprice\n"
             "Returns the current staker price.");
     }
-    return ValueFromAmount(GetStakerPrice(pregistryMain, pindexBest));
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    return ValueFromAmount(GetStakerPrice(N, pindexBest->nMoneySupply));
 }
 
 Value getstakerid(const Array& params, bool fHelp)
@@ -172,7 +174,9 @@ Value purchasestaker(const Array &params, bool fHelp)
     ExtractQPoSRPCEssentials(params, txid, nOut, sAlias, vchOwnerKey,
                              nIDUnused, false);
 
-    int64_t nPrice = GetStakerPrice(pregistryMain, pindexBest, true);
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    int64_t nPrice = GetStakerPrice(N, pindexBest->nMoneySupply, true);
     int64_t nAmount;
     if (params.size() > 4)
     {
@@ -689,13 +693,52 @@ Value getblockschedule(const Array& params, bool fHelp)
     return result;
 }
 
+Value getstakersbyid(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+    {
+        throw runtime_error(
+            "getstakersbyid [disqualified]\n"
+            "Returns details of StealthNodes by ascending id.\n"
+            "Optional [disqualified=false] includes disqualified stakers if true");
+    }
 
-Value getstakersranked(const Array& params, bool fHelp)
+    bool fDisqualified = false;
+    if (params.size() > 0)
+    {
+        fDisqualified = params[0].get_bool();
+    }
+
+    const unsigned int nCounterNext = pregistryMain->GetNextIDCounter();
+
+    vector<const QPStaker*> vpStakers;
+    pregistryMain->GetStakers(vpStakers);
+
+    Array aryStakers;
+    unsigned int nID = 0;
+    vector<const QPStaker*>::const_iterator vit;
+    for (vit = vpStakers.begin(); vit != vpStakers.end(); ++vit)
+    {
+        nID += 1;
+        const QPStaker* pstaker = (const QPStaker *)(*vit);
+        if (pstaker->IsQualified() || fDisqualified)
+        {
+           Object objStkr;
+           unsigned int nSeniority = nCounterNext - nID;
+           pstaker->AsJSON(nID, nSeniority, objStkr);
+           aryStakers.push_back(objStkr);
+        }
+    }
+
+    return aryStakers;
+}
+
+Value getstakersbyweight(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
     {
         throw runtime_error(
-            "getstakersranked\n"
+            "getstakersbyweight\n"
             "Returns details of StealthNodes in descending weight.");
     }
 
@@ -833,7 +876,9 @@ Value getstakersummary(const Array& params, bool fHelp)
             nPriceNewest = it->second->GetPrice();
         }
     }
-    int64_t nPriceNext = GetStakerPrice(pregistryMain, pindex, true);
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    int64_t nPriceNext = GetStakerPrice(N, pindex->nMoneySupply);
 
     Object obj;
     // time
@@ -857,18 +902,18 @@ Value getstakersummary(const Array& params, bool fHelp)
     obj.push_back(Pair("latest_staker_alias", pstakerLatest->GetAlias()));
     // latest block
     obj.push_back(Pair("latest_block_height",
-                  (boost::int64_t)pindex->nHeight));
+                       (boost::int64_t)pindex->nHeight));
     obj.push_back(Pair("latest_block_tx_volume",
-                  (boost::int64_t)pindex->nTxVolume));
+                       (boost::int64_t)pindex->nTxVolume));
     obj.push_back(Pair("latest_block_xst_volume",
-                  ValueFromAmount(pindex->nXSTVolume)));
+                       ValueFromAmount(pindex->nXSTVolume)));
     // pico power
     obj.push_back(Pair("pico_power",
-                  pregistryMain->GetPicoPower()));
+                       pregistryMain->GetPicoPower()));
     obj.push_back(Pair("prev_pico_power",
-                  pregistryMain->GetPicoPowerPrev()));
+                       pregistryMain->GetPicoPowerPrev()));
     obj.push_back(Pair("current_pico_power",
-                  pregistryMain->GetPicoPowerCurrent()));
+                       pregistryMain->GetPicoPowerCurrent()));
     // next staker
     obj.push_back(Pair("next_staker_id", (boost::int64_t)nIDNext));
     obj.push_back(Pair("next_staker_alias", pstakerNext->GetAlias()));
@@ -878,10 +923,150 @@ Value getstakersummary(const Array& params, bool fHelp)
     obj.push_back(Pair("remaining_queue", nRemainingQueue));
     obj.push_back(Pair("remaining_queue_aliases", aryRemaining));
     // prices
-    obj.push_back(Pair("newest_staker_price",
-                  ValueFromAmount(nPriceNewest)));
+    if (nPriceNewest != -1)
+    {
+        obj.push_back(Pair("newest_staker_price",
+                           ValueFromAmount(nPriceNewest)));
+    }
     obj.push_back(Pair("next_staker_price",
-                  ValueFromAmount(nPriceNext)));
+                       ValueFromAmount(nPriceNext)));
+
+    return obj;
+}
+
+Value getstakerpriceinfo(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "getstakerpriceinfo <stakers>"
+            "  returns staker price history and ROI information\n"
+            "  <stakers> is the number of stakers for which to calculate prices");
+    }
+
+    static const int MAX_STAKERS = 600;
+
+    const CBlockIndex* pindex = pindexBest;
+
+    int nStakersIn = params[0].get_int();
+    if (nStakersIn < 0)
+    {
+        throw runtime_error("stakers must be positive");
+    }
+    if (nStakersIn > MAX_STAKERS)
+    {
+        throw runtime_error(
+                strprintf("stakers must not exceed %d", MAX_STAKERS));
+    }
+
+    unsigned int nStakers = static_cast<unsigned int>(nStakersIn);
+
+    vector<const QPStaker*> vpStakers;
+    pregistryMain->GetStakers(vpStakers);
+
+    vector<uint32_t> vBlocks;
+    Array aryPrices;
+    Array arySupply;
+    Array aryFractionalPrices;
+    vector<const QPStaker*>::const_iterator vit;
+    for (vit = vpStakers.begin(); vit != vpStakers.end(); ++vit)
+    {
+        const QPStaker* pstaker = (const QPStaker *)(*vit);
+        vBlocks.push_back(pstaker->GetNetBlocks());
+        int64_t nPrice = pstaker->GetPrice();
+        aryPrices.push_back(ValueFromAmount(nPrice));
+        CBlockIndex* p = mapBlockIndex[pstaker->GetHashBlockCreated()];
+        arySupply.push_back(ValueFromAmount(p->nMoneySupply));
+        aryFractionalPrices.push_back((double)nPrice / (double)p->nMoneySupply);
+    }
+
+    unsigned int N = vpStakers.size();
+    int64_t nPriceNewest = N > 0 ? vpStakers.back()->GetPrice() : -1;
+
+    N += 1;
+    int64_t nSupply = pindex->nMoneySupply;
+    int64_t nPriceNext = GetStakerPrice(N, nSupply);
+    nSupply -= nPriceNext;
+    aryPrices.push_back(ValueFromAmount(nPriceNext));
+    arySupply.push_back(ValueFromAmount(nSupply));
+    aryFractionalPrices.push_back((double)nPriceNext / (double)nSupply);
+    for (N += 1 ; N <= nStakers; ++N)
+    {
+        int64_t nPrice = GetStakerPrice(N, nSupply);
+        aryPrices.push_back(ValueFromAmount(nPrice));
+        arySupply.push_back(ValueFromAmount(nSupply));
+        aryFractionalPrices.push_back((double)nPrice / (double)nSupply);
+        nSupply -= nPrice;
+    }
+
+    // estimate with compounding weekly (DPY is days per year)
+    static const int64_t DPY = 365;
+    // days per week
+    static const int64_t DPW = 7;
+    // blocks per week
+    static const uint32_t BPW = 120960;
+
+    nSupply = pindex->nMoneySupply;
+    uint32_t nQualified = (uint32_t)pregistryMain->GetNumberQualified();
+    uint32_t nHypothetical = nQualified + 1;
+    // blocks per month per staker
+    uint32_t BPWPS = BPW / nHypothetical;
+
+    uint32_t nBlocksSelf = 0;
+    int64_t nWeeksROI = 0;
+    int64_t nEarnedTotal = 0;
+    Array aryEarned;
+    Array aryEarnedTotal;
+    while (nEarnedTotal < nPriceNext)
+    {
+        uint32_t nWeightSelf = 1;
+        if (nBlocksSelf > 0)
+        {
+            nWeightSelf = uisqrt(nBlocksSelf);
+        }
+        nBlocksSelf += BPWPS;
+
+        uint32_t nWeightAll = nWeightSelf;
+        vector<uint32_t>::iterator it;
+        for (it = vBlocks.begin(); it != vBlocks.end(); ++it)
+        {
+            nWeightAll += uisqrt(*it);
+            *it += BPWPS;
+        }
+
+        int64_t nNewMoney = DPW * (nSupply / (DPY * RECIPROCAL_QPOS_INFLATION));
+        int64_t nEarned = (int64_t)nWeightSelf * (nNewMoney / (int64_t)nWeightAll);
+        nEarnedTotal += nEarned;
+        aryEarned.push_back(ValueFromAmount(nEarned));
+        aryEarnedTotal.push_back(ValueFromAmount(nEarnedTotal));
+        nWeeksROI += 1;
+
+        nSupply += nNewMoney;
+    }
+
+    Object obj;
+
+    // prices
+    if (nPriceNewest != -1)
+    {
+        obj.push_back(Pair("newest_staker_price",
+                           ValueFromAmount(nPriceNewest)));
+    }
+    obj.push_back(Pair("next_staker_price",
+                       ValueFromAmount(nPriceNext)));
+    obj.push_back(Pair("qualified_stakers", (int64_t)nQualified));
+    obj.push_back(Pair("prices", aryPrices));
+    obj.push_back(Pair("money_supplies", arySupply));
+    obj.push_back(Pair("fractional_prices", aryFractionalPrices));
+    obj.push_back(Pair("hypothetical_stakers", (int64_t)nHypothetical));
+    obj.push_back(Pair("moneysupply", ValueFromAmount(nSupply)));
+    obj.push_back(Pair("inflation_percent",
+                       (double)100 / (double)RECIPROCAL_QPOS_INFLATION));
+    obj.push_back(Pair("weeks_to_roi", nWeeksROI));
+    obj.push_back(Pair("days_to_roi", DPW * nWeeksROI));
+    obj.push_back(Pair("years_to_roi", (double)nWeeksROI * (double)DPW / (double)DPY));
+    obj.push_back(Pair("weekly_earnings", aryEarned));
+    obj.push_back(Pair("weekly_cumulative_earnings", aryEarnedTotal));
 
     return obj;
 }

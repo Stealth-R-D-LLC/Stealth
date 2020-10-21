@@ -3041,7 +3041,9 @@ string CWallet::PurchaseStaker(const string &txid,
         }
     }
 
-    if (nPrice < GetStakerPrice(pregistryMain, pindexBest))
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    if (nPrice < GetStakerPrice(N, pindexBest->nMoneySupply))
     {
         return _("PurchaseStaker(): Price too low");
     }

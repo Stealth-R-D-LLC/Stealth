@@ -270,8 +270,10 @@ extern json_spirit::Value setstakermeta(const json_spirit::Array& params, bool f
 extern json_spirit::Value getstakerinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockschedule(const json_spirit::Array& params, bool fHelp);
-extern json_spirit::Value getstakersranked(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakersbyid(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakersbyweight(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakersummary(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getstakerpriceinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrecentqueue(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value exitreplay(const json_spirit::Array& params, bool fHelp);

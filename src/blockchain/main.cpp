@@ -1192,7 +1192,9 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             {
                 break;
             }
-            int64_t nStakerPrice = GetStakerPrice(pregistryTemp, pindexPrev);
+            uint32_t N = static_cast<uint32_t>(
+                            pregistryTemp->GetNumberQualified());
+            int64_t nStakerPrice = GetStakerPrice(N, pindexPrev->nMoneySupply);
             map<string, qpos_purchase> mapTxPrchs;
             if (!CheckPurchases(pregistryTemp, nStakerPrice, mapTxPrchs))
             {
@@ -1820,7 +1822,9 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     // expensive so they shouldn't cause a non-trivial burden here.
     int64_t nValuePurchases = 0;
     map<string, qpos_purchase> mapNames;
-    int64_t nStakerPrice = GetStakerPrice(pregistryMain, pindexBest);
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
     if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapNames))
     {
         return error("accept(): bad purchase\n");
@@ -2370,13 +2374,11 @@ int64_t GetQPoSReward(const CBlockIndex *pindexPrev)
     // qPoS 5s blocks per year (365.25 * 24 * 60 * 60/5)
     static const int64_t BPY = 6311520;
     // 1% inflation (1/100)
-    static const int64_t divisor = BPY * 100;
+    static const int64_t divisor = BPY * RECIPROCAL_QPOS_INFLATION;
     return pindexPrev->nMoneySupply / divisor;
 }
 
-int64_t GetStakerPrice(const QPRegistry *pregistry,
-                       const CBlockIndex *pindexPrev,
-                       bool fPurchase)
+int64_t GetStakerPrice(uint32_t N, int64_t nSupply, bool fPurchase)
 {
     // This says
     //    1) stakers 1 to 22: 1st tier price (discount)
@@ -2393,9 +2395,7 @@ int64_t GetStakerPrice(const QPRegistry *pregistry,
     // to wait 10 min for a purchase this estimate will still be enough.
     // Adds less than 0.2 XST to the price of a 50,000 XST staker.
     static const int64_t INVERSE_WAIT_INCREASE = 3153600;
-    uint32_t N = static_cast<uint32_t>(pregistry->GetNumberQualified());
     int64_t blen = static_cast<int64_t>(bit_length(N + K_TIER));
-    int64_t nSupply = pindexPrev->nMoneySupply;
     if (fPurchase)
     {
         nSupply += (nSupply / INVERSE_WAIT_INCREASE);
@@ -3130,8 +3130,9 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
             nValueOut += nTxValueOut;
             if (!tx.IsCoinStake())
             {
-                int64_t nStakerPrice = GetStakerPrice(pregistryTemp,
-                                                      pindex->pprev);
+                uint32_t N = static_cast<uint32_t>(
+                                pregistryTemp->GetNumberQualified());
+                int64_t nStakerPrice = GetStakerPrice(N, pindex->pprev->nMoneySupply);
                 map<string, qpos_purchase> mapPurchases;
                 if (!tx.CheckPurchases(pregistryTemp, nStakerPrice, mapPurchases))
                 {
@@ -7091,7 +7092,9 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             }
 
             map<string, qpos_purchase> mapPurchases;
-            int64_t nStakerPrice = GetStakerPrice(pregistryMain, pindexBest);
+            uint32_t N = static_cast<uint32_t>(
+                            pregistryMain->GetNumberQualified());
+            int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
             if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
             {
                 return BLOCKCREATION_PURCHASE_FAIL;

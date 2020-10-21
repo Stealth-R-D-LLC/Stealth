@@ -11,6 +11,7 @@
 
 static const uint64_t TRIL = 1000000000000;  // trillion, 1e12
 
+static const int64_t RECIPROCAL_QPOS_INFLATION = 100;
 static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 32768;
 static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
 static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
