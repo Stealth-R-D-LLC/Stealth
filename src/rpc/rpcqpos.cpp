@@ -492,7 +492,7 @@ Value getstakerinfo(const Array& params, bool fHelp)
         throw runtime_error(
             "getstakerinfo <alias>\n"
             "<alias> is a non-case sensitive staker alias\n"
-            "Returns exhaustive information about the qPoS registry");
+            "Returns exhaustive information about the staker");
     }
 
     string sAlias = params[0].get_str();
