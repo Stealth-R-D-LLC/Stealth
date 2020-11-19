@@ -216,6 +216,7 @@ void GetInputInfo(CTxDB& txdb,
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vin", (boost::int64_t)input.vin));
+    // end of comparator attributes
     objRet.push_back(Pair("txid", input.txid.GetHex()));
     objRet.push_back(Pair("blockhash", tx.blockhash.GetHex()));
     boost::int64_t nConfs = 1 + nBestHeight - tx.height;
@@ -224,6 +225,7 @@ void GetInputInfo(CTxDB& txdb,
     objRet.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
     objRet.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
     objRet.push_back(Pair("amount", ValueFromAmount(input.amount)));
+    objRet.push_back(Pair("balance", ValueFromAmount(input.balance)));
     // TODO: add this at some point?
     // objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
 }
@@ -326,8 +328,10 @@ void GetOutputInfo(CTxDB& txdb,
     objRet.push_back(Pair("height", (boost::int64_t)tx.height));
     objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objRet.push_back(Pair("vout", (boost::int64_t)output.vout));
+    // end of comparator attributes
     objRet.push_back(Pair("txid", output.txid.GetHex()));
     objRet.push_back(Pair("amount", ValueFromAmount(output.amount)));
+    objRet.push_back(Pair("balance", ValueFromAmount(output.balance)));
     objRet.push_back(Pair("blockhash", tx.blockhash.GetHex()));
     boost::int64_t nConfs = 1 + nBestHeight - tx.height;
     objRet.push_back(Pair("confirmations", nConfs));
