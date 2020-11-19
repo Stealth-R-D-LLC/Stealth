@@ -24,6 +24,7 @@ public:
     uint256 prev_txid;
     int prev_vout;
     int64_t amount;
+    int64_t balance;
 
     void SetNull();
 
@@ -33,7 +34,8 @@ public:
                      const unsigned int vinIn,
                      const uint256& prev_txidIn,
                      const int prev_voutIn,
-                     const int64_t amountIn);
+                     const int64_t amountIn,
+                     const int64_t balanceIn);
 
     void AsJSON(json_spirit::Object& objRet) const;
 
@@ -46,6 +48,7 @@ public:
         READWRITE(prev_txid);
         READWRITE(prev_vout);
         READWRITE(amount);
+        READWRITE(balance);
     )
 };
 

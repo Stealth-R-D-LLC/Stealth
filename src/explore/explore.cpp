@@ -229,7 +229,33 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 2. add the input
+        * 2. update the balance
+        ***************************************************************/
+        int64_t nBalanceOld;
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
+        {
+            return _Err("ExploreConnectInput() : can't read addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        if (nValue > nBalanceOld)
+        {
+            // This should never happen: output value exceeds balance
+            return _Err("ExploreConnectInput() : TSNH prev output value exceeds balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        int64_t nBalanceNew = nBalanceOld - nValue;
+        // no desire to remove evidence of this address here, even if no balance
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
+        {
+            return _Err("ExploreConnectInput() : can't write addr balance",
+                        strAddr, -1, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+
+       /***************************************************************
+        * 3. add the input
         ***************************************************************/
         int nQtyInputs;
         if (!txdb.ReadAddrQty(ADDR_QTY_INPUT, strAddr, nQtyInputs))
@@ -261,7 +287,9 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // write the input record
-        ExploreInputInfo newIn(txid, n, txIn.prevout.hash, txIn.prevout.n, nValue);
+        ExploreInputInfo newIn(txid, n,
+                               txIn.prevout.hash, txIn.prevout.n,
+                               nValue, nBalanceNew);
         if (!txdb.WriteAddrTx(ADDR_TX_INPUT, strAddr, nQtyInputs, newIn))
         {
             return _Err("ExploreConnectInput() : can't write input",
@@ -270,7 +298,7 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 3. add the in-out
+        * 4. add the in-out
         ***************************************************************/
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
@@ -317,33 +345,6 @@ bool ExploreConnectInput(CTxDB& txdb,
                    strAddr.c_str(), nQtyInputs,
                    n, txid.GetHex().c_str());
         }
-
-       /***************************************************************
-        * 4. update the balance
-        ***************************************************************/
-        int64_t nBalanceOld;
-        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
-        {
-            return _Err("ExploreConnectInput() : can't read addr balance",
-                        strAddr, -1, txid, n,
-                        txIn.prevout.hash, txIn.prevout.n);
-        }
-        if (nValue > nBalanceOld)
-        {
-            // This should never happen: output value exceeds balance
-            return _Err("ExploreConnectInput() : TSNH prev output value exceeds balance",
-                        strAddr, -1, txid, n,
-                        txIn.prevout.hash, txIn.prevout.n);
-        }
-        int64_t nBalanceNew = nBalanceOld - nValue;
-        // no desire to remove evidence of this address here, even if no balance
-        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
-        {
-            return _Err("ExploreConnectInput() : can't write addr balance",
-                        strAddr, -1, txid, n,
-                        txIn.prevout.hash, txIn.prevout.n);
-        }
-
 
        /***************************************************************
         * 5. update the value out (new input increases value out)
@@ -483,7 +484,24 @@ bool ExploreConnectOutput(CTxDB& txdb,
         string strAddr = CBitcoinAddress(dest).ToString();
 
        /***************************************************************
-        * 1. add the output
+        * 1. update the balance
+        ***************************************************************/
+        int64_t nBalanceOld;
+        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
+        {
+            return _Err("ExploreConnectOutput() : can't read addr balance",
+                        strAddr, -1, txid, n);
+        }
+        int64_t nBalanceNew = nBalanceOld + nValue;
+        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
+        {
+            return _Err("ExploreConnectOutput() : can't write addr balance",
+                        strAddr, -1, txid, n);
+        }
+
+
+       /***************************************************************
+        * 2. add the output
         ***************************************************************/
         int nQtyOutputs;
         if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddr, nQtyOutputs))
@@ -511,7 +529,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
                         strAddr, nQtyOutputs, txid, n);
         }
         // write the output record
-        ExploreOutputInfo newOut(txid, n, txOut.nValue);
+        ExploreOutputInfo newOut(txid, n, txOut.nValue, nBalanceNew);
         if (!txdb.WriteAddrTx(ADDR_TX_OUTPUT, strAddr, nQtyOutputs, newOut))
         {
             return _Err("ExploreConnectOutput() : can't write output",
@@ -519,7 +537,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 2. add the output lookup
+        * 3. add the output lookup
         ***************************************************************/
         // ensure the output lookup does not exist
         if (txdb.AddrLookupIsViable(ADDR_LOOKUP_OUTPUT, strAddr, txid, n))
@@ -537,7 +555,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 3. add the in-out
+        * 4. add the in-out
         ***************************************************************/
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
@@ -578,22 +596,6 @@ bool ExploreConnectOutput(CTxDB& txdb,
                    nQtyInOuts,
                    strAddr.c_str(), nQtyOutputs,
                    n, txid.GetHex().c_str());
-        }
-
-       /***************************************************************
-        * 4. update the balance
-        ***************************************************************/
-        int64_t nBalanceOld;
-        if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
-        {
-            return _Err("ExploreConnectOutput() : can't read addr balance",
-                        strAddr, -1, txid, n);
-        }
-        int64_t nBalanceNew = nBalanceOld + nValue;
-        if (!txdb.WriteAddrValue(ADDR_BALANCE, strAddr, nBalanceNew))
-        {
-            return _Err("ExploreConnectOutput() : can't write addr balance",
-                        strAddr, -1, txid, n);
         }
 
        /***************************************************************

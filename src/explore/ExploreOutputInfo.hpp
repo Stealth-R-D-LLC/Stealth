@@ -20,6 +20,7 @@ public:
     uint256 txid;
     unsigned int vout;
     int64_t amount;
+    int64_t balance;
     uint256 next_txid;
     unsigned int next_vin;
 
@@ -29,11 +30,13 @@ public:
 
     ExploreOutputInfo(const uint256& txidIn,
                       const unsigned int voutIn,
-                      const int64_t amountIn);
+                      const int64_t amountIn,
+                      const int64_t balanceIn);
 
     ExploreOutputInfo(const uint256& txidIn,
                       const unsigned int voutIn,
                       const int64_t amountIn,
+                      const int64_t balanceIn,
                       const uint256& next_txidIn,
                       const unsigned int next_vinIn);
 
@@ -54,6 +57,7 @@ public:
         READWRITE(txid);
         READWRITE(vout);
         READWRITE(amount);
+        READWRITE(balance);
         READWRITE(next_txid);
         READWRITE(next_vin);
     )
