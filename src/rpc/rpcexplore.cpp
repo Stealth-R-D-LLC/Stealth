@@ -22,7 +22,7 @@ static const unsigned int SEC_PER_DAY = 86400;
 // this comparator is highly specific to the ordering of the json_spirit
 // return values in GetInputInfo() and GetOutputInfo() below.
 // Take extra care when modifying this comparator or these two funcitons.
-// Orders by:
+// Orders forward, according to position in the blockchain data structure:
 //   1. block height
 //   2. vtx index
 //   3. inputs before outputs
@@ -466,7 +466,7 @@ void GetAddrInOuts(CTxDB& txdb,
 
 Value getaddressinouts(const Array &params, bool fHelp)
 {
-    if (fHelp || (params.size()  < 1) || (params.size() > 3))
+    if (fHelp || (params.size() < 1) || (params.size() > 3))
     {
         throw runtime_error(
                 "getaddressinouts <address> [start] [max]\n"
@@ -529,6 +529,108 @@ Value getaddressinouts(const Array &params, bool fHelp)
 
     return result;
 }
+
+
+Value getaddressinoutspg(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 3) || (params.size() > 4))
+    {
+        throw runtime_error(
+                "getaddressinoutspg <address> <page> <perpage> [order]\n"
+                "Returns up to <perpage> inputs + outputs of <address>\n"
+                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+                "  For example, <page>=2 and <perpage>=20 means to\n"
+                "  return in-outs 21 - 40 (if possible).\n"
+                "    <page> is the page number\n"
+                "    <perpage> is the number of input/outputs per page\n"
+                "    [order] by blockchain position (default=true -> forward)");
+    }
+
+    string strAddress = params[0].get_str();
+
+    CTxDB txdb;
+
+    int nQtyInOuts;
+    if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+    {
+         throw runtime_error("TSNH: Can't read number of in-outs.");
+    }
+    if (nQtyInOuts == 0)
+    {
+         throw runtime_error("Address has no in-outs.");
+    }
+
+    int nPage = params[1].get_int();
+    if (nPage < 1)
+    {
+         throw runtime_error("Number of pages must be greater than 1.");
+    }
+
+    int nPerPage = params[2].get_int();
+    if (nPerPage < 1)
+    {
+         throw runtime_error("Number per page must be greater than 1.");
+    }
+
+    bool fForward = true;
+    if (params.size() > 3)
+    {
+        fForward = params[3].get_bool();
+    }
+
+    int nStart;
+    if (fForward)
+    {
+        nStart = 1 + ((nPage - 1) * nPerPage);
+        if (nStart > nQtyInOuts)
+        {
+             throw runtime_error("Start exceeds total number of in-outs.");
+        }
+    }
+    else
+    {
+        int nFirst = 1 + nQtyInOuts - (nPage * nPerPage);
+        if (nFirst <= 1 - nQtyInOuts)
+        {
+             throw runtime_error("Finish exceeds total number of in-outs.");
+        }
+        nStart = max(1, nFirst);
+    }
+    int nFinish = min(nStart + nPerPage - 1, nQtyInOuts);
+    int nMax = min(nFinish - nStart + 1, nPerPage);
+
+
+    setInOutObj_t setObj;
+    GetAddrInOuts(txdb, strAddress, nStart, nMax, nQtyInOuts, setObj);
+
+    Array data;
+    if (fForward)
+    {
+        BOOST_FOREACH(const Object& item, setObj)
+        {
+            data.push_back(item);
+        }
+    }
+    else
+    {
+        BOOST_REVERSE_FOREACH(const Object& item, setObj)
+        {
+            data.push_back(item);
+        }
+    }
+
+    int nLastPage = 1 + (nQtyInOuts - 1) / nPerPage;
+
+    Object result;
+    result.push_back(Pair("total", nQtyInOuts));
+    result.push_back(Pair("page", nPage));
+    result.push_back(Pair("per_page", nPerPage));
+    result.push_back(Pair("last_page", nLastPage));
+    result.push_back(Pair("data", data));
+
+    return result;
+}
+
 
 
 //////////////////////////////////////////////////////////////////////////////

@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       0
 #define CLIENT_VERSION_REVISION    3
-#define CLIENT_VERSION_BUILD       2
+#define CLIENT_VERSION_BUILD       3
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -37,7 +37,8 @@ static const int CLIENT_PROTOCOL_VERSION = 63300;
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
 //       : fork 7
-// 63300 : 3.0.3.2 : Adding nPicoPower to block indices
+// 63300 : 3.0.3.3 : Many changes to StealthExplore Database
+//         3.0.3.2 : Adding nPicoPower to block indices
 //         3.0.3.1 : Combining message handling and qPoS
 //         3.0.3.0 : Forking the tx authority check earlier (forking)
 // 63200 : 3.0.2.0 : Fixed qPoS transaction authority checking (forking)
