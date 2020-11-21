@@ -84,7 +84,7 @@ struct pagination_t {
     int last_page;
 };
 
-void GetPagination(const Array& params, const int nLeadingParams,
+void GetPagination(const Array& params, const unsigned int nLeadingParams,
                    const int nTotal, pagination_t& pgRet)
 {
     pgRet.page = params[0 + nLeadingParams].get_int();
@@ -606,7 +606,7 @@ Value getaddressinoutspg(const Array &params, bool fHelp)
     }
 
     // leading params = 1 (1st param is <address>, 2nd is <page>)
-    static const int LEADING_PARAMS = 1;
+    static const unsigned int LEADING_PARAMS = 1;
 
     string strAddress = params[0].get_str();
 
@@ -936,7 +936,7 @@ Value getrichlistpg(const Array &params, bool fHelp)
     }
 
     // leading params = 0 (first param is <page>)
-    static const int LEADING_PARAMS = 0;
+    static const unsigned int LEADING_PARAMS = 0;
 
     if (mapAddressBalances.empty())
     {
