@@ -100,7 +100,7 @@ void GetPagination(const Array& params, const int nLeadingParams,
     }
 
     pgRet.forward = true;
-    if (params.size() > 2)
+    if (params.size() > (2 + nLeadingParams))
     {
         pgRet.forward = params[2 + nLeadingParams].get_bool();
     }
