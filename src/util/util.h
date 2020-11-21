@@ -124,7 +124,9 @@ T* alignup(T* p)
 #endif
 #else
 #ifdef __APPLE__
+#ifndef MSG_NOSIGNAL
 #define MSG_NOSIGNAL        0
+#endif
 #endif
 #define MAX_PATH            1024
 inline void MilliSleep(uint64_t n)

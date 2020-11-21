@@ -248,6 +248,7 @@ extern json_spirit::Value getaddressinoutspg(const json_spirit::Array& params, b
 extern json_spirit::Value gethdaccount(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlistsize(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlist(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getrichlistpg(const json_spirit::Array& params, bool fHelp);
 //
 extern json_spirit::Value getcheckpoint(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getnewstealthaddress(const json_spirit::Array& params, bool fHelp);

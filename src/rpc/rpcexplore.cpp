@@ -70,6 +70,65 @@ struct inout_comparator
 typedef set<Object, inout_comparator> setInOutObj_t;
 
 
+//
+// Pagination
+//
+
+struct pagination_t {
+    int page;
+    int per_page;
+    bool forward;
+    int start;
+    int finish;
+    int max;
+    int last_page;
+};
+
+void GetPagination(const Array& params, const int nLeadingParams,
+                   const int nTotal, pagination_t& pgRet)
+{
+    pgRet.page = params[0 + nLeadingParams].get_int();
+    if (pgRet.page < 1)
+    {
+         throw runtime_error("Number of pages must be greater than 1.");
+    }
+
+    pgRet.per_page = params[1 + nLeadingParams].get_int();
+    if (pgRet.per_page < 1)
+    {
+         throw runtime_error("Number per page must be greater than 1.");
+    }
+
+    pgRet.forward = true;
+    if (params.size() > 2)
+    {
+        pgRet.forward = params[2 + nLeadingParams].get_bool();
+    }
+
+    if (pgRet.forward)
+    {
+        pgRet.start = 1 + ((pgRet.page - 1) * pgRet.per_page);
+        if (pgRet.start > nTotal)
+        {
+             throw runtime_error("Start exceeds total number of in-outs.");
+        }
+    }
+    else
+    {
+        int nFirst = 1 + nTotal - (pgRet.page * pgRet.per_page);
+        if (nFirst <= 1 - nTotal)
+        {
+             // finish is start in reverse
+             throw runtime_error("Finish exceeds total number of in-outs.");
+        }
+        pgRet.start = max(1, nFirst);
+    }
+    int nFinish = min(pgRet.start + pgRet.per_page - 1, nTotal);
+    pgRet.max = min(nFinish - pgRet.start + 1, pgRet.per_page);
+    pgRet.last_page = 1 + (nTotal - 1) / pgRet.per_page;
+}
+
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // Addresses
@@ -536,15 +595,18 @@ Value getaddressinoutspg(const Array &params, bool fHelp)
     if (fHelp || (params.size() < 3) || (params.size() > 4))
     {
         throw runtime_error(
-                "getaddressinoutspg <address> <page> <perpage> [order]\n"
+                "getaddressinoutspg <address> <page> <perpage> [ordering]\n"
                 "Returns up to <perpage> inputs + outputs of <address>\n"
                 "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
                 "  For example, <page>=2 and <perpage>=20 means to\n"
                 "  return in-outs 21 - 40 (if possible).\n"
                 "    <page> is the page number\n"
                 "    <perpage> is the number of input/outputs per page\n"
-                "    [order] by blockchain position (default=true -> forward)");
+                "    [ordering] by blockchain position (default=true -> forward)");
     }
+
+    // leading params = 1 (1st param is <address>, 2nd is <page>)
+    static const int LEADING_PARAMS = 1;
 
     string strAddress = params[0].get_str();
 
@@ -555,56 +617,20 @@ Value getaddressinoutspg(const Array &params, bool fHelp)
     {
          throw runtime_error("TSNH: Can't read number of in-outs.");
     }
+
     if (nQtyInOuts == 0)
     {
          throw runtime_error("Address has no in-outs.");
     }
 
-    int nPage = params[1].get_int();
-    if (nPage < 1)
-    {
-         throw runtime_error("Number of pages must be greater than 1.");
-    }
-
-    int nPerPage = params[2].get_int();
-    if (nPerPage < 1)
-    {
-         throw runtime_error("Number per page must be greater than 1.");
-    }
-
-    bool fForward = true;
-    if (params.size() > 3)
-    {
-        fForward = params[3].get_bool();
-    }
-
-    int nStart;
-    if (fForward)
-    {
-        nStart = 1 + ((nPage - 1) * nPerPage);
-        if (nStart > nQtyInOuts)
-        {
-             throw runtime_error("Start exceeds total number of in-outs.");
-        }
-    }
-    else
-    {
-        int nFirst = 1 + nQtyInOuts - (nPage * nPerPage);
-        if (nFirst <= 1 - nQtyInOuts)
-        {
-             throw runtime_error("Finish exceeds total number of in-outs.");
-        }
-        nStart = max(1, nFirst);
-    }
-    int nFinish = min(nStart + nPerPage - 1, nQtyInOuts);
-    int nMax = min(nFinish - nStart + 1, nPerPage);
-
+    pagination_t pg;
+    GetPagination(params, LEADING_PARAMS, nQtyInOuts, pg);
 
     setInOutObj_t setObj;
-    GetAddrInOuts(txdb, strAddress, nStart, nMax, nQtyInOuts, setObj);
+    GetAddrInOuts(txdb, strAddress, pg.start, pg.max, nQtyInOuts, setObj);
 
     Array data;
-    if (fForward)
+    if (pg.forward)
     {
         BOOST_FOREACH(const Object& item, setObj)
         {
@@ -619,18 +645,15 @@ Value getaddressinoutspg(const Array &params, bool fHelp)
         }
     }
 
-    int nLastPage = 1 + (nQtyInOuts - 1) / nPerPage;
-
     Object result;
     result.push_back(Pair("total", nQtyInOuts));
-    result.push_back(Pair("page", nPage));
-    result.push_back(Pair("per_page", nPerPage));
-    result.push_back(Pair("last_page", nLastPage));
+    result.push_back(Pair("page", pg.page));
+    result.push_back(Pair("per_page", pg.per_page));
+    result.push_back(Pair("last_page", pg.last_page));
     result.push_back(Pair("data", data));
 
     return result;
 }
-
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -767,24 +790,8 @@ Value gethdaccount(const Array &params, bool fHelp)
 //
 // Richlist
 
-Value getrichlistsize(const Array &params, bool fHelp)
+boost::int64_t GetRichListSize(int64_t nMinBalance)
 {
-    if (fHelp || (params.size()  > 1))
-    {
-        throw runtime_error(
-                strprintf(
-                    "getrichlistsize [minumum]\n"
-                    "Returns the number of addresses with balances\n"
-                    "  greater than [minimum] (default: %s).",
-                    FormatMoney(nMaxDust).c_str()));
-    }
-
-    int64_t nMinBalance = nMaxDust;
-    if (params.size() > 0)
-    {
-        nMinBalance = AmountFromValue(params[0]);
-    }
-
     unsigned int nCount = 0;
     MapBalanceCounts::const_iterator it;
     for (it = mapAddressBalances.begin(); it != mapAddressBalances.end(); ++it)
@@ -797,6 +804,74 @@ Value getrichlistsize(const Array &params, bool fHelp)
     }
 
     return static_cast<boost::int64_t>(nCount);
+}
+
+Value getrichlistsize(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size()  > 1))
+    {
+        throw runtime_error(
+                strprintf(
+                    "getrichlistsize [minbalance]\n"
+                    "Returns the number of addresses with balances\n"
+                    "  greater than [minbalance] (default: %s).",
+                    FormatMoney(nMaxDust).c_str()));
+    }
+
+    int64_t nMinBalance = nMaxDust;
+    if (params.size() > 0)
+    {
+        nMinBalance = AmountFromValue(params[0]);
+    }
+
+    return GetRichListSize(nMinBalance);
+}
+
+
+
+void GetRichList(int nStart, int nMax, Object& objRet)
+{
+    CTxDB txdb;
+    int nStop = nStart + nMax - 1;
+    int nCount = 0;
+
+    MapBalanceCounts::const_iterator it;
+    for (it = mapAddressBalances.begin(); it != mapAddressBalances.end(); ++it)
+    {
+        int nSize = static_cast<int>((*it).second);
+        if ((nSize + nCount) >= nStart)
+        {
+            int64_t nBalance = (*it).first;
+            set<string> setBalances;
+            if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalance, setBalances))
+            {
+                throw runtime_error(
+                        strprintf("TSNH: unable to read balance set %s",
+                                  FormatMoney(nBalance).c_str()));
+            }
+            // sanity check
+            if (nSize != static_cast<int>(setBalances.size()))
+            {
+                throw runtime_error(
+                        strprintf("TSNH: balance set %s size mismatch",
+                                  FormatMoney(nBalance).c_str()));
+            }
+            BOOST_FOREACH(const string& addr, setBalances)
+            {
+                objRet.push_back(Pair(addr, ValueFromAmount(nBalance)));
+                nCount += 1;
+            }
+            // return all that tied for last spot
+            if (nCount >= nStop)
+            {
+                break;
+            }
+        }
+        else
+        {
+            nCount += nSize;
+        }
+    }
 }
 
 Value getrichlist(const Array &params, bool fHelp)
@@ -839,50 +914,59 @@ Value getrichlist(const Array &params, bool fHelp)
         }
     }
 
-    CTxDB txdb;
-    int nStop = nStart + nMax - 1;
-    int nCount = 0;
-
-    MapBalanceCounts::const_iterator it;
-    for (it = mapAddressBalances.begin(); it != mapAddressBalances.end(); ++it)
-    {
-        int nSize = static_cast<int>((*it).second);
-        if ((nSize + nCount) >= nStart)
-        {
-            int64_t nBalance = (*it).first;
-            set<string> setBalances;
-            if (!txdb.ReadAddrSet(ADDR_SET_BAL, nBalance, setBalances))
-            {
-                throw runtime_error(
-                        strprintf("TSNH: unable to read balance set %s",
-                                  FormatMoney(nBalance).c_str()));
-            }
-            // sanity check
-            if (nSize != static_cast<int>(setBalances.size()))
-            {
-                throw runtime_error(
-                        strprintf("TSNH: balance set %s size mismatch",
-                                  FormatMoney(nBalance).c_str()));
-            }
-            BOOST_FOREACH(const string& addr, setBalances)
-            {
-                obj.push_back(Pair(addr, ValueFromAmount(nBalance)));
-                nCount += 1;
-            }
-            // return all that tied for last spot
-            if (nCount >= nStop)
-            {
-                break;
-            }
-        }
-        else
-        {
-            nCount += nSize;
-        }
-    }
+    GetRichList(nStart, nMax, obj);
 
     return obj;
 }
+
+
+Value getrichlistpg(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 2) || (params.size() > 3))
+    {
+        throw runtime_error(
+                "getrichlistpg <page> <perpage> [ordering]\n"
+                "Returns up to <perpage> of the rich list\n"
+                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+                "  For example, <page>=2 and <perpage>=20 means to\n"
+                "  return in-outs 21 - 40 (if possible).\n"
+                "    <page> is the page number\n"
+                "    <perpage> is the number of input/outputs per page\n"
+                "    [ordering] by balance (default=true -> descending)");
+    }
+
+    // leading params = 0 (first param is <page>)
+    static const int LEADING_PARAMS = 0;
+
+    if (mapAddressBalances.empty())
+    {
+         throw runtime_error("No rich list.");
+    }
+
+    int64_t nRichListSize = GetRichListSize(nMaxDust);
+
+    pagination_t pg;
+    GetPagination(params, LEADING_PARAMS, nRichListSize, pg);
+
+    Object data;
+    GetRichList(pg.start, pg.max, data);
+
+    if (!pg.forward)
+    {
+        reverse(data.begin(), data.end());
+    }
+
+    Object result;
+    result.push_back(Pair("total", nRichListSize));
+    result.push_back(Pair("page", pg.page));
+    result.push_back(Pair("per_page", pg.per_page));
+    result.push_back(Pair("last_page", pg.last_page));
+    result.push_back(Pair("data", data));
+
+    return result;
+}
+
+
 
 
 //////////////////////////////////////////////////////////////////////////////

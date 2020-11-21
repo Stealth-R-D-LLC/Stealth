@@ -362,7 +362,8 @@ static const CRPCCommand vRPCCommands[] =
     { "getaddressoutputs",         &getaddressoutputs,          false,  false },
     { "gethdaccount",              &gethdaccount,               false,  false },
     { "getrichlistsize",           &getrichlistsize,            false,  false },
-    { "getrichlist",               &getrichlist,                false,  false }
+    { "getrichlist",               &getrichlist,                false,  false },
+    { "getrichlistpg",             &getrichlistpg,              false,  false }
 };
 
 CRPCTable::CRPCTable()
@@ -1384,6 +1385,12 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
                                 ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getrichlist"              && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getrichlistpg"            && n > 0)
+                                ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getrichlistpg"            && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getrichlistpg"            && n > 2)
+                                ConvertTo<bool>(params[2]);
 
     return params;
 }
