@@ -926,12 +926,12 @@ Value getrichlistpg(const Array &params, bool fHelp)
     {
         throw runtime_error(
                 "getrichlistpg <page> <perpage> [ordering]\n"
-                "Returns up to <perpage> of the rich list\n"
+                "Returns up to <perpage> addresses of the rich list\n"
                 "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
                 "  For example, <page>=2 and <perpage>=20 means to\n"
-                "  return in-outs 21 - 40 (if possible).\n"
+                "  return addresses ranking 21 - 40 (if possible).\n"
                 "    <page> is the page number\n"
-                "    <perpage> is the number of input/outputs per page\n"
+                "    <perpage> is the number of address per page\n"
                 "    [ordering] by balance (default=true -> descending)");
     }
 
