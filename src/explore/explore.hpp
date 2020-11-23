@@ -11,6 +11,8 @@
 #include "ExploreInOutLookup.hpp"
 #include "ExploreTxInfo.hpp"
 
+// ExploreInOutLookup IDs (harboring input/output flag)
+typedef std::vector<int> ExploreInOutList;
 
 class CBlock;
 class CTransaction;
@@ -28,7 +30,7 @@ extern MapBalanceCounts mapAddressBalances;
 void UpdateMapAddressBalances(const MapBalanceCounts& mapAddressBalancesAdd,
                               const std::set<int64_t>& setAddressBalancesRemove,
                               MapBalanceCounts& mapAddressBalancesRet);
- 
+
 bool ExploreConnectInput(CTxDB& txdb,
                          const CTransaction& tx,
                          const unsigned int n,

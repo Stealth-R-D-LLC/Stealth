@@ -27,6 +27,8 @@ public:
 
     int GetID() const;
 
+    int Get() const;
+
     bool IsInput() const;
 
     bool IsOutput() const;

@@ -324,6 +324,20 @@ bool CTxDB::AddrTxIsViable(const exploreKey_t& t, const string& addr, const int&
     return IsViable(key);
 }
 
+/*  AddrList
+ *  Parameters - t:type, addr:address, qty:quantity, value:inout_list
+ */
+bool CTxDB::RemoveAddrList(const exploreKey_t& t, const string& addr, const int& qty)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    return RemoveRecord(key);
+}
+bool CTxDB::AddrListIsViable(const exploreKey_t& t, const string& addr, const int& qty)
+{
+    pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+    return IsViable(key);
+}
+
 
 /*  AddrLookup
  *  Parameters - t:type, addr:address,

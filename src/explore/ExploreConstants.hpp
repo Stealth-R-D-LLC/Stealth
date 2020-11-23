@@ -49,6 +49,9 @@ const exploreKey_t ADDR_QTY_INOUT(EXPLORE_KEY, ADDR_QTY_INOUT_LABEL);
 const std::string ADDR_QTY_UNSPENT_LABEL = "AQU";
 const exploreKey_t ADDR_QTY_UNSPENT(EXPLORE_KEY, ADDR_QTY_UNSPENT_LABEL);
 
+const std::string ADDR_QTY_VIO_LABEL = "AQV";
+const exploreKey_t ADDR_QTY_VIO(EXPLORE_KEY, ADDR_QTY_VIO_LABEL);
+
 // Addr Tx
 const std::string ADDR_TX_INPUT_LABEL = "ATI";
 const exploreKey_t ADDR_TX_INPUT(EXPLORE_KEY, ADDR_TX_INPUT_LABEL);
@@ -62,6 +65,10 @@ const exploreKey_t ADDR_TX_INOUT(EXPLORE_KEY, ADDR_TX_INOUT_LABEL);
 // Addr Lookup
 const std::string ADDR_LOOKUP_OUTPUT_LABEL = "ALO";
 const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, ADDR_LOOKUP_OUTPUT_LABEL);
+
+// Addr List
+const std::string ADDR_LIST_VIO_LABEL = "ALV";
+const exploreKey_t ADDR_LIST_VIO(EXPLORE_KEY, ADDR_LIST_VIO_LABEL);
 
 // Addr Value
 const std::string ADDR_BALANCE_LABEL = "AB";

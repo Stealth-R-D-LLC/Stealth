@@ -40,6 +40,11 @@ int ExploreInOutLookup::GetID() const
     return nID & MASK_ADDR_TX;
 }
 
+int ExploreInOutLookup::Get() const
+{
+    return nID;
+}
+
 bool ExploreInOutLookup::IsInput() const
 {
     return (nID & FLAG_ADDR_TX) == FLAG_ADDR_TX;

@@ -292,7 +292,7 @@ public:
     bool WriteAddrQty(const exploreKey_t& t, const std::string& addr, const int& qty);
 
      // Parameters - t:type, addr:address, qty:quantity,
-     //              value:input_info|output_info|inout_lookup
+     //              value:input_info|output_info|inout_lookup|inout_list
     template<typename T>
     bool ReadAddrTx(const exploreKey_t& t, const string& addr, const int& qty,
                     T& value)
@@ -311,6 +311,26 @@ public:
 
     bool RemoveAddrTx(const exploreKey_t& t, const std::string& addr, const int& qty);
     bool AddrTxIsViable(const exploreKey_t& t, const std::string& addr, const int& qty);
+
+    template<typename T>
+    bool ReadAddrList(const exploreKey_t& t, const string& addr, const int& qty,
+                      T& value)
+    {
+        value.clear();
+        pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+        return ReadRecord(key, value);
+    }
+    template<typename T>
+    bool WriteAddrList(const exploreKey_t& t, const string& addr, const int& qty,
+                       const T& value)
+    {
+        pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
+        return Write(key, value);
+    }
+
+    bool RemoveAddrList(const exploreKey_t& t, const std::string& addr, const int& qty);
+    bool AddrListIsViable(const exploreKey_t& t, const std::string& addr, const int& qty);
+
     bool ReadAddrLookup(const exploreKey_t& t, const std::string& addr,
                         const uint256& txid, const int& n,
                         int& qtyRet);

@@ -347,7 +347,136 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the value out (new input increases value out)
+        * 5. add the in-out to the vIO (vector of in-outs)
+        ***************************************************************/
+        // read the index (qty vios)
+        int nQtyVIOStored;
+        if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIOStored))
+        {
+            return _Err("ExploreConnectInput() : can't read qty vios",
+                        strAddr, nQtyVIOStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        int nQtyVIO = nQtyVIOStored;
+        // read the vio if necessary (not the first tx for address)
+        ExploreInOutList vIO;
+        if (nQtyVIOStored == 0)
+        {
+            // first tx for this address
+            nQtyVIO += 1;
+        }
+        else if (nQtyVIOStored > 0)
+        {
+            // not the first tx for address, read the vio
+            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, vIO))
+            {
+                return _Err("ExploreConnectInput() : can't read in-out list",
+                            strAddr, nQtyVIOStored, txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+        }
+        else
+        {
+            // This should never happen: negative number of in-outs
+            return _Err("ExploreConnectInput() : TSNH negative txs",
+                        strAddr, nQtyVIOStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // nInOutID harbors flag to distinguish input or output
+        int nInOutID = newInOut.Get();
+        // The following loop
+        //    1. determines whether the list for this address-tx pair exists
+        //    2. ensures that the stored list has no duplicates
+        //    3. ensures that the stored list is all for the same tx
+        //    4. should all be in-memory and fast
+        uint256 txidStored;  // inits to 0 (false)
+        ExploreInOutList::const_iterator ioit;
+        for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
+        {
+            // nOtherID harbors flag to distinguish input or output
+            int nOtherID = (int)*ioit;
+            // sanity check: no duplicates
+            if (nOtherID == nInOutID)
+            {
+                // this should never happen: input is already in list
+                return _Err("ExploreConnectInput() : TSNH input already listed",
+                            strAddr, newInOut.GetID(), txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+            // It is slightly more expensive to read all the in-outs
+            // but we need to do a sanity check. Also, this should be fast.
+            uint256 txidOther;
+            ExploreInOutLookup otherInOut(nOtherID);
+            if (otherInOut.IsInput())
+            {
+                ExploreInputInfo otherIn;
+                if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, otherInOut.GetID(),
+                                     otherIn))
+                {
+                    return _Err("ExploreConnectInput() : can't read listed input",
+                                strAddr, otherInOut.GetID(), txid, n,
+                                txIn.prevout.hash, txIn.prevout.n);
+                }
+                txidOther = otherIn.txid;
+            }
+            else
+            {
+                ExploreOutputInfo otherOut;
+                if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, otherInOut.GetID(),
+                                     otherOut))
+                {
+                    return _Err("ExploreConnectInput() : can't read listed output",
+                                strAddr, otherInOut.GetID(), txid, n,
+                                txIn.prevout.hash, txIn.prevout.n);
+                }
+                txidOther = otherOut.txid;
+            }
+            if (!txidStored)
+            {
+                txidStored = txidOther;
+                if (txidStored != txid)
+                {
+                    nQtyVIO += 1;
+                }
+            }
+            // sanity check: ensure all in-outs are from the same tx
+            else if (txidOther != txidStored)
+            {
+                return _Err("ExploreConnectInput() : in-out from different tx",
+                            strAddr, otherInOut.GetID(), txidStored, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+        }
+        // write the new index record if necessary
+        if (nQtyVIO == nQtyVIOStored + 1)
+        {
+            if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+            {
+                return _Err("ExploreConnectInput() : can't write qty of txs",
+                            strAddr, nQtyVIO, txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+            vIO.clear();
+        }
+        // sanity check: ensure counter was not incremented more than once
+        else if (nQtyVIO > nQtyVIOStored + 1)
+        {
+            // This should never happen: nQtyVIO incremented more than once
+            return _Err("ExploreConnectInput() : TSNH qty vios overincrement",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // update or make a new record depending on qty vios
+        vIO.push_back(nInOutID);
+        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        {
+            return _Err("ExploreConnectInput() : can't write input",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+
+       /***************************************************************
+        * 6. update the value out (new input increases value out)
         ***************************************************************/
         int64_t nValueOut;
         if (!txdb.ReadAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
@@ -364,7 +493,7 @@ bool ExploreConnectInput(CTxDB& txdb,
 
 
        /***************************************************************
-        * 6. update the balance sets (for rich list, etc)
+        * 7. update the balance sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -599,7 +728,127 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the value in (new output increases value in)
+        * 5. add the in-out to the vIO (vector of in-outs)
+        ***************************************************************/
+        // read the index (qty vios)
+        int nQtyVIOStored;
+        if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIOStored))
+        {
+            return _Err("ExploreConnectOutput() : can't read qty vios",
+                        strAddr, nQtyVIOStored, txid, n);
+        }
+        int nQtyVIO = nQtyVIOStored;
+        // read the vio if necessary (not the first tx for address)
+        ExploreInOutList vIO;
+        if (nQtyVIOStored == 0)
+        {
+            // first tx for this address
+            nQtyVIO += 1;
+        }
+        else if (nQtyVIOStored > 0)
+        {
+            // not the first tx for address, read the vio
+            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, vIO))
+            {
+                return _Err("ExploreConnectOutput() : can't read in-out list",
+                            strAddr, nQtyVIOStored, txid, n);
+            }
+        }
+        else
+        {
+            // This should never happen: negative number of in-outs
+            return _Err("ExploreConnectOutput() : TSNH negative txs",
+                        strAddr, nQtyVIOStored, txid, n);
+        }
+        // nInOutID harbors flag to distinguish input or output
+        int nInOutID = newInOut.Get();
+        // The following loop
+        //    1. determines whether the list for this address-tx pair exists
+        //    2. ensures that the stored list has no duplicates
+        //    3. ensures that the stored list is all for the same tx
+        //    4. should all be in-memory and fast
+        uint256 txidStored;  // inits to 0 (false)
+        ExploreInOutList::const_iterator ioit;
+        for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
+        {
+            // nOtherID harbors flag to distinguish input or output
+            int nOtherID = (int)*ioit;
+            // sanity check: no duplicates
+            if (nOtherID == nInOutID)
+            {
+                // this should never happen: output is already in list
+                return _Err("ExploreConnectOutput() : TSNH output already listed",
+                            strAddr, newInOut.GetID(), txid, n);
+            }
+            // It is slightly more expensive to read all the in-outs
+            // but we need to do a sanity check. Also, this should be fast.
+            uint256 txidOther;
+            ExploreInOutLookup otherInOut(nOtherID);
+            if (otherInOut.IsInput())
+            {
+                ExploreInputInfo otherIn;
+                if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, otherInOut.GetID(),
+                                     otherIn))
+                {
+                    return _Err("ExploreConnectOutput() : can't read listed input",
+                                strAddr, otherInOut.GetID(), txid, n);
+                }
+                txidOther = otherIn.txid;
+            }
+            else
+            {
+                ExploreOutputInfo otherOut;
+                if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, otherInOut.GetID(),
+                                     otherOut))
+                {
+                    return _Err("ExploreConnectOutput() : can't read listed output",
+                                strAddr, otherInOut.GetID(), txid, n);
+                }
+                txidOther = otherOut.txid;
+            }
+            if (!txidStored)
+            {
+                txidStored = txidOther;
+                if (txidStored != txid)
+                {
+                    nQtyVIO += 1;
+                }
+            }
+            // sanity check: ensure all in-outs are from the same tx
+            else if (txidOther != txidStored)
+            {
+                return _Err("ExploreConnectOutput() : in-out from different tx",
+                            strAddr, otherInOut.GetID(), txidStored, n);
+            }
+        }
+        // write the new index record if necessary
+        if (nQtyVIO == nQtyVIOStored + 1)
+        {
+            if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+            {
+                return _Err("ExploreConnectOutput() : can't write qty of txs",
+                            strAddr, nQtyVIO, txid, n);
+            }
+            vIO.clear();
+        }
+        // sanity check: ensure counter was not incremented more than once
+        else if (nQtyVIO > nQtyVIOStored + 1)
+        {
+            // This should never happen: nQtyVIO incremented more than once
+            return _Err("ExploreConnectOutput() : TSNH qty vios overincrement",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // update or make a new record depending on qty vios
+        vIO.push_back(nInOutID);
+        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        {
+            return _Err("ExploreConnectOutput() : can't write input",
+                        strAddr, nQtyVIO, txid, n);
+        }
+
+
+       /***************************************************************
+        * 6. update the value in (new output increases value in)
         ***************************************************************/
         int64_t nValueIn;
         if (!txdb.ReadAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
@@ -615,7 +864,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 6. update the balance address sets (for rich list, etc)
+        * 7. update the balance address sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -968,7 +1217,81 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 4. update the balance
+        * 4. remove the in-out from the vIO (vector of in-outs)
+        ***************************************************************/
+        // read the index (qty txs)
+        int nQtyVIO;
+        if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+        {
+            return _Err("ExploreDisconnectOutput() : can't read qty vios",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // sanity checks: (1) must be a tx to update, (2) no negative txs
+        if (nQtyVIO == 0)
+        {
+            // This should never happen: no txs
+            return _Err("ExploreDisconnectOutput() : TSNH no txs",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        else if (nQtyVIO < 0)
+        {
+            // This should never happen: negative number of txs
+            return _Err("ExploreDisconnectOutput() : TSNH negative txs",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // read the vio
+        ExploreInOutList vIO;
+        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        {
+            return _Err("ExploreDisconnectOutput() : can't read vio",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // sanity check: vio should not be empty
+        if (vIO.empty())
+        {
+            // This should never happen: vio is empty
+            return _Err("ExploreDisconnectOutput() : TSNH vio is empty",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // sanity check: last vIO should be the same as the current vio index
+        if (storedInOut.Get() != vIO.back())
+        {
+            // This should never happen: vio is inconsistent
+            return _Err("ExploreDisconnectOutput() : TSNH vio inconsistent",
+                        strAddr, nQtyVIO, txid, n);
+        }
+        // pop the most recent vio
+        vIO.pop_back();
+        // last vio of the list, erase the current vio and decrement the index
+        if (vIO.empty())
+        {
+            if (!txdb.RemoveAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO))
+            {
+                // This should never happen: can not remove vio record
+                return _Err("ExploreDisconnectOutput() : TSNH can't remove vio",
+                            strAddr, nQtyVIO, txid, n);
+            }
+            nQtyVIO -= 1;
+            if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+            {
+                // This should never happen: can't write qty vios
+                return _Err("ExploreDisconnectOutput() : TSNH can't write qty vios",
+                            strAddr, nQtyVIO, txid, n);
+            }
+        }
+        // vio still has in-outs, keep it around
+        else
+        {
+            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+            {
+                // This should never happen: can't write the vio
+                return _Err("ExploreConnectInput() : TSNH can't write vio",
+                            strAddr, nQtyVIO, txid, n);
+            }
+        }
+
+       /***************************************************************
+        * 5. update the balance
         ***************************************************************/
         int64_t nBalanceOld;
         if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
@@ -991,7 +1314,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the value in (removed output decreases value in)
+        * 6. update the value in (removed output decreases value in)
         ***************************************************************/
         int64_t nValueIn;
         if (!txdb.ReadAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
@@ -1006,7 +1329,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
                         strAddr, -1, txid, n);
         }
         nValueIn -= nValue;
-        // no desire to remove evidence of this address here, even if no value in 
+        // no desire to remove evidence of this address here, even if no value in
         if (!txdb.WriteAddrValue(ADDR_VALUEIN, strAddr, nValueIn))
         {
             return _Err("ExploreDisconnectOutput() : can't write addr value in",
@@ -1014,7 +1337,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 6. update the balance sets (for rich list, etc)
+        * 7. update the balance sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -1249,7 +1572,90 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 3. mark the prevout as unspent
+        * 3. remove the in-out from the vIO (vector of in-outs)
+        ***************************************************************/
+        // read the index (qty txs)
+        int nQtyVIO;
+        if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+        {
+            return _Err("ExploreDisconnectInput() : can't read qty vios",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // sanity checks: (1) must be a tx to update, (2) no negative txs
+        if (nQtyVIO == 0)
+        {
+            // This should never happen: no txs
+            return _Err("ExploreDisconnectInput() : TSNH no txs",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        else if (nQtyVIO < 0)
+        {
+            // This should never happen: negative number of txs
+            return _Err("ExploreDisconnectInput() : TSNH negative txs",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // read the vio
+        ExploreInOutList vIO;
+        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        {
+            return _Err("ExploreDisconnectInput() : can't read vio",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // sanity check: vio should not be empty
+        if (vIO.empty())
+        {
+            // This should never happen: vio is empty
+            return _Err("ExploreDisconnectInput() : TSNH vio is empty",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // sanity check: last vIO should be the same as the current vio index
+        if (storedInOut.Get() != vIO.back())
+        {
+            // This should never happen: vio is inconsistent
+            return _Err("ExploreDisconnectInput() : TSNH vio inconsistent",
+                        strAddr, nQtyVIO, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // pop the most recent vio
+        vIO.pop_back();
+        // last vio of the list, erase the current vio and decrement the index
+        if (vIO.empty())
+        {
+            if (!txdb.RemoveAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO))
+            {
+                // This should never happen: can not remove vio record
+                return _Err("ExploreDisconnectInput() : TSNH can't remove vio",
+                            strAddr, nQtyVIO, txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+            nQtyVIO -= 1;
+            if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
+            {
+                // This should never happen: can't write qty vios
+                return _Err("ExploreDisconnectInput() : TSNH can't write qty vios",
+                            strAddr, nQtyVIO, txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+        }
+        // vio still has in-outs, keep it around
+        else
+        {
+            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+            {
+                // This should never happen: can't write the vio
+                return _Err("ExploreConnectInput() : TSNH can't write vio",
+                            strAddr, nQtyVIO, txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+            }
+        }
+
+       /***************************************************************
+        * 4. mark the prevout as unspent
         ***************************************************************/
         // lookup the OutputID
         int nOutputID = -1;
@@ -1321,7 +1727,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 4. update the balance
+        * 5. update the balance
         ***************************************************************/
         int64_t nBalanceOld;
         if (!txdb.ReadAddrValue(ADDR_BALANCE, strAddr, nBalanceOld))
@@ -1339,7 +1745,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. update the value out (removed input decreases value out)
+        * 6. update the value out (removed input decreases value out)
         ***************************************************************/
         int64_t nValueOut;
         if (!txdb.ReadAddrValue(ADDR_VALUEOUT, strAddr, nValueOut))
@@ -1363,7 +1769,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 6. update the balance address sets (for rich list, etc)
+        * 7. update the balance address sets (for rich list, etc)
         ***************************************************************/
         set<string> setAddr;
         // no tracking of dust balances here
@@ -1485,7 +1891,7 @@ bool ExploreDisconnectTx(CTxDB& txdb, const CTransaction &tx)
 
     return true;
 }
-                             
+
 
 bool ExploreDisconnectBlock(CTxDB& txdb, const CBlock *const block)
 {
