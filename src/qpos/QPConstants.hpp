@@ -72,16 +72,6 @@ enum ProofTypes
     PROOFTYPE_QPOS = 1 << 2
 };
 
-inline ProofTypes operator|(ProofTypes a, ProofTypes b)
-{
-    return static_cast<ProofTypes>(static_cast<int>(a) | static_cast<int>(b));
-}
-
-inline ProofTypes operator&(ProofTypes a, ProofTypes b)
-{
-    return static_cast<ProofTypes>(static_cast<int>(a) & static_cast<int>(b));
-}
-
 uint32_t bit_length(uint32_t v);
 uint32_t uisqrt(uint32_t n);
 uint64_t bit_length(uint64_t v);

@@ -17,7 +17,30 @@ using namespace std;
 
 static const unsigned int SEC_PER_DAY = 86400;
 
-// TODO: Use a proper data structure for all this
+enum RPCExpTxFlags
+{
+    // tx types
+    RPCEXP_NONE           = EXPLORE_TXFLAGS_NONE,           // 0
+    RPCEXP_COINBASE       = EXPLORE_TXFLAGS_COINBASE,       // 1 << 0
+    RPCEXP_COINSTAKE      = EXPLORE_TXFLAGS_COINSTAKE,      // 1 << 1
+    // Junaeth output types
+    RPCEXP_PURCHASE1      = EXPLORE_TXFLAGS_PURCHASE1,      // 1 << 6
+    RPCEXP_PURCHASE3      = EXPLORE_TXFLAGS_PURCHASE3,      // 1 << 7
+    RPCEXP_SETOWNER       = EXPLORE_TXFLAGS_SETOWNER,       // 1 << 8
+    RPCEXP_SETDELEGATE    = EXPLORE_TXFLAGS_SETDELEGATE,    // 1 << 9
+    RPCEXP_SETCONTROLLER  = EXPLORE_TXFLAGS_SETCONTROLLER,  // 1 << 10
+    RPCEXP_ENAGLE         = EXPLORE_TXFLAGS_ENABLE,         // 1 << 11
+    RPCEXP_DISABLE        = EXPLORE_TXFLAGS_DISABLE,        // 1 << 12
+    RPCEXP_CLAIM          = EXPLORE_TXFLAGS_CLAIM,          // 1 << 13
+    RPCEXP_SETMETA        = EXPLORE_TXFLAGS_SETMETA,        // 1 << 14
+    // the following are high (1<<28 -> 1<<30) to ensure room for new TX types
+    RPCEXP_SEND           = 1 << 28,
+    RPCEXP_RECEIVE        = 1 << 29,
+    RPCEXP_TOSELF         = 1 << 30   // max because int is signed
+};
+
+
+// TODO: Use a proper data structure for all this.
 // To save needless creation and destruction of data structures,
 // this comparator is highly specific to the ordering of the json_spirit
 // return values in GetInputInfo() and GetOutputInfo() below.
@@ -68,7 +91,6 @@ struct inout_comparator
 };
 
 typedef set<Object, inout_comparator> setInOutObj_t;
-
 
 //
 // Pagination
@@ -175,6 +197,13 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
          throw runtime_error("TSNH: Can't read balance.");
     }
 
+    int nQtyVIO;
+    if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddress, nQtyVIO))
+    {
+         throw runtime_error("TSNH: Can't read number of transactions.");
+    }
+
+
     int nQtyOutputs;
     if (!txdb.ReadAddrQty(ADDR_QTY_OUTPUT, strAddress, nQtyOutputs))
     {
@@ -227,6 +256,7 @@ void GetAddrInfo(const string& strAddress, Object& objRet)
     objRet.push_back(Pair("address", strAddress));
     objRet.push_back(Pair("balance", ValueFromAmount(nBalance)));
     objRet.push_back(Pair("rank", (boost::int64_t)nRank));
+    objRet.push_back(Pair("transactions", (boost::int64_t)nQtyVIO));
     objRet.push_back(Pair("outputs", (boost::int64_t)nQtyOutputs));
     objRet.push_back(Pair("received", ValueFromAmount(nValueIn)));
     objRet.push_back(Pair("inputs", (boost::int64_t)nQtyInputs));
@@ -256,35 +286,41 @@ Value getaddressinfo(const Array &params, bool fHelp)
 void GetInputInfo(CTxDB& txdb,
                   const string& strAddress,
                   const int i,
-                  Object& objRet)
+                  ExploreInputInfo& input,
+                  ExploreTxInfo& tx,
+                  Object& objCommon,
+                  Object& objInput)
 {
-    ExploreInputInfo input;
     if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddress, i, input))
     {
         throw runtime_error("TSNH: Problem reading input.");
     }
-
-    ExploreTxInfo tx;
     if (!txdb.ReadTxInfo(input.txid, tx))
     {
         throw runtime_error("TSNH: Problem reading transaction.");
     }
-    // do not change the ordering of these key-value pairs
-    // because they are used for sorting with inout_comparator above
-    objRet.push_back(Pair("address", strAddress));
-    objRet.push_back(Pair("height", (boost::int64_t)tx.height));
-    objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
-    objRet.push_back(Pair("vin", (boost::int64_t)input.vin));
+    // ========================== IMPORTANT =============================
+    // 1. Do not change the ordering of these key-value pairs
+    //    because they are used for sorting with inout_comparator above.
+    // 2. Ensure to match the items and their ordering to GetOutputInfo
+    //    because they are used for higher level reporting
+    //    (e.g. getaddresstxspg).
+    // ==================================================================
+    objCommon.push_back(Pair("address", strAddress));
+    // begin of comparator attributes
+    objInput.push_back(Pair("height", (boost::int64_t)tx.height));
+    objInput.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
+    objInput.push_back(Pair("vin", (boost::int64_t)input.vin));
     // end of comparator attributes
-    objRet.push_back(Pair("txid", input.txid.GetHex()));
-    objRet.push_back(Pair("blockhash", tx.blockhash.GetHex()));
+    objCommon.push_back(Pair("txid", input.txid.GetHex()));
+    objCommon.push_back(Pair("balance", ValueFromAmount(input.balance)));
+    objCommon.push_back(Pair("blockhash", tx.blockhash.GetHex()));
     boost::int64_t nConfs = 1 + nBestHeight - tx.height;
-    objRet.push_back(Pair("confirmations", nConfs));
-    objRet.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
-    objRet.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
-    objRet.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
-    objRet.push_back(Pair("amount", ValueFromAmount(input.amount)));
-    objRet.push_back(Pair("balance", ValueFromAmount(input.balance)));
+    objCommon.push_back(Pair("confirmations", nConfs));
+    objCommon.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
+    objInput.push_back(Pair("prev_txid", input.prev_txid.GetHex()));
+    objInput.push_back(Pair("prev_vout", (boost::int64_t)input.prev_vout));
+    objInput.push_back(Pair("amount", ValueFromAmount(input.amount)));
     // TODO: add this at some point?
     // objRet.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
 }
@@ -300,8 +336,10 @@ void GetAddrInputs(CTxDB& txdb,
     int nStop = min(nStart + nMax - 1, nQtyInputs);
     for (int i = nStart; i <= nStop; ++i)
     {
+        ExploreInputInfo input;
+        ExploreTxInfo tx;
         Object entry;
-        GetInputInfo(txdb, strAddress, i, entry);
+        GetInputInfo(txdb, strAddress, i, input, tx, entry, entry);
         aryRet.push_back(entry);
    }
 }
@@ -366,44 +404,56 @@ Value getaddressinputs(const Array &params, bool fHelp)
 }
 
 
+// take care if reusing tx, it will not be read if populated
 void GetOutputInfo(CTxDB& txdb,
                    const string& strAddress,
                    const int i,
-                   Object& objRet)
+                   ExploreOutputInfo& output,
+                   ExploreTxInfo& tx,
+                   Object& objCommon,
+                   Object& objOutput)
 {
-    ExploreOutputInfo output;
     if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddress, i, output))
     {
         throw runtime_error("TSNH: Problem reading output.");
     }
-    ExploreTxInfo tx;
-    if (!txdb.ReadTxInfo(output.txid, tx))
+    if (tx.IsNull())
     {
-        throw runtime_error("TSNH: Problem reading transaction.");
+        if (!txdb.ReadTxInfo(output.txid, tx))
+        {
+            throw runtime_error("TSNH: Problem reading transaction.");
+        }
     }
-    // do not change the ordering of these key-value pairs
-    // because they are used for sorting with inout_comparator above
-    objRet.push_back(Pair("address", strAddress));
-    objRet.push_back(Pair("height", (boost::int64_t)tx.height));
-    objRet.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
-    objRet.push_back(Pair("vout", (boost::int64_t)output.vout));
+
+    // ========================== IMPORTANT =============================
+    // 1. Do not change the ordering of these key-value pairs
+    //    because they are used for sorting with inout_comparator above.
+    // 2. Ensure to match the items and their ordering to GetInputInfo
+    //    because they are used for higher level reporting
+    //    (e.g. getaddresstxspg).
+    // ==================================================================
+    objCommon.push_back(Pair("address", strAddress));
+    // begin of comparator attributes
+    objOutput.push_back(Pair("height", (boost::int64_t)tx.height));
+    objOutput.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
+    objOutput.push_back(Pair("vout", (boost::int64_t)output.vout));
     // end of comparator attributes
-    objRet.push_back(Pair("txid", output.txid.GetHex()));
-    objRet.push_back(Pair("amount", ValueFromAmount(output.amount)));
-    objRet.push_back(Pair("balance", ValueFromAmount(output.balance)));
-    objRet.push_back(Pair("blockhash", tx.blockhash.GetHex()));
+    objCommon.push_back(Pair("txid", output.txid.GetHex()));
+    objOutput.push_back(Pair("amount", ValueFromAmount(output.amount)));
+    objCommon.push_back(Pair("balance", ValueFromAmount(output.balance)));
+    objCommon.push_back(Pair("blockhash", tx.blockhash.GetHex()));
     boost::int64_t nConfs = 1 + nBestHeight - tx.height;
-    objRet.push_back(Pair("confirmations", nConfs));
-    objRet.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
+    objCommon.push_back(Pair("confirmations", nConfs));
+    objCommon.push_back(Pair("blocktime", (boost::int64_t)tx.blocktime));
     if (output.IsSpent())
     {
-        objRet.push_back(Pair("isspent", "true"));
-        objRet.push_back(Pair("next_txid", output.next_txid.GetHex()));
-        objRet.push_back(Pair("next_vin", (boost::int64_t)output.next_vin));
+        objOutput.push_back(Pair("isspent", "true"));
+        objOutput.push_back(Pair("next_txid", output.next_txid.GetHex()));
+        objOutput.push_back(Pair("next_vin", (boost::int64_t)output.next_vin));
     }
     else
     {
-        objRet.push_back(Pair("isspent", "false"));
+        objOutput.push_back(Pair("isspent", "false"));
     }
 }
 
@@ -418,8 +468,10 @@ void GetAddrOutputs(CTxDB& txdb,
     int nStop = min(nStart + nMax - 1, nQtyOutputs);
     for (int i = nStart; i <= nStop; ++i)
     {
+        ExploreOutputInfo output;
+        ExploreTxInfo tx;
         Object entry;
-        GetOutputInfo(txdb, strAddress, i, entry);
+        GetOutputInfo(txdb, strAddress, i, output, tx, entry, entry);
         aryRet.push_back(entry);
    }
 }
@@ -484,11 +536,163 @@ Value getaddressoutputs(const Array &params, bool fHelp)
     return result;
 }
 
+void GetAddrTx(CTxDB& txdb,
+               const string& strAddress,
+               const int i,
+               Object& objTxRet)
+{
+    ExploreInOutList vIO;
+    if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddress, i, vIO))
+    {
+        throw runtime_error("TSNH: Can't read transaction in-outs");
+    }
+    // sanity check: ensure the vio has transactions
+    if (vIO.empty())
+    {
+        throw runtime_error("TSNH: transaction has no in-outs");
+    }
+    setInOutObj_t setInputs;
+    setInOutObj_t setOutputs;
+    ExploreTxInfo txinfoTo;
+    Object objCommon;
+    BOOST_FOREACH(const int& j, vIO)
+    {
+        // FIXME: instead of clearing each time, check if null on populating
+        objCommon.clear();
+        ExploreInOutLookup inout;
+        if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddress, j, inout))
+        {
+            throw runtime_error("TSNH: Problem reading inout.");
+        }
+        if (inout.IsInput())
+        {
+            ExploreInputInfo input;
+            ExploreTxInfo tx;
+            Object objInput;
+            GetInputInfo(txdb, strAddress, inout.GetID(),
+                         input, tx, objCommon, objInput);
+            setInputs.insert(objInput);
+        }
+        else
+        {
+            ExploreOutputInfo output;
+            Object objOutput;
+            GetOutputInfo(txdb, strAddress, inout.GetID(),
+                          output, txinfoTo, objCommon, objOutput);
+            setOutputs.insert(objOutput);
+        }
+    }
+    if (objCommon.size() < 6)
+    {
+         throw runtime_error("TSNH: common data is incomplete");
+    }
+    if (objCommon.size() > 6)
+    {
+         throw runtime_error("TSNH: common data is excessive");
+    }
+    Array aryInputs;
+    Array aryOutputs;
+    BOOST_FOREACH(const Object& item, setInputs)
+    {
+        aryInputs.push_back(item);
+    }
+    BOOST_FOREACH(const Object& item, setInputs)
+    {
+        aryOutputs.push_back(item);
+    }
+    // FIXME: ugly to hard code indices here
+    // address
+    objTxRet.push_back(objCommon[0]);
+    // balance
+    objTxRet.push_back(objCommon[2]);
+    objTxRet.push_back(Pair("inputs", aryInputs));
+    objTxRet.push_back(Pair("outputs", aryOutputs));
+    Object objTxInfoTo;
+    txinfoTo.AsJSON(objTxInfoTo);
+    // confirmations
+    objTxInfoTo.push_back(objCommon[4]);
+    objTxRet.push_back(Pair("txinfo", objTxInfoTo));
+}
+
+void GetAddrTxs(CTxDB& txdb,
+                const string& strAddress,
+                const int nStart,
+                const int nMax,
+                const int nQtyTxs,
+                Array& aryTxsRet)
+{
+    int nStop = min(nStart + nMax - 1, nQtyTxs);
+    for (int i = nStart; i <= nStop; ++i)
+    {
+        Object objTx;
+        GetAddrTx(txdb, strAddress, i, objTx);
+    }
+}
+
+Value getaddresstxspg(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 3) || (params.size() > 4))
+    {
+        throw runtime_error(
+                "getaddressinoutspg <address> <page> <perpage> [ordering]\n"
+                "Returns up to <perpage> transactions of <address>\n"
+                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+                "  For example, <page>=2 and <perpage>=20 means to\n"
+                "  return transactions 21 - 40 (if possible).\n"
+                "    <page> is the page number\n"
+                "    <perpage> is the number of transactions per page\n"
+                "    [ordering] by blockchain position (default=true -> forward)");
+    }
+
+    // leading params = 1 (1st param is <address>, 2nd is <page>)
+    static const unsigned int LEADING_PARAMS = 1;
+
+    string strAddress = params[0].get_str();
+
+    CTxDB txdb;
+
+    int nQtyTxs;
+    if (!txdb.ReadAddrQty(ADDR_QTY_VIO, strAddress, nQtyTxs))
+    {
+         throw runtime_error("TSNH: Can't read number of transactions.");
+    }
+
+    if (nQtyTxs == 0)
+    {
+         throw runtime_error("Address has no transactions.");
+    }
+
+    pagination_t pg;
+    GetPagination(params, LEADING_PARAMS, nQtyTxs, pg);
+
+    // data's elements are objects with the structure:
+    //    "address": string
+    //    "balance": int
+    //    "inputs": array
+    //    "outputs": array
+    //    "txinfo" : object (JSON of ExploreTxInfo) + "confirmations"
+    Array data;
+    GetAddrTxs(txdb, strAddress, pg.start, pg.max, nQtyTxs, data);
+
+    if (!pg.forward)
+    {
+        reverse(data.begin(), data.end());
+    }
+
+    Object result;
+    result.push_back(Pair("total", nQtyTxs));
+    result.push_back(Pair("page", pg.page));
+    result.push_back(Pair("per_page", pg.per_page));
+    result.push_back(Pair("last_page", pg.last_page));
+    result.push_back(Pair("data", data));
+
+    return result;
+}
 
 void GetAddrInOut(CTxDB& txdb,
-                   const string& strAddress,
-                   const int i,
-                   setInOutObj_t& setObj)
+                  const string& strAddress,
+                  const int i,
+                  setInOutObj_t& setObjRet)
 {
     ExploreInOutLookup inout;
     if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddress, i, inout))
@@ -498,30 +702,34 @@ void GetAddrInOut(CTxDB& txdb,
     Object entry;
     if (inout.IsInput())
     {
-        GetInputInfo(txdb, strAddress, inout.GetID(), entry);
+        ExploreInputInfo input;
+        ExploreTxInfo tx;
+        GetInputInfo(txdb, strAddress, inout.GetID(),
+                     input, tx, entry, entry);
     }
     else
     {
-        GetOutputInfo(txdb, strAddress, inout.GetID(), entry);
+        ExploreOutputInfo output;
+        ExploreTxInfo tx;
+        GetOutputInfo(txdb, strAddress, inout.GetID(),
+                      output, tx, entry, entry);
     }
-    setObj.insert(entry);
+    setObjRet.insert(entry);
 }
-
 
 void GetAddrInOuts(CTxDB& txdb,
                    const string& strAddress,
                    const int nStart,
                    const int nMax,
                    const int nQtyInOuts,
-                   setInOutObj_t& setObj)
+                   setInOutObj_t& setObjRet)
 {
     int nStop = min(nStart + nMax - 1, nQtyInOuts);
     for (int i = nStart; i <= nStop; ++i)
     {
-        GetAddrInOut(txdb, strAddress, i, setObj);
+        GetAddrInOut(txdb, strAddress, i, setObjRet);
     }
 }
-
 
 Value getaddressinouts(const Array &params, bool fHelp)
 {
@@ -588,7 +796,6 @@ Value getaddressinouts(const Array &params, bool fHelp)
 
     return result;
 }
-
 
 Value getaddressinoutspg(const Array &params, bool fHelp)
 {

@@ -14,11 +14,23 @@
 
 typedef std::vector<ExploreDestination> VecDest;
 
-enum ExploreTxType
+// shameless overloading to save storage
+enum ExploreTxFlags
 {
-    EXPLORE_TXTYPE_NONE,
-    EXPLORE_TXTYPE_COINBASE,
-    EXPLORE_TXTYPE_COINSTAKE
+    // tx types
+    EXPLORE_TXFLAGS_NONE           = 0,
+    EXPLORE_TXFLAGS_COINBASE       = 1 << 0,
+    EXPLORE_TXFLAGS_COINSTAKE      = 1 << 1,
+    // Junaeth output types
+    EXPLORE_TXFLAGS_PURCHASE1      = 1 << 6,
+    EXPLORE_TXFLAGS_PURCHASE3      = 1 << 7,
+    EXPLORE_TXFLAGS_SETOWNER       = 1 << 8,
+    EXPLORE_TXFLAGS_SETDELEGATE    = 1 << 9,
+    EXPLORE_TXFLAGS_SETCONTROLLER  = 1 << 10,
+    EXPLORE_TXFLAGS_ENABLE         = 1 << 11,
+    EXPLORE_TXFLAGS_DISABLE        = 1 << 12,
+    EXPLORE_TXFLAGS_CLAIM          = 1 << 13,
+    EXPLORE_TXFLAGS_SETMETA        = 1 << 14
 };
 
 const char* GetExploreTxType(int t);
@@ -30,13 +42,17 @@ private:
     int nVersion;
 public:
     static const int CURRENT_VERSION = 1;
+
+    static const int MASK_TXTYPE = EXPLORE_TXFLAGS_COINBASE |
+                                   EXPLORE_TXFLAGS_COINSTAKE;
+
     uint256 blockhash;
     unsigned int blocktime;
     int height;
     int vtx;
-    VecDest destinations;
-    unsigned int vin_size;
-    int txtype;
+    VecDest vfrom;
+    VecDest vto;
+    int txflags;
 
     void SetNull();
 
@@ -46,10 +62,13 @@ public:
                   const unsigned int blocktimeIn,
                   const int heightIn,
                   const int vtxIn,
-                  const VecDest& destinationsIn,
-                  const unsigned int vin_sizeIn,
-                  const int txtypeIn);
+                  const VecDest& vfromIn,
+                  const VecDest& vtoIn,
+                  const int txflagsIn);
 
+    bool IsNull() const;
+
+    void FlagsAsJSON(json_spirit::Object objRet) const;
     void AsJSON(json_spirit::Object objRet) const;
 
     IMPLEMENT_SERIALIZE
@@ -60,9 +79,9 @@ public:
         READWRITE(blocktime);
         READWRITE(height);
         READWRITE(vtx);
-        READWRITE(destinations);
-        READWRITE(vin_size);
-        READWRITE(txtype);
+        READWRITE(vfrom);
+        READWRITE(vto);
+        READWRITE(txflags);
     )
 };
 

@@ -57,12 +57,10 @@ bool _Err(const char *pmsg,
 }
 
 
-void ExploreGetDestinations(const CTransaction& tx, VecDest& vret)
+void ExploreGetDestinations(const vector<CTxOut>& vout, VecDest& vret)
 {
-    for (unsigned int n = 0; n < tx.vout.size(); ++n)
+    BOOST_FOREACH(const CTxOut& txout, vout)
     {
-        const CTxOut& txout = tx.vout[n];
-
         vector<string> vAddrs;
         int nReq;
         const char* type;
@@ -134,6 +132,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                          const unsigned int n,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
+                         vector<CTxOut> vPrevOutRet,
                          MapBalanceCounts& mapAddressBalancesAddRet,
                          set<int64_t>& setAddressBalancesRemoveRet)
 {
@@ -149,6 +148,7 @@ bool ExploreConnectInput(CTxDB& txdb,
         return error("ExploreConnectInput() : TSNH input %u has insoluble script: %s\n", n,
                      txid.ToString().c_str());
     }
+    vPrevOutRet.push_back(txOut);
     switch (typetxo)
     {
     // standard destinations
@@ -964,21 +964,23 @@ bool ExploreConnectTx(CTxDB& txdb,
 
     uint256 txid = tx.GetHash();
 
-    ExploreTxType txtype = EXPLORE_TXTYPE_NONE;
+    int txflags = EXPLORE_TXFLAGS_NONE;
 
+    vector<CTxOut> vPrevOut;
     if (tx.IsCoinBase())
     {
-        txtype = EXPLORE_TXTYPE_COINBASE;
+        txflags = EXPLORE_TXFLAGS_COINBASE;
     }
     else
     {
         if (tx.IsCoinStake())
         {
-            txtype = EXPLORE_TXTYPE_COINSTAKE;
+            txflags = EXPLORE_TXFLAGS_COINSTAKE;
         }
         for (unsigned int n = 0; n < tx.vin.size(); ++n)
         {
             ExploreConnectInput(txdb, tx, n, mapInputs, txid,
+                                vPrevOut,
                                 mapAddressBalancesAdd,
                                 setAddressBalancesRemove);
         }
@@ -989,13 +991,70 @@ bool ExploreConnectTx(CTxDB& txdb,
         ExploreConnectOutput(txdb, tx, n, txid,
                              mapAddressBalancesAdd,
                              setAddressBalancesRemove);
+
+        const CTxOut txOut = tx.vout[n];
+        const CScript &script = txOut.scriptPubKey;
+        txnouttype typetxo;
+        vector<valtype> vSolutions;
+        if (!Solver(script, typetxo, vSolutions))
+        {
+            // this should never happen: input has insoluble script
+            return error("ExploreConnectTx() : TSNH input %u has insoluble script: %s\n", n,
+                         txid.ToString().c_str());
+        }
+        switch (typetxo)
+        {
+        case TX_PUBKEY:
+        case TX_PUBKEYHASH:
+            break;
+        case TX_CLAIM:
+            txflags |= EXPLORE_TXFLAGS_CLAIM;
+            break;
+        case TX_SCRIPTHASH:
+        // nonstandard
+        case TX_NONSTANDARD:
+        // musltisig
+        case TX_MULTISIG:
+            break;
+        // qPoS (standard)
+        case TX_PURCHASE1:
+            txflags |= EXPLORE_TXFLAGS_PURCHASE1;
+            break;
+        case TX_PURCHASE3:
+            txflags |= EXPLORE_TXFLAGS_PURCHASE3;
+            break;
+        case TX_SETOWNER:
+            txflags |= EXPLORE_TXFLAGS_SETOWNER;
+            break;
+        case TX_SETDELEGATE:
+            txflags |= EXPLORE_TXFLAGS_SETDELEGATE;
+            break;
+        case TX_SETCONTROLLER:
+            txflags |= EXPLORE_TXFLAGS_SETCONTROLLER;
+            break;
+        case TX_ENABLE:
+            txflags |= EXPLORE_TXFLAGS_ENABLE;
+            break;
+        case TX_DISABLE:
+            txflags |= EXPLORE_TXFLAGS_DISABLE;
+            break;
+        case TX_SETMETA:
+            txflags |= EXPLORE_TXFLAGS_SETMETA;
+            break;
+        // null data
+        case TX_NULL_DATA:
+        default:
+            break;
+        }  // switch
     }
 
-    VecDest vDest;
-    ExploreGetDestinations(tx, vDest);
+    VecDest vFrom;
+    ExploreGetDestinations(vPrevOut, vFrom);
+    VecDest vTo;
+    ExploreGetDestinations(tx.vout, vTo);
 
     ExploreTxInfo txInfo(hashBlock, nBlockTime, nHeight, nVtx,
-                         vDest, tx.vin.size(), (int)txtype);
+                         vFrom, vTo, txflags);
 
     txdb.WriteTxInfo(txid, txInfo);
 
@@ -1165,13 +1224,13 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         int nQtyInOuts;
         if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddr, nQtyInOuts))
         {
-            return _Err("ExploreConnectOutput() : can't read qty in-outs",
+            return _Err("ExploreDisconnectOutput() : can't read qty in-outs",
                         strAddr, nQtyInOuts, txid, n);
         }
         if (nQtyInOuts < 1)
         {
             // This should never happen: negative number of in-outs
-            return _Err("ExploreConnectOutput() : TSNH no in-outs",
+            return _Err("ExploreDisconnectOutput() : TSNH no in-outs",
                         strAddr, nQtyInOuts, txid, n);
         }
         // read the in-out lookup
@@ -1285,7 +1344,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
             {
                 // This should never happen: can't write the vio
-                return _Err("ExploreConnectInput() : TSNH can't write vio",
+                return _Err("ExploreDisconnectOutput() : TSNH can't write vio",
                             strAddr, nQtyVIO, txid, n);
             }
         }
@@ -1648,7 +1707,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
             if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
             {
                 // This should never happen: can't write the vio
-                return _Err("ExploreConnectInput() : TSNH can't write vio",
+                return _Err("ExploreDisconnectInput() : TSNH can't write vio",
                             strAddr, nQtyVIO, txid, n,
                             txIn.prevout.hash, txIn.prevout.n);
             }
