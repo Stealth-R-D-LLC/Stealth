@@ -626,6 +626,7 @@ void GetAddrTxs(CTxDB& txdb,
     {
         Object objTx;
         GetAddrTx(txdb, strAddress, i, objTx);
+        aryTxsRet.push_back(objTx);
     }
 }
 
