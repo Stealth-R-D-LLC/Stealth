@@ -634,7 +634,7 @@ Value getaddresstxspg(const Array &params, bool fHelp)
     if (fHelp || (params.size() < 3) || (params.size() > 4))
     {
         throw runtime_error(
-                "getaddressinoutspg <address> <page> <perpage> [ordering]\n"
+                "getaddresstxspg <address> <page> <perpage> [ordering]\n"
                 "Returns up to <perpage> transactions of <address>\n"
                 "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
                 "  For example, <page>=2 and <perpage>=20 means to\n"

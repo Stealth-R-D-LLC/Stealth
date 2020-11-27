@@ -243,6 +243,7 @@ extern json_spirit::Value getaddressbalance(const json_spirit::Array& params, bo
 extern json_spirit::Value getaddressinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinputs(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressoutputs(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getaddresstxspg(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinouts(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinoutspg(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value gethdaccount(const json_spirit::Array& params, bool fHelp);

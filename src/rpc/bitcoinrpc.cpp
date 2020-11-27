@@ -357,6 +357,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getaddressbalance",         &getaddressbalance,          false,  false },
     { "getaddressinfo",            &getaddressinfo,             false,  false },
     { "getaddressinputs",          &getaddressinputs,           false,  false },
+    { "getaddresstxspg",           &getaddresstxspg,            false,  false },
     { "getaddressinouts",          &getaddressinouts,           false,  false },
     { "getaddressinoutspg",        &getaddressinoutspg,         false,  false },
     { "getaddressoutputs",         &getaddressoutputs,          false,  false },
@@ -1369,6 +1370,12 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getaddressoutputs"        && n > 2)
                                 ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddresstxspg"       && n > 1)
+                                ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getaddresstxspg"       && n > 2)
+                                ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "getaddresstxspg"       && n > 3)
+                                ConvertTo<bool>(params[3]);
     if (strMethod == "getaddressinouts"         && n > 1)
                                 ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "getaddressinouts"         && n > 2)
