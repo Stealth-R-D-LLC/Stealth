@@ -998,9 +998,7 @@ bool ExploreConnectTx(CTxDB& txdb,
         vector<valtype> vSolutions;
         if (!Solver(script, typetxo, vSolutions))
         {
-            // this should never happen: input has insoluble script
-            return error("ExploreConnectTx() : TSNH input %u has insoluble script: %s\n", n,
-                         txid.ToString().c_str());
+            continue;
         }
         switch (typetxo)
         {
