@@ -595,7 +595,7 @@ void GetAddrTx(CTxDB& txdb,
     // txinfo
     Object objTxInfo;
     txinfo.AsJSON(objTxInfo);
-    objTxInfo.insert(objTxInfo.begin() + 2, objCommon[0]);  // height
+    objTxInfo.insert(objTxInfo.begin() + 2, objCommon[1]);  // height
     objTxInfo.push_back(objCommon[5]);  // confirmations
     // result
     objTxRet.push_back(objCommon[0]);  // txid
