@@ -71,7 +71,7 @@ bool ExploreTxInfo::IsNull() const
     return false;
 }
 
-void ExploreTxInfo::FlagsAsJSON(json_spirit::Object objRet) const
+void ExploreTxInfo::FlagsAsJSON(json_spirit::Object& objRet) const
 {
     json_spirit::Array aryFlags;
     if (txflags & EXPLORE_TXFLAGS_COINBASE)
@@ -124,7 +124,7 @@ void ExploreTxInfo::FlagsAsJSON(json_spirit::Object objRet) const
     }
 }
 
-void ExploreTxInfo::AsJSON(json_spirit::Object objRet) const
+void ExploreTxInfo::AsJSON(json_spirit::Object& objRet) const
 {
     objRet.push_back(json_spirit::Pair("blockhash", blockhash.GetHex()));
     objRet.push_back(json_spirit::Pair("blocktime",

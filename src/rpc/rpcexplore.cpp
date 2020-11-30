@@ -109,7 +109,7 @@ struct pagination_t {
 void GetPagination(const Array& params, const unsigned int nLeadingParams,
                    const int nTotal, pagination_t& pgRet)
 {
-    pgRet.page = params[0 + nLeadingParams].get_int();
+    pgRet.page = params[nLeadingParams].get_int();
     if (pgRet.page < 1)
     {
          throw runtime_error("Number of pages must be greater than 1.");
@@ -127,6 +127,7 @@ void GetPagination(const Array& params, const unsigned int nLeadingParams,
         pgRet.forward = params[2 + nLeadingParams].get_bool();
     }
 
+    int nFinish;
     if (pgRet.forward)
     {
         pgRet.start = 1 + ((pgRet.page - 1) * pgRet.per_page);
@@ -134,18 +135,22 @@ void GetPagination(const Array& params, const unsigned int nLeadingParams,
         {
              throw runtime_error("Start exceeds total number of in-outs.");
         }
+        nFinish = min(pgRet.start + pgRet.per_page - 1, nTotal);
     }
     else
     {
-        int nFirst = 1 + nTotal - (pgRet.page * pgRet.per_page);
-        if (nFirst <= 1 - nTotal)
+        // calculate as if the sequence is reversed
+        int nFirst_r = 1 + ((pgRet.page - 1) * pgRet.per_page);
+        if (nFirst_r > nTotal)
         {
-             // finish is start in reverse
-             throw runtime_error("Finish exceeds total number of in-outs.");
+             throw runtime_error("Start exceeds total number of in-outs.");
         }
+        int nLast_r = pgRet.page * pgRet.per_page;
+        // now reverse those calculations
+        int nFirst = 1 + (nTotal - nLast_r);
         pgRet.start = max(1, nFirst);
+        nFinish = 1 + (nTotal - nFirst_r);
     }
-    int nFinish = min(pgRet.start + pgRet.per_page - 1, nTotal);
     pgRet.max = min(nFinish - pgRet.start + 1, pgRet.per_page);
     pgRet.last_page = 1 + (nTotal - 1) / pgRet.per_page;
 }
@@ -295,9 +300,12 @@ void GetInputInfo(CTxDB& txdb,
     {
         throw runtime_error("TSNH: Problem reading input.");
     }
-    if (!txdb.ReadTxInfo(input.txid, tx))
+    if (tx.IsNull())
     {
-        throw runtime_error("TSNH: Problem reading transaction.");
+        if (!txdb.ReadTxInfo(input.txid, tx))
+        {
+            throw runtime_error("TSNH: Problem reading transaction.");
+        }
     }
     // ========================== IMPORTANT =============================
     // 1. Do not change the ordering of these key-value pairs
@@ -306,13 +314,13 @@ void GetInputInfo(CTxDB& txdb,
     //    because they are used for higher level reporting
     //    (e.g. getaddresstxspg).
     // ==================================================================
-    objCommon.push_back(Pair("address", strAddress));
+    objCommon.push_back(Pair("txid", input.txid.GetHex()));
     // begin of comparator attributes
-    objInput.push_back(Pair("height", (boost::int64_t)tx.height));
+    objCommon.push_back(Pair("height", (boost::int64_t)tx.height));
     objInput.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objInput.push_back(Pair("vin", (boost::int64_t)input.vin));
     // end of comparator attributes
-    objCommon.push_back(Pair("txid", input.txid.GetHex()));
+    objCommon.push_back(Pair("address", strAddress));
     objCommon.push_back(Pair("balance", ValueFromAmount(input.balance)));
     objCommon.push_back(Pair("blockhash", tx.blockhash.GetHex()));
     boost::int64_t nConfs = 1 + nBestHeight - tx.height;
@@ -424,7 +432,6 @@ void GetOutputInfo(CTxDB& txdb,
             throw runtime_error("TSNH: Problem reading transaction.");
         }
     }
-
     // ========================== IMPORTANT =============================
     // 1. Do not change the ordering of these key-value pairs
     //    because they are used for sorting with inout_comparator above.
@@ -432,13 +439,13 @@ void GetOutputInfo(CTxDB& txdb,
     //    because they are used for higher level reporting
     //    (e.g. getaddresstxspg).
     // ==================================================================
-    objCommon.push_back(Pair("address", strAddress));
+    objCommon.push_back(Pair("txid", output.txid.GetHex()));
     // begin of comparator attributes
-    objOutput.push_back(Pair("height", (boost::int64_t)tx.height));
+    objCommon.push_back(Pair("height", (boost::int64_t)tx.height));
     objOutput.push_back(Pair("vtx", (boost::int64_t)tx.vtx));
     objOutput.push_back(Pair("vout", (boost::int64_t)output.vout));
     // end of comparator attributes
-    objCommon.push_back(Pair("txid", output.txid.GetHex()));
+    objCommon.push_back(Pair("address", strAddress));
     objOutput.push_back(Pair("amount", ValueFromAmount(output.amount)));
     objCommon.push_back(Pair("balance", ValueFromAmount(output.balance)));
     objCommon.push_back(Pair("blockhash", tx.blockhash.GetHex()));
@@ -551,67 +558,51 @@ void GetAddrTx(CTxDB& txdb,
     {
         throw runtime_error("TSNH: transaction has no in-outs");
     }
-    setInOutObj_t setInputs;
-    setInOutObj_t setOutputs;
-    ExploreTxInfo txinfoTo;
+    Array aryInputs;
+    Array aryOutputs;
+    ExploreTxInfo txinfo;
     Object objCommon;
     BOOST_FOREACH(const int& j, vIO)
     {
-        // FIXME: instead of clearing each time, check if null on populating
         objCommon.clear();
-        ExploreInOutLookup inout;
-        if (!txdb.ReadAddrTx(ADDR_TX_INOUT, strAddress, j, inout))
-        {
-            throw runtime_error("TSNH: Problem reading inout.");
-        }
+        ExploreInOutLookup inout(j);
         if (inout.IsInput())
         {
             ExploreInputInfo input;
-            ExploreTxInfo tx;
             Object objInput;
             GetInputInfo(txdb, strAddress, inout.GetID(),
-                         input, tx, objCommon, objInput);
-            setInputs.insert(objInput);
+                         input, txinfo, objCommon, objInput);
+            aryInputs.push_back(objInput);
         }
         else
         {
             ExploreOutputInfo output;
             Object objOutput;
             GetOutputInfo(txdb, strAddress, inout.GetID(),
-                          output, txinfoTo, objCommon, objOutput);
-            setOutputs.insert(objOutput);
+                          output, txinfo, objCommon, objOutput);
+            aryOutputs.push_back(objOutput);
         }
     }
-    if (objCommon.size() < 6)
+    if (objCommon.size() < 7)
     {
          throw runtime_error("TSNH: common data is incomplete");
     }
-    if (objCommon.size() > 6)
+    if (objCommon.size() > 7)
     {
          throw runtime_error("TSNH: common data is excessive");
     }
-    Array aryInputs;
-    Array aryOutputs;
-    BOOST_FOREACH(const Object& item, setInputs)
-    {
-        aryInputs.push_back(item);
-    }
-    BOOST_FOREACH(const Object& item, setInputs)
-    {
-        aryOutputs.push_back(item);
-    }
     // FIXME: ugly to hard code indices here
-    // address
-    objTxRet.push_back(objCommon[0]);
-    // balance
-    objTxRet.push_back(objCommon[2]);
-    objTxRet.push_back(Pair("inputs", aryInputs));
-    objTxRet.push_back(Pair("outputs", aryOutputs));
-    Object objTxInfoTo;
-    txinfoTo.AsJSON(objTxInfoTo);
-    // confirmations
-    objTxInfoTo.push_back(objCommon[4]);
-    objTxRet.push_back(Pair("txinfo", objTxInfoTo));
+    // txinfo
+    Object objTxInfo;
+    txinfo.AsJSON(objTxInfo);
+    objTxInfo.insert(objTxInfo.begin() + 2, objCommon[0]);  // height
+    objTxInfo.push_back(objCommon[5]);  // confirmations
+    // result
+    objTxRet.push_back(objCommon[0]);  // txid
+    objTxRet.push_back(objCommon[3]);  // balance
+    objTxRet.push_back(Pair("address_inputs", aryInputs));
+    objTxRet.push_back(Pair("address_outputs", aryOutputs));
+    objTxRet.push_back(Pair("txinfo", objTxInfo));
 }
 
 void GetAddrTxs(CTxDB& txdb,
@@ -1323,8 +1314,7 @@ Value GetWindowedValue(const Array& params,
 
     unsigned int nTime = pindexBest->nTime;
 
-    // asdf use different block
-    if (nTime < pindexGenesisBlock->nTime)
+    if (nTime < pindexGenesisBlock->pnext->nTime)
     {
         throw runtime_error("TSNH: Invalid block time.\n");
     }

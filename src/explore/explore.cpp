@@ -132,7 +132,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                          const unsigned int n,
                          const MapPrevTx& mapInputs,
                          const uint256& txid,
-                         vector<CTxOut> vPrevOutRet,
+                         vector<CTxOut>& vPrevOutRet,
                          MapBalanceCounts& mapAddressBalancesAddRet,
                          set<int64_t>& setAddressBalancesRemoveRet)
 {
@@ -358,7 +358,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         int nQtyVIO = nQtyVIOStored;
-        // read the vio if necessary (not the first tx for address)
+        // read the vio if necessary (necessary when not first tx for address)
         ExploreInOutList vIO;
         if (nQtyVIOStored == 0)
         {
@@ -382,8 +382,23 @@ bool ExploreConnectInput(CTxDB& txdb,
                         strAddr, nQtyVIOStored, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        // nInOutID harbors flag to distinguish input or output
-        int nInOutID = newInOut.Get();
+        if ((nQtyVIOStored == 0) & !vIO.empty())
+        {
+            // This should never happen: negative number of in-outs
+            return _Err("ExploreConnectInput() : TSNH populated vio",
+                        strAddr, nQtyVIOStored, txid, n,
+                        txIn.prevout.hash, txIn.prevout.n);
+        }
+        // nNewData harbors flag to distinguish input or output
+        int nNewData = newInOut.Get();
+        if (nNewData < 0)
+        {
+                return _Err(strprintf("ExploreConnectInput() : "
+                                      "TSNH inout data negative (%d)",
+                                      nNewData).c_str(),
+                            strAddr, newInOut.GetID(), txid, n,
+                            txIn.prevout.hash, txIn.prevout.n);
+        }
         // The following loop
         //    1. determines whether the list for this address-tx pair exists
         //    2. ensures that the stored list has no duplicates
@@ -393,10 +408,10 @@ bool ExploreConnectInput(CTxDB& txdb,
         ExploreInOutList::const_iterator ioit;
         for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
         {
-            // nOtherID harbors flag to distinguish input or output
-            int nOtherID = (int)*ioit;
+            // nOtherData harbors flag to distinguish input or output
+            int nOtherData = (int)*ioit;
             // sanity check: no duplicates
-            if (nOtherID == nInOutID)
+            if (nOtherData == nNewData)
             {
                 // this should never happen: input is already in list
                 return _Err("ExploreConnectInput() : TSNH input already listed",
@@ -406,7 +421,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             // It is slightly more expensive to read all the in-outs
             // but we need to do a sanity check. Also, this should be fast.
             uint256 txidOther;
-            ExploreInOutLookup otherInOut(nOtherID);
+            ExploreInOutLookup otherInOut(nOtherData);
             if (otherInOut.IsInput())
             {
                 ExploreInputInfo otherIn;
@@ -448,7 +463,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             }
         }
         // write the new index record if necessary
-        if (nQtyVIO == nQtyVIOStored + 1)
+        if (nQtyVIO == (nQtyVIOStored + 1))
         {
             if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
             {
@@ -456,10 +471,11 @@ bool ExploreConnectInput(CTxDB& txdb,
                             strAddr, nQtyVIO, txid, n,
                             txIn.prevout.hash, txIn.prevout.n);
             }
+            // new record means new vio
             vIO.clear();
         }
         // sanity check: ensure counter was not incremented more than once
-        else if (nQtyVIO > nQtyVIOStored + 1)
+        else if (nQtyVIO > (nQtyVIOStored + 1))
         {
             // This should never happen: nQtyVIO incremented more than once
             return _Err("ExploreConnectInput() : TSNH qty vios overincrement",
@@ -467,10 +483,10 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // update or make a new record depending on qty vios
-        vIO.push_back(nInOutID);
+        vIO.push_back(nNewData);
         if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
         {
-            return _Err("ExploreConnectInput() : can't write input",
+            return _Err("ExploreConnectInput() : can't write vio",
                         strAddr, nQtyVIO, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
@@ -760,8 +776,19 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return _Err("ExploreConnectOutput() : TSNH negative txs",
                         strAddr, nQtyVIOStored, txid, n);
         }
-        // nInOutID harbors flag to distinguish input or output
-        int nInOutID = newInOut.Get();
+        if ((nQtyVIOStored == 0) & !vIO.empty())
+        {
+            // This should never happen: negative number of in-outs
+            return _Err("ExploreConnectOutput() : TSNH populated vio",
+                        strAddr, nQtyVIOStored, txid, n);
+        }
+        // nNewData harbors flag to distinguish input or output
+        int nNewData = newInOut.Get();
+        if (nNewData < 0)
+        {
+                return _Err("ExploreConnectOutput() : TSNH inout data negative",
+                            strAddr, newInOut.GetID(), txid, n);
+        }
         // The following loop
         //    1. determines whether the list for this address-tx pair exists
         //    2. ensures that the stored list has no duplicates
@@ -771,10 +798,10 @@ bool ExploreConnectOutput(CTxDB& txdb,
         ExploreInOutList::const_iterator ioit;
         for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
         {
-            // nOtherID harbors flag to distinguish input or output
-            int nOtherID = (int)*ioit;
+            // nOtherData harbors flag to distinguish input or output
+            int nOtherData = (int)*ioit;
             // sanity check: no duplicates
-            if (nOtherID == nInOutID)
+            if (nOtherData == nNewData)
             {
                 // this should never happen: output is already in list
                 return _Err("ExploreConnectOutput() : TSNH output already listed",
@@ -783,7 +810,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             // It is slightly more expensive to read all the in-outs
             // but we need to do a sanity check. Also, this should be fast.
             uint256 txidOther;
-            ExploreInOutLookup otherInOut(nOtherID);
+            ExploreInOutLookup otherInOut(nOtherData);
             if (otherInOut.IsInput())
             {
                 ExploreInputInfo otherIn;
@@ -822,30 +849,30 @@ bool ExploreConnectOutput(CTxDB& txdb,
             }
         }
         // write the new index record if necessary
-        if (nQtyVIO == nQtyVIOStored + 1)
+        if (nQtyVIO == (nQtyVIOStored + 1))
         {
             if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
             {
                 return _Err("ExploreConnectOutput() : can't write qty of txs",
                             strAddr, nQtyVIO, txid, n);
             }
+            // new record means new vio
             vIO.clear();
         }
         // sanity check: ensure counter was not incremented more than once
-        else if (nQtyVIO > nQtyVIOStored + 1)
+        else if (nQtyVIO > (nQtyVIOStored + 1))
         {
             // This should never happen: nQtyVIO incremented more than once
             return _Err("ExploreConnectOutput() : TSNH qty vios overincrement",
                         strAddr, nQtyVIO, txid, n);
         }
         // update or make a new record depending on qty vios
-        vIO.push_back(nInOutID);
+        vIO.push_back(nNewData);
         if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
         {
-            return _Err("ExploreConnectOutput() : can't write input",
+            return _Err("ExploreConnectOutput() : can't write vio",
                         strAddr, nQtyVIO, txid, n);
         }
-
 
        /***************************************************************
         * 6. update the value in (new output increases value in)

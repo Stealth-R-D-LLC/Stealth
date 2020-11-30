@@ -12,7 +12,7 @@ class ExploreInOutLookup
 {
 private:
     int nVersion;
-    int nID;
+    int nData;
 
 public:
     static const int CURRENT_VERSION = 1;
@@ -21,7 +21,7 @@ public:
 
     ExploreInOutLookup();
 
-    ExploreInOutLookup(int nIDIn);
+    ExploreInOutLookup(int nDataIn);
 
     ExploreInOutLookup(int nIDIn, bool fIsInputIn);
 
@@ -37,7 +37,7 @@ public:
     (
         READWRITE(this->nVersion);
         nVersion = this->nVersion;
-        READWRITE(nID);
+        READWRITE(nData);
     )
 
 };

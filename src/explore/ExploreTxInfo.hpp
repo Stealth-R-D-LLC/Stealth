@@ -68,8 +68,8 @@ public:
 
     bool IsNull() const;
 
-    void FlagsAsJSON(json_spirit::Object objRet) const;
-    void AsJSON(json_spirit::Object objRet) const;
+    void FlagsAsJSON(json_spirit::Object& objRet) const;
+    void AsJSON(json_spirit::Object& objRet) const;
 
     IMPLEMENT_SERIALIZE
     (

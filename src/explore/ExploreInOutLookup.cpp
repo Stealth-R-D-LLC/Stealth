@@ -11,7 +11,7 @@ using namespace std;
 void ExploreInOutLookup::SetNull()
 {
     nVersion = ExploreInOutLookup::CURRENT_VERSION;
-    nID = -1;
+    nData = -1;
 }
 
 ExploreInOutLookup::ExploreInOutLookup()
@@ -19,39 +19,39 @@ ExploreInOutLookup::ExploreInOutLookup()
     SetNull();
 }
 
-ExploreInOutLookup::ExploreInOutLookup(int nIDIn)
+ExploreInOutLookup::ExploreInOutLookup(int nDataIn)
 {
     nVersion = ExploreInOutLookup::CURRENT_VERSION;
-    nID = nIDIn;
+    nData = nDataIn;
 }
 
-ExploreInOutLookup::ExploreInOutLookup(int nIDIn, bool fIsInputIn)
+ExploreInOutLookup::ExploreInOutLookup(int nIndexIn, bool fIsInputIn)
 {
     nVersion = ExploreInOutLookup::CURRENT_VERSION;
-    nID = nIDIn;
+    nData = nIndexIn;
     if (fIsInputIn)
     {
-        nID |= FLAG_ADDR_TX;
+        nData |= FLAG_ADDR_TX;
     }
 }
 
 int ExploreInOutLookup::GetID() const
 {
-    return nID & MASK_ADDR_TX;
+    return nData & MASK_ADDR_TX;
 }
 
 int ExploreInOutLookup::Get() const
 {
-    return nID;
+    return nData;
 }
 
 bool ExploreInOutLookup::IsInput() const
 {
-    return (nID & FLAG_ADDR_TX) == FLAG_ADDR_TX;
+    return (nData & FLAG_ADDR_TX) == FLAG_ADDR_TX;
 }
 
 bool ExploreInOutLookup::IsOutput() const
 {
-    return (nID & FLAG_ADDR_TX) == 0;
+    return (nData & FLAG_ADDR_TX) == 0;
 }
 
