@@ -5212,6 +5212,7 @@ bool LoadExternalBlockFile(FILE* fileIn)
     printf("Loaded %i blocks from external file in %" PRId64 "ms\n", nLoaded, GetTimeMillis() - nStart);
     if (GetBoolArg("-quitonbootstrap", false))
     {
+       printf("Quitting after bootstrap to block %d.\n", nBestHeight);
        exit(EXIT_SUCCESS);
     }
     return nLoaded > 0;
