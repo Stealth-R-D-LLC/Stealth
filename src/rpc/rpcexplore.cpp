@@ -17,28 +17,6 @@ using namespace std;
 
 static const unsigned int SEC_PER_DAY = 86400;
 
-enum RPCExpTxFlags
-{
-    // tx types
-    RPCEXP_NONE           = EXPLORE_TXFLAGS_NONE,           // 0
-    RPCEXP_COINBASE       = EXPLORE_TXFLAGS_COINBASE,       // 1 << 0
-    RPCEXP_COINSTAKE      = EXPLORE_TXFLAGS_COINSTAKE,      // 1 << 1
-    // Junaeth output types
-    RPCEXP_PURCHASE1      = EXPLORE_TXFLAGS_PURCHASE1,      // 1 << 6
-    RPCEXP_PURCHASE3      = EXPLORE_TXFLAGS_PURCHASE3,      // 1 << 7
-    RPCEXP_SETOWNER       = EXPLORE_TXFLAGS_SETOWNER,       // 1 << 8
-    RPCEXP_SETDELEGATE    = EXPLORE_TXFLAGS_SETDELEGATE,    // 1 << 9
-    RPCEXP_SETCONTROLLER  = EXPLORE_TXFLAGS_SETCONTROLLER,  // 1 << 10
-    RPCEXP_ENAGLE         = EXPLORE_TXFLAGS_ENABLE,         // 1 << 11
-    RPCEXP_DISABLE        = EXPLORE_TXFLAGS_DISABLE,        // 1 << 12
-    RPCEXP_CLAIM          = EXPLORE_TXFLAGS_CLAIM,          // 1 << 13
-    RPCEXP_SETMETA        = EXPLORE_TXFLAGS_SETMETA,        // 1 << 14
-    // the following are high (1<<28 -> 1<<30) to ensure room for new TX types
-    RPCEXP_SEND           = 1 << 28,
-    RPCEXP_RECEIVE        = 1 << 29,
-    RPCEXP_TOSELF         = 1 << 30   // max because int is signed
-};
-
 
 // TODO: Use a proper data structure for all this.
 // To save needless creation and destruction of data structures,
