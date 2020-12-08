@@ -898,7 +898,8 @@ Value getchildkey(const Array &params, bool fHelp)
     return obj;
 }
 
-bool GetAddrInOutForHDChild(const HDKeychain& hdChild,
+bool GetAddrInOutForHDChild(CTxDB& txdb,
+                            const Bip32::HDKeychain& hdChild,
                             setInOutObj_t& setObjRet)
 {
     uchar_vector vchPub = uchar_vector(hdChild.key());
@@ -956,7 +957,7 @@ Value gethdaccount(const Array &params, bool fHelp)
     for (uint32_t nChild = 0; nChild < chainParams.MAX_HD_CHILDREN; ++nChild)
     {
         Bip32::HDKeychain hdChild(hdExternal.getChild(nChild));
-        if (!GetAddrInOutForHDChild(hdChild, setObj))
+        if (!GetAddrInOutForHDChild(txdb, hdChild, setObj))
         {
             break;
         }
@@ -966,7 +967,7 @@ Value gethdaccount(const Array &params, bool fHelp)
     for (uint32_t nChild = 0; nChild < chainParams.MAX_HD_CHILDREN; ++nChild)
     {
         Bip32::HDKeychain hdChild(hdChange.getChild(nChild));
-        if (!GetAddrInOutForHDChild(hdChild, setObj))
+        if (!GetAddrInOutForHDChild(txdb, hdChild, setObj))
         {
             break;
         }
