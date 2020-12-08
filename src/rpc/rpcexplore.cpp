@@ -898,6 +898,34 @@ Value getchildkey(const Array &params, bool fHelp)
     return obj;
 }
 
+bool GetAddrInOutForHDChild(const HDKeychain& hdChild,
+                            setInOutObj_t& setObjRet)
+{
+    uchar_vector vchPub = uchar_vector(hdChild.key());
+    CPubKey pubKey(vchPub);
+    CKeyID keyID = pubKey.GetID();
+    CBitcoinAddress address;
+    address.Set(keyID);
+    string strAddress = address.ToString();
+
+    if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
+    {
+        return false;
+    }
+
+    int nQtyInOuts;
+    if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+    {
+         throw runtime_error("TSNH: Can't read number of in-outs.");
+    }
+
+    for (int i = 1; i <= nQtyInOuts; ++i)
+    {
+        GetAddrInOut(txdb, strAddress, i, setObjRet);
+    }
+
+    return true;
+}
 
 Value gethdaccount(const Array &params, bool fHelp)
 {
@@ -928,28 +956,19 @@ Value gethdaccount(const Array &params, bool fHelp)
     for (uint32_t nChild = 0; nChild < chainParams.MAX_HD_CHILDREN; ++nChild)
     {
         Bip32::HDKeychain hdChild(hdExternal.getChild(nChild));
-        uchar_vector vchPub = uchar_vector(hdChild.key());
-
-        CPubKey pubKey(vchPub);
-        CKeyID keyID = pubKey.GetID();
-        CBitcoinAddress address;
-        address.Set(keyID);
-        string strAddress = address.ToString();
-
-        if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
+        if (!GetAddrInOutForHDChild(hdChild, setObj))
         {
             break;
         }
+    }
 
-        int nQtyInOuts;
-        if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+    // gather change
+    for (uint32_t nChild = 0; nChild < chainParams.MAX_HD_CHILDREN; ++nChild)
+    {
+        Bip32::HDKeychain hdChild(hdChange.getChild(nChild));
+        if (!GetAddrInOutForHDChild(hdChild, setObj))
         {
-             throw runtime_error("TSNH: Can't read number of in-outs.");
-        }
-
-        for (int i = 1; i <= nQtyInOuts; ++i)
-        {
-            GetAddrInOut(txdb, strAddress, i, setObj);
+            break;
         }
     }
 
