@@ -70,6 +70,9 @@ const exploreKey_t ADDR_LOOKUP_OUTPUT(EXPLORE_KEY, ADDR_LOOKUP_OUTPUT_LABEL);
 const std::string ADDR_LIST_VIO_LABEL = "ALV";
 const exploreKey_t ADDR_LIST_VIO(EXPLORE_KEY, ADDR_LIST_VIO_LABEL);
 
+const std::string ADDR_LIST_TXDESC_LABEL = "ALT";
+const exploreKey_t ADDR_LIST_TXDESC(EXPLORE_KEY, ADDR_LIST_TXDESC_LABEL);
+
 // Addr Value
 const std::string ADDR_BALANCE_LABEL = "AB";
 const exploreKey_t ADDR_BALANCE(EXPLORE_KEY, ADDR_BALANCE_LABEL);
@@ -85,8 +88,8 @@ const std::string ADDR_SET_BAL_LABEL = "ASB";
 const exploreKey_t ADDR_SET_BAL(EXPLORE_KEY, ADDR_SET_BAL_LABEL);
 
 // Tx Info
-const std::string TX_INFO_LABEL = "TI";
-const exploreKey_t TX_INFO(EXPLORE_KEY, TX_INFO_LABEL);
+const std::string EXPLORE_TX_LABEL = "ETX";
+const exploreKey_t EXPLORE_TX(EXPLORE_KEY, EXPLORE_TX_LABEL);
 
 
 #endif  // _EXPLORECONSTANTS_H_

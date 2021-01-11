@@ -99,7 +99,7 @@ bool QPSlotInfo::IsValid() const
     return status != QPSLOT_INVALID;
 }
 
-void QPSlotInfo::AsJSON(int64_t nTimeIn, json_spirit::Object &objRet) const
+void QPSlotInfo::AsJSON(int64_t nTimeIn, Object &objRet) const
 {
     objRet.clear();
     objRet.push_back(Pair("slot", static_cast<int64_t>(nSlot)));
@@ -113,7 +113,7 @@ void QPSlotInfo::AsJSON(int64_t nTimeIn, json_spirit::Object &objRet) const
     objRet.push_back(Pair("time_until", GetTimeUntil(nTimeIn)));
 }
 
-void QPSlotInfo::AsJSON(json_spirit::Object &objRet) const
+void QPSlotInfo::AsJSON(Object &objRet) const
 {
     return AsJSON(nTime, objRet);
 }

@@ -11,12 +11,9 @@
 class ExploreInOutLookup
 {
 private:
-    int nVersion;
     int nData;
 
 public:
-    static const int CURRENT_VERSION = 1;
-
     void SetNull();
 
     ExploreInOutLookup();
@@ -35,8 +32,6 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
         READWRITE(nData);
     )
 

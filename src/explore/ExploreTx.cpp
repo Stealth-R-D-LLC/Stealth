@@ -3,15 +3,16 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "ExploreConstants.hpp"
-#include "ExploreTxInfo.hpp"
+#include "ExploreTx.hpp"
 
 #include <boost/foreach.hpp>
 
+using namespace json_spirit;
 using namespace std;
 
 const char* GetExploreTxType(int t)
 {
-    switch (t & ExploreTxInfo::MASK_TXTYPE)
+    switch (t & ExploreTx::MASK_TXTYPE)
     {
     case (int)EXPLORE_TXFLAGS_NONE:      return "none";
     case (int)EXPLORE_TXFLAGS_COINBASE:  return "coinbase";
@@ -21,9 +22,9 @@ const char* GetExploreTxType(int t)
     return NULL;
 }
 
-void ExploreTxInfo::SetNull()
+void ExploreTx::SetNull()
 {
-    nVersion = ExploreTxInfo::CURRENT_VERSION;
+    nVersion = ExploreTx::CURRENT_VERSION;
     blockhash = 0;
     blocktime = 0;
     height = -1;
@@ -33,20 +34,20 @@ void ExploreTxInfo::SetNull()
     txflags = (int)EXPLORE_TXFLAGS_NONE;
 }
 
-ExploreTxInfo::ExploreTxInfo()
+ExploreTx::ExploreTx()
 {
     SetNull();
 }
 
-ExploreTxInfo::ExploreTxInfo(const uint256& blockhashIn,
-              const unsigned int blocktimeIn,
-              const int heightIn,
-              const int vtxIn,
-              const VecDest& vfromIn,
-              const VecDest& vtoIn,
-              const int txflagsIn)
+ExploreTx::ExploreTx(const uint256& blockhashIn,
+                     const unsigned int blocktimeIn,
+                     const int heightIn,
+                     const int vtxIn,
+                     const VecDest& vfromIn,
+                     const VecDest& vtoIn,
+                     const int txflagsIn)
 {
-    nVersion = ExploreTxInfo::CURRENT_VERSION;
+    nVersion = ExploreTx::CURRENT_VERSION;
     blockhash = blockhashIn;
     blocktime = blocktimeIn;
     height = heightIn;
@@ -56,7 +57,7 @@ ExploreTxInfo::ExploreTxInfo(const uint256& blockhashIn,
     txflags = txflagsIn;
 }
 
-bool ExploreTxInfo::IsNull() const
+bool ExploreTx::IsNull() const
 {
     if ( (blockhash == 0) &&
          (blocktime == 0) &&
@@ -71,9 +72,27 @@ bool ExploreTxInfo::IsNull() const
     return false;
 }
 
-void ExploreTxInfo::FlagsAsJSON(json_spirit::Object& objRet) const
+bool ExploreTx::operator < (const ExploreTx& other) const
 {
-    json_spirit::Array aryFlags;
+    if (height != other.height)
+    {
+        return (height < other.height);
+    }
+    return (vtx < other.vtx);
+}
+
+bool ExploreTx::operator > (const ExploreTx& other) const
+{
+    if (height != other.height)
+    {
+        return (height > other.height);
+    }
+    return (vtx > other.vtx);
+}
+
+void ExploreTx::FlagsAsJSON(Object& objRet) const
+{
+    Array aryFlags;
     if (txflags & EXPLORE_TXFLAGS_COINBASE)
     {
         aryFlags.push_back("coinbase");
@@ -120,38 +139,44 @@ void ExploreTxInfo::FlagsAsJSON(json_spirit::Object& objRet) const
     }
     if (aryFlags.size() > 0)
     {
-        objRet.push_back(json_spirit::Pair("txflags", aryFlags));
+        objRet.push_back(Pair("txflags", aryFlags));
     }
 }
 
-void ExploreTxInfo::AsJSON(json_spirit::Object& objRet) const
+void ExploreTx::AsJSON(Object& objRet,
+                           const int nBestHeight) const
 {
-    objRet.push_back(json_spirit::Pair("blockhash", blockhash.GetHex()));
-    objRet.push_back(json_spirit::Pair("blocktime",
+    objRet.push_back(Pair("blockhash", blockhash.GetHex()));
+    objRet.push_back(Pair("blocktime",
                                        (boost::int64_t)blocktime));
-
-    objRet.push_back(json_spirit::Pair("vtx", (boost::int64_t)vtx));
-    json_spirit::Array aryFrom;
+    objRet.push_back(Pair("height", (boost::int64_t)height));
+    if (nBestHeight >= 0)
+    {
+        int confs = 1 + nBestHeight - height;
+        objRet.push_back(Pair("confirmations",
+                                           (boost::int64_t)confs));
+    }
+    objRet.push_back(Pair("vtx", (boost::int64_t)vtx));
+    Array aryFrom;
     BOOST_FOREACH(const ExploreDestination& dest, vfrom)
     {
-        json_spirit::Object objDest;
+        Object objDest;
         dest.AsJSON(objDest);
         aryFrom.push_back(objDest);
     }
-    objRet.push_back(json_spirit::Pair("sources", aryFrom));
-    json_spirit::Array aryTo;
+    objRet.push_back(Pair("sources", aryFrom));
+    Array aryTo;
     BOOST_FOREACH(const ExploreDestination& dest, vto)
     {
-        json_spirit::Object objDest;
+        Object objDest;
         dest.AsJSON(objDest);
         aryTo.push_back(objDest);
     }
-    objRet.push_back(json_spirit::Pair("destinations", aryTo));
+    objRet.push_back(Pair("destinations", aryTo));
     if (txflags & MASK_TXTYPE)
     {
         string strTxType(GetExploreTxType(txflags));
-        objRet.push_back(json_spirit::Pair("txtype", strTxType));
+        objRet.push_back(Pair("txtype", strTxType));
     }
     FlagsAsJSON(objRet);
 }
-

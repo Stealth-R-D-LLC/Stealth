@@ -17,10 +17,7 @@
 #include <leveldb/db.h>
 #include <leveldb/write_batch.h>
 
-class ExploreInputInfo;
-class ExploreOutputInfo;
-class ExploreInOutInfo;
-class ExploreTxInfo;
+class ExploreTx;
 
 typedef pair<exploreKey_t, string> ss_key_t;
 typedef pair<uint256, int> txidn_key_t;
@@ -316,7 +313,7 @@ public:
     bool ReadAddrList(const exploreKey_t& t, const string& addr, const int& qty,
                       T& value)
     {
-        value.clear();
+        value.SetNull();
         pair<ss_key_t, int> key = make_pair(make_pair(t, addr), qty);
         return ReadRecord(key, value);
     }
@@ -351,9 +348,9 @@ public:
     bool WriteAddrSet(const exploreKey_t& t, const int64_t b, const std::set<std::string>& s);
     bool RemoveAddrSet(const exploreKey_t& t, const int64_t b);
 
-    bool ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet);
-    bool WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo);
-    bool RemoveTxInfo(const uint256& txid);
+    bool ReadExploreTx(const uint256& txid, ExploreTx& extxRet);
+    bool WriteExploreTx(const uint256& txid, const ExploreTx& extx);
+    bool RemoveExploreTx(const uint256& txid);
 
     bool ReadTxIndex(uint256 hash, CTxIndex& txindex);
     bool UpdateTxIndex(uint256 hash, const CTxIndex& txindex);

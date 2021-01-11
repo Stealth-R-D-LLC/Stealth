@@ -128,6 +128,8 @@ void UpdateMapAddressBalances(const MapBalanceCounts& mapAddressBalancesAdd,
 }
 
 bool ExploreConnectInput(CTxDB& txdb,
+                         const int nHeight,
+                         const int nVtx,
                          const CTransaction& tx,
                          const unsigned int n,
                          const MapPrevTx& mapInputs,
@@ -188,7 +190,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that the explore db and chain are synced
-        ExploreOutputInfo storedOut;
+        ExploreOutput storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
             return _Err("ExploreConnectInput(): can't read prev output",
@@ -203,7 +205,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                         strAddr, nOutputID, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        if (storedOut.vout != txIn.prevout.n)
+        if (storedOut.vout != (int)txIn.prevout.n)
         {
             // This should never happen, stored n doesn't match output n
             return _Err("ExploreConnectInput(): TSNH stored prev vout doesn't match",
@@ -287,9 +289,10 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // write the input record
-        ExploreInputInfo newIn(txid, n,
-                               txIn.prevout.hash, txIn.prevout.n,
-                               nValue, nBalanceNew);
+        ExploreInput newIn;
+        newIn.Set(txid, n,
+                  txIn.prevout.hash, txIn.prevout.n,
+                  nValue, nBalanceNew);
         if (!txdb.WriteAddrTx(ADDR_TX_INPUT, strAddr, nQtyInputs, newIn))
         {
             return _Err("ExploreConnectInput() : can't write input",
@@ -347,7 +350,7 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. add the in-out to the vIO (vector of in-outs)
+        * 5. add the in-out to the iolist (list of in-outs)
         ***************************************************************/
         // read the index (qty vios)
         int nQtyVIOStored;
@@ -359,7 +362,7 @@ bool ExploreConnectInput(CTxDB& txdb,
         }
         int nQtyVIO = nQtyVIOStored;
         // read the vio if necessary (necessary when not first tx for address)
-        ExploreInOutList vIO;
+        ExploreInOutList iolist(nHeight, nVtx);
         if (nQtyVIOStored == 0)
         {
             // first tx for this address
@@ -368,7 +371,7 @@ bool ExploreConnectInput(CTxDB& txdb,
         else if (nQtyVIOStored > 0)
         {
             // not the first tx for address, read the vio
-            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, vIO))
+            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, iolist))
             {
                 return _Err("ExploreConnectInput() : can't read in-out list",
                             strAddr, nQtyVIOStored, txid, n,
@@ -382,9 +385,9 @@ bool ExploreConnectInput(CTxDB& txdb,
                         strAddr, nQtyVIOStored, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        if ((nQtyVIOStored == 0) & !vIO.empty())
+        if ((nQtyVIOStored == 0) && !iolist.vinouts.empty())
         {
-            // This should never happen: negative number of in-outs
+            // This should never happen: vio is already populated
             return _Err("ExploreConnectInput() : TSNH populated vio",
                         strAddr, nQtyVIOStored, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
@@ -396,8 +399,8 @@ bool ExploreConnectInput(CTxDB& txdb,
                 return _Err(strprintf("ExploreConnectInput() : "
                                       "TSNH inout data negative (%d)",
                                       nNewData).c_str(),
-                            strAddr, newInOut.GetID(), txid, n,
-                            txIn.prevout.hash, txIn.prevout.n);
+                             strAddr, newInOut.GetID(), txid, n,
+                             txIn.prevout.hash, txIn.prevout.n);
         }
         // The following loop
         //    1. determines whether the list for this address-tx pair exists
@@ -405,8 +408,8 @@ bool ExploreConnectInput(CTxDB& txdb,
         //    3. ensures that the stored list is all for the same tx
         //    4. should all be in-memory and fast
         uint256 txidStored;  // inits to 0 (false)
-        ExploreInOutList::const_iterator ioit;
-        for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
+        ExploreInOutList::storedlist_t::const_iterator ioit;
+        for (ioit = iolist.vinouts.begin(); ioit != iolist.vinouts.end(); ++ioit)
         {
             // nOtherData harbors flag to distinguish input or output
             int nOtherData = (int)*ioit;
@@ -419,12 +422,12 @@ bool ExploreConnectInput(CTxDB& txdb,
                             txIn.prevout.hash, txIn.prevout.n);
             }
             // It is slightly more expensive to read all the in-outs
-            // but we need to do a sanity check. Also, this should be fast.
+            // but we want to do a sanity check. Also, this should be fast.
             uint256 txidOther;
             ExploreInOutLookup otherInOut(nOtherData);
             if (otherInOut.IsInput())
             {
-                ExploreInputInfo otherIn;
+                ExploreInput otherIn;
                 if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, otherInOut.GetID(),
                                      otherIn))
                 {
@@ -436,7 +439,7 @@ bool ExploreConnectInput(CTxDB& txdb,
             }
             else
             {
-                ExploreOutputInfo otherOut;
+                ExploreOutput otherOut;
                 if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, otherInOut.GetID(),
                                      otherOut))
                 {
@@ -449,9 +452,14 @@ bool ExploreConnectInput(CTxDB& txdb,
             if (!txidStored)
             {
                 txidStored = txidOther;
+                // new tx
                 if (txidStored != txid)
                 {
                     nQtyVIO += 1;
+                }
+                if (!fDebugExplore)
+                {
+                    break;
                 }
             }
             // sanity check: ensure all in-outs are from the same tx
@@ -462,7 +470,7 @@ bool ExploreConnectInput(CTxDB& txdb,
                             txIn.prevout.hash, txIn.prevout.n);
             }
         }
-        // write the new index record if necessary
+        // new tx: write the new index record
         if (nQtyVIO == (nQtyVIOStored + 1))
         {
             if (!txdb.WriteAddrQty(ADDR_QTY_VIO, strAddr, nQtyVIO))
@@ -471,8 +479,8 @@ bool ExploreConnectInput(CTxDB& txdb,
                             strAddr, nQtyVIO, txid, n,
                             txIn.prevout.hash, txIn.prevout.n);
             }
-            // new record means new vio
-            vIO.clear();
+            // new tx means new record means new vio
+            iolist.Clear(nHeight, nVtx);
         }
         // sanity check: ensure counter was not incremented more than once
         else if (nQtyVIO > (nQtyVIOStored + 1))
@@ -483,8 +491,8 @@ bool ExploreConnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // update or make a new record depending on qty vios
-        vIO.push_back(nNewData);
-        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        iolist.vinouts.push_back(nNewData);
+        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
         {
             return _Err("ExploreConnectInput() : can't write vio",
                         strAddr, nQtyVIO, txid, n,
@@ -588,11 +596,13 @@ bool ExploreConnectInput(CTxDB& txdb,
 }
 
 bool ExploreConnectOutput(CTxDB& txdb,
-                         const CTransaction& tx,
-                         const unsigned int n,
-                         const uint256& txid,
-                         MapBalanceCounts& mapAddressBalancesAddRet,
-                         set<int64_t>& setAddressBalancesRemoveRet)
+                          const int nHeight,
+                          const int nVtx,
+                          const CTransaction& tx,
+                          const unsigned int n,
+                          const uint256& txid,
+                          MapBalanceCounts& mapAddressBalancesAddRet,
+                          set<int64_t>& setAddressBalancesRemoveRet)
 {
     if (tx.IsCoinStake() && (n == 0))
     {
@@ -674,7 +684,8 @@ bool ExploreConnectOutput(CTxDB& txdb,
                         strAddr, nQtyOutputs, txid, n);
         }
         // write the output record
-        ExploreOutputInfo newOut(txid, n, txOut.nValue, nBalanceNew);
+        ExploreOutput newOut;
+        newOut.Set(txid, n, txOut.nValue, nBalanceNew);
         if (!txdb.WriteAddrTx(ADDR_TX_OUTPUT, strAddr, nQtyOutputs, newOut))
         {
             return _Err("ExploreConnectOutput() : can't write output",
@@ -744,7 +755,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 5. add the in-out to the vIO (vector of in-outs)
+        * 5. add the in-out to the iolist (vector of in-outs)
         ***************************************************************/
         // read the index (qty vios)
         int nQtyVIOStored;
@@ -755,7 +766,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         }
         int nQtyVIO = nQtyVIOStored;
         // read the vio if necessary (not the first tx for address)
-        ExploreInOutList vIO;
+        ExploreInOutList iolist(nHeight, nVtx);
         if (nQtyVIOStored == 0)
         {
             // first tx for this address
@@ -764,7 +775,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
         else if (nQtyVIOStored > 0)
         {
             // not the first tx for address, read the vio
-            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, vIO))
+            if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIOStored, iolist))
             {
                 return _Err("ExploreConnectOutput() : can't read in-out list",
                             strAddr, nQtyVIOStored, txid, n);
@@ -776,7 +787,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             return _Err("ExploreConnectOutput() : TSNH negative txs",
                         strAddr, nQtyVIOStored, txid, n);
         }
-        if ((nQtyVIOStored == 0) & !vIO.empty())
+        if ((nQtyVIOStored == 0) & !iolist.vinouts.empty())
         {
             // This should never happen: negative number of in-outs
             return _Err("ExploreConnectOutput() : TSNH populated vio",
@@ -795,8 +806,8 @@ bool ExploreConnectOutput(CTxDB& txdb,
         //    3. ensures that the stored list is all for the same tx
         //    4. should all be in-memory and fast
         uint256 txidStored;  // inits to 0 (false)
-        ExploreInOutList::const_iterator ioit;
-        for (ioit = vIO.begin(); ioit != vIO.end(); ++ioit)
+        ExploreInOutList::storedlist_t::const_iterator ioit;
+        for (ioit = iolist.vinouts.begin(); ioit != iolist.vinouts.end(); ++ioit)
         {
             // nOtherData harbors flag to distinguish input or output
             int nOtherData = (int)*ioit;
@@ -813,7 +824,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             ExploreInOutLookup otherInOut(nOtherData);
             if (otherInOut.IsInput())
             {
-                ExploreInputInfo otherIn;
+                ExploreInput otherIn;
                 if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, otherInOut.GetID(),
                                      otherIn))
                 {
@@ -824,7 +835,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
             }
             else
             {
-                ExploreOutputInfo otherOut;
+                ExploreOutput otherOut;
                 if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, otherInOut.GetID(),
                                      otherOut))
                 {
@@ -839,6 +850,10 @@ bool ExploreConnectOutput(CTxDB& txdb,
                 if (txidStored != txid)
                 {
                     nQtyVIO += 1;
+                }
+                if (!fDebugExplore)
+                {
+                    break;
                 }
             }
             // sanity check: ensure all in-outs are from the same tx
@@ -857,7 +872,7 @@ bool ExploreConnectOutput(CTxDB& txdb,
                             strAddr, nQtyVIO, txid, n);
             }
             // new record means new vio
-            vIO.clear();
+            iolist.Clear(nHeight, nVtx);
         }
         // sanity check: ensure counter was not incremented more than once
         else if (nQtyVIO > (nQtyVIOStored + 1))
@@ -867,8 +882,8 @@ bool ExploreConnectOutput(CTxDB& txdb,
                         strAddr, nQtyVIO, txid, n);
         }
         // update or make a new record depending on qty vios
-        vIO.push_back(nNewData);
-        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        iolist.vinouts.push_back(nNewData);
+        if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
         {
             return _Err("ExploreConnectOutput() : can't write vio",
                         strAddr, nQtyVIO, txid, n);
@@ -1006,7 +1021,9 @@ bool ExploreConnectTx(CTxDB& txdb,
         }
         for (unsigned int n = 0; n < tx.vin.size(); ++n)
         {
-            ExploreConnectInput(txdb, tx, n, mapInputs, txid,
+            ExploreConnectInput(txdb,
+                                nHeight, nVtx,
+                                tx, n, mapInputs, txid,
                                 vPrevOut,
                                 mapAddressBalancesAdd,
                                 setAddressBalancesRemove);
@@ -1015,7 +1032,9 @@ bool ExploreConnectTx(CTxDB& txdb,
 
     for (unsigned int n = 0; n < tx.vout.size(); ++n)
     {
-        ExploreConnectOutput(txdb, tx, n, txid,
+        ExploreConnectOutput(txdb,
+                             nHeight, nVtx,
+                             tx, n, txid,
                              mapAddressBalancesAdd,
                              setAddressBalancesRemove);
 
@@ -1078,10 +1097,10 @@ bool ExploreConnectTx(CTxDB& txdb,
     VecDest vTo;
     ExploreGetDestinations(tx.vout, vTo);
 
-    ExploreTxInfo txInfo(hashBlock, nBlockTime, nHeight, nVtx,
-                         vFrom, vTo, txflags);
+    ExploreTx txInfo(hashBlock, nBlockTime, nHeight, nVtx,
+                     vFrom, vTo, txflags);
 
-    txdb.WriteTxInfo(txid, txInfo);
+    txdb.WriteExploreTx(txid, txInfo);
 
     UpdateMapAddressBalances(mapAddressBalancesAdd,
                              setAddressBalancesRemove,
@@ -1203,7 +1222,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
                         strAddr, nOutputID, txid, n);
         }
         // for sanity: check that the explore db and chain are synced
-        ExploreOutputInfo storedOut;
+        ExploreOutput storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
             return _Err("ExploreDisconnectOutput() : can't read output",
@@ -1215,7 +1234,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
             return _Err("ExploreDisconnectOutput() : TSNH stored tx doesn't match",
                         strAddr, nOutputID, txid, n);
         }
-        if (storedOut.vout != n)
+        if (storedOut.vout != (int)n)
         {
             // This should never happen, stored n doesn't match output n
             return _Err("ExploreDisconnectOutput() : TSNH stored vout doesn't match",
@@ -1301,7 +1320,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 4. remove the in-out from the vIO (vector of in-outs)
+        * 4. remove the in-out from the iolist (vector of in-outs)
         ***************************************************************/
         // read the index (qty txs)
         int nQtyVIO;
@@ -1324,30 +1343,30 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
                         strAddr, nQtyVIO, txid, n);
         }
         // read the vio
-        ExploreInOutList vIO;
-        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        ExploreInOutList iolist;
+        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
         {
             return _Err("ExploreDisconnectOutput() : can't read vio",
                         strAddr, nQtyVIO, txid, n);
         }
         // sanity check: vio should not be empty
-        if (vIO.empty())
+        if (iolist.vinouts.empty())
         {
             // This should never happen: vio is empty
             return _Err("ExploreDisconnectOutput() : TSNH vio is empty",
                         strAddr, nQtyVIO, txid, n);
         }
-        // sanity check: last vIO should be the same as the current vio index
-        if (storedInOut.Get() != vIO.back())
+        // sanity check: last of iolist should be same as the current vio index
+        if (storedInOut.Get() != iolist.vinouts.back())
         {
             // This should never happen: vio is inconsistent
             return _Err("ExploreDisconnectOutput() : TSNH vio inconsistent",
                         strAddr, nQtyVIO, txid, n);
         }
         // pop the most recent vio
-        vIO.pop_back();
+        iolist.vinouts.pop_back();
         // last vio of the list, erase the current vio and decrement the index
-        if (vIO.empty())
+        if (iolist.vinouts.empty())
         {
             if (!txdb.RemoveAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO))
             {
@@ -1366,7 +1385,7 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
         // vio still has in-outs, keep it around
         else
         {
-            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
             {
                 // This should never happen: can't write the vio
                 return _Err("ExploreDisconnectOutput() : TSNH can't write vio",
@@ -1553,7 +1572,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that db and chain are synced
-        ExploreInputInfo storedIn;
+        ExploreInput storedIn;
         if (!txdb.ReadAddrTx(ADDR_TX_INPUT, strAddr, nQtyInStored, storedIn))
         {
             return _Err("ExploreDisconnectInput() : can't read input",
@@ -1567,7 +1586,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         strAddr, nQtyInStored, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        if (storedIn.vin != n)
+        if (storedIn.vin != (int)n)
         {
             // This should never happen, stored doesn't match input n
             return _Err("ExploreDisconnectInput() : TSNH stored input n doesn't match",
@@ -1656,7 +1675,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         }
 
        /***************************************************************
-        * 3. remove the in-out from the vIO (vector of in-outs)
+        * 3. remove the in-out from the iolist (vector of in-outs)
         ***************************************************************/
         // read the index (qty txs)
         int nQtyVIO;
@@ -1682,23 +1701,23 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // read the vio
-        ExploreInOutList vIO;
-        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+        ExploreInOutList iolist;
+        if (!txdb.ReadAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
         {
             return _Err("ExploreDisconnectInput() : can't read vio",
                         strAddr, nQtyVIO, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // sanity check: vio should not be empty
-        if (vIO.empty())
+        if (iolist.vinouts.empty())
         {
             // This should never happen: vio is empty
             return _Err("ExploreDisconnectInput() : TSNH vio is empty",
                         strAddr, nQtyVIO, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        // sanity check: last vIO should be the same as the current vio index
-        if (storedInOut.Get() != vIO.back())
+        // sanity check: last of iolist should be same as the current vio index
+        if (storedInOut.Get() != iolist.vinouts.back())
         {
             // This should never happen: vio is inconsistent
             return _Err("ExploreDisconnectInput() : TSNH vio inconsistent",
@@ -1706,9 +1725,9 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // pop the most recent vio
-        vIO.pop_back();
+        iolist.vinouts.pop_back();
         // last vio of the list, erase the current vio and decrement the index
-        if (vIO.empty())
+        if (iolist.vinouts.empty())
         {
             if (!txdb.RemoveAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO))
             {
@@ -1729,7 +1748,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
         // vio still has in-outs, keep it around
         else
         {
-            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, vIO))
+            if (!txdb.WriteAddrList(ADDR_LIST_VIO, strAddr, nQtyVIO, iolist))
             {
                 // This should never happen: can't write the vio
                 return _Err("ExploreDisconnectInput() : TSNH can't write vio",
@@ -1759,7 +1778,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         txIn.prevout.hash, txIn.prevout.n);
         }
         // for sanity: check that the explore db and chain are synced
-        ExploreOutputInfo storedOut;
+        ExploreOutput storedOut;
         if (!txdb.ReadAddrTx(ADDR_TX_OUTPUT, strAddr, nOutputID, storedOut))
         {
             return _Err("ExploreDisconnectInput() : can't read output",
@@ -1773,7 +1792,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         strAddr, nOutputID, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        if (storedOut.vout != txIn.prevout.n)
+        if (storedOut.vout != (int)txIn.prevout.n)
         {
             // This should never happen, stored vout doesn't match output n
             return _Err("ExploreDisconnectInput() : TSNH stored vout doesn't match",
@@ -1787,7 +1806,7 @@ bool ExploreDisconnectInput(CTxDB& txdb,
                         strAddr, nOutputID, txid, n,
                         txIn.prevout.hash, txIn.prevout.n);
         }
-        if (storedOut.next_vin != n)
+        if (storedOut.next_vin != (int)n)
         {
             // This should never happen, stored next_vin doesn't match output n
             return _Err("ExploreDisconnectInput() : TSNH stored next_vin doesn't match",
@@ -1967,7 +1986,7 @@ bool ExploreDisconnectTx(CTxDB& txdb, const CTransaction &tx)
         }
     }
 
-    txdb.RemoveTxInfo(txid);
+    txdb.RemoveExploreTx(txid);
 
     UpdateMapAddressBalances(mapAddressBalancesAdd,
                              setAddressBalancesRemove,

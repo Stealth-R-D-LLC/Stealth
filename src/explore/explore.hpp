@@ -6,13 +6,11 @@
 #define _STEALTHEXPLORE_H_ 1
 
 #include "ExploreConstants.hpp"
-#include "ExploreInputInfo.hpp"
-#include "ExploreOutputInfo.hpp"
+#include "ExploreInput.hpp"
+#include "ExploreOutput.hpp"
 #include "ExploreInOutLookup.hpp"
-#include "ExploreTxInfo.hpp"
-
-// ExploreInOutLookup IDs (harboring input/output flag)
-typedef std::vector<int> ExploreInOutList;
+#include "ExploreInOutList.hpp"
+#include "ExploreTx.hpp"
 
 class CBlock;
 class CTransaction;

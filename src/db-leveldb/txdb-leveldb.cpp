@@ -414,23 +414,23 @@ bool CTxDB::RemoveAddrSet(const exploreKey_t& t, const int64_t b)
     return RemoveRecord(key);
 }
 
-/*  TxInfo
- *  Parameters - txid:TxID, txinfo:TxInfo
+/*  ExploreTx
+ *  Parameters - txid:TxID, extx:ExploreTx
  */
-bool CTxDB::ReadTxInfo(const uint256& txid, ExploreTxInfo& txinfoRet)
+bool CTxDB::ReadExploreTx(const uint256& txid, ExploreTx& extxRet)
 {
-   txinfoRet.SetNull();
-   pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
-   return ReadRecord(key, txinfoRet);
+   extxRet.SetNull();
+   pair<exploreKey_t, uint256> key = make_pair(EXPLORE_TX, txid);
+   return ReadRecord(key, extxRet);
 }
-bool CTxDB::WriteTxInfo(const uint256& txid, const ExploreTxInfo& txinfo)
+bool CTxDB::WriteExploreTx(const uint256& txid, const ExploreTx& extx)
 {
-   pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
-   return Write(key, txinfo);
+   pair<exploreKey_t, uint256> key = make_pair(EXPLORE_TX, txid);
+   return Write(key, extx);
 }
-bool CTxDB::RemoveTxInfo(const uint256& txid)
+bool CTxDB::RemoveExploreTx(const uint256& txid)
 {
-    pair<exploreKey_t, uint256> key = make_pair(TX_INFO, txid);
+    pair<exploreKey_t, uint256> key = make_pair(EXPLORE_TX, txid);
     return RemoveRecord(key);
 }
 

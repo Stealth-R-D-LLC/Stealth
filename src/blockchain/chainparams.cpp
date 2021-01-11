@@ -289,9 +289,6 @@ ChainParams::ChainParams()
     // max size of high-priority/low-fee transactions in bytes
     DEFAULT_BLOCKPRIORITYSIZE = 27000;
 
-    // maximum coin value considered "dust" (for explore API)
-    DEFAULT_MAXDUST = 5 * MIN_TXOUT_AMOUNT;
-
     // maximum tx fee in XST
     MAX_TXFEE = COIN / 4;
 
@@ -302,7 +299,15 @@ ChainParams::ChainParams()
     // Explore
     //
 
+    // maximum coin value considered "dust" (for explore API)
+    DEFAULT_MAXDUST = 5 * MIN_TXOUT_AMOUNT;
+
+    // maximum number of external/change addresses for a tracked HD account
     MAX_HD_CHILDREN = 1024;
+    // maximum number of inputs + outputs for a tracked HD account
+    MAX_HD_INOUTS = 65535;
+    // maximum number of transactions for a tracked HD account
+    MAX_HD_TXS = 16383;
 
 
     //////////////////////////////////////////////////////////////////////////////

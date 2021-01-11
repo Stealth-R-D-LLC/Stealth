@@ -36,7 +36,7 @@ enum ExploreTxFlags
 const char* GetExploreTxType(int t);
 
 
-class ExploreTxInfo
+class ExploreTx
 {
 private:
     int nVersion;
@@ -56,9 +56,9 @@ public:
 
     void SetNull();
 
-    ExploreTxInfo();
+    ExploreTx();
 
-    ExploreTxInfo(const uint256& blockhashIn,
+    ExploreTx(const uint256& blockhashIn,
                   const unsigned int blocktimeIn,
                   const int heightIn,
                   const int vtxIn,
@@ -68,8 +68,11 @@ public:
 
     bool IsNull() const;
 
+    bool operator < (const ExploreTx& other) const;
+    bool operator > (const ExploreTx& other) const;
+
     void FlagsAsJSON(json_spirit::Object& objRet) const;
-    void AsJSON(json_spirit::Object& objRet) const;
+    void AsJSON(json_spirit::Object& objRet, const int nBestHeight = -1) const;
 
     IMPLEMENT_SERIALIZE
     (

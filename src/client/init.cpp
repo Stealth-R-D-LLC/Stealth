@@ -19,8 +19,6 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <openssl/crypto.h>
 
-#include "addednode.h"
-
 #ifndef WIN32
 #include <signal.h>
 #endif
@@ -346,12 +344,16 @@ std::string HelpMessage()
         "  -permitdirtybootstrap  " + _("Allow duplicate stake for bootstrap from block***.dat file") + "\n" +
         "  -maxheight             " + _("For testing, don't allow more blocks than height") + "\n" +
 
-        "  -rollbackdeadend       " + _("Reject own blocks on a deadend chain (default: true)") + "\n" +
-
         "  -exploreapi=1          " + _("enable the expolore API (default: false") + "\n" +
         "  -reindexexplore=1      " + _("reindex all explore API information on start (default: false") + "\n" +
         "  -maxdust               " + strprintf(_("Maximum coin value considered \"dust\" (default: %" PRId64 ")"),
                                             cp.DEFAULT_MAXDUST) + "\n"
+        "  -maxhdchildren         " + strprintf(_("Maximum children (addresses) for an HD account (default: %d)"),
+                                            cp.MAX_HD_CHILDREN) + "\n"
+        "  -maxhdinouts           " + strprintf(_("Maximum inputs + outputs for an HD account (default: %d)"),
+                                            cp.MAX_HD_INOUTS) + "\n"
+        "  -maxhdtxs              " + strprintf(_("Maximum txs for an HD account (default: %d)"),
+                                            cp.MAX_HD_TXS) + "\n"
 
         "";  // KEEP THIS LINE
 
@@ -654,26 +656,12 @@ bool AppInit2()
         );
         fBuiltinTor = true;
     }
-    for (int n = 0; n < NET_MAX; n++) {
+    for (int n = 0; n < NET_MAX; n++)
+    {
         enum Network net = (enum Network)n;
         if (!setNets.count(net))
         {
             SetLimited(net);
-        }
-        else
-        {
-            // add the ipv4 hardcodded nodes -- TODO: find better way
-            if (net == NET_IPV4)
-            {
-                // TODO: need better way to add hardcoded nodes
-                static const char *(*strAddedNodes)[1] =
-                          fTestNet ? strTestNetAddedNodes : strMainNetAddedNodes;
-
-                for (unsigned int i = 0; strAddedNodes[i][0] != NULL; i++)
-                {
-                   mapMultiArgs["-addnode"].push_back(strAddedNodes[i][0]);
-                }
-            }
         }
     }
 

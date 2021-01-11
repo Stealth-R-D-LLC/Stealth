@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       0
 #define CLIENT_VERSION_REVISION    3
-#define CLIENT_VERSION_BUILD       4
+#define CLIENT_VERSION_BUILD       5
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -37,7 +37,8 @@ static const int CLIENT_PROTOCOL_VERSION = 63300;
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
 //       : fork 7
-// 63300 : 3.0.3.4 : Changes to ExploreTxInfo (StealthExplore Database)
+// 63300 : 3.0.3.5 : Changes to StealthExplore DB for HD account handling
+//         3.0.3.4 : Changes to ExploreTxInfo (StealthExplore Database)
 //         3.0.3.3 : Many changes to StealthExplore Database
 //         3.0.3.2 : Adding nPicoPower to block indices
 //         3.0.3.1 : Combining message handling and qPoS

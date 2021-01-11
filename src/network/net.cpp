@@ -12,6 +12,7 @@
 #include "addrman.h"
 #include "ui_interface.h"
 #include "onionseed.h"
+#include "dnsseed.h"
 #include "syncregistry.hpp"
 
 #ifdef WIN32
@@ -102,7 +103,7 @@ unsigned short GetTorPort()
 
 void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
 {
-    // Filter out duplicate requests less then 30 seconds since last
+    // Filter out duplicate requests less than 30 seconds since last
     if (pindexBegin == pindexLastGetBlocksBegin && hashEnd == hashLastGetBlocksEnd)
     {
         if (nLastGetBlocks < (GetTime() - 30))
@@ -1290,6 +1291,65 @@ void ThreadOnionSeed(void* parg)
     printf("%d addresses found from .onion seeds\n", found);
 }
 
+
+void ThreadDNSAddressSeed(void* parg)
+{
+    // Make this thread recognisable as the DNS seeding thread
+    RenameThread("NoLimitCoin-dnsseed");
+
+    try
+    {
+        vnThreadsRunning[THREAD_DNSSEED]++;
+        ThreadDNSAddressSeed2(parg);
+        vnThreadsRunning[THREAD_DNSSEED]--;
+    }
+    catch (std::exception& e) {
+        vnThreadsRunning[THREAD_DNSSEED]--;
+        PrintException(&e, "ThreadDNSAddressSeed()");
+    } catch (...) {
+        vnThreadsRunning[THREAD_DNSSEED]--;
+        throw; // support pthread_cancel()
+    }
+    printf("ThreadDNSAddressSeed exited\n");
+}
+
+void ThreadDNSAddressSeed2(void* parg)
+{
+    printf("ThreadDNSAddressSeed started\n");
+
+    static const char *(*strDNSSeed)[2] = fTestNet ? strTestNetDNSSeed : strMainNetDNSSeed;
+
+    int found = 0;
+
+    if (!fTestNet)
+    {
+        printf("Loading addresses from DNS seeds (could take a while)\n");
+
+        for (unsigned int seed_idx = 0; strDNSSeed[seed_idx][0] != NULL; seed_idx++) {
+            if (HaveNameProxy()) {
+                AddOneShot(strDNSSeed[seed_idx][1]);
+            } else {
+                vector<CNetAddr> vaddr;
+                vector<CAddress> vAdd;
+                if (LookupHost(strDNSSeed[seed_idx][1], vaddr))
+                {
+                    BOOST_FOREACH(CNetAddr& ip, vaddr)
+                    {
+                        int nOneDay = 24*3600;
+                        CAddress addr = CAddress(CService(ip, GetDefaultPort()));
+                        // use a random age between 3 and 7 days old
+                        addr.nTime = GetTime() - 3*nOneDay - GetRand(4*nOneDay);
+                        vAdd.push_back(addr);
+                        found++;
+                    }
+                }
+                addrman.Add(vAdd, CNetAddr(strDNSSeed[seed_idx][0], true));
+            }
+        }
+    }
+
+    printf("%d addresses found from DNS seeds\n", found);
+}
 
 
 unsigned int pnSeed[] =

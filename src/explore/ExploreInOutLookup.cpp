@@ -10,7 +10,6 @@ using namespace std;
 
 void ExploreInOutLookup::SetNull()
 {
-    nVersion = ExploreInOutLookup::CURRENT_VERSION;
     nData = -1;
 }
 
@@ -21,13 +20,11 @@ ExploreInOutLookup::ExploreInOutLookup()
 
 ExploreInOutLookup::ExploreInOutLookup(int nDataIn)
 {
-    nVersion = ExploreInOutLookup::CURRENT_VERSION;
     nData = nDataIn;
 }
 
 ExploreInOutLookup::ExploreInOutLookup(int nIndexIn, bool fIsInputIn)
 {
-    nVersion = ExploreInOutLookup::CURRENT_VERSION;
     nData = nIndexIn;
     if (fIsInputIn)
     {

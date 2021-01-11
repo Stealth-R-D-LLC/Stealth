@@ -12,10 +12,7 @@
 
 class ExploreDestination
 {
-private:
-    int nVersion;
 public:
-    static const int CURRENT_VERSION = 1;
     std::vector<std::string> addresses;
     int required;
     int64_t amount;
@@ -34,8 +31,6 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-        READWRITE(this->nVersion);
-        nVersion = this->nVersion;
         READWRITE(addresses);
         READWRITE(required);
         READWRITE(amount);

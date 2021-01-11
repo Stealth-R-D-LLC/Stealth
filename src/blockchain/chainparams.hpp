@@ -178,11 +178,17 @@ public:
     int DEFAULT_BLOCKMINSIZE;
     int DEFAULT_BLOCKMAXSIZE;
     int DEFAULT_BLOCKPRIORITYSIZE;
-    int64_t DEFAULT_MAXDUST;
 
     float MAX_TXFEE;
 
-    uint32_t MAX_HD_CHILDREN;
+
+
+    //////////////////////////////////////////////////////////////////////////////
+    // EXPLORE
+    int64_t DEFAULT_MAXDUST;
+    unsigned int MAX_HD_CHILDREN;
+    unsigned int MAX_HD_INOUTS;
+    unsigned int MAX_HD_TXS;
 
 
     //////////////////////////////////////////////////////////////////////////////

@@ -4,13 +4,15 @@
 
 #include "ExploreDestination.hpp"
 
-#include "bitcoinrpc.h"
+#include <boost/foreach.hpp>
 
+using namespace json_spirit;
 using namespace std;
+
+extern Value ValueFromAmount(int64_t amount);
 
 void ExploreDestination::SetNull()
 {
-    nVersion = ExploreDestination::CURRENT_VERSION;
     addresses.clear();
     required = -1;
     amount = -1;
@@ -27,28 +29,25 @@ ExploreDestination::ExploreDestination(const vector<string>& addressesIn,
                                        const int64_t& amountIn,
                                        const string& typeIn)
 {
-    nVersion = ExploreDestination::CURRENT_VERSION;
     addresses = addressesIn;
     required = requiredIn;
     amount = amountIn;
     type = typeIn;
 }
 
-void ExploreDestination::AsJSON(json_spirit::Object& objRet) const
+void ExploreDestination::AsJSON(Object& objRet) const
 {
     objRet.clear();
     if (!addresses.empty())
     {
-        json_spirit::Array aryAddr;
+        Array aryAddr;
         BOOST_FOREACH(const string& a, addresses)
         {
             aryAddr.push_back(a);
         }
-        objRet.push_back(json_spirit::Pair("addresses", aryAddr));
-        objRet.push_back(json_spirit::Pair("reqSigs",
-                                           (boost::int64_t)required));
+        objRet.push_back(Pair("addresses", aryAddr));
+        objRet.push_back(Pair("reqSigs", (int64_t)required));
     }
-    objRet.push_back(json_spirit::Pair("amount",
-                                       ValueFromAmount(amount)));
-    objRet.push_back(json_spirit::Pair("type", type));
+    objRet.push_back(Pair("amount", ValueFromAmount(amount)));
+    objRet.push_back(Pair("type", type));
 }

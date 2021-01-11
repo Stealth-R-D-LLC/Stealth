@@ -4338,10 +4338,7 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp,
     // Relay inventory, but
     //    1. don't relay old inventory during initial block download
     //    2. don't relay blocks we produce that should be rolled back
-    if ((hashBestChain == hash) &&
-        !(fIsMine &&
-          pregistryTemp->ShouldRollback() &&
-          GetBoolArg("-rollbackdeadend", true)))
+    if (hashBestChain == hash)
     {
         LOCK(cs_vNodes);
         BOOST_FOREACH(CNode* pnode, vNodes)
@@ -7336,21 +7333,6 @@ bool CheckWork(CBlock* pblock, CWallet& wallet,
         // This full validation happens uppon connecting the block.
         // Process this block the same as if we had received it from another node.
         bool fProcessOK = ProcessBlock(NULL, pblock, false, false, true);
-
-        // rollbackdeadend should only be false for testnet in certain situations
-        //   to simulate a network of staker nodes that mostly don't go down
-        if (pregistryMain->ShouldRollback() &&
-            GetBoolArg("-rollbackdeadend", true))
-        {
-            printf("CheckWork(): insufficient power, chain should rollback\n");
-            fProcessOK = false;
-            if (!Rollback())
-            {
-                // this should never happen
-                throw std::runtime_error(
-                        "ProcessMessage(): ERROR: TSNH couldn't roll back");
-            }
-        }
 
         if (!fProcessOK)
         {

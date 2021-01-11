@@ -435,9 +435,14 @@ OBJS= \
     obj/syncregistry.o \
     obj/ExploreDestination.o \
     obj/ExploreInOutLookup.o \
-    obj/ExploreInputInfo.o \
-    obj/ExploreOutputInfo.o \
-    obj/ExploreTxInfo.o \
+    obj/ExploreInOutList.o \
+    obj/ExploreInput.o \
+    obj/ExploreOutput.o \
+    obj/ExploreTx.o \
+    obj/InOutInfo.o \
+    obj/AddrTxInfo.o \
+    obj/AddrInOutInfo.o \
+    obj/HDTxInfo.o \
     obj/explore.o \
     obj/rpcexplore.o \
     obj/hdkeys.o \
@@ -681,6 +686,14 @@ endif
 StealthCoind: leveldb/build/libleveldb.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
+
+rinse:
+	-rm -f StealthCoind test_stealthcoin
+	-rm -f obj/*.o
+	-rm -f obj-test/*.o
+	-rm -f obj/*.P
+	-rm -f obj-test/*.P
+	-rm -f obj/build.h
 
 clean:
 	-rm -f StealthCoind test_stealthcoin

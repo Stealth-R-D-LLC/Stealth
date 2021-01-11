@@ -247,6 +247,7 @@ extern json_spirit::Value getaddresstxspg(const json_spirit::Array& params, bool
 extern json_spirit::Value getaddressinouts(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getaddressinoutspg(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value gethdaccount(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value gethdaccountpg(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlistsize(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlist(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrichlistpg(const json_spirit::Array& params, bool fHelp);
