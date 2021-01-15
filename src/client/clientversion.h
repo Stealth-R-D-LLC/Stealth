@@ -24,6 +24,7 @@ enum ForkNumbers
     XST_FORKPURCHASE,
     XST_FORKQPOS,
     XST_FORKQPOSB,
+    XST_FORKFEELESS,
     TOTAL_FORKS
 };
 

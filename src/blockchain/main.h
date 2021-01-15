@@ -9,8 +9,9 @@
 #include "sync.h"
 #include "net.h"
 #include "script.h"
-#include "hashblock.h"
 #include "toradapter.h"
+
+#include "hashblock/hashblock.h"
 
 #include "QPRegistry.hpp"
 
@@ -491,7 +492,8 @@ public:
     static const int GENESIS_VERSION=1;
     static const int NOTXTIME_VERSION=2;
     static const int IMMALLEABLE_VERSION=3;
-    static const int CURRENT_VERSION=IMMALLEABLE_VERSION;
+    static const int FEELESS_VERSION=4;
+    static const int CURRENT_VERSION=FEELESS_VERSION;
 
     int nVersion;
     std::vector<CTxIn> vin;
@@ -509,7 +511,7 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-       
+
         READWRITE(this->nVersion);
         nVersion = this->nVersion;
         if (this->nVersion < CTransaction::NOTXTIME_VERSION)
@@ -524,10 +526,14 @@ public:
     void SetNull()
     {
         int nFork = GetFork(nBestHeight);
-        if (nFork >= XST_FORKPURCHASE)
+        if (nFork >= XST_FORKFEELESS)
+        {
+            nVersion = CTransaction::FEELESS_VERSION;
+        }
+        else if (nFork >= XST_FORKPURCHASE)
         {
             nVersion = CTransaction::IMMALLEABLE_VERSION;
-        }    
+        }
         else if (nFork >= XST_FORK006)
         {
              nVersion = CTransaction::NOTXTIME_VERSION;

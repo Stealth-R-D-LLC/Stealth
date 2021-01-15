@@ -1721,7 +1721,6 @@ bool CTransaction::CheckTransaction() const
     return true;
 }
 
-
 int64_t CTransaction::GetMinFee(unsigned int nBlockSize, bool fAllowFree,
                               enum GetMinFee_mode mode, unsigned int nBytes) const
 {
@@ -2908,10 +2907,14 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
             // ppcoin: enforce transaction fees for every block
             if (nTxFee < GetMinFee())
             {
-                return fBlock? DoS(100, error("ConnectInputs() : %s not paying required fee=%s, paid=%s",
-                                              GetHash().ToString().c_str(),
-                                              FormatMoney(GetMinFee()).c_str(),
-                                              FormatMoney(nTxFee).c_str())) : false;
+                return fBlock
+                       ? DoS(100,
+                             error("ConnectInputs() : "
+                                   "%s not paying required fee=%s, paid=%s",
+                                   GetHash().ToString().c_str(),
+                                   FormatMoney(GetMinFee()).c_str(),
+                                   FormatMoney(nTxFee).c_str()))
+                       : false;
             }
 
             nFees += nTxFee;

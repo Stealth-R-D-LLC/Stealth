@@ -19,9 +19,9 @@
 // #include <stdutils/uchar_vector.h> asdf
 #include "uchar_vector.h"
 
-#include "hashblock.h" // for Hash9
-// #include "scrypt/scrypt.h" // for scrypt_1024_1_1_256
 #include "scrypt.h" // for scrypt_1024_1_1_256
+
+#include "hashblock/hashblock.h" // for Hash9
 
 // All inputs and outputs are big endian
 
