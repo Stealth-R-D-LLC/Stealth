@@ -13,7 +13,7 @@ XORShift1024Star::XORShift1024Star()
     p = 0;
 }
 
-uint64_t XORShift1024Star::Next(void)
+uint64_t XORShift1024Star::Next()
 {
     const uint64_t s0 = s[p];
     uint64_t s1 = s[p = (p + 1) & 15];
@@ -24,9 +24,9 @@ uint64_t XORShift1024Star::Next(void)
 
 
 /* This is the jump function for the generator. It is equivalent
-   to 2^512 calls to next(); it can be used to generate 2^512
+   to 2^512 calls to Next(); it can be used to generate 2^512
    non-overlapping subsequences for parallel computations. */
-void XORShift1024Star::Jump(void)
+void XORShift1024Star::Jump()
 {
     static const uint64_t JUMP[] =
     {
@@ -39,14 +39,14 @@ void XORShift1024Star::Jump(void)
     };
 
     uint64_t t[16] = { 0 };
-    for(int i = 0; i < sizeof JUMP / sizeof *JUMP; i++)
-        for(int b = 0; b < 64; b++) {
+    for(unsigned int i = 0; i < sizeof JUMP / sizeof *JUMP; i++)
+        for(unsigned int b = 0; b < 64; b++) {
             if (JUMP[i] & UINT64_C(1) << b)
-                for(int j = 0; j < 16; j++)
+                for(unsigned int j = 0; j < 16; j++)
                     t[j] ^= s[(j + p) & 15];
-            next();
+            Next();
         }
 
-    for(int j = 0; j < 16; j++)
+    for(unsigned int j = 0; j < 16; j++)
         s[(j + p) & 15] = t[j];
 }

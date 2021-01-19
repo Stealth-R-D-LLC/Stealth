@@ -41,10 +41,10 @@ public:
     uint64_t s[16]; 
     unsigned int p;
 
-    XORShift1024Star() ;
+    XORShift1024Star();
 
-    uint64_t Next(void);
-    void Jump(void);
-}
+    uint64_t Next();
+    void Jump();
+};
 
 #endif  // XORSHIFT1024STAR_H
