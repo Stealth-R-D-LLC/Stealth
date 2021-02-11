@@ -103,8 +103,10 @@ enum txnouttype
     TX_DISABLE,         // 11
     TX_CLAIM,           // 12
     TX_SETMETA,         // 13
+    // feeless
+    TX_FEEWORK,         // 14
     // prunable
-    TX_NULL_DATA        // 14
+    TX_NULL_DATA        // 15
 };
 
 class CNoDestination {
@@ -130,13 +132,13 @@ enum opcodetype
     // push value
     OP_0 = 0x00,
     OP_FALSE = OP_0,
-    OP_PUSHDATA1 = 0x4c,  // 0x4c = 76
+    OP_PUSHDATA1 = 0x4c,  // 0x4c == 76
     OP_PUSHDATA2 = 0x4d,
     OP_PUSHDATA4 = 0x4e,
     OP_1NEGATE = 0x4f,
     OP_RESERVED = 0x50,
     OP_1 = 0x51,
-    OP_TRUE=OP_1,
+    OP_TRUE = OP_1,
     OP_2 = 0x52,
     OP_3 = 0x53,
     OP_4 = 0x54,
@@ -270,6 +272,9 @@ enum opcodetype
     OP_DISABLE       = 0xc7,  /* disable staker */
     OP_CLAIM         = 0xc8,  /* claim earnings, spendable */
     OP_SETMETA       = 0xc9,  /* set a metadata key-value pair */
+
+    // feeless
+    OP_FEEWORK       = 0xd1,  /* provide work proof for feeless tx */
 
     // template matching params
     OP_SMALLDATA = 0xf9,

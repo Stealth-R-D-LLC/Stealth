@@ -45,7 +45,7 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
     }
     else
     {
-        if ((type >= TX_PURCHASE1) && (type <= TX_SETMETA))
+        if ((type >= TX_PURCHASE1) && (type <= TX_FEEWORK))
         {
             out.push_back(Pair("type", GetTxnOutputType(type)));
         }

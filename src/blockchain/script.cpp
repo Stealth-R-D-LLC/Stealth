@@ -119,6 +119,7 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_DISABLE: return "disable";
     case TX_CLAIM: return "claim";
     case TX_SETMETA: return "setmeta";
+    case TX_FEEWORK: return "feework";
     case TX_NULL_DATA: return "nulldata";
     }
     return NULL;
@@ -279,6 +280,9 @@ const char* GetOpName(opcodetype opcode)
     case OP_DISABLE                : return "OP_DISABLE";
     case OP_CLAIM                  : return "OP_CLAIM";
     case OP_SETMETA                : return "OP_SETMETA";
+
+    // feeless transactions
+    case OP_FEEWORK                : return "OP_FEEWORK";
 
     case OP_INVALIDOPCODE          : return "OP_INVALIDOPCODE";
 
@@ -601,6 +605,12 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     }
                     popstack(stack);
                     break;
+                }
+
+                // feeless transactions: no feework is spendable
+                case OP_FEEWORK:
+                {
+                    return false;
                 }
 
                 case OP_IF:
@@ -1369,7 +1379,9 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
 
     // Blank out other inputs' signatures
     for (unsigned int i = 0; i < txTmp.vin.size(); i++)
+    {
         txTmp.vin[i].scriptSig = CScript();
+    }
     txTmp.vin[nIn].scriptSig = scriptCode;
 
     // Blank out some of the outputs
@@ -1380,8 +1392,12 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
 
         // Let the others update at will
         for (unsigned int i = 0; i < txTmp.vin.size(); i++)
+        {
             if (i != nIn)
+            {
                 txTmp.vin[i].nSequence = 0;
+            }
+        }
     }
     else if ((nHashType & 0x1f) == SIGHASH_SINGLE)
     {
@@ -1394,12 +1410,18 @@ uint256 SignatureHash(CScript scriptCode, const CTransaction& txTo, unsigned int
         }
         txTmp.vout.resize(nOut+1);
         for (unsigned int i = 0; i < nOut; i++)
+        {
             txTmp.vout[i].SetNull();
+        }
 
         // Let the others update at will
         for (unsigned int i = 0; i < txTmp.vin.size(); i++)
+        {
             if (i != nIn)
+            {
                 txTmp.vin[i].nSequence = 0;
+            }
+        }
     }
 
     // Blank out other inputs completely, not recommended for open transactions
@@ -1626,6 +1648,12 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
         }
         break;
       }
+    case TX_FEEWORK:
+        if (vSolutions.front().size() != 16)
+        {
+            return false;
+        }
+        break;
     case TX_NONSTANDARD:
         return false;
     default:
@@ -1706,6 +1734,28 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // [size, data(stakerID, key, value), OP_SETMETA]
         mTemplates.insert(make_pair(TX_SETMETA, CScript() << OP(0x3c) << OP_SETMETA));
 
+        // Fee work for feeless transactions
+        // Must be last vout (aka vout[-1])
+        // workhash is 64 bit (8 byte) i.e.:
+        //       workhash = argon2d(work, hashblock, tx*)
+        //    work is 8 byte unsigned int (i.e. uint64_t)
+        //       might be thought of as a "nonce"
+        //    hashblock is hash of the block at height,
+        //       this allows feeless transactions specifying a block that is too
+        //       old to be cleared from the mempool, reducing mempool flooding
+        //       with feeless transactions where the work is far less than
+        //       current demand requires
+        //    tx* is the transaction
+        //       without the last element of vout and
+        //          - workhash isn't a hash of the work
+        //       with all signatures stripped from vin
+        //          - allows the work to be signed in each of the inputs
+        //          - prevents any malleability related to the fee work
+        // Transactions stored info:
+        //    height is 4 bytes unsigned int (i.e. uint32_t)
+        //    size = 16 bytes (0x10) = 8 bytes of work + 4 bytes of mcost + 4 bytes of height
+        // [size, data(work, mcost, height), OP_FEEWORK]
+        mTemplates.insert(make_pair(TX_FEEWORK, CScript() << OP(0x10) << OP_FEEWORK));
 
         // Empty, provably prunable, data-carrying output
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN));
@@ -1723,7 +1773,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         return true;
     }
 
-    static const bool fDebugSolver = false;  // asdf
+    static const bool fDebugSolver = false;
 
     // Scan templates
     const CScript& script1 = scriptPubKey;
@@ -1976,6 +2026,7 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
     case TX_ENABLE:
     case TX_DISABLE:
     case TX_SETMETA:
+    case TX_FEEWORK:
     case TX_NONSTANDARD:
     case TX_NULL_DATA:
         return -1;

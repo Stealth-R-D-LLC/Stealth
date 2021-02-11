@@ -15,6 +15,8 @@
 
 #include "QPRegistry.hpp"
 
+#include "feeless.hpp"
+
 #include <list>
 
 class CWallet;
@@ -702,11 +704,30 @@ public:
         return dPriority > COIN * 1440 / 250;
     }
 
-    int64_t GetMinFee(unsigned int nBlockSize=1, bool fAllowFree=false, enum GetMinFee_mode mode=GMF_BLOCK, unsigned int nBytes = 0) const;
+    int64_t GetMinFee(unsigned int nBlockSize = 1,
+                      enum GetMinFee_mode mode = GMF_BLOCK,
+                      unsigned int nBytes = 0) const;
+
+    uint32_t GetFeeworkHardness(unsigned int nBlockSize = 1,
+                                enum GetMinFee_mode mode = GMF_BLOCK,
+                                unsigned int nBytes = 0) const;
+
+    uint64_t GetFeeworkLimit(unsigned int nBlockSize = 1,
+                             enum GetMinFee_mode mode = GMF_BLOCK,
+                             unsigned int nBytes = 0) const;
+
+    bool CheckFeework(Feework &feework,
+                      bool fRequired,
+                      argon2_buffer* pbfrFeework,
+                      unsigned int nBlockSize = 1,
+                      enum GetMinFee_mode mode = GMF_BLOCK) const;
 
     bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)
     {
-        CAutoFile filein = CAutoFile(OpenBlockFile(pos.nFile, 0, pfileRet ? "rb+" : "rb"), SER_DISK, CLIENT_VERSION);
+        CAutoFile filein = CAutoFile(OpenBlockFile(pos.nFile, 0,
+                                                   pfileRet ? "rb+" : "rb"),
+                                     SER_DISK,
+                                     CLIENT_VERSION);
         if (!filein)
             return error("CTransaction::ReadFromDisk() : OpenBlockFile failed");
 
@@ -904,7 +925,8 @@ public:
                        const CBlockIndex* pindexBlock,
                        bool fBlock, bool fMiner,
                        unsigned int flags,
-                       int64_t nValuePurchases, int64_t nClaim);
+                       int64_t nValuePurchases, int64_t nClaim,
+                       Feework& feework);
     bool ClientConnectInputs();
     bool CheckTransaction() const;
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true, bool* pfMissingInputs=NULL);
@@ -1456,6 +1478,7 @@ public:
     unsigned int nTxVolume;
     int64_t nXSTVolume;
     uint64_t nPicoPower;
+    unsigned int nBlockSize;
 
     // block header: all blocks
     int nVersion;
@@ -1490,7 +1513,8 @@ public:
         // block stats
         nTxVolume = 0;
         nXSTVolume = 0;
-        nPicoPower     = 0;
+        nPicoPower = 0;
+        nBlockSize = 0;
 
         nVersion       = 0;
         hashMerkleRoot = 0;
@@ -1540,6 +1564,7 @@ public:
         nTxVolume = block.GetTxVolume();
         nXSTVolume = block.GetValueOut();
         nPicoPower = 0;
+        nBlockSize = GetSerializeSize(block, SER_DISK, CLIENT_VERSION);
 
         nVersion       = block.nVersion;
         hashMerkleRoot = block.hashMerkleRoot;
@@ -1791,6 +1816,7 @@ public:
         READWRITE(nTxVolume);
         READWRITE(nXSTVolume);
         READWRITE(nPicoPower);
+        READWRITE(nBlockSize);
 
         // block header
         READWRITE(this->nVersion);
@@ -1978,6 +2004,8 @@ public:
 };
 
 
+typedef std::map<int, std::set<uint256> > MapFeeless;
+
 class CTxMemPool
 {
 public:
@@ -1992,6 +2020,11 @@ public:
     // cache for staker registration aliases <tx hash, <alias>>
     // string.empty() == false means it is a registration
     std::map<uint256, std::vector<std::string> > mapRegistrations;
+
+    // cache for feeless transactions in the mempool
+    // key is the height hashed into the feework
+    MapFeeless mapFeeless;
+
 
     bool accept(CTxDB& txdb, CTransaction &tx,
                 bool fCheckInputs, bool* pfMissingInputs = NULL);
@@ -2024,8 +2057,11 @@ public:
         result = i->second;
         return true;
     }
-};
 
+    bool addFeeless(const int nHeight, const uint256& txid);
+
+    int removeOldFeeless();
+};
 
 const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs);
 

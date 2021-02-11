@@ -826,11 +826,13 @@ public:
     //
     const_iterator begin0() const                    { return vch.begin(); }
     iterator begin0()                                { return vch.begin(); }
+    const char* begindata() const                    { return &(*vch.begin()); }
     const_iterator begin() const                     { return vch.begin() + nReadPos; }
     iterator begin()                                 { return vch.begin() + nReadPos; }
     const_iterator end() const                       { return vch.end(); }
     iterator end()                                   { return vch.end(); }
     size_type size() const                           { return vch.size() - nReadPos; }
+    size_type sizeall() const                        { return vch.size(); }
     bool empty() const                               { return vch.size() == nReadPos; }
     void resize(size_type n, value_type c=0)         { vch.resize(n + nReadPos, c); }
     void reserve(size_type n)                        { vch.reserve(n + nReadPos); }
@@ -912,11 +914,18 @@ public:
         nReadPos = 0;
     }
 
-    bool Rewind(size_type n)
+    bool Rewind(size_type n = std::numeric_limits<size_type>::max())
     {
+        if (n == std::numeric_limits<size_type>::max())
+        {
+            nReadPos = 0;
+            return true;
+        }
         // Rewind by n characters if the buffer hasn't been compacted yet
         if (n > nReadPos)
+        {
             return false;
+        }
         nReadPos -= n;
         return true;
     }

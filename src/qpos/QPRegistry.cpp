@@ -1081,9 +1081,41 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID)
                nBlockHeight);
     }
     DisqualifyStakerIfNecessary(nID, pstaker);
+    DisableStakerIfNecessary(nID, pstaker);
     bRecentBlocks <<= 1;
     fPrevBlockWasProduced = false;
     return true;
+}
+
+bool QPRegistry::DisableStaker(unsigned int nID)
+{
+    QPStaker* pstaker = GetStakerForID(nID);
+    if (!pstaker)
+    {
+        return error("DisableStaker(): unknown ID");
+    }
+    if (pstaker->IsDisabled())
+    {
+        return error("DisableStaker(): staker already disqualified");
+    }
+    pstaker->Disable();
+    return true;
+}
+
+bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
+                                          const QPStaker* pstaker)
+{
+    bool fResult = true;
+    // auto disable kicks in with feeless transactions
+    if (GetFork(nBestHeight) < XST_FORKFEELESS)
+    {
+        return true;
+    }
+    if (pstaker->ShouldBeDisabled())
+    {
+        fResult = DisableStaker(nID);
+    }
+    return fResult;
 }
 
 bool QPRegistry::DisqualifyStaker(unsigned int nID)

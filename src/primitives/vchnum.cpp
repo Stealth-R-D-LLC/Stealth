@@ -2,7 +2,6 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "script.h"
 #include "vchnum.hpp"
 
 #define U1 static_cast<uint64_t>(1)
@@ -25,15 +24,15 @@ vchnum::vchnum(valtype::const_iterator first, valtype::const_iterator last)
     Set(vchIn);
 }
 
-void vchnum::Set(const valtype &vchIn)
+void vchnum::Set(const valtype *pvchIn)
 {
-    unsigned int nSizeIn = vchIn.size();
+    unsigned int nSizeIn = pvchIn->size();
     unsigned int nSize;
     if (nSizeIn > 4)
     {
         nSize = 8;
     }
-    else if (nSizeIn >= 2)
+    else if (nSizeIn > 2)
     {
         nSize = 4;
     }
@@ -49,7 +48,72 @@ void vchnum::Set(const valtype &vchIn)
 
     for (unsigned int i = 0; i < nSizeIn; ++i)
     {
-        vch[i + delta] = vchIn[i];
+        vch[i + delta] = pvchIn->at(i);
+    }
+}
+
+void vchnum::Set(const valtype &vchIn)
+{
+    Set(&vchIn);
+}
+
+void vchnum::Set(const void *ptr, size_t num)
+{
+    unsigned int nSize;
+    if (num > 4)
+    {
+        nSize = 8;
+    }
+    else if (num > 2)
+    {
+        nSize = 4;
+    }
+    else
+    {
+        nSize = 2;
+    }
+    vch.clear();
+    vch.resize(nSize, 0);
+    const unsigned char *pch = (const unsigned char *)ptr;
+    for (unsigned int i = 0; i < nSize; ++i)
+    {
+        vch[i] = *pch;
+        ++pch;
+    }
+}
+
+// Be careful: this begins life uninitialized.
+vchnum::vchnum(int nSize)
+{
+    vch.clear();
+    if (nSize > 4)
+    {
+        vch.resize(8);
+    }
+    else if (nSize > 2)
+    {
+        vch.resize(4);
+    }
+    else
+    {
+        vch.resize(4);
+    }
+}
+
+// Be careful: ensure nSize and nValue are consistent.
+vchnum::vchnum(size_t nSize, uint64_t nValue)
+{
+    if (nSize > 4)
+    {
+        SetNum(nValue, 8);
+    }
+    else if (nSize > 2)
+    {
+        SetNum(nValue, 4);
+    }
+    else
+    {
+        SetNum(nValue, 2);
     }
 }
 
@@ -66,6 +130,11 @@ vchnum::vchnum(uint32_t nValue)
 vchnum::vchnum(uint16_t nValue)
 {
     SetNum(nValue, 2);
+}
+
+vchnum::vchnum(const void *ptr, size_t num)
+{
+    Set(ptr, num);
 }
 
 void vchnum::SetNum(uint64_t nValue, unsigned int nSize)
@@ -86,10 +155,50 @@ void vchnum::SetNum(uint64_t nValue, unsigned int nSize)
     }
 }
 
-valtype vchnum::Get() const
+vchnum& vchnum::operator = (uint64_t nValue)
 {
-    return vch;
+    SetNum(nValue, 8);
+    return *this;
 }
+
+vchnum& vchnum::operator = (uint32_t nValue)
+{
+    SetNum(nValue, 4);
+    return *this;
+}
+
+vchnum& vchnum::operator = (uint16_t nValue)
+{
+    SetNum(nValue, 2);
+    return *this;
+}
+
+const valtype* vchnum::Get() const
+{
+    return &vch;
+}
+
+void vchnum::Get(valtype& vchRet) const
+{
+    vchRet = vch;
+}
+
+void vchnum::Get(const unsigned char* pchRet) const
+{
+    pchRet = &(*vch.begin());
+}
+
+bool vchnum::Get(void* ptr, size_t num) const
+{
+    unsigned char *pch = (unsigned char *)ptr;
+    unsigned int stop = min(num, vch.size());
+    for (unsigned int i = 0; i < stop; ++i)
+    {
+        pch[i] = vch[i];
+    }
+    return (stop == num);
+}
+
 
 unsigned int vchnum::Size() const
 {
@@ -122,4 +231,9 @@ uint64_t vchnum::GetValue() const
         }
     }
     return nValue;
+}
+
+unsigned char* vchnum::BeginData()
+{
+    return &(*vch.begin());
 }

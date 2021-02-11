@@ -9,10 +9,14 @@
 #include "bitcoinrpc.h"
 #include "init.h"
 #include "base58.h"
+#include "feeless.hpp"
 #include "stealthaddress.h"
+
+#include <boost/assign/list_of.hpp>
 
 using namespace json_spirit;
 using namespace std;
+using namespace boost::assign;
 
 int64_t nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
@@ -62,6 +66,7 @@ string AccountFromValue(const Value& value)
         throw JSONRPCError(RPC_WALLET_INVALID_ACCOUNT_NAME, "Invalid account name");
     return strAccount;
 }
+
 
 Value getinfo(const Array& params, bool fHelp)
 {
@@ -283,10 +288,11 @@ Value getaddressesbyaccount(const Array& params, bool fHelp)
 
 Value sendtoaddress(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 2 || params.size() > 4)
+    if (fHelp || params.size() < 2 || params.size() > 5)
         throw runtime_error(
-        "sendtoaddress <XSTaddress> <amount> [comment] [comment-to]\n"
-            "<amount> is a real and is rounded to the nearest 0.000001"
+        "sendtoaddress <XSTaddress> <amount> [comment] [comment-to] [feeless]\n"
+            "<amount> is a real and is rounded to the nearest 0.000001\n"
+            "[feeless] says whether to try send without a money fee (default=false)"
             + HelpRequiringPassphrase());
 
     CBitcoinAddress address(params[0].get_str());
@@ -306,13 +312,38 @@ Value sendtoaddress(const Array& params, bool fHelp)
     if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
         wtx.mapValue["to"]      = params[3].get_str();
 
+    bool fFeeless = false;
+    if (params.size() > 4)
+    {
+        fFeeless = params[4].get_bool();
+    }
+
     if (pwalletMain->IsLocked())
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
 
-    string strError = pwalletMain->SendMoneyToDestination(address.Get(), nAmount, wtx);
+    Feework feework;
+    Feework* pfeework = NULL;
+    if (fFeeless)
+    {
+        pfeework = &feework;
+    }
+    string strError = pwalletMain->SendMoneyToDestination(address.Get(), nAmount,
+                                                          wtx, false, pfeework);
     if (strError != "")
+    {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
+    }
 
+    if (fFeeless & (GetFork(nBestHeight) < XST_FORKFEELESS))
+    {
+        Object result;
+        feework.AsJSON(result);
+        CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+        ssTx << (CTransaction)wtx;
+        string strTx = HexStr(ssTx.begin(), ssTx.end());
+        result.push_back(Pair("raw_tx_new", strTx));
+        return result;
+    }
     return wtx.GetHash().GetHex();
 }
 
@@ -1786,6 +1817,108 @@ Value resendtx(const Array& params, bool fHelp)
     ResendWalletTransactions();
 
     return Value::null;
+}
+
+Value createfeework(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 2 || params.size() > 3)
+    {
+        throw runtime_error(
+            "createfeework <rawtx> <height> [blocksize]\n"
+            "Creates feework for <rawtx>\n"
+            "Feework references block <height> in best chain\n"
+            "Feework is calculated for a block of [blocksize] (KB) if given,\n"
+            "otherwise it is calculated for an average sized recent block"
+            "Returned raw tx has signatures stripped and feework included");
+    }
+
+    RPCTypeCheck(params, list_of(str_type)(int_type)(int_type));
+
+    // check height first because it is quicker
+    int nHeight = params[1].get_int();
+
+    CBlockIndex* pindex = mapBlockIndex[hashBestChain];
+
+    if (nHeight > pindex->nHeight)
+    {
+        throw runtime_error("unknown block");
+    }
+
+    int nDeepest = max(1, pindex->nHeight - chainParams.FEELESS_MAX_DEPTH);
+    if (nHeight < nDeepest)
+    {
+        throw runtime_error("block is too deep");
+    }
+
+    unsigned int nBlocks = 0;
+    unsigned int nSizeTotal = 0;
+    const uint256* phashBlock;
+    while (pindex->nHeight >= nDeepest)
+    {
+        if (pindex->nHeight == nHeight)
+        {
+            phashBlock = pindex->phashBlock;
+        }
+        nBlocks += 1;
+        nSizeTotal += pindex->nBlockSize;
+        if (!pindex->pprev)
+        {
+            break;
+        }
+        pindex = pindex->pprev;
+    }
+
+    // check the block size second
+    unsigned int nBlockSize;
+    if (params.size() > 2)
+    {
+        nBlockSize = params[2].get_int() * 1000;
+        if (nBlockSize < 0)
+        {
+            throw runtime_error("blocksize is negative");
+        }
+    }
+    else
+    {
+        // average block size is used to estimate needed feework hardness
+        nBlockSize = nSizeTotal / nBlocks;
+    }
+
+    // check tx third
+    vector<unsigned char> txDataIn(ParseHex(params[0].get_str()));
+    CDataStream ssDataIn(txDataIn, SER_NETWORK, PROTOCOL_VERSION);
+
+    CTransaction txIn;
+    try
+    {
+        ssDataIn >> txIn;
+    }
+    catch (std::exception &e)
+    {
+        throw JSONRPCError(RPC_DESERIALIZATION_ERROR, "TX decode failed");
+    }
+
+    Feework feework;
+    feework.height = nHeight;
+    feework.pblockhash = pindex->phashBlock;
+    CTransaction txNew(txIn);
+    int nRounds;
+    string strErrMsg = pwalletMain->MineFeework(nBlockSize,
+                                                txNew, feework, nRounds);
+    if (!strErrMsg.empty())
+    {
+        throw runtime_error(strErrMsg);
+    }
+
+    Object result;
+    result.push_back(Pair("rounds", (boost::int64_t)nRounds));
+    feework.AsJSON(result);
+    CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
+    ssTx << txNew;
+    string strTx = HexStr(ssTx.begin(), ssTx.end());
+    result.push_back(Pair("raw_tx_new", strTx));
+
+    return result;
 }
 
 // ppcoin: make a public-private key pair

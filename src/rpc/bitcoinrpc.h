@@ -206,6 +206,7 @@ extern json_spirit::Value reservebalance(const json_spirit::Array& params, bool 
 extern json_spirit::Value checkwallet(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value repairwallet(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value resendtx(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value createfeework(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value makekeypair(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value validatepubkey(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getnewpubkey(const json_spirit::Array& params, bool fHelp);
@@ -229,6 +230,7 @@ extern json_spirit::Value getrawmempool(const json_spirit::Array& params, bool f
 extern json_spirit::Value getblockhash(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblock(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockbynumber(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getbestblock(const json_spirit::Array& params, bool fHelp);
 // explorer api
 extern json_spirit::Value getnewestblockbeforetime(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value gettxvolume(const json_spirit::Array& params, bool fHelp);

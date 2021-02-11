@@ -7,9 +7,9 @@
 
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
-#define CLIENT_VERSION_MINOR       0
-#define CLIENT_VERSION_REVISION    3
-#define CLIENT_VERSION_BUILD       5
+#define CLIENT_VERSION_MINOR       1
+#define CLIENT_VERSION_REVISION    0
+#define CLIENT_VERSION_BUILD       1
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -28,15 +28,16 @@ enum ForkNumbers
     TOTAL_FORKS
 };
 
-static const int N_PROTOCOL_VERSIONS = 6;
-
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 63300;
+static const int CLIENT_PROTOCOL_VERSION = 63400;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+//       : fork 8    XST_FORKFEELESS
+// 63400 : 3.1.0.0 : Adding feeless transactions
+//                 : Adding nBlockSize to block indices
 //       : fork 7
 // 63300 : 3.0.3.5 : Changes to StealthExplore DB for HD account handling
 //         3.0.3.4 : Changes to ExploreTxInfo (StealthExplore Database)

@@ -71,6 +71,9 @@ private:
     bool StakerProducedBlock(const CBlockIndex *const pindex,
                              int64_t nReward);
     bool StakerMissedBlock(unsigned int nID);
+    bool DisableStaker(unsigned int nID);
+    bool DisableStakerIfNecessary(unsigned int nID,
+                                  const QPStaker* pstaker);
     bool DisqualifyStaker(unsigned int nID);
     bool DisqualifyStakerIfNecessary(unsigned int nID,
                                      const QPStaker* pstaker);

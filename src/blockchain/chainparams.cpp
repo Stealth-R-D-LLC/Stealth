@@ -27,25 +27,28 @@ ChainParams::ChainParams()
         (          XST_FORKPURCHASE,     63000 )
         (              XST_FORKQPOS,     63000 )
         (             XST_FORKQPOSB,     63300 )
+        (           XST_FORKFEELESS,     63400 )
                );
 
     CUTOFF_POW_M = 5460;
 
     START_PURCHASE_M = 4204204;  // asdf
-    CUTOFF_POS_M = 4420420;  // asdf
+    CUTOFF_POS_M = 4420420;      // asdf
+    START_FEELESS_M = 4420690;   // asdf
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
-        /* MAIN NET */                            // Height, Fork Number
-        /* Jul  4 02:47:04 MST 2014 */       (            0, XST_GENESIS )
-        /* Jul 11 18:33:08 MST 2014 */       ( CUTOFF_POW_M, XST_FORK002 )
-        /* Oct  9 00:00:42 MST 2014 */       (       130669, XST_FORK004 )
-        /* Aug 16 10:23:28 MST 2017 */       (      1732201, XST_FORK005 )
-        /* Nov 14 08:09:53 MDT 2018 */       (      2378000, XST_FORK006 )
-        /* Approx ????????????????  */       ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx ????????????????  */       ( CUTOFF_POS_M, XST_FORKQPOS )
-        /* Approx ????????????????  */       ( CUTOFF_POS_M, XST_FORKQPOSB )
-                                                 );
+        /* MAIN NET */                  /*           Height, Fork Number      */
+        /* Jul  4 02:47:04 MST 2014 */   (                0, XST_GENESIS      )
+        /* Jul 11 18:33:08 MST 2014 */   (     CUTOFF_POW_M, XST_FORK002      )
+        /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
+        /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
+        /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
+        /* Approx ????????????????  */   ( START_PURCHASE_M, XST_FORKPURCHASE )
+        /* Approx ????????????????  */   (     CUTOFF_POS_M, XST_FORKQPOS     )
+        /* Approx ????????????????  */   (     CUTOFF_POS_M, XST_FORKQPOSB    )
+        /* Approx ????????????????  */   (  START_FEELESS_M, XST_FORKFEELESS  )
+                                                );
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -160,6 +163,63 @@ ChainParams::ChainParams()
     nStakeMinAgeMainNet = 60 * 60 * 24 * 3;
     //stake age of full weight:  9 day
     nStakeMaxAgeMainNet = 60 * 60 * 24 * 9;
+
+
+    //////////////////////////////////////////////////////////////////////////////
+    //
+    // Feeless
+    //
+
+    // max of a unsigned 64 bit integer
+    TX_FEEWORK_ABSOLUTE_LIMIT = 0xffffffffffffffffull;
+
+    // max limit, decreasing limit means increasing difficulty
+    TX_FEEWORK_LIMIT = 0x0006ffffffffffffull;
+    RELAY_TX_FEEWORK_LIMIT = 0x0006ffffffffffffull;
+
+    // number of steps of hardness/difficulty as block fills
+    FEEWORK_BLOCK_PARTS = 31;
+
+    // for dynamic memory hardness:
+    //    each step requires 10% more memory than the previous
+    //    max cost is about 17x min cost at 31 steps
+    FEEWORK_COST_PCT_JUMP_PER_PART = 10;
+
+    // for dynamic difficulty (decay of the max hash value, aka work limit)
+    //    each step permits 91% lower hash than the previous step
+    //    note that 91% ~ 1 / 1.10 (i.e. 10% difficulty jump each step)
+    // Dynamic memory hardness and dynamic difficulty vary demand for different
+    // resources but at the same rate. However, dynamic memory hardness depletes
+    // relatively scarce resources on a GPU (memory) while dynamic difficulty
+    // depletes relatively scarce resources on a CPU (computing cycles), making
+    // dynamic memory hardness preferrable to stifle GPU-based spam.
+    FEEWORK_LIMIT_PCT_DECAY_PER_PART = 91;
+
+
+    FEELESS_WORKLEN = 8;
+    FEELESS_HASHLEN = 8;
+
+    FEELESS_TCOST = 1;                // 1-pass computation
+    FEELESS_MCOST_MIN = 1<<8;         // 4 mebibytes memory usage
+    RELAY_FEELESS_MCOST_MIN = 1<<8;   // 4 mebibytes memory usage
+    // 1 thread makes it more likely that gpus will run out of memory before
+    // running out of cores
+    FEELESS_PARALLELISM = 1;   // 1 thread
+
+
+    // 1. prevents larger feeless transactions at very full blocks
+    // 2. keeps validation time under 3 ms on reasonable hardware
+    // This cutoff should allow feeless for a simple tx in a 90% full block.
+    FEEWORK_MAX_MULTIPLIER = 18;
+    FEEWORK_MAX_MCOST = FEEWORK_MAX_MULTIPLIER * FEELESS_MCOST_MIN;
+
+    // Feeless transactions reference a prior block in the best chain.
+    // This block can be no more than the following depth:
+    FEELESS_MAX_DEPTH = 24;
+
+    // We reserve the last 1/4 block for money fee transactions,
+    // so there is no way to spam blocks full with feeless transactions.
+    FEELESS_MAX_BLOCK_SIZE = (3 * MAX_BLOCK_SIZE) / 4;
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -318,19 +378,21 @@ ChainParams::ChainParams()
     CUTOFF_POW_T = 120;
     CUTOFF_POS_T = 17400;
     START_PURCHASE_T = 4204;
+    START_FEELESS_T = 3965963;
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
         boost::assign::map_list_of
-        /* TEST NET */                            // Height, Fork Number
-                                             (            0, XST_GENESIS )
-        /*                          */       ( CUTOFF_POW_T, XST_FORK002 )
-        /*                          */       (          130, XST_FORK004 )
-        /*                          */       (          140, XST_FORK005 )
-        /*                          */       (          145, XST_FORK006 )
+        /* TEST NET */                      /*           Height, Fork Number      */
+                                             (                0, XST_GENESIS      )
+        /*                          */       (     CUTOFF_POW_T, XST_FORK002      )
+        /*                          */       (              130, XST_FORK004      )
+        /*                          */       (              140, XST_FORK005      )
+        /*                          */       (              145, XST_FORK006      )
         /*                          */       ( START_PURCHASE_T, XST_FORKPURCHASE )
-        /*                          */       ( CUTOFF_POS_T, XST_FORKQPOS )
-        /*                          */       (        22500, XST_FORKQPOSB )
+        /*                          */       (     CUTOFF_POS_T, XST_FORKQPOS     )
+        /*                          */       (            22500, XST_FORKQPOSB    )
+        /*                          */       (  START_FEELESS_T, XST_FORKFEELESS  )
                                                  );
 
 

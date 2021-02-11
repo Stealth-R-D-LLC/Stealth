@@ -18,6 +18,8 @@
 #ifndef ARGON2_H
 #define ARGON2_H
 
+#include <stdio.h>
+
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
@@ -25,6 +27,11 @@
 #if defined(__cplusplus)
 extern "C" {
 #endif
+
+/* Basic memory layout */
+#define ARGON2_QWORD_SIZE 8
+#define ARGON2_STD_BLOCK_SIZE 1024
+#define ARGON2_STD_QWORDS_IN_BLOCK ARGON2_STD_BLOCK_SIZE/ARGON2_QWORD_SIZE
 
 /* Symbols visibility control */
 #ifdef A2_VISCTL
@@ -154,7 +161,9 @@ typedef enum Argon2_ErrorCodes {
 
     ARGON2_DECODING_LENGTH_FAIL = -34,
 
-    ARGON2_VERIFY_MISMATCH = -35
+    ARGON2_VERIFY_MISMATCH = -35,
+
+    ARGON2_BUFFER_SIZE_TOO_SMALL = -36
 } argon2_error_codes;
 
 /* Memory allocator types --- for external allocation */
@@ -162,6 +171,26 @@ typedef int (*allocate_fptr)(uint8_t **memory, size_t bytes_to_allocate);
 typedef void (*deallocate_fptr)(uint8_t *memory, size_t bytes_to_allocate);
 
 /* Argon2 external data structures */
+
+/*
+ *****
+ * Block:
+ *
+ */
+typedef struct block_ { uint64_t v[ARGON2_STD_QWORDS_IN_BLOCK]; } argon2_block;
+
+
+/*
+ *****
+ * Buffer: structure that points to a persistent memory buffer
+ *  memory should be allocated like this (assuming buffer.blocks is nonzero):
+ *     buffer.memory = (argon2_block*)malloc(buffer.blocks*sizeof(argon2_block))
+ */
+typedef struct Argon2_Buffer {
+    uint32_t blocks;       /* number of blocks allocated */
+    argon2_block *memory;  /* pointer to buffer memory */
+    int clear;             /* if true, secure wipe every use */
+} argon2_buffer;
 
 /*
  *****
@@ -208,6 +237,8 @@ typedef struct Argon2_Context {
     uint32_t m_cost;  /* amount of memory requested (KB) */
     uint32_t lanes;   /* number of lanes */
     uint32_t threads; /* maximum number of threads */
+
+    argon2_buffer *buffer;  /* persistent buffer, used for memory */
 
     uint32_t version; /* version number */
 
@@ -267,7 +298,8 @@ ARGON2_PUBLIC int argon2i_hash_encoded(const uint32_t t_cost,
                                        const void *pwd, const size_t pwdlen,
                                        const void *salt, const size_t saltlen,
                                        const size_t hashlen, char *encoded,
-                                       const size_t encodedlen);
+                                       const size_t encodedlen,
+                                       argon2_buffer *buffer);
 
 /**
  * Hashes a password with Argon2i, producing a raw hash at @hash
@@ -287,7 +319,8 @@ ARGON2_PUBLIC int argon2i_hash_raw(const uint32_t t_cost, const uint32_t m_cost,
                                    const uint32_t parallelism, const void *pwd,
                                    const size_t pwdlen, const void *salt,
                                    const size_t saltlen, void *hash,
-                                   const size_t hashlen);
+                                   const size_t hashlen,
+                                   argon2_buffer *buffer);
 
 ARGON2_PUBLIC int argon2d_hash_encoded(const uint32_t t_cost,
                                        const uint32_t m_cost,
@@ -295,13 +328,15 @@ ARGON2_PUBLIC int argon2d_hash_encoded(const uint32_t t_cost,
                                        const void *pwd, const size_t pwdlen,
                                        const void *salt, const size_t saltlen,
                                        const size_t hashlen, char *encoded,
-                                       const size_t encodedlen);
+                                       const size_t encodedlen,
+                                       argon2_buffer *buffer);
 
 ARGON2_PUBLIC int argon2d_hash_raw(const uint32_t t_cost, const uint32_t m_cost,
                                    const uint32_t parallelism, const void *pwd,
                                    const size_t pwdlen, const void *salt,
                                    const size_t saltlen, void *hash,
-                                   const size_t hashlen);
+                                   const size_t hashlen,
+                                   argon2_buffer *buffer);
 
 ARGON2_PUBLIC int argon2id_hash_encoded(const uint32_t t_cost,
                                         const uint32_t m_cost,
@@ -309,14 +344,16 @@ ARGON2_PUBLIC int argon2id_hash_encoded(const uint32_t t_cost,
                                         const void *pwd, const size_t pwdlen,
                                         const void *salt, const size_t saltlen,
                                         const size_t hashlen, char *encoded,
-                                        const size_t encodedlen);
+                                        const size_t encodedlen,
+                                        argon2_buffer *buffer);
 
 ARGON2_PUBLIC int argon2id_hash_raw(const uint32_t t_cost,
                                     const uint32_t m_cost,
                                     const uint32_t parallelism, const void *pwd,
                                     const size_t pwdlen, const void *salt,
                                     const size_t saltlen, void *hash,
-                                    const size_t hashlen);
+                                    const size_t hashlen,
+                                    argon2_buffer *buffer);
 
 /* generic function underlying the above ones */
 ARGON2_PUBLIC int argon2_hash(const uint32_t t_cost, const uint32_t m_cost,
@@ -325,7 +362,8 @@ ARGON2_PUBLIC int argon2_hash(const uint32_t t_cost, const uint32_t m_cost,
                               const size_t saltlen, void *hash,
                               const size_t hashlen, char *encoded,
                               const size_t encodedlen, argon2_type type,
-                              const uint32_t version);
+                              const uint32_t version,
+                              argon2_buffer* buffer);
 
 /**
  * Verifies a password against an encoded string

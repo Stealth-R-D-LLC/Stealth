@@ -8,12 +8,13 @@
 #include "QPStaker.hpp"
 #include "QPWindow.hpp"
 
+#include "valtype.hpp"
+
 #include <utility>
 
 
 #define QPQueueIterator std::vector<unsigned int>::const_iterator
 
-typedef std::vector<unsigned char> valtype;
 
 unsigned int BitIsOn(const valtype& vch, unsigned int nBit);
 unsigned int SetBit(valtype& vch, unsigned int nBit);

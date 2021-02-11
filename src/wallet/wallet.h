@@ -199,8 +199,16 @@ public:
     bool CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                                int64_t nSearchInterval, CTransaction& txNew,
                                unsigned int &nCoinStakeTime);
-    std::string SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, bool fAskFee=false);
-    std::string SendMoneyToDestination(const CTxDestination &address, int64_t nValue, CWalletTx& wtxNew, bool fAskFee=false);
+    std::string SendMoney(CScript scriptPubKey,
+                          int64_t nValue,
+                          CWalletTx& wtxNew,
+                          bool fAskFee=false,
+                          Feework* pfeework=NULL);
+    std::string SendMoneyToDestination(const CTxDestination &address,
+                                       int64_t nValue,
+                                       CWalletTx& wtxNew,
+                                       bool fAskFee=false,
+                                       Feework* pfeework=NULL);
 
     // qPOS
     std::string CheckQPoSEssentials(const std::string &txid,
@@ -244,9 +252,24 @@ public:
                                  unsigned int nOut,
                                  int64_t nValue,
                                  CWalletTx &wtxNew);
-
-    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, int& nChangePos, const CCoinControl *coinControl=NULL);
-    bool CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl *coinControl=NULL);
+    std::string MineFeework(unsigned int nBlockSize,
+                            CTransaction& txNew,
+                            Feework& feework,
+                            int& nRounds) const;
+    bool CreateTransaction(const std::vector<std::pair<CScript, int64_t> >& vecSend,
+                           CWalletTx& wtxNew,
+                           CReserveKey& reservekey,
+                           int64_t& nFeeRet,
+                           int& nChangePos,
+                           const CCoinControl *coinControl=NULL,
+                           Feework* pfeework=NULL);
+    bool CreateTransaction(CScript scriptPubKey,
+                           int64_t nValue,
+                           CWalletTx& wtxNew,
+                           CReserveKey& reservekey,
+                           int64_t& nFeeRet,
+                           const CCoinControl *coinControl=NULL,
+                           Feework* feeless=NULL);
 
     bool NewStealthAddress(std::string& sError, std::string& sLabel, CStealthAddress& sxAddr);
     bool AddStealthAddress(CStealthAddress& sxAddr);

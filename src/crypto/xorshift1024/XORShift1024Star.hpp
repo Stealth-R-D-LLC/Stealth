@@ -9,6 +9,7 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 #ifndef XORSHIFT1024STAR_H
 #define XORSHIFT1024STAR_H
 
+#include <random>
 #include <stdint.h>
 
 /* This generator has been replaced by xoroshiro1024*, which is
@@ -40,9 +41,11 @@ class XORShift1024Star
 public:
     uint64_t s[16]; 
     unsigned int p;
+    uint64_t (*seeder)();
 
-    XORShift1024Star();
+    XORShift1024Star(uint64_t (*seederIn)() = nullptr, bool fDoSeed = true);
 
+    void Seed();
     uint64_t Next();
     void Jump();
 };

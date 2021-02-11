@@ -107,7 +107,7 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
         txGen.SetMerkleBranch(&block);
         result.push_back(Pair("confirmations", (int)txGen.GetDepthInMainChain()));
     }
-    result.push_back(Pair("size", (int)::GetSerializeSize(block, SER_NETWORK, PROTOCOL_VERSION)));
+    result.push_back(Pair("size", (int)blockindex->nBlockSize));
     result.push_back(Pair("height", blockindex->nHeight));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
@@ -306,6 +306,22 @@ Value getblockbynumber(const Array& params, bool fHelp)
     block.ReadFromDisk(pblockindex, true);
 
     return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
+}
+
+Value getbestblock(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+     {
+        throw runtime_error(
+            "getbestblock [txinfo]\n"
+            "txinfo optional to print more detailed tx info (default=false)\n"
+            "Returns the newest block from the longest block chain.");
+    }
+    CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
+    CBlock block;
+    block.ReadFromDisk(pblockindex, true);
+    return blockToJSON(block, pblockindex,
+                       params.size() > 1 ? params[1].get_bool() : false);
 }
 
 Value getnewestblockbeforetime(const Array& params, bool fHelp)

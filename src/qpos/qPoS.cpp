@@ -18,23 +18,6 @@ map<txnouttype, QPKeyType> mapQPoSKeyTypes = boost::assign::map_list_of
       (TX_SETDELEGATE, QPKEY_DELEGATE)
       (TX_SETCONTROLLER, QPKEY_CONTROLLER);
 
-// safely increment a valtype iterator
-bool IncrementN(const valtype &v,
-                valtype::const_iterator &i,
-                unsigned int n)
-{
-   valtype::const_iterator v_end = v.end();
-   for (unsigned int j = 0; j < n; ++j)
-   {
-       if (i == v_end)
-       {
-           return false;
-       }
-       ++i;
-   }
-   return true;
-}
-
 void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
 {
     valtype::const_iterator first = vch.begin();

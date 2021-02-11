@@ -26,8 +26,8 @@
 
 enum argon2_core_constants {
     /* Memory block size in bytes */
-    ARGON2_BLOCK_SIZE = 1024,
-    ARGON2_QWORDS_IN_BLOCK = ARGON2_BLOCK_SIZE / 8,
+    ARGON2_BLOCK_SIZE = ARGON2_STD_BLOCK_SIZE,
+    ARGON2_QWORDS_IN_BLOCK = ARGON2_BLOCK_SIZE / ARGON2_QWORD_SIZE,
     ARGON2_OWORDS_IN_BLOCK = ARGON2_BLOCK_SIZE / 16,
     ARGON2_HWORDS_IN_BLOCK = ARGON2_BLOCK_SIZE / 32,
     ARGON2_512BIT_WORDS_IN_BLOCK = ARGON2_BLOCK_SIZE / 64,
@@ -49,7 +49,7 @@ enum argon2_core_constants {
  * Memory blocks can be copied, XORed. Internal words can be accessed by [] (no
  * bounds checking).
  */
-typedef struct block_ { uint64_t v[ARGON2_QWORDS_IN_BLOCK]; } block;
+typedef argon2_block block;
 
 /*****************Functions that work with the block******************/
 

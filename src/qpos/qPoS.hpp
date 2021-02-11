@@ -10,21 +10,6 @@
 
 #include "script.h"
 
-#define GETUINT16(first, last) \
-   static_cast<uint16_t>(vchnum(first, last).GetValue())
-#define GETUINT(first, last) \
-   static_cast<unsigned int>(vchnum(first, last).GetValue())
-#define GETINT(first, last) \
-   static_cast<int>(vchnum(first, last).GetValue())
-#define GETUINT32(first, last) \
-   static_cast<uint32_t>(vchnum(first, last).GetValue())
-#define GETINT32(first, last) \
-   static_cast<int32_t>(vchnum(first, last).GetValue())
-#define GETUINT64(first, last) \
-   vchnum(first, last).GetValue()
-#define GETINT64(first, last) \
-   static_cast<int64_t>(vchnum(first, last).GetValue())
-
 struct qpos_purchase
 {
     std::string alias;          // case as registered, not lower

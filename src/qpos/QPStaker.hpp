@@ -78,6 +78,7 @@ public:
     bool IsDisabled() const;
     bool IsQualified() const;
     bool IsDisqualified() const;
+    bool ShouldBeDisabled() const;
     bool ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const;
     int64_t GetTotalEarned() const;
     std::string GetAlias() const;

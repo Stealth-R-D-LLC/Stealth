@@ -15,6 +15,10 @@ static const int64_t RECIPROCAL_QPOS_INFLATION = 100;
 static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 32768;
 static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
 static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
+// consecutive misses, not total
+static const unsigned int QP_STAKER_MAX_MISSES_M = 8;
+// testnet
+static const unsigned int QP_STAKER_MAX_MISSES_T = 32;
 // makes it hard to game the rotation
 static const int QP_ROUNDS = 16;
 // block target time

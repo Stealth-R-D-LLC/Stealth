@@ -12,6 +12,7 @@
 #include "base58.h"
 #include "kernel.h"
 #include "coincontrol.h"
+#include "xorshift1024/XORShift1024Star.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -1335,7 +1336,9 @@ bool CWallet::SelectCoinsMinConf(int64_t nTargetValue, unsigned int nSpendTime, 
     if (nTotalLower < nTargetValue)
     {
         if (coinLowestLarger.second.first == NULL)
+        {
             return false;
+        }
         setCoinsRet.insert(coinLowestLarger.second);
         nValueRet += coinLowestLarger.first;
         return true;
@@ -1468,7 +1471,92 @@ bool CWallet::SelectCoinsForStaking(int64_t nTargetValue, unsigned int nSpendTim
     return true;
 }
 
-bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, int32_t& nChangePos, const CCoinControl* coinControl)
+string CWallet::MineFeework(unsigned int nBlockSize,
+                            CTransaction& txNew,
+                            Feework& feework,
+                            int& nRounds) const
+{
+    nRounds = 0;
+    if (!feework.pblockhash)
+    {
+        string strError = _("Error: no block hash provided");
+        printf("MineFeework(): %s", strError.c_str());
+        return strError;
+    }
+    feework.limit = chainParams.TX_FEEWORK_LIMIT;
+    // check the new tx for absence of existing feework
+    txNew.CheckFeework(feework, false, pbfrFeeworkMiner);
+    if (!feework.HasNone())
+    {
+        string strError = _("Error: tx already has feework or is malformed");
+        printf("MineFeework(): %s", strError.c_str());
+        return strError;
+    }
+
+    // blank the sigs just to be safe
+    for (unsigned int i = 0; i < txNew.vin.size(); i++)
+    {
+        txNew.vin[i].scriptSig = CScript();
+    }
+
+    CDataStream ssData(SER_DISK, CLIENT_VERSION);
+    ssData << *(feework.pblockhash) << txNew;
+
+    feework.bytes = ssData.size();
+    if (feework.bytes > (1000 * chainParams.FEEWORK_MAX_MULTIPLIER))
+    {
+        string strError = _("Error: tx size exceeds limit for feeless");
+        printf("MineFeework(): %s", strError.c_str());
+        return strError;
+    }
+    if ((feework.bytes + nBlockSize) > chainParams.FEELESS_MAX_BLOCK_SIZE)
+    {
+        nBlockSize = chainParams.FEELESS_MAX_BLOCK_SIZE - feework.bytes;
+    }
+
+    // bumping sizes to help ensure mcost is sufficient
+    // signature is typically 73 bytes
+    feework.bytes += 74 * txNew.vin.size();
+    // feework output is 27 bytes (16 of data + op + other)
+    feework.bytes += 28;
+
+    feework.mcost = txNew.GetFeeworkHardness(nBlockSize, GMF_BLOCK,
+                                             feework.bytes);
+
+    if (feework.mcost > chainParams.FEEWORK_MAX_MCOST)
+    {
+        string strError = _("Error: memory cost exceeds limit");
+        printf("MineFeework(): %s", strError.c_str());
+        return strError;
+    }
+
+    // by default, rng is seeded with random device at initialization
+    static XORShift1024Star rng;
+
+    feework.work = rng.Next();
+    feework.GetFeeworkHash(ssData, pbfrFeeworkMiner);
+    nRounds = 1;
+    while (feework.hash > feework.limit)
+    {
+        feework.work = rng.Next();
+        feework.GetFeeworkHash(ssData, pbfrFeeworkMiner);
+        nRounds += 1;
+    }
+
+    CScript scriptFeework = feework.GetScript();
+    CTxOut txoutFeework(0, scriptFeework);
+    txNew.vout.push_back(txoutFeework);
+
+    return "";
+}
+
+bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
+                                CWalletTx& wtxNew,
+                                CReserveKey& reservekey,
+                                int64_t& nFeeRet,
+                                int32_t& nChangePos,
+                                const CCoinControl* coinControl,
+                                Feework* pfeework)
 {
     int64_t nValue = 0;
     BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
@@ -1480,6 +1568,9 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
     if (vecSend.empty() || nValue < 0)
         return false;
 
+    // user beware, client will attempt a feeless tx even if not yet activated
+    bool fFeeless = (bool)pfeework;
+
     wtxNew.BindWallet(this);
 
     {
@@ -1488,6 +1579,10 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
         CTxDB txdb("r");
         {
             nFeeRet = nTransactionFee;
+            if (fFeeless)
+            {
+                nFeeRet = 0;
+            }
             while (true)
             {
                 wtxNew.vin.clear();
@@ -1522,6 +1617,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                 // or until nChange becomes zero
                 // NOTE: this depends on the exact behaviour of GetMinFee
                 if ((nFeeRet < chainParams.MIN_TX_FEE) &&
+                    (!fFeeless) &&
                     (nChange > 0) &&
                     (nChange < CENT))
                 {
@@ -1558,18 +1654,52 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                     nChangePos = std::distance(wtxNew.vout.begin(), position);
                 }
                 else
+                {
                     reservekey.ReturnKey();
+                }
                 BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
                 wtxNew.vin.push_back(CTxIn(coin.first->GetHash(),coin.second));
 
-                int nIn = 0;
-                BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
-                if (SignSignature(*this, *coin.first, wtxNew, nIn++) != 0)
+                if (fFeeless)
                 {
-                    printf("CreateTransaction(): could not sign tx\n");
-                    return false;
+                    CBlockIndex* pindex = mapBlockIndex[hashBestChain];
+                    const uint256* phashBlock = pindex->phashBlock;
+                    int nHeight = pindex->nHeight;
+                    int nDeepest = nHeight - chainParams.FEELESS_MAX_DEPTH;
+                    unsigned int nBlocks = 0;
+                    unsigned int nSizeTotal = 0;
+                    while (pindex->nHeight >= nDeepest)
+                    {
+                        nBlocks += 1;
+                        nSizeTotal += pindex->nBlockSize;
+                        if (!pindex->pprev)
+                        {
+                            break;
+                        }
+                        pindex = pindex->pprev;
+                    }
+                    int nBlockSize = nBlockSize = nSizeTotal / nBlocks;
+                    pfeework->height = nHeight;
+                    pfeework->pblockhash = phashBlock;
+                    int nRounds;
+                    string strErr = MineFeework(nBlockSize, wtxNew,
+                                                *pfeework, nRounds);
+                    if (!strErr.empty())
+                    {
+                        printf("CreateTransaction(): %s\n", strErr.c_str());
+                        return false;
+                    }
                 }
 
+                int nIn = 0;
+                BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
+                {
+                    if (SignSignature(*this, *coin.first, wtxNew, nIn++) != 0)
+                    {
+                        printf("CreateTransaction(): could not sign tx\n");
+                        return false;
+                    }
+                }
                 unsigned int nBytes = ::GetSerializeSize(*(CTransaction*)&wtxNew,
                                                          SER_NETWORK,
                                                          PROTOCOL_VERSION);
@@ -1580,13 +1710,25 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
                 }
                 dPriority /= nBytes;
 
-                int64_t nPayFee = nTransactionFee * (1 + (int64_t)nBytes / 1000);
-                int64_t nMinFee = wtxNew.GetMinFee(1, false, GMF_SEND, nBytes);
-
-                if (nFeeRet < max(nPayFee, nMinFee))
+                if (fFeeless)
                 {
-                 nFeeRet = max(nPayFee, nMinFee);
-                 continue;
+                    if (pfeework->bytes < nBytes)
+                    {
+                        printf("CreateTransaction(): "
+                                  "TSNH: feework bytes too few\n");
+                        return false;
+                    }
+                }
+                else
+                {
+                    int64_t nPayFee = nTransactionFee * (1 + (int64_t)nBytes / 1000);
+                    int64_t nMinFee = wtxNew.GetMinFee(1, GMF_SEND, nBytes);
+
+                    if (nFeeRet < max(nPayFee, nMinFee))
+                    {
+                     nFeeRet = max(nPayFee, nMinFee);
+                     continue;
+                    }
                 }
                 // Fill vtxPrev by copying from previous transactions vtxPrev
                 wtxNew.AddSupportingTransactions(txdb);
@@ -1599,12 +1741,19 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend, 
     return true;
 }
 
-bool CWallet::CreateTransaction(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, CReserveKey& reservekey, int64_t& nFeeRet, const CCoinControl* coinControl)
+bool CWallet::CreateTransaction(CScript scriptPubKey,
+                                int64_t nValue,
+                                CWalletTx& wtxNew,
+                                CReserveKey& reservekey,
+                                int64_t& nFeeRet,
+                                const CCoinControl* coinControl,
+                                Feework* pfeework)
 {
     vector< pair<CScript, int64_t> > vecSend;
     vecSend.push_back(make_pair(scriptPubKey, nValue));
     int nChangePos;
-    bool rv = CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, nChangePos, coinControl);
+    bool rv = CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet,
+                                nChangePos, coinControl, pfeework);
     return rv;
 }
 
@@ -2696,10 +2845,20 @@ bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 }
 
 
-string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNew, bool fAskFee)
+string CWallet::SendMoney(CScript scriptPubKey,
+                          int64_t nValue,
+                          CWalletTx& wtxNew,
+                          bool fAskFee,
+                          Feework* pfeework)
 {
     CReserveKey reservekey(this);
     int64_t nFeeRequired;
+
+    if (pfeework)
+    {
+         // no reason to confirm a fee of 0
+         fAskFee = false;
+    }
 
     if (IsLocked())
     {
@@ -2713,28 +2872,46 @@ string CWallet::SendMoney(CScript scriptPubKey, int64_t nValue, CWalletTx& wtxNe
         printf("SendMoney() : %s", strError.c_str());
         return strError;
     }
-    if (!CreateTransaction(scriptPubKey, nValue, wtxNew, reservekey, nFeeRequired))
+    if (!CreateTransaction(scriptPubKey, nValue, wtxNew,
+                           reservekey, nFeeRequired, NULL, pfeework))
     {
         string strError;
         if (nValue + nFeeRequired > GetBalance())
+        {
             strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds  "), FormatMoney(nFeeRequired).c_str());
+        }
         else
+        {
             strError = _("Error: Transaction creation failed  ");
+        }
         printf("SendMoney() : %s", strError.c_str());
         return strError;
     }
 
     if (fAskFee && !uiInterface.ThreadSafeAskFee(nFeeRequired, _("Sending...")))
+    {
         return "ABORTED";
+    }
 
+    // FIXME: this is for testing, remove if found after feeless is active
+    if (pfeework && (GetFork(nBestHeight) < XST_FORKFEELESS))
+    {
+        return "";
+    }
     if (!CommitTransaction(wtxNew, reservekey))
+    {
         return _("Error: The transaction was rejected.  This might happen if some of the coins in your wallet were already spent, such as if you used a copy of wallet.dat and coins were spent in the copy but not marked as spent here.");
+    }
 
     return "";
 }
 
 
-string CWallet::SendMoneyToDestination(const CTxDestination& address, int64_t nValue, CWalletTx& wtxNew, bool fAskFee)
+string CWallet::SendMoneyToDestination(const CTxDestination& address,
+                                       int64_t nValue,
+                                       CWalletTx& wtxNew,
+                                       bool fAskFee,
+                                       Feework* pfeework)
 {
     // Check amount
     if (nValue <= 0)
@@ -2746,7 +2923,7 @@ string CWallet::SendMoneyToDestination(const CTxDestination& address, int64_t nV
     CScript scriptPubKey;
     scriptPubKey.SetDestination(address);
 
-    return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee);
+    return SendMoney(scriptPubKey, nValue, wtxNew, fAskFee, pfeework);
 }
 
 
@@ -2901,7 +3078,7 @@ string CWallet::CreateQPoSTx(const string &txid,
         }
 
         int64_t nPayFee = nTransactionFee * (1 + (int64_t)nBytes / 1000);
-        int64_t nMinFee = wtxNew.GetMinFee(1, false, GMF_SEND, nBytes);
+        int64_t nMinFee = wtxNew.GetMinFee(1, GMF_SEND, nBytes);
         int64_t nFee = max(nPayFee, nMinFee);
 
         // check fees again now that they are properly estimated
@@ -3049,7 +3226,7 @@ string CWallet::PurchaseStaker(const string &txid,
     }
 
     valtype vchPurchase(0);
-    valtype vchPrice = vchnum(static_cast<uint64_t>(nPrice)).Get();
+    valtype vchPrice = *vchnum(static_cast<uint64_t>(nPrice)).Get();
 
     EXTEND(vchPurchase, vchPrice);
     EXTEND(vchPurchase, vchOwnerKey);
@@ -3059,7 +3236,7 @@ string CWallet::PurchaseStaker(const string &txid,
         EXTEND(vchPurchase, vchDelegateKey);
         EXTEND(vchPurchase, vchControllerKey);
 
-        valtype vchPcm = vchnum(nPcm).Get();
+        valtype vchPcm = *vchnum(nPcm).Get();
         EXTEND(vchPurchase, vchPcm);
     }
 
@@ -3138,14 +3315,14 @@ string CWallet::SetStakerKey(const string &txid,
 
     valtype vchSetKey(0);
 
-    valtype vchID = vchnum(static_cast<uint32_t>(nID)).Get();
+    valtype vchID = *vchnum(static_cast<uint32_t>(nID)).Get();
     EXTEND(vchSetKey, vchID);
 
     EXTEND(vchSetKey, vchPubKey);
 
     if (fIsSetDelegate)
     {
-        valtype vchPcm = vchnum(nPcm).Get();
+        valtype vchPcm = *vchnum(nPcm).Get();
         EXTEND(vchSetKey, vchPcm);
     }
 
@@ -3186,7 +3363,7 @@ string CWallet::SetStakerState(const string &txid,
 
     valtype vchSetState(0);
 
-    valtype vchID = vchnum(static_cast<uint32_t>(nID)).Get();
+    valtype vchID = *vchnum(static_cast<uint32_t>(nID)).Get();
     EXTEND(vchSetState, vchID);
 
     EXTEND(vchSetState, vchPubKey);
@@ -3277,7 +3454,7 @@ string CWallet::ClaimQPoSBalance(const string &txid,
     valtype vchClaim(0);
     EXTEND(vchClaim, vchClaimantKey);
 
-    valtype vchValue = vchnum(static_cast<uint64_t>(nValue)).Get();
+    valtype vchValue = *vchnum(static_cast<uint64_t>(nValue)).Get();
     EXTEND(vchClaim, vchValue);
 
     // value + pubkey
@@ -3315,7 +3492,7 @@ string CWallet::SetStakerMeta(const string &txid,
 
     valtype vchSetMeta(0);
 
-    valtype vchID = vchnum(static_cast<uint32_t>(nID)).Get();
+    valtype vchID = *vchnum(static_cast<uint32_t>(nID)).Get();
     EXTEND(vchSetMeta, vchID);
 
     EXTEND(vchSetMeta, vchPubKey);

@@ -23,7 +23,6 @@
 #include <boost/random/uniform_int_distribution.hpp>
 
 using namespace std;
-using namespace boost;
 
 //
 // Global state
@@ -514,11 +513,11 @@ const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs)
 {
     MapPrevTx::const_iterator mi = inputs.find(input.prevout.hash);
     if (mi == inputs.end())
-        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.hash not found");
+        throw runtime_error("CTransaction::GetOutputFor() : prevout.hash not found");
 
     const CTransaction& txPrev = (mi->second).second;
     if (input.prevout.n >= txPrev.vout.size())
-        throw std::runtime_error("CTransaction::GetOutputFor() : prevout.n out of range");
+        throw runtime_error("CTransaction::GetOutputFor() : prevout.n out of range");
 
     return txPrev.vout[input.prevout.n];
 }
@@ -714,7 +713,6 @@ bool CTransaction::ValidateSignatory(const QPRegistry *pregistry,
     return ValidateSignatory(mapInputs, idx, vKeys);
 }
 
-
 // this does a full check: depends on the state of the registry
 // total value in and out is checked elsewhere, where it is more sensible
 // mapRet is keyed by the normalized (lowercase) alias
@@ -730,7 +728,12 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
         if (!Solver(txout.scriptPubKey, typetxo, vSolutions))
         {
             // nonstandard
-            return error("CheckPurchase(): nonstandard");
+            return false;
+        }
+        if (typetxo == TX_FEEWORK)
+        {
+            // qPoS transactions can't be feeless
+            return DoS(100, error("CheckPurchase() : has feework"));
         }
         if ((typetxo != TX_PURCHASE1) && (typetxo != TX_PURCHASE3))
         {
@@ -740,17 +743,17 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
         if (nFork < XST_FORKPURCHASE)
         {
             // too soon to purchase
-            return error("CheckPurchase(): too soon");
+            return DoS(100, error("CheckPurchase() : too soon"));
         }
         if (txout.nValue != 0)
         {
             // purchase output can't have a value
-            return error("CheckPurchase(): has value");
+            return DoS(100, error("CheckPurchase() : has value"));
         }
         if (vSolutions.empty())
         {
-            // this should never happen
-            return error("CheckPurchase(): TSNH no vSolution");
+            // this should never happen (going to dos anyway just in case)
+            return DoS(100, error("CheckPurchase() : TSNH no vSolution"));
         }
         valtype vch = vSolutions.front();
         qpos_purchase purchase;
@@ -760,36 +763,40 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
             if (purchase.keys.size() != 1)
             {
                 // malformed PURCHASE1
-                return error("CheckPurchase(): malformed 1");
+                return DoS(100, error("CheckPurchase() : malformed 1"));
             }
         }
         else if (purchase.keys.size() != 3)
         {
             // malformed PURCHASE3
-            return error("CheckPurchase(): malformed 3");
+            return DoS(100, error("CheckPurchase() : malformed 3"));
         }
         // disallowing more than 2x price removes any chance of overflow
-        if ((purchase.value < nStakerPrice) ||
-            (purchase.value > (nStakerPrice * 2)))
+        if (purchase.value < nStakerPrice)
         {
-            // illegal amount paid for registration
-            return error("CheckPurchase(): bad pay value");
+            // too little paid for registration
+            return DoS(100, error("CheckPurchase() : too little paid"));
+        }
+        if (purchase.value > (nStakerPrice * 2))
+        {
+            // excessive amount paid for registration
+            return DoS(20, error("CheckPurchase() : too much paid"));
         }
         if (purchase.pcm > 100000)
         {
             // can't delegate more than 100%
-            return error("CheckPurchase(): delegate payout too much");
+            return DoS(100, error("CheckPurchase() : too much delegate pay"));
         }
         string sLC;
         if (!pregistry->AliasIsAvailable(purchase.alias, sLC))
         {
-            // alias is not valid or is taken
-            return error("CheckPurchase(): alias not valid or taken");
+            // alias is not valid or is taken (should have checked)
+            return DoS(100, error("CheckPurchase() : alias unavailable"));
         }
         if (mapRet.count(sLC) > 0)
         {
             // tx registers same alias more than once
-            return error("CheckPurchase(): multiple regs");
+            return DoS(100, error("CheckPurchase() : multiple regs"));
         }
         mapRet[sLC] = purchase;
     }
@@ -824,6 +831,11 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             // nonstandard
             return false;
         }
+        if (typetxo == TX_FEEWORK)
+        {
+            // qPoS transactions can't be feeless
+            return DoS(100, error("CheckSetKeys() : has feework"));
+        }
         if ((typetxo != TX_SETOWNER) &&
             (typetxo != TX_SETDELEGATE) &&
             (typetxo != TX_SETCONTROLLER))
@@ -833,46 +845,38 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
         // one block after the purchase period starts
         if (nFork < XST_FORKPURCHASE)
         {
-            printf("CheckSetKeys(): fail: too soon\n");
             // too soon to setkeys
-            return false;
+            return DoS(100, error("CheckSetKeys() : too soon"));
         }
         if (txout.nValue != 0)
         {
             // setkey output can't have a value
-            printf("CheckSetKeys(): fail: output has a value\n");
-            return false;
+            return DoS(100, error("CheckSetKeys() : has value"));
         }
         if (vin.size() != 1)
         {
             // key setting transactions have only 1 input
             // to avoid complex searches through inputs for keys
-            printf("CheckSetKeys(): fail: multiple inputs\n");
-            return false;
+            return DoS(100, error("CheckSetKeys() : multiple inputs"));
         }
         QPKeyType fThisKeyType = mapQPoSKeyTypes[typetxo];
         if (fKeyTypes & fThisKeyType)
         {
-            // don't allow assigning the same key twice in one tx
-            printf("CheckSetKeys(): fail: multiple assignment of same key\n");
-            return false;
+            return DoS(100, error("CheckSetKeys() : multiple assignment"));
         }
         if ((fThisKeyType != QPKEY_OWNER) && (QPKEY_OWNER & fKeyTypes))
         {
             // can't change owner then expect any other key change to work
             // especially since registry won't be updated until the
             //    tx is connected
-            printf("CheckSetKeys(): fail: already changed owner\n");
-            return false;
+            return DoS(100, error("CheckSetKeys() : owner already changed"));
         }
         qpos_setkey setkey;
         setkey.keytype = fThisKeyType;
         ExtractSetKey(vSolutions.front(), setkey);
         if ((fThisKeyType == QPKEY_CONTROLLER) && (setkey.pcm > 100000))
         {
-            printf("CheckSetKeys(): fail: pcm too high\n");
-            // can't assign more than 100%
-            return false;
+            return DoS(100, error("CheckSetKeys() : pcm too high"));
         }
         if (nStakerID == 0)
         {
@@ -880,16 +884,14 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             {
                 // disqualified stakers get purged before key
                 // changes would have any effect
-                printf("CheckSetKeys(): fail: staker is not qualified\n");
-                return false;
+                return DoS(100, error("CheckSetKeys() : disqualified"));
             }
             nStakerID = setkey.id;
         }
         else if (setkey.id != nStakerID)
         {
             // avoid complexities by disallowing more than one ID
-            printf("CheckSetKeys(): fail: can't change multiple stakers\n");
-            return false;
+            return DoS(100, error("CheckSetKeys() : changing multiple IDs"));
         }
         // only need to do this once per tx because only one ID allowed
         if (!fCheckedSignatory)
@@ -897,8 +899,7 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             if (!ValidateSignatory(pregistry, mapInputs, 0, setkey.id, QPKEY_OWNER))
             {
                 // signatory doesn't own staker
-                printf("CheckSetKeys(): fail: signatory doesn't own staker\n");
-                return false;
+                return DoS(100, error("CheckSetKeys() : sig not owner"));
             }
             fCheckedSignatory = true;
         }
@@ -907,7 +908,6 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
     }
     return true;
 }
-
 
 // this does a full check: depends on the state of the registry
 // only one state change per tx allowed because only one ID is allowed per tx
@@ -931,6 +931,11 @@ bool CTransaction::CheckSetState(const QPRegistry *pregistry,
             printf("CheckSetState(): nonstandard\n");
             return false;
         }
+        if (typetxo == TX_FEEWORK)
+        {
+            // qPoS transactions can't be feeless
+            return DoS(100, error("CheckSetState() : has feework"));
+        }
         if ((typetxo != TX_ENABLE) && (typetxo != TX_DISABLE))
         {
             continue;
@@ -939,47 +944,40 @@ bool CTransaction::CheckSetState(const QPRegistry *pregistry,
         if (nFork < XST_FORKPURCHASE)
         {
             // too soon to set state
-            printf("CheckSetState(): too soon\n");
-            return false;
+            return DoS(100, error("CheckSetState() : too soon"));
         }
         if (vout[i].nValue != 0)
         {
             // setstate output can't have a value
-            printf("CheckSetState(): output value not permitted\n");
-            return false;
+            return DoS(100, error("CheckSetState() : has value"));
         }
         if (setstate.id != 0)
         {
             // only allow one per tx
-            printf("CheckSetState(): multiple setstates\n");
-            return false;
+            return DoS(100, error("CheckSetState() : multiple setstates"));
         }
         if (vin.size() != 1)
         {
             // avoid searching for keys by allowing only 1 input
-            printf("CheckSetState(): multiple inputs\n");
-            return false;
+            return DoS(100, error("CheckSetState() : multiple inputs"));
         }
         setstate.enable = (typetxo == TX_ENABLE);
         ExtractSetState(vSolutions.front(), setstate);
         if (!pregistry->IsQualifiedStaker(setstate.id))
         {
             // disallow setting state of disqualified stakers even if extant
-            printf("CheckSetState(): staker is disqualified\n");
-            return false;
+            return DoS(100, error("CheckSetState() : staker disqualified"));
         }
         if (!ValidateSignatory(pregistry, mapInputs, 0, setstate.id, QPKEY_OC))
         {
             // signatory doesn't own or control the staker
-            printf("CheckSetState(): signatory is not owner\n");
-            return false;
+            return DoS(100, error("CheckSetState() : sig not owner"));
         }
     }
     setstateRet.id = setstate.id;
     setstateRet.enable = setstate.enable;
     return true;
 }
-
 
 // this does a full check: depends on the state of the registry
 // false return value means claim is malformed or illegal
@@ -999,21 +997,24 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
     {
         if (!Solver(vout[i].scriptPubKey, typetxo, vSolutions))
         {
-            // claim outputs must match a template
+            // claim outputs must match a template (i.e. nonstandard)
             return false;
+        }
+        if (typetxo == TX_FEEWORK)
+        {
+            // qPoS transactions can't be feeless
+            return DoS(100, error("CheckClaim() : has feework"));
         }
         // claims can only have 1 input and 1 output to keep things simple
         if (typetxo == TX_CLAIM)
         {
             if (vin.size() != 1)
             {
-                printf("CheckClaim(): number of inputs not 1\n");
-                return false;
+                return DoS(100, error("CheckClaim() : qty inputs not 1"));
             }
             if (vout.size() != 1)
             {
-                printf("CheckClaim(): number of outputs not 1\n");
-                return false;
+                return DoS(100, error("CheckClaim() : qty outputs not 1"));
             }
             fFoundClaim = true;
         }
@@ -1026,35 +1027,32 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
 
     if ((!fTestNet) && (GetFork(nBestHeight - QP_BLOCKS_PER_DAY) < XST_FORKQPOS))
     {
-        // too soon to purchase
-        printf("CheckClaim(): wait at least one day after qPoS to claim\n");
-        return false;
+        // too soon to claim
+        return DoS(100, error("CheckClaim() : too soon for claim"));
     }
 
     ExtractClaim(vSolutions.front(), claimRet);
 
     if (claimRet.value < chainParams.MIN_TXOUT_AMOUNT)
     {
-        printf("CheckClaim(): claim amount is too little for any tx\n");
-        return false;
+        // claim amount is too little for any tx
+        return DoS(100, error("CheckClaim() : too little"));
     }
 
     if (!pregistry->CanClaim(claimRet.key, claimRet.value))
     {
-        printf("CheckClaim(): account owner (key) can not claim this amount\n");
-        return false;
+        // account owner (key) can not claim this amount
+        return DoS(100, error("CheckClaim() : illegal amount"));
     }
 
     if (!ValidateSignatory(mapInputs, 0, claimRet.key))
     {
         // signatory doesn't own any registry ledger account
-        printf("CheckClaim(): signatory doesn't own this ledger account (key)");
-        return false;
+        return DoS(100, error("CheckClaim() : invalid signatory"));
     }
 
     return true;
 }
-
 
 // this does a full check: depends on the state of the registry
 // lots of checks are done to allow setting multiple keys
@@ -1081,6 +1079,11 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
             // nonstandard
             return false;
         }
+        if (typetxo == TX_FEEWORK)
+        {
+            // qPoS transactions can't be feeless
+            return DoS(100, error("CheckSetMetas() : has feework"));
+        }
         if (typetxo != TX_SETMETA)
         {
             continue;
@@ -1088,22 +1091,19 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
         // one block after the purchase period starts
         if (nFork < XST_FORKPURCHASE)
         {
-            printf("CheckSetMetas(): fail: too soon\n");
             // too soon to setkeys
-            return false;
+            return DoS(100, error("CheckSetMets() : too soon"));
         }
         if (txout.nValue != 0)
         {
             // setmeta output can't have a value
-            printf("CheckSetMetas(): fail: output has a value\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : has value"));
         }
         if (vin.size() != 1)
         {
             // meta setting transactions have only 1 input
             // to avoid complex searches through inputs for keys
-            printf("CheckSetMetas(): fail: multiple inputs\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : multiple inputs"));
         }
 
         qpos_setmeta setmeta;
@@ -1114,36 +1114,31 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
             {
                 // disqualified stakers get purged before key
                 // changes would have any effect
-                printf("CheckSetMetas(): fail: staker is not qualified\n");
-                return false;
+                return DoS(100, error("CheckSetMetas() : not qualified"));
             }
             nStakerID = setmeta.id;
         }
         else if (setmeta.id != nStakerID)
         {
             // avoid complexities by disallowing more than one ID
-            printf("CheckSetMetas(): fail: can't change multiple stakers\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : multiple stakers"));
         }
 
         QPKeyType fAuthorities = CheckMetaKey(setmeta.key);
         if (fAuthorities == QPKEY_NONE)
         {
-            printf("CheckSetMetas(): fail: key is not valid\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : key not valid"));
         }
 
         if (!CheckMetaValue(setmeta.value))
         {
-            printf("CheckSetMetas(): fail: value is not valid\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : value not valid"));
         }
 
         if (mapMetas.count(setmeta.key))
         {
             // disallow setting the same key twice in the same transaction
-            printf("CheckSetMetas(): fail: can't change same key twice in same tx\n");
-            return false;
+            return DoS(100, error("CheckSetMetas() : changing key twice"));
         }
 
         mapMetas[setmeta.key] = setmeta.value;
@@ -1154,8 +1149,7 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
             if (!ValidateSignatory(pregistry, mapInputs, 0, setmeta.id, fAuthorities))
             {
                 // signatory doesn't own staker
-                printf("CheckSetMetas(): fail: signatory doesn't have authority\n");
-                return false;
+                return DoS(100, error("CheckSetMetas() : sig not owner"));
             }
             fCheckedSignatory = true;
         }
@@ -1207,7 +1201,8 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             {
                 if (mapPurchasesRet.count(it->first))
                 {
-                    return error("CheckQPoS(): multiple purchases for name");
+                    // multiple purchases for name
+                    return DoS(100, error("CheckQPoS() : multiple purchases"));
                 }
             }
             for (it = mapTxPrchs.begin(); it != mapTxPrchs.end(); ++it)
@@ -1232,12 +1227,12 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             }
             if (vSetKeys.empty())
             {
-                // this should never happen
-                return error("CheckQPoS(): TSNH no keys set");
+                // this should never happen (dos anyway just in case)
+                return DoS(100, error("CheckQPoS() : TSNH no keys set"));
             }
             if (mapSetKeysRet.count(vSetKeys[0].id))
             {
-                return error("CheckQPoS(): multiple setkeys");
+                return DoS(100, error("CheckQPoS() : multiple setkeys"));
             }
             mapSetKeysRet[vSetKeys[0].id] = vSetKeys;
             fSetKeysChecked = true;
@@ -1248,8 +1243,8 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
           {
             if (fSetStateChecked)
             {
-                // this should never happen
-                return error("CheckQPoS(): TSNH multiple setstates");
+                // this should never happen (dos anyway just in case)
+                return DoS(100, error("CheckQPoS() : TSNH multiple setstates"));
             }
             qpos_setstate setstate;
             if (!CheckSetState(pregistryTemp, mapInputs, setstate))
@@ -1263,13 +1258,13 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
           {
             if (fClaimChecked)
             {
-                // this should never happen
-                return error("CheckQPoS(): TSNH multiple claims");
+                // this should never happen (dos anyway just in case)
+                return DoS(100, error("CheckQPoS() : TSNH multiple claims"));
             }
             qpos_claim claim;
             if (!CheckClaim(pregistryTemp, mapInputs, claim))
             {
-                return error("CheckQPoS(): bad claim");
+                return DoS(100, error("CheckQPoS() : bad claim"));
             }
             map<CPubKey, vector<qpos_claim> >::const_iterator it;
             it = mapClaimsRet.find(claim.key);
@@ -1282,7 +1277,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
                 }
                 if (!pregistryTemp->CanClaim(claim.key, nTotal, nTime))
                 {
-                    return error("CheckQPoS(): invalid total claimed");
+                    return DoS(100, error("CheckQPoS() : invalid total claimed"));
                 }
             }
             mapClaimsRet[claim.key].push_back(claim);
@@ -1302,8 +1297,8 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             }
             if (vSetMetas.empty())
             {
-                // this should never happen
-                return error("CheckQPoS(): TSNH no metas set");
+                // this should never happen (dos anyway just in case)
+                return DoS(100, error("CheckQPoS() : no metas set"));
             }
             fSetMetasChecked = true;
             break;
@@ -1311,7 +1306,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
         default:
           {
             // this should never happen
-            return error("CheckQPoS(): TSNH unknown qPoS operation");
+            return DoS(100, error("CheckQPoS() : TSNH unknonwn qPoS op"));
           }
         }
         vDeetsRet.push_back(deet);
@@ -1721,70 +1716,333 @@ bool CTransaction::CheckTransaction() const
     return true;
 }
 
-int64_t CTransaction::GetMinFee(unsigned int nBlockSize, bool fAllowFree,
-                              enum GetMinFee_mode mode, unsigned int nBytes) const
+int64_t CTransaction::GetMinFee(unsigned int nBlockSize,
+                                enum GetMinFee_mode mode,
+                                unsigned int nBytes) const
 {
     static const unsigned int nMaxBlockSizeGen = chainParams.MAX_BLOCK_SIZE_GEN;
     // Base fee is either MIN_TX_FEE or MIN_RELAY_TX_FEE
     int64_t nBaseFee = (mode == GMF_RELAY) ? chainParams.MIN_RELAY_TX_FEE :
                                              chainParams.MIN_TX_FEE;
 
-    unsigned int nNewBlockSize = nBlockSize + nBytes;
     int64_t nMinFee = (1 + (int64_t)nBytes / 1000) * nBaseFee;
 
-    // To limit dust spam, require MIN_TX_FEE/MIN_RELAY_TX_FEE if any output is less than 0.01
-    if (nMinFee < nBaseFee)
-    {
-        BOOST_FOREACH(const CTxOut& txout, vout)
-            if (txout.nValue < CENT)
-                nMinFee = nBaseFee;
-    }
+    unsigned int nNewBlockSize = nBlockSize + nBytes;
 
     // Raise the price as the block approaches full
     if (nBlockSize != 1 && nNewBlockSize >= nMaxBlockSizeGen/2)
     {
         if (nNewBlockSize >= nMaxBlockSizeGen)
+        {
             return chainParams.MAX_MONEY;
+        }
         nMinFee *= nMaxBlockSizeGen / (nMaxBlockSizeGen - nNewBlockSize);
     }
 
     if (!MoneyRange(nMinFee))
+    {
         nMinFee = chainParams.MAX_MONEY;
+    }
+
     return nMinFee;
 }
+
+uint32_t CTransaction::GetFeeworkHardness(unsigned int nBlockSize,
+                                          enum GetMinFee_mode mode,
+                                          unsigned int nBytes) const
+{
+    // We reserve the last part of the block for money fee transactions,
+    // so there is no way to spam blocks full with feeless transactions.
+    static const uint64_t nMaxSize = chainParams.FEELESS_MAX_BLOCK_SIZE;
+    static const uint64_t nParts = chainParams.FEEWORK_BLOCK_PARTS;
+    // jump of feework memory cost, expresed as a percent
+    static const uint64_t nJump = chainParams.FEEWORK_COST_PCT_JUMP_PER_PART;
+
+    // The multiplier allows a simplification of, reducing the complexity
+    // of the calculation by one addition operation.
+    //    cost' += ((cost * jump * 1000) / 1000) / 100
+    // The denominator of 100 reflects that jump is expressed as a percentage
+    // I.e. (setting A=1000 and B=100):
+    //    cost' = cost + ((cost*jump*A) / A) / B)
+    //          = (((B*cost/jump + cost) * jump*A ) / A) / B
+    //          = (((B*cost + cost*jump) * A) / A) / B
+    //          = ((cost * (B + jump) * A) / A) / B
+    //          = (cost * (A * (B + jump)) / A) / B
+    //          = (cost * multiplier) / (A*B)
+    // Where multiplier = A * (B + jump) = 1000 * (100 + jump)
+    // Note that we both multiply and divide by 1000 to get at
+    // least three digits of precision in the calculation
+    // because we are using integer arithmetic.
+    static const uint64_t nMultiplier = 1000 * (100 + nJump);
+
+    // cost is the memory cost of the feework
+    uint64_t nBaseCost = chainParams.FEELESS_MCOST_MIN;
+    if (mode == GMF_RELAY)
+    {
+        nBaseCost = chainParams.RELAY_FEELESS_MCOST_MIN;
+    }
+
+    // comp time increases linearly with memory cost
+    uint64_t nCost = (1 + (int64_t)nBytes / 1000) * nBaseCost;
+
+    uint64_t nNewBlockSize = nBlockSize + nBytes;
+    if (nNewBlockSize > nMaxSize)
+    {
+        return (uint64_t)numeric_limits<uint32_t>::max;
+    }
+
+    // Exponentially raise the memory hardness of feework as block fills
+    // up to 31 steps, at jump percent per step, stepwise compounded.
+    // The following loop does steps 2 - 31, counter i expressing which step.
+    for (uint64_t i = 2; i <= ((nParts * nNewBlockSize) / nMaxSize); ++i)
+    {
+        nCost = (nCost * nMultiplier) / 100000;
+    }
+
+    // A 1 MB tx in a 1 MB block (4,578,764,800) would slightly
+    // exceed the 32 bit max (1<<32 == 4,294,967,296).
+    return min(nCost, (uint64_t)numeric_limits<uint32_t>::max);
+}
+
+uint64_t CTransaction::GetFeeworkLimit(unsigned int nBlockSize,
+                                       enum GetMinFee_mode mode,
+                                       unsigned int nBytes) const
+{
+    // We reserve the last part block for money fee transactions,
+    // so there is no way to spam blocks full with feeless transactions.
+    static const uint64_t nMaxSize = chainParams.FEELESS_MAX_BLOCK_SIZE;
+    static const uint64_t nParts = chainParams.FEEWORK_BLOCK_PARTS;
+    // decay of feework limit, expresed as a percent (less than 100%)
+    static const uint64_t nDecay = chainParams.FEEWORK_LIMIT_PCT_DECAY_PER_PART;
+
+    // feework limit is the limit of the hash value
+    uint64_t nBaseLimit = chainParams.TX_FEEWORK_LIMIT;
+    if (mode == GMF_RELAY)
+    {
+        nBaseLimit = chainParams.RELAY_TX_FEEWORK_LIMIT;
+    }
+
+    // difficulty increases (limit decreases) linearly with memory cost
+    uint64_t nLimit = nBaseLimit / (1 + (int64_t)nBytes / 1000);
+
+    uint64_t nNewBlockSize = nBlockSize + nBytes;
+    if (nNewBlockSize > nMaxSize)
+    {
+        return 0;
+    }
+
+    // Exponentially raise the difficulty of feework as block fills
+    // up to 30 steps, at decay percent per step, stepwise compounded
+    for (uint64_t i = 1; i < ((nParts * nNewBlockSize) / nMaxSize); ++i)
+    {
+        nLimit = (nDecay * nLimit) / 100;
+    }
+
+    return nLimit;
+}
+
+// Feeless transactions have a work proof (feework) as the last
+// output. These have the structure [nonce, height, work], where
+// the height specifies a particular block. Work is calculated as
+//    work: 64 bits argon2d(nonce, hashblock, vin, vout[:-1])
+//    hashblock: 256 bit hash of the block at the specified height
+//    vin: all inputs, with signatures stripped
+//    vout[:-1]: all outputs except for the work proof (last outptut)
+// Checks:
+//    * work is 8 bytes (work is analogous to the PoW nonce)
+//    * height
+//         * 4 bytes
+//         * height >= best height - 24
+//              Allows feeless transactions to be cleared from mempool
+//              after 24 blocks if they don't get into a block.
+//              This is both a spam prevention measure and allows legit
+//              senders to try again in times of high tx volume.
+//    * hash
+//         * hash == argon2d(work, hashblock, tx*)
+//              tx* is tx with
+//                 - signatures blanked
+//                 - feework output
+//         * hash <= max feework limit
+//    * feework is last output
+//    * only 1 feework per tx
+bool CTransaction::CheckFeework(Feework &feework,
+                                bool fRequired,
+                                argon2_buffer* pbfrFeework,
+                                unsigned int nBlockSize,
+                                enum GetMinFee_mode mode) const
+{
+    // short circuit if this tx has already been checked for feework
+    if (feework.IsChecked())
+    {
+        return feework.IsValid();
+    }
+
+    if (vout.empty())
+    {
+        feework.status = Feework::EMPTY;
+        return DoS(100, error("CheckFeework() : no outputs"));
+    }
+
+    if (IsCoinBase())
+    {
+        feework.status = Feework::COINBASE;
+        return DoS(100, error("CheckFeework() : tx is coinbase"));
+    }
+
+    if (IsCoinStake())
+    {
+        feework.status = Feework::COINSTAKE;
+        return DoS(100, error("CheckFeework() : tx is coinstake"));
+    }
+
+    CTxOut txout;
+    txnouttype typetxo;
+    vector<valtype> vSolutions;
+    unsigned int nIndexLast = vout.size() - 1;
+    for (unsigned int i = 0; i <= nIndexLast; ++i)
+    {
+        vSolutions.clear();
+        txout = vout[i];
+        if (!Solver(txout.scriptPubKey, typetxo, vSolutions))
+        {
+            feework.status = Feework::INSOLUBLE;
+            return error("CheckFeework() : output insoluble");
+        }
+        if (typetxo == TX_FEEWORK)
+        {
+            if (i != nIndexLast)
+            {
+                feework.status = Feework::MISPLACED;
+                return DoS(100, error("CheckFeework() : misplaced feework"));
+            }
+        }
+     }
+
+    if (typetxo == TX_FEEWORK)
+    {
+        if (nVersion < CTransaction::FEELESS_VERSION)
+        {
+            feework.status = Feework::BADVERSION;
+            return DoS(100, error("CheckFeework() : bad tx version"));
+        }
+    }
+    else
+    {
+        if (fRequired)
+        {
+            feework.status = Feework::MISSING;
+            return DoS(100, error("CheckFeework() : missing feework"));
+        }
+        else
+        {
+            feework.status = Feework::NONE;
+            return true;
+        }
+    }
+
+    valtype vch = vSolutions.front();
+    feework.ExtractFeework(vch);
+
+    CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
+    if (feework.height > pblockindex->nHeight)
+    {
+        feework.status = Feework::BLOCKUNKNOWN;
+        return DoS(34, error("CheckFeework() : unknown block"));
+    }
+    if (feework.height < (pblockindex->nHeight - chainParams.FEELESS_MAX_DEPTH))
+    {
+        feework.status = Feework::BLOCKTOODEEP;
+        return DoS(34, error("CheckFeework() : block is too deep"));
+    }
+
+    CBlock block;
+    while (pblockindex->nHeight > feework.height)
+    {
+        pblockindex = pblockindex->pprev;
+    }
+
+    CTransaction txTmp(*this);
+    // Remove the last output (the feework)
+    txTmp.vout.pop_back();
+    // Blank the sigs.
+    // Each will sign the work by virtue of signing the tx hash.
+    for (unsigned int i = 0; i < txTmp.vin.size(); i++)
+    {
+        txTmp.vin[i].scriptSig = CScript();
+    }
+
+    CDataStream ss(SER_DISK, CLIENT_VERSION);
+    ss << *(pblockindex->phashBlock) << txTmp;
+
+    // dynamic difficulty
+    // feework.mcost = chainParams.FEELESS_MCOST_MIN;
+    // feework.limit = GetFeeworkLimit(nBlockSize, mode, feework.bytes);
+
+    // dynamic memory hardness
+    feework.limit = (mode == GMF_RELAY) ?
+                       chainParams.TX_FEEWORK_LIMIT :
+                       chainParams.RELAY_TX_FEEWORK_LIMIT;
+
+    feework.GetFeeworkHash(ss, pbfrFeework);
+
+    uint32_t mcost = GetFeeworkHardness(nBlockSize, mode, feework.bytes);
+    if (!feework.Check(mcost))
+    {
+        return DoS(100, error("CheckFeework() : insufficient feework"));
+    }
+
+    return true;
+}
+
 
 
 bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
                         bool fCheckInputs, bool* pfMissingInputs)
 {
     if (pfMissingInputs)
+    {
         *pfMissingInputs = false;
+    }
 
     if (!tx.CheckTransaction())
+    {
         return error("CTxMemPool::accept() : CheckTransaction failed");
+    }
 
     // Coinbase is only valid in a block, not as a loose transaction
     if (tx.IsCoinBase())
+    {
         return tx.DoS(100, error("CTxMemPool::accept() : coinbase as individual tx"));
+    }
 
     // ppcoin: coinstake is also only valid in a block, not as a loose transaction
     if (tx.IsCoinStake())
+    {
         return tx.DoS(100, error("CTxMemPool::accept() : coinstake as individual tx"));
+    }
 
     // Rather not work on nonstandard transactions (unless -testnet)
     if (!fTestNet && !tx.IsStandard())
+    {
         return error("CTxMemPool::accept() : nonstandard transaction type");
+    }
 
     // Do we already have it?
     uint256 hash = tx.GetHash();
     {
         LOCK(cs);
         if (mapTx.count(hash))
+        {
             return false;
+        }
     }
     if (fCheckInputs)
+    {
         if (txdb.ContainsTx(hash))
+        {
             return false;
+        }
+    }
 
     // Check for conflicts with in-memory transactions
     CTransaction* ptxOld = NULL;
@@ -1796,21 +2054,33 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
             // Disable replacement feature for now
             return false;
 
+#if 0
             // Allow replacing with a newer version of the same transaction
             if (i != 0)
+            {
                 return false;
+            }
             ptxOld = mapNextTx[outpoint].ptx;
             if (ptxOld->IsFinal())
+            {
                 return false;
+            }
             if (!tx.IsNewerThan(*ptxOld))
+            {
                 return false;
+            }
             for (unsigned int i = 0; i < tx.vin.size(); i++)
             {
                 COutPoint outpoint = tx.vin[i].prevout;
+
                 if (!mapNextTx.count(outpoint) || mapNextTx[outpoint].ptx != ptxOld)
+                {
                     return false;
+                }
             }
             break;
+#endif
+
         }
     }
 
@@ -1826,8 +2096,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
     if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapNames))
     {
-        return error("accept(): bad purchase\n");
-        return false;
+        return tx.DoS(100, error("CTxMemPool::accept() : bad purchase"));
     }
 
     if (!mapNames.empty())
@@ -1909,7 +2178,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }
 
     // TODO: some duplicate work on claims here
-    std::vector<QPTxDetails> vDeets;
+    vector<QPTxDetails> vDeets;
     tx.GetQPTxDetails(0, vDeets);
     if (!vDeets.empty())
     {
@@ -1917,7 +2186,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         map<unsigned int, vector<qpos_setkey> > mapSetKeysTx;
         map<CPubKey, vector<qpos_claim> > mapClaimsTx;
         map<unsigned int, vector<qpos_setmeta> > mapSetMetasTx;
-        std::vector<QPTxDetails> vDeetsTx;
+        vector<QPTxDetails> vDeetsTx;
 
         if (!tx.CheckQPoS(pregistryMain,
                           mapInputs,
@@ -1934,11 +2203,15 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         }
     }
 
+    Feework feework;
     if (fCheckInputs)
     {
         // Check for non-standard pay-to-script-hash in inputs
         if (!tx.AreInputsStandard(mapInputs) && !fTestNet)
-            return error("CTxMemPool::accept() : nonstandard transaction input");
+        {
+            return error("CTxMemPool::accept(): "
+                            "nonstandard transaction input");
+        }
 
         // Note: if you modify this code to accept non-standard transactions, then
         // you should add code here to check that the transaction does a
@@ -1949,12 +2222,48 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         unsigned int nSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
 
         // Don't accept it if it can't get into a block
-        int64_t txMinFee = tx.GetMinFee(1000, false, GMF_RELAY, nSize);
-        if (nFees < txMinFee)
-            return error("CTxMemPool::accept() : not enough fees %s, %" PRId64 " < %" PRId64,
-                         hash.ToString().c_str(),
-                         nFees, txMinFee);
+        int64_t txMinFee = tx.GetMinFee(1000, GMF_RELAY, nSize);
 
+        if (nFees < txMinFee)
+        {
+            feework.bytes = nSize;
+            tx.CheckFeework(feework, true, pbfrFeeworkValidator,
+                            1000, GMF_RELAY);
+            switch (feework.status)
+            {
+            case Feework::OK:
+                break;
+            case Feework::BADVERSION:
+                return error("CTxMemPool::accept(): feework not allowed %s, "
+                                 "%" PRId64 " < %" PRId64,
+                                 hash.ToString().c_str(), nFees, txMinFee);
+            case Feework::NONE:
+                return error("CTxMemPool::accept(): not enough fees %s, "
+                                 "%" PRId64 " < %" PRId64,
+                                 hash.ToString().c_str(), nFees, txMinFee);
+            case Feework::INSUFFICIENT:
+                return error("CTxMemPool::accept(): not enough feework %s, "
+                                "%" PRId64 " < %" PRId64,
+                             hash.ToString().c_str(),
+                             nFees, txMinFee);
+            default:
+                // the feework check will produce more error info if applicable
+                return error("CTxMemPool::accept(): "
+                                "not enough fees %s, %" PRId64 " < %" PRId64,
+                             hash.ToString().c_str(),
+                             nFees, txMinFee);
+            }
+            if (fDebugFeeless)
+            {
+               printf("CTxMemPool::accept(): accepting feework\n   %s\n"
+                         "   %" PRId64 " < %" PRId64 "\n%s\n",
+                      hash.ToString().c_str(), nFees, txMinFee,
+                      feework.ToString("      ").c_str());
+            }
+        }
+
+// this test should never be true so why do it?
+#if 0
         // Continuously rate-limit free transactions
         // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
         // be annoying or make others' transactions take longer to confirm.
@@ -1984,6 +2293,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
                 dFreeCount += nSize;
             }
         }
+#endif
 
         unsigned int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
         if (GetFork(nBestHeight+1) < XST_FORK005)
@@ -1994,12 +2304,21 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         // Check against previous transactions
         // This is done last to help prevent CPU exhaustion denial-of-service attacks.
         if (!tx.ConnectInputs(txdb, mapInputs, mapUnused, CDiskTxPos(1,1,1),
-            pindexBest, false, false, flags, nValuePurchases, claim.value))
+                              pindexBest, false, false, flags,
+                              nValuePurchases, claim.value, feework))
         {
             return error("CTxMemPool::accept() : ConnectInputs failed %s",
                          hash.ToString().c_str());
         }
     }  // end check inputs
+
+    // In case feework hasn't been checked, we check it here anyway to ensure
+    // the tx is well formed. The check function will reasonably short
+    // circuit if the feework has already been checked above.
+    if (!tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+    {
+        return error("CTxMemPool::accept() : feework rejected");
+    }
 
     // Store transaction in memory
     {
@@ -2011,12 +2330,18 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
             remove(*ptxOld);
         }
         addUnchecked(hash, tx);
+        if (feework.IsOK())
+        {
+            mempool.addFeeless(feework.height, hash);
+        }
     }
 
     ///// are we sure this is ok when loading transactions or restoring block txes
     // If updated, erase old tx from wallet
     if (ptxOld)
+    {
         EraseFromWallets(ptxOld->GetHash());
+    }
 
     printf("CTxMemPool::accept() : accepted %s (poolsz %" PRIszu ")\n",
            hash.ToString().c_str(),
@@ -2053,15 +2378,18 @@ bool CTxMemPool::remove(const CTransaction &tx, bool fRecursive)
         {
             if (fRecursive)
             {
-                for (unsigned int i = 0; i < tx.vout.size(); i++){
-                    std::map<COutPoint, CInPoint>:: iterator it =
+                for (unsigned int i = 0; i < tx.vout.size(); i++)
+                {
+                    map<COutPoint, CInPoint>:: iterator it =
                                                        mapNextTx.find(COutPoint(hash, i));
                     if (it != mapNextTx.end())
                             remove(*it->second.ptx, true);
                 }
             }
             BOOST_FOREACH(const CTxIn& txin, tx.vin)
+            {
                 mapNextTx.erase(txin.prevout);
+            }
             mapTx.erase(hash);
             nTransactionsUpdated++;
         }
@@ -2076,8 +2404,9 @@ bool CTxMemPool::removeConflicts(const CTransaction &tx)
 {
     // Remove transactions which depend on inputs of tx, recursively
     LOCK(cs);
-    BOOST_FOREACH(const CTxIn &txin, tx.vin) {
-        std::map<COutPoint, CInPoint>::iterator it = mapNextTx.find(txin.prevout);
+    BOOST_FOREACH(const CTxIn &txin, tx.vin)
+    {
+        map<COutPoint, CInPoint>::iterator it = mapNextTx.find(txin.prevout);
         if (it != mapNextTx.end()) {
             const CTransaction &txConflict = *it->second.ptx;
             if (txConflict != tx)
@@ -2095,7 +2424,7 @@ void CTxMemPool::clear()
     ++nTransactionsUpdated;
 }
 
-void CTxMemPool::queryHashes(std::vector<uint256>& vtxid)
+void CTxMemPool::queryHashes(vector<uint256>& vtxid)
 {
     vtxid.clear();
 
@@ -2103,6 +2432,37 @@ void CTxMemPool::queryHashes(std::vector<uint256>& vtxid)
     vtxid.reserve(mapTx.size());
     for (map<uint256, CTransaction>::iterator mi = mapTx.begin(); mi != mapTx.end(); ++mi)
         vtxid.push_back((*mi).first);
+}
+
+bool CTxMemPool::addFeeless(const int nHeight, const uint256& txid)
+{
+    return mapFeeless[nHeight].insert(txid).second;
+}
+
+int CTxMemPool::removeOldFeeless()
+{
+    static const int MAXDEPTH = chainParams.FEELESS_MAX_DEPTH;
+    set<uint256> setToRemove;
+    MapFeeless::iterator it;
+    for (it = mapFeeless.begin(); it != mapFeeless.end(); ++it)
+    {
+        if ((nBestHeight - it->first) <= MAXDEPTH)
+        {
+            // maps iterate sorted by key, so no need to do more
+            break;
+        }
+        setToRemove.insert(it->second.begin(), it->second.end());
+    }
+    BOOST_FOREACH(const uint256& txid, setToRemove)
+    {
+        remove(mapTx[txid]);
+        if (fDebugFeeless)
+        {
+            printf("CTxMempool::removeOldFeeless(): %s\n   ",
+                   txid.GetHex().c_str());
+        }
+    }
+    return setToRemove.size();
 }
 
 
@@ -2301,8 +2661,8 @@ uint256 WantedByOrphan(const CBlock* pblockOrphan)
 
 int generateMTRandom(unsigned int s, int range)
 {
-    random::mt19937 gen(s);
-    random::uniform_int_distribution<> dist(0, range);
+    boost::random::mt19937 gen(s);
+    boost::random::uniform_int_distribution<> dist(0, range);
     return dist(gen);
 }
 
@@ -2534,13 +2894,17 @@ bool CheckProofOfWork(uint256 hash, unsigned int nBits)
 // Return maximum amount of blocks that other nodes claim to have
 int GetNumBlocksOfPeers()
 {
-    return std::max(cPeerBlockCounts.median(), Checkpoints::GetTotalBlocksEstimate());
+    return max(cPeerBlockCounts.median(),
+               Checkpoints::GetTotalBlocksEstimate());
 }
 
 bool IsInitialBlockDownload()
 {
-    if (pindexBest == NULL || nBestHeight < Checkpoints::GetTotalBlocksEstimate())
+    if (pindexBest == NULL ||
+        nBestHeight < Checkpoints::GetTotalBlocksEstimate())
+    {
         return true;
+    }
     static int64_t nLastUpdate;
     static CBlockIndex* pindexLastBest;
     if (pindexBest != pindexLastBest)
@@ -2548,8 +2912,8 @@ bool IsInitialBlockDownload()
         pindexLastBest = pindexBest;
         nLastUpdate = GetTime();
     }
-    return (GetTime() - nLastUpdate < 10 &&
-            pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60);
+    return ((GetTime() - nLastUpdate < 10) &&
+            (pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60));
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
@@ -2751,13 +3115,20 @@ unsigned int CTransaction::GetP2SHSigOpCount(const MapPrevTx& inputs) const
 }
 
 
+
+
+
+
+
+
 bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                                  map<uint256, CTxIndex>& mapTestPool,
                                  const CDiskTxPos& posThisTx,
                                  const CBlockIndex* pindexBlock,
                                  bool fBlock, bool fMiner,
                                  unsigned int flags,
-                                 int64_t nValuePurchases, int64_t nClaim)
+                                 int64_t nValuePurchases, int64_t nClaim,
+                                 Feework& feework)
 {
     // Take over previous transactions' spent pointers
     // fBlock is true when this is called from AcceptBlock when a new best-block is added to the blockchain
@@ -2904,17 +3275,39 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                 return DoS(100, error("ConnectInputs() : %s nTxFee < 0",
                                       GetHash().ToString().c_str()));
             }
+
             // ppcoin: enforce transaction fees for every block
             if (nTxFee < GetMinFee())
             {
-                return fBlock
-                       ? DoS(100,
-                             error("ConnectInputs() : "
-                                   "%s not paying required fee=%s, paid=%s",
-                                   GetHash().ToString().c_str(),
-                                   FormatMoney(GetMinFee()).c_str(),
-                                   FormatMoney(nTxFee).c_str()))
-                       : false;
+                // The feework may have already been checked. In this case
+                // the check will reasonably short circuit.
+                CheckFeework(feework, true, pbfrFeeworkValidator);
+                if (feework.IsInsufficient())
+                {
+                    return fBlock
+                           ? DoS(100,
+                                 error("ConnectInputs() : "
+                                       "%s not enough feework",
+                                       GetHash().ToString().c_str()))
+                           : false;
+                }
+                else if (!feework.IsOK())
+                {
+                    return fBlock
+                           ? DoS(100,
+                                 error("ConnectInputs() : "
+                                 "%s not paying required fee=%s, paid=%s",
+                                 GetHash().ToString().c_str(),
+                                 FormatMoney(GetMinFee()).c_str(),
+                                 FormatMoney(nTxFee).c_str()))
+                           : false;
+                }
+                if (fDebugFeeless)
+                {
+                   printf("ConnectInputs(): feework\n   %s\n%s\n",
+                          GetHash().ToString().c_str(),
+                          feework.ToString("      ").c_str());
+                }
             }
 
             nFees += nTxFee;
@@ -2927,6 +3320,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
 
     return true;
 }
+
 
 bool CTransaction::ClientConnectInputs()
 {
@@ -3151,9 +3545,11 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                 nFees += nTxValueIn - (nTxValueOut + nTxValuePurchases);
             }
 
+            Feework feework;
             if (!tx.ConnectInputs(txdb, mapInputs, mapQueuedChanges,
                                   posThisTx, pindex, true, false,
-                                  flags, nTxValuePurchases, claim.value))
+                                  flags, nTxValuePurchases, claim.value,
+                                  feework))
             {
                 return false;
             }
@@ -3452,7 +3848,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         CBlockIndex *pindexIntermediate = pindexNew;
 
         // list of blocks that need to be connected afterwards
-        std::vector<CBlockIndex*> vpindexSecondary;
+        vector<CBlockIndex*> vpindexSecondary;
 
         // Reorganize is costly in terms of db load, as it works in a single db transaction.
         // Try to limit how much needs to be done inside
@@ -3612,7 +4008,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
             strMiscWarning = _("Warning: This version is obsolete, upgrade required!");
     }
 
-    std::string strCmd = GetArg("-blocknotify", "");
+    string strCmd = GetArg("-blocknotify", "");
 
     if (!fIsInitialDownload && !strCmd.empty())
     {
@@ -4321,7 +4717,7 @@ bool CBlock::AcceptBlock(QPRegistry *pregistryTemp,
     {
         // Pre-qPoS: Enforce rule that the coinbase starts with serialized block height
         CScript expect = CScript() << nThisHeight;
-        if (!std::equal(expect.begin(), expect.end(), vtx[0].vin[0].scriptSig.begin()))
+        if (!equal(expect.begin(), expect.end(), vtx[0].vin[0].scriptSig.begin()))
         {
             return DoS(100, error("AcceptBlock() : block height mismatch in coinbase"));
         }
@@ -4702,6 +5098,15 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         }
     }
 
+    // Clear mempool of feeless transactions that reference blocks
+    // too deep in the chain.
+    int nFeelessRemoved = mempool.removeOldFeeless();
+    if (fDebugFeeless && nFeelessRemoved)
+    {
+        printf("ProcessBlock(): removed %d feeless transactions\n",
+               nFeelessRemoved);
+    }
+
     printf("ProcessBlock: ACCEPTED %s\n", hash.ToString().c_str());
 
     // ppcoin: if responsible for sync-checkpoint send it
@@ -4883,7 +5288,7 @@ bool CBlock::CheckBlockSignature(const QPRegistry *pregistry) const
 
 bool CheckDiskSpace(uint64_t nAdditionalBytes)
 {
-    uint64_t nFreeBytesAvailable = filesystem::space(GetDataDir()).available;
+    uint64_t nFreeBytesAvailable = boost::filesystem::space(GetDataDir()).available;
 
     // Check for nMinDiskSpace bytes (currently 50MB)
     if (nFreeBytesAvailable < (chainParams.nMinDiskSpace + nAdditionalBytes))
@@ -4904,7 +5309,7 @@ bool CheckDiskSpace(uint64_t nAdditionalBytes)
 }
 
 
-static filesystem::path BlockFilePath(unsigned int nFile)
+static boost::filesystem::path BlockFilePath(unsigned int nFile)
 {
     string strBlockFn = strprintf("blk%04u.dat", nFile);
     return GetDataDir() / strBlockFn;
@@ -5204,7 +5609,7 @@ bool LoadExternalBlockFile(FILE* fileIn)
                 }
             }
         }
-        catch (std::exception &e) {
+        catch (exception &e) {
             printf("%s() : Deserialize or I/O error caught during load\n",
                    __PRETTY_FUNCTION__);
         }
@@ -6159,7 +6564,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             else
             {
                 // this should never happen
-                throw std::runtime_error(
+                throw runtime_error(
                         "ProcessMessage(): TSNH ERROR: couldn't roll back");
             }
         }
@@ -6187,7 +6592,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (strCommand == "mempool")
     {
-        std::vector<uint256> vtxid;
+        vector<uint256> vtxid;
         mempool.queryHashes(vtxid);
         vector<CInv> vInv;
         for (unsigned int i = 0; i < vtxid.size(); i++) {
@@ -6410,7 +6815,7 @@ bool ProcessMessages(CNode* pfrom)
         {
             vRecv.ignore(nMessageSize);
         }
-        catch (std::ios_base::failure& e)
+        catch (ios_base::failure& e)
         {
             // can only be end of data, should cause failure in processing below
             printf("ProcessMessages() : Exception '%s' caught, caused by unexpectedly reaching end of buffer\n", e.what());
@@ -6427,7 +6832,7 @@ bool ProcessMessages(CNode* pfrom)
             if (fShutdown)
                 return true;
         }
-        catch (std::ios_base::failure& e)
+        catch (ios_base::failure& e)
         {
             if (strstr(e.what(), "end of data"))
             {
@@ -6444,7 +6849,7 @@ bool ProcessMessages(CNode* pfrom)
                 PrintExceptionContinue(&e, "ProcessMessages()");
             }
         }
-        catch (std::exception& e) {
+        catch (exception& e) {
             PrintExceptionContinue(&e, "ProcessMessages()");
         } catch (...) {
             PrintExceptionContinue(NULL, "ProcessMessages()");
@@ -6708,6 +7113,7 @@ public:
     set<uint256> setDependsOn;
     double dPriority;
     double dFeePerKb;
+    Feework feework;
 
     COrphan(CTransaction* ptxIn)
     {
@@ -6730,7 +7136,7 @@ uint64_t nLastBlockSize = 0;
 int64_t nLastCoinStakeSearchInterval = 0;
 
 // We want to sort transactions by priority and fee, so:
-typedef boost::tuple<double, double, CTransaction*> TxPriority;
+typedef boost::tuple<double, double, Feework, CTransaction*> TxPriority;
 class TxPriorityCompare
 {
     bool byFee;
@@ -6837,21 +7243,21 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
     unsigned int nBlockMaxSize = GetArg("-blockmaxsize",
                                         chainParams.DEFAULT_BLOCKMAXSIZE);
     // Limit to betweeen 1K and MAX_BLOCK_SIZE-1K for sanity:
-    nBlockMaxSize = std::max((unsigned int)1000,
-                    std::min((unsigned int)(chainParams.MAX_BLOCK_SIZE - 1000),
-                             nBlockMaxSize));
+    nBlockMaxSize = max((unsigned int)1000,
+                        min((unsigned int)(chainParams.MAX_BLOCK_SIZE - 1000),
+                            nBlockMaxSize));
 
     // How much of the block should be dedicated to high-priority transactions,
     // included regardless of the fees they pay
     unsigned int nBlockPrioritySize = GetArg("-blockprioritysize",
                                              chainParams.DEFAULT_BLOCKPRIORITYSIZE);
-    nBlockPrioritySize = std::min(nBlockMaxSize, nBlockPrioritySize);
+    nBlockPrioritySize = min(nBlockMaxSize, nBlockPrioritySize);
 
     // Minimum block size you want to create; block will be filled with free transactions
     // until there are no more or the block reaches this size:
     unsigned int nBlockMinSize = GetArg("-blockminsize",
                                         chainParams.DEFAULT_BLOCKMINSIZE);
-    nBlockMinSize = std::min(nBlockMaxSize, nBlockMinSize);
+    nBlockMinSize = min(nBlockMaxSize, nBlockMinSize);
 
     // Fee-per-kilobyte amount considered the same as "free"
     // Be careful setting this: if you set it to zero then
@@ -7014,13 +7420,41 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // incentive to create smaller transactions.
             double dFeePerKb =  double(nTotalIn-tx.GetValueOut()) / (double(nTxSize)/1000.0);
 
+            // We can prioritize feeless transactions with a fee per kb facsimile.
+            // This means that a money fee transaction could add feework
+            // to bump its priority under times of high demand,
+            // not that there seems to be anything wrong with that.
+            Feework feework;
+            if (tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+            {
+                if (feework.IsOK())
+                {
+                    dFeePerKb += double(feework.GetDiff()) /
+                                 (double(nTxSize) / 1000.0);
+                    if (fDebugFeeless)
+                    {
+                       printf("CreateNewBlock(): feework\n   %s\n%s\n",
+                              tx.GetHash().ToString().c_str(),
+                              feework.ToString("      ").c_str());
+                    }
+                }
+            }
+            else
+            {
+                continue;
+            }
+
             if (porphan)
             {
                 porphan->dPriority = dPriority;
                 porphan->dFeePerKb = dFeePerKb;
+                porphan->feework = feework;
             }
             else
-                vecPriority.push_back(TxPriority(dPriority, dFeePerKb, &(*mi).second));
+            {
+                vecPriority.push_back(TxPriority(dPriority, dFeePerKb,
+                                                 feework, &(*mi).second));
+            }
         }
 
         // Collect transactions into block
@@ -7031,16 +7465,17 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
         bool fSortedByFee = (nBlockPrioritySize <= 0);
 
         TxPriorityCompare comparer(fSortedByFee);
-        std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
+        make_heap(vecPriority.begin(), vecPriority.end(), comparer);
 
         while (!vecPriority.empty())
         {
             // Take highest priority transaction off the priority queue:
             double dPriority = vecPriority.front().get<0>();
             double dFeePerKb = vecPriority.front().get<1>();
-            CTransaction& tx = *(vecPriority.front().get<2>());
+            Feework feework = vecPriority.front().get<2>();
+            CTransaction& tx = *(vecPriority.front().get<3>());
 
-            std::pop_heap(vecPriority.begin(), vecPriority.end(), comparer);
+            pop_heap(vecPriority.begin(), vecPriority.end(), comparer);
             vecPriority.pop_back();
 
             // Size limits
@@ -7066,11 +7501,15 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             }
 
             // ppcoin: simplify transaction fee - allow free = false
-            int64_t nMinFee = tx.GetMinFee(nBlockSize, false, GMF_BLOCK);
+            int64_t nMinFee = tx.GetMinFee(nBlockSize, GMF_BLOCK);
 
-            // Skip free transactions if we're past the minimum block size:
-            if (fSortedByFee && (dFeePerKb < nMinTxFee) && (nBlockSize + nTxSize >= nBlockMinSize))
+            // Skip low fee transactions.
+            // This appears to be a pointless vestigal test because
+            // the mempool should reject low fee transactions.
+            if (dFeePerKb < nMinTxFee)
+            {
                 continue;
+            }
 
             // Prioritize by fee once past the priority size or we run out of high-priority
             // transactions:
@@ -7079,7 +7518,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             {
                 fSortedByFee = true;
                 comparer = TxPriorityCompare(fSortedByFee);
-                std::make_heap(vecPriority.begin(), vecPriority.end(), comparer);
+                make_heap(vecPriority.begin(), vecPriority.end(), comparer);
             }
 
             // Connecting shouldn't fail due to dependency on other memory pool transactions
@@ -7128,7 +7567,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             if (!tx.ConnectInputs(txdb, mapInputs, mapTestPoolTmp,
                                   CDiskTxPos(1,1,1), pindexPrev, false, true,
                                   STANDARD_SCRIPT_VERIFY_FLAGS,
-                                  nValuePurchases, claim.value))
+                                  nValuePurchases, claim.value,
+                                  feework))
             {
                 continue;
             }
@@ -7159,8 +7599,13 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                         porphan->setDependsOn.erase(hash);
                         if (porphan->setDependsOn.empty())
                         {
-                            vecPriority.push_back(TxPriority(porphan->dPriority, porphan->dFeePerKb, porphan->ptx));
-                            std::push_heap(vecPriority.begin(), vecPriority.end(), comparer);
+                            vecPriority.push_back(TxPriority(porphan->dPriority,
+                                                             porphan->dFeePerKb,
+                                                             porphan->feework,
+                                                             porphan->ptx));
+                            push_heap(vecPriority.begin(),
+                                      vecPriority.end(),
+                                      comparer);
                         }
                     }
                 }
@@ -7627,10 +8072,13 @@ void static ThreadStealthMiner(void* parg)
         StealthMinter(pwallet, PROOFTYPE_POW);
         vnThreadsRunning[THREAD_MINER]--;
     }
-    catch (std::exception& e) {
+    catch (exception& e)
+    {
         vnThreadsRunning[THREAD_MINER]--;
         PrintException(&e, "ThreadStealthMiner()");
-    } catch (...) {
+    }
+    catch (...)
+    {
         vnThreadsRunning[THREAD_MINER]--;
         PrintException(NULL, "ThreadStealthMiner()");
     }

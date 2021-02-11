@@ -11,6 +11,7 @@
 #include "ui_interface.h"
 #include "checkpoints.h"
 #include "explore.hpp"
+#include "feeless.hpp"
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
@@ -87,6 +88,7 @@ void Shutdown(void* parg)
         boost::filesystem::remove(GetPidFile());
         UnregisterWallet(pwalletMain);
         delete pwalletMain;
+        ShutdownFeeless();
         delete pregistryMain;
         NewThread(ExitTimeout, NULL);
         MilliSleep(50);
@@ -466,6 +468,7 @@ bool AppInit2()
     {
         fDebugNet = true;
         fDebugQPoS = true;
+        fDebugFeeless = true;
     }
     else
     {
@@ -473,6 +476,7 @@ bool AppInit2()
         fDebugQPoS = GetBoolArg("-debugqpos", false);
         fDebugBlockCreation = GetBoolArg("-debugblockcreation", false);
         fDebugExplore = GetBoolArg("-debugexplore", false);
+        fDebugFeeless = GetBoolArg("-debugfeeless", false);
     }
 
     bitdb.SetDetach(GetBoolArg("-detachdb", false));
@@ -888,6 +892,14 @@ bool AppInit2()
                                  " To recover, BACKUP THAT DIRECTORY, then remove"
                                  " everything from it except for wallet.dat."), strDataDir.c_str());
         return InitError(msg);
+    }
+
+    int nFeelessInitResult = InitializeFeeless(true, true);
+    if (nFeelessInitResult != FEELESS_INIT_OK)
+    {
+        printf("Error initializing feeless hashing memory: %d\n", 
+               nFeelessInitResult);
+        exit(nFeelessInitResult);
     }
 
     pregistryMain = new QPRegistry();

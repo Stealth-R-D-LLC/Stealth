@@ -8,9 +8,36 @@ See <http://creativecommons.org/publicdomain/zero/1.0/>. */
 
 #include "XORShift1024Star.hpp"
 
-XORShift1024Star::XORShift1024Star()
+static std::random_device rd;
+static std::uniform_int_distribution<uint64_t> dist(0, 0xffffffffffffffffull);
+uint64_t DefaultSeeder()
+{
+    return dist(rd);
+}
+
+XORShift1024Star::XORShift1024Star(uint64_t (*seederIn)(), bool fDoSeed)
 {
     p = 0;
+    if (seederIn)
+    {
+        seeder = seederIn;
+    }
+    else
+    {
+        seeder = &DefaultSeeder;
+    }
+    if (fDoSeed)
+    {
+        Seed();
+    }
+}
+
+void XORShift1024Star::Seed()
+{
+    for (unsigned int i = 0; i < 16; ++i)
+    {
+        s[i] = seeder();
+    }
 }
 
 uint64_t XORShift1024Star::Next()

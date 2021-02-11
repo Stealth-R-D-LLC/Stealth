@@ -56,6 +56,7 @@ public:
     int CUTOFF_POW_M;
     int START_PURCHASE_M;
     int CUTOFF_POS_M;
+    int START_FEELESS_M;
 
     mapIntInt_t mapForksMainNet;
 
@@ -138,6 +139,34 @@ public:
 
 
     //////////////////////////////////////////////////////////////////////////////
+    // Feeless
+
+    uint64_t TX_FEEWORK_ABSOLUTE_LIMIT;
+
+    uint64_t TX_FEEWORK_LIMIT;
+    uint64_t RELAY_TX_FEEWORK_LIMIT;
+
+    uint64_t FEEWORK_BLOCK_PARTS;
+
+    uint64_t FEEWORK_COST_PCT_JUMP_PER_PART;
+    uint64_t FEEWORK_LIMIT_PCT_DECAY_PER_PART;
+
+    size_t FEELESS_WORKLEN;
+    size_t FEELESS_HASHLEN;
+
+    uint32_t FEELESS_TCOST;
+    uint32_t FEELESS_MCOST_MIN;
+    uint32_t RELAY_FEELESS_MCOST_MIN;
+    uint32_t FEELESS_PARALLELISM;
+
+    uint32_t FEEWORK_MAX_MULTIPLIER;
+    uint32_t FEEWORK_MAX_MCOST;
+
+    int FEELESS_MAX_DEPTH;
+
+    uint64_t FEELESS_MAX_BLOCK_SIZE;
+
+    //////////////////////////////////////////////////////////////////////////////
     // Checkpoints
 
     int CHECKPOINT_MAX_SPAN;
@@ -197,6 +226,7 @@ public:
     int CUTOFF_POW_T;
     int CUTOFF_POS_T;
     int START_PURCHASE_T;
+    int START_FEELESS_T;
 
     mapIntInt_t mapForksTestNet;
 

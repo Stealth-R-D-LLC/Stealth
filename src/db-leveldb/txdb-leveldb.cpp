@@ -627,6 +627,7 @@ bool CTxDB::LoadBlockIndex()
         pindexNew->nTxVolume        = diskindex.nTxVolume;
         pindexNew->nXSTVolume       = diskindex.nXSTVolume;
         pindexNew->nPicoPower       = diskindex.nPicoPower;
+        pindexNew->nBlockSize       = diskindex.nBlockSize;
         pindexNew->nVersion         = diskindex.nVersion;
         pindexNew->hashMerkleRoot   = diskindex.hashMerkleRoot;
         pindexNew->nTime            = diskindex.nTime;

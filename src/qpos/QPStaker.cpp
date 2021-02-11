@@ -244,6 +244,36 @@ bool QPStaker::IsDisqualified() const
     return !fQualified;
 }
 
+bool QPStaker::ShouldBeDisabled() const
+{
+    static const unsigned int nMaxMiss = fTestNet ?
+                                            QP_STAKER_MAX_MISSES_M :
+                                            QP_STAKER_MAX_MISSES_T;
+    static const unsigned int nPrevMaxMiss = nMaxMiss / 2;
+    bool fDisable = true;
+    for (unsigned int i=0; i < nMaxMiss; ++i)
+    {
+       if (bRecentBlocks[i])
+       {
+          fDisable = false;
+          break;
+       }
+    }
+    if (fDisable)
+    {
+        return true;
+    }
+    fDisable = true;
+    for (unsigned int i=0; i < nPrevMaxMiss; ++i)
+    {
+       if (bPrevRecentBlocks[i])
+       {
+          fDisable = false;
+          break;
+       }
+    }
+    return fDisable;
+}
 
 bool QPStaker::ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const
 {

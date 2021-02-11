@@ -45,6 +45,7 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/blockchain" \
  -I"$(CURDIR)/client" \
  -I"$(CURDIR)/crypto" \
+ -I"$(CURDIR)/crypto/argon2/include" \
  -I"$(CURDIR)/primitives" \
  -I"$(CURDIR)/db-bdb" \
  -I"$(CURDIR)/db-leveldb" \
@@ -372,6 +373,7 @@ OBJS= \
     obj/stealthaddress.o \
     obj/txdb-leveldb.o \
     obj/uisqrt.o \
+    obj/valtype.o \
     obj/vchnum.o \
     obj/aliases.o \
     obj/meta.o \
@@ -399,13 +401,19 @@ OBJS= \
     obj/rpcexplore.o \
     obj/hdkeys.o \
     obj/scrypt.o \
-    obj/secp256k1_openssl.o
+    obj/secp256k1_openssl.o \
+    obj/XORShift1024Star.o \
+    obj/feeless.o
 
 ifeq (${STEALTHTEXT}, 1)
     OBJS += obj/stealthtext.o
 endif
 
 all: StealthCoind
+
+LIBS += $(CURDIR)/crypto/argon2/libargon2.a
+crypto/argon2/libargon2.a:
+	@echo "Building argon2 ..."; cd crypto/argon2; make cd ../..;
 
 ifeq (${STEALTHTEXT}, 1)
   LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
@@ -442,6 +450,13 @@ obj/%.o: %.c
 
 obj/%.o: crypto/hashblock/%.c
 	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: crypto/xorshift1024/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
@@ -635,7 +650,7 @@ else
     LIBCRYPTOPP =
 endif
 
-StealthCoind: leveldb/build/libleveldb.a $(LIBCRYPTOPP) \
+StealthCoind: leveldb/build/libleveldb.a crypto/argon2/libargon2.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
 
