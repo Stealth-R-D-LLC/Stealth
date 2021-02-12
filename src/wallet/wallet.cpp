@@ -1678,7 +1678,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                         }
                         pindex = pindex->pprev;
                     }
-                    int nBlockSize = nBlockSize = nSizeTotal / nBlocks;
+                    int nBlockSize = nSizeTotal / nBlocks;
                     pfeework->height = nHeight;
                     pfeework->pblockhash = phashBlock;
                     int nRounds;

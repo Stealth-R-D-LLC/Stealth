@@ -192,15 +192,6 @@ void UnregisterWallet(CWallet* pwalletIn)
     }
 }
 
-// check whether the passed transaction is from us
-bool static IsFromMe(CTransaction& tx)
-{
-    BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
-        if (pwallet->IsFromMe(tx))
-            return true;
-    return false;
-}
-
 // get the wallet transaction with the given hash (if it exists)
 bool static GetTransaction(const uint256& hashTx, CWalletTx& wtx)
 {
@@ -2261,39 +2252,6 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
                       feework.ToString("      ").c_str());
             }
         }
-
-// this test should never be true so why do it?
-#if 0
-        // Continuously rate-limit free transactions
-        // This mitigates 'penny-flooding' -- sending thousands of free transactions just to
-        // be annoying or make others' transactions take longer to confirm.
-        if (nFees < chainParams.MIN_RELAY_TX_FEE)
-        {
-            static CCriticalSection cs;
-            static double dFreeCount;
-            static int64_t nLastTime;
-            int64_t nNow = GetTime();
-
-            {
-                LOCK(cs);
-                // Use an exponentially decaying ~10-minute window:
-                dFreeCount *= pow(1.0 - 1.0/600.0, (double)(nNow - nLastTime));
-                nLastTime = nNow;
-                // -limitfreerelay unit is thousand-bytes-per-minute
-                // At default rate it would take over a month to fill 1GB
-                if (dFreeCount > GetArg("-limitfreerelay", 15)*10*1000 && !IsFromMe(tx))
-                {
-                    return error("CTxMemPool::accept() : free transaction rejected by rate limiter");
-                }
-                if (fDebug)
-                {
-                    printf("Rate limit dFreeCount: %g => %g\n", dFreeCount, dFreeCount+nSize);
-                }
-
-                dFreeCount += nSize;
-            }
-        }
-#endif
 
         unsigned int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
         if (GetFork(nBestHeight+1) < XST_FORK005)

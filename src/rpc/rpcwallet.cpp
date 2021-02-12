@@ -1852,7 +1852,7 @@ Value createfeework(const Array& params, bool fHelp)
 
     unsigned int nBlocks = 0;
     unsigned int nSizeTotal = 0;
-    const uint256* phashBlock;
+    const uint256* phashBlock = pindex->phashBlock;;
     while (pindex->nHeight >= nDeepest)
     {
         if (pindex->nHeight == nHeight)
@@ -1869,14 +1869,15 @@ Value createfeework(const Array& params, bool fHelp)
     }
 
     // check the block size second
-    unsigned int nBlockSize;
+    int nBlockSize;
     if (params.size() > 2)
     {
-        nBlockSize = params[2].get_int() * 1000;
-        if (nBlockSize < 0)
+        int nBlockSizeKB = params[2].get_int();
+        if (nBlockSizeKB < 0)
         {
             throw runtime_error("blocksize is negative");
         }
+        nBlockSize = nBlockSizeKB * 1000;
     }
     else
     {
@@ -1900,7 +1901,7 @@ Value createfeework(const Array& params, bool fHelp)
 
     Feework feework;
     feework.height = nHeight;
-    feework.pblockhash = pindex->phashBlock;
+    feework.pblockhash = phashBlock;
     CTransaction txNew(txIn);
     int nRounds;
     string strErrMsg = pwalletMain->MineFeework(nBlockSize,

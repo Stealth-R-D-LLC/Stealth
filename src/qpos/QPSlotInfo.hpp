@@ -15,9 +15,6 @@
 
 class QPSlotInfo
 {
-private:
-    int nVersion;
-
 public:
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;

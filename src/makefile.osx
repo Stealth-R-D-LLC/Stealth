@@ -413,7 +413,7 @@ all: StealthCoind
 
 LIBS += $(CURDIR)/crypto/argon2/libargon2.a
 crypto/argon2/libargon2.a:
-	@echo "Building argon2 ..."; cd crypto/argon2; make cd ../..;
+	@echo "Building argon2 ..."; cd crypto/argon2; make; cd ../..
 
 ifeq (${STEALTHTEXT}, 1)
   LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
@@ -669,6 +669,7 @@ clean:
 	-rm -f obj/*.P
 	-rm -f obj-test/*.P
 	-rm -f obj/build.h
+	cd crypto/argon2; make clean
 	cd leveldb; rm -rf build
 	cd libcryptopp; make clean
 

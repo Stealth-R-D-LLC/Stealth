@@ -183,7 +183,7 @@ void vchnum::Get(valtype& vchRet) const
     vchRet = vch;
 }
 
-void vchnum::Get(const unsigned char* pchRet) const
+void vchnum::Get(const unsigned char*& pchRet) const
 {
     pchRet = &(*vch.begin());
 }

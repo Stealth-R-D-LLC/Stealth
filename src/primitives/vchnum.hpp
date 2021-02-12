@@ -7,6 +7,9 @@
 
 #include "valtype.hpp"
 
+#include <cstdint>
+#include <cstddef>
+
 
 #define GETUINT16(first, last) \
    static_cast<uint16_t>(vchnum(first, last).GetValue())
@@ -49,7 +52,7 @@ public:
     vchnum& operator = (uint16_t nValue);
     const valtype* Get() const;
     void Get(valtype& vchRet) const;
-    void Get(const unsigned char* pchRet) const;
+    void Get(const unsigned char*& pchRet) const;
     bool Get(void* ptr, size_t num) const;
     unsigned int Size() const;
     uint64_t GetValue() const;

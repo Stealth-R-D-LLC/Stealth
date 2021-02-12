@@ -88,7 +88,7 @@ public:
 
     void ExtractFeework(const valtype &vch);
 
-    void GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer);
+    int GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer);
 
     bool Check(const uint32_t mcostIn);
 

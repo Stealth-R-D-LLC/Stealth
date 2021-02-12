@@ -105,7 +105,8 @@ uint64_t GetFeeworkHash(const uint32_t mcost,
                         const void* data,
                         const size_t datalen,
                         const void* work,
-                        argon2_buffer* buffer)
+                        argon2_buffer* buffer,
+                        int &nResultRet)
 {
     static const size_t WORKLEN = chainParams.FEELESS_WORKLEN;
     static const size_t HASHLEN = chainParams.FEELESS_HASHLEN;
@@ -118,7 +119,7 @@ uint64_t GetFeeworkHash(const uint32_t mcost,
     vchnum vchHash(HASHSIZE);
     unsigned char* pchHash = vchHash.BeginData();
 
-    int result = argon2d_hash_raw(TCOST, mcost, PARALLELISM,
+    nResultRet = argon2d_hash_raw(TCOST, mcost, PARALLELISM,
                                   data, datalen,
                                   work, WORKLEN,
                                   pchHash, HASHLEN,
@@ -212,7 +213,7 @@ void Feework::ExtractFeework(const valtype &vch)
     work = GETUINT64(first, last);
 }
 
-void Feework::GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer)
+int Feework::GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer)
 {
     static const uint32_t MAX_MCOST = chainParams.FEEWORK_MAX_MCOST;
 
@@ -226,14 +227,17 @@ void Feework::GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer)
     // transactions that specify very high memory costs.
     // The tradeoff is that bigger transactions can not be
     // feeless in fuller blocks.
+    int result;
     if (mcost > MAX_MCOST)
     {
+        result = ARGON2_MEMORY_TOO_MUCH;
         hash = chainParams.TX_FEEWORK_ABSOLUTE_LIMIT;
     }
     else
     {
-        hash = ::GetFeeworkHash(mcost, pchData, datalen, pchWork, buffer);
+        hash = ::GetFeeworkHash(mcost, pchData, datalen, pchWork, buffer, result);
     }
+    return result;
 }
 
 bool Feework::Check(const uint32_t mcostIn)
@@ -362,7 +366,7 @@ CScript Feework::GetScript() const
 string Feework::ToString(string strLPad) const
 {
     std::string str;
-    str += strprintf("%sFeework: height=%d, bytes=%llu mcost=%s, limit=%s\n"
+    str += strprintf("%sFeework: height=%d, bytes=%lu mcost=%s, limit=%s\n"
                         "%s         work=%s, hash=%s, status=%s\n"
                         "%s  block_hash=%s",
                      strLPad.c_str(),
