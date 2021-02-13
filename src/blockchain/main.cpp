@@ -1911,7 +1911,7 @@ bool CTransaction::CheckFeework(Feework &feework,
 
     if (typetxo == TX_FEEWORK)
     {
-        if (nVersion < CTransaction::FEELESS_VERSION)
+        if (!fTestnet && (nVersion < CTransaction::FEELESS_VERSION))
         {
             feework.status = Feework::BADVERSION;
             return DoS(100, error("CheckFeework() : bad tx version"));
@@ -1934,6 +1934,13 @@ bool CTransaction::CheckFeework(Feework &feework,
     valtype vch = vSolutions.front();
     feework.ExtractFeework(vch);
 
+    // this test is OK because feework.height has to be in the best chain
+    if (!fTestNet && (GetFork(feework.height) < XST_FORKFEELESS))
+    {
+        feework.status = Feework::BADVERSION;
+        return DoS(100, error("CheckFeework(): too soon for feeless"));
+    }
+
     CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
     if (feework.height > pblockindex->nHeight)
     {
@@ -1953,8 +1960,10 @@ bool CTransaction::CheckFeework(Feework &feework,
     }
 
     CTransaction txTmp(*this);
+
     // Remove the last output (the feework)
     txTmp.vout.pop_back();
+
     // Blank the sigs.
     // Each will sign the work by virtue of signing the tx hash.
     for (unsigned int i = 0; i < txTmp.vin.size(); i++)
@@ -1964,6 +1973,13 @@ bool CTransaction::CheckFeework(Feework &feework,
 
     CDataStream ss(SER_DISK, CLIENT_VERSION);
     ss << *(pblockindex->phashBlock) << txTmp;
+
+    feework.bytes = ss.sizeall();
+    // bumping sizes to help ensure mcost is sufficient
+    // signature is typically 73 bytes
+    feework.bytes += 74 * vin.size();
+    // feework output is 27 bytes (16 of data + op + other)
+    feework.bytes += 28;
 
     // dynamic difficulty
     // feework.mcost = chainParams.FEELESS_MCOST_MIN;

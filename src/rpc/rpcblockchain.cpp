@@ -286,19 +286,25 @@ Value getblock(const Array& params, bool fHelp)
 Value getblockbynumber(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
+    {
         throw runtime_error(
             "getblockbynumber <number> [txinfo]\n"
             "txinfo optional to print more detailed tx info\n"
             "Returns details of a block with given block-number.");
+    }
 
     int nHeight = params[0].get_int();
     if (nHeight < 0 || nHeight > nBestHeight)
+    {
         throw runtime_error("Block number out of range.");
+    }
 
     CBlock block;
     CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
     while (pblockindex->nHeight > nHeight)
+    {
         pblockindex = pblockindex->pprev;
+    }
 
     uint256 hash = *pblockindex->phashBlock;
 

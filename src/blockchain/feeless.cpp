@@ -348,15 +348,15 @@ const int64_t Feework::GetDiff() const
 CScript Feework::GetScript() const
 {
     CScript script;
-    valtype vchWork = *vchnum(static_cast<uint64_t>(work)).Get();
-    valtype vchMCost = *vchnum(static_cast<uint32_t>(mcost)).Get();
     valtype vchHeight = *vchnum(static_cast<uint32_t>(height)).Get();
+    valtype vchMCost = *vchnum(static_cast<uint32_t>(mcost)).Get();
+    valtype vchWork = *vchnum(static_cast<uint64_t>(work)).Get();
 
     valtype vchFeework(0);
 
-    EXTEND(vchFeework, vchWork);
-    EXTEND(vchFeework, vchMCost);
     EXTEND(vchFeework, vchHeight);
+    EXTEND(vchFeework, vchMCost);
+    EXTEND(vchFeework, vchWork);
 
     script << vchFeework << OP_FEEWORK;
 
@@ -366,7 +366,7 @@ CScript Feework::GetScript() const
 string Feework::ToString(string strLPad) const
 {
     std::string str;
-    str += strprintf("%sFeework: height=%d, bytes=%lu mcost=%s, limit=%s\n"
+    str += strprintf("%sFeework: height=%d, bytes=%" PRIu64 "mcost=%s, limit=%s\n"
                         "%s         work=%s, hash=%s, status=%s\n"
                         "%s  block_hash=%s",
                      strLPad.c_str(),
@@ -404,8 +404,11 @@ void Feework::AsJSON(Object& objRet) const
     string strHash = HexStr(vchHash.begin(), vchHash.end());
     objRet.push_back(Pair("hash_hex", strHash));
     objRet.push_back(Pair("hash_denary", static_cast<uint64_t>(hash)));
-    CScript script = GetScript();
-    string strScript = HexStr(script.begin(), script.end());
-    objRet.push_back(Pair("script_asm", strScript));
-    objRet.push_back(Pair("script_hex", script.ToString()));
+    if (fTestNet)
+    {
+        CScript script = GetScript();
+        objRet.push_back(Pair("script_asm", script.ToString()));
+        string strScript = HexStr(script.begin(), script.end());
+        objRet.push_back(Pair("script_hex", strScript));
+    }
 }

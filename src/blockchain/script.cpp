@@ -1753,8 +1753,8 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         //          - prevents any malleability related to the fee work
         // Transactions stored info:
         //    height is 4 bytes unsigned int (i.e. uint32_t)
-        //    size = 16 bytes (0x10) = 8 bytes of work + 4 bytes of mcost + 4 bytes of height
-        // [size, data(work, mcost, height), OP_FEEWORK]
+        //    size = 16 bytes (0x10) = 4 bytes of height + 4 bytes of mcost + 8 bytes of work
+        // [size, data(height, mcost, work), OP_FEEWORK]
         mTemplates.insert(make_pair(TX_FEEWORK, CScript() << OP(0x10) << OP_FEEWORK));
 
         // Empty, provably prunable, data-carrying output

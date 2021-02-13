@@ -149,7 +149,7 @@ public:
     bool GetIDForAlias(const std::string &sAlias,
                        unsigned int &nIDRet) const;
     bool GetAliasForID(unsigned int nID,
-                       std::string &nAliasRet) const;
+                       std::string &sAliasRet) const;
     std::string GetAliasForID(unsigned int nID);
     void AsJSON(json_spirit::Object &objRet) const;
     void GetStakerAsJSON(unsigned int nID,

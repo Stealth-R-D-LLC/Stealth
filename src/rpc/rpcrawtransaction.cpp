@@ -30,7 +30,174 @@ using namespace json_spirit;
 const int MaxTxnTimeDrift = 5 * 60;
 #endif  /* WITH_STEALTHTEXT */
 
-void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
+void StakerIDToJSON(const unsigned int nStakerID, Object& obj)
+{
+    string strAlias;
+    if (pregistryMain->GetAliasForID(nStakerID, strAlias))
+    {
+        obj.push_back(Pair("staker_alias", strAlias));
+    }
+    else
+    {
+        obj.push_back(Pair("ERROR", "TSNH: Bad staker id"));
+    }
+    obj.push_back(Pair("staker_id", (int64_t)nStakerID));
+}
+
+void StakerAliasToJSON(const string& strAlias, Object& obj)
+{
+    obj.push_back(Pair("staker_alias", strAlias));
+    unsigned int nStakerID;
+    if (pregistryMain->GetIDForAlias(strAlias, nStakerID))
+    {
+        obj.push_back(Pair("staker_id", (int64_t)nStakerID));
+    }
+    else
+    {
+        obj.push_back(Pair("ERROR", "Bad staker alias"));
+    }
+}
+
+void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
+                  const CTransaction* ptx)
+{
+    txnouttype typetxo;
+    vector<valtype> vSolutions;
+    if (!Solver(scriptPubKey, typetxo, vSolutions))
+    {
+        obj.push_back(Pair("ERROR", "TSNH: Script Fail"));
+        return;
+    }
+    switch (static_cast<txnouttype>(typetxo))
+    {
+    case TX_PURCHASE1:
+    case TX_PURCHASE3:
+      {
+        qpos_purchase purchase;
+        ExtractPurchase(vSolutions.front(), purchase);
+        StakerAliasToJSON(purchase.alias, obj);
+        if (purchase.keys.size() == 1)
+        {
+            obj.push_back(Pair("owner_key",
+                               HexStr(purchase.keys[0].Raw())));
+            obj.push_back(Pair("delegate_key",
+                               HexStr(purchase.keys[0].Raw())));
+            obj.push_back(Pair("controller_key",
+                               HexStr(purchase.keys[0].Raw())));
+        }
+        else if (purchase.keys.size() == 3)
+        {
+            obj.push_back(Pair("owner_key",
+                               HexStr(purchase.keys[0].Raw())));
+            obj.push_back(Pair("delegate_key",
+                               HexStr(purchase.keys[1].Raw())));
+            obj.push_back(Pair("controller_key",
+                               HexStr(purchase.keys[2].Raw())));
+        }
+        else
+        {
+            obj.push_back(Pair("ERROR", "TSNH: Bad keys"));
+        }
+        obj.push_back(Pair("delegate_payout_pcm", (int64_t)purchase.pcm));
+        obj.push_back(Pair("price", ValueFromAmount(purchase.value)));
+        break;
+      }
+    case TX_SETOWNER:
+    case TX_SETDELEGATE:
+    case TX_SETCONTROLLER:
+      {
+        qpos_setkey setkey;
+        ExtractSetKey(vSolutions.front(), setkey);
+        if (setkey.keytype == QPKEY_OWNER)
+        {
+            obj.push_back(Pair("set_key_type", "owner"));
+        }
+        else if (setkey.keytype == QPKEY_DELEGATE)
+        {
+            obj.push_back(Pair("set_key_type", "delegate"));
+        }
+        else if (setkey.keytype == QPKEY_CONTROLLER)
+        {
+            obj.push_back(Pair("set_key_type", "controller"));
+        }
+        else
+        {
+            obj.push_back(Pair("ERROR", "TSNH: Bad setkey type"));
+        }
+        StakerIDToJSON(setkey.id, obj);
+        obj.push_back(Pair("pubkey", HexStr(setkey.key.Raw())));
+        if (setkey.keytype == QPKEY_DELEGATE)
+        {
+            obj.push_back(Pair("delegate_payout_pcm", (int64_t)setkey.pcm));
+        }
+        break;
+      }
+    case TX_ENABLE:
+    case TX_DISABLE:
+      {
+        qpos_setstate setstate;
+        ExtractSetState(vSolutions.front(), setstate);
+        if (setstate.enable)
+        {
+            obj.push_back(Pair("set_state", "enable"));
+        }
+        else
+        {
+            obj.push_back(Pair("set_state", "disable"));
+        }
+        StakerIDToJSON(setstate.id, obj);
+        break;
+      }
+    case TX_CLAIM:
+      {
+        qpos_claim claim;
+        ExtractClaim(vSolutions.front(), claim);
+        obj.push_back(Pair("claim_pubkey", HexStr(claim.key.Raw())));
+        obj.push_back(Pair("claim_value", ValueFromAmount(claim.value)));
+        break;
+      }
+    case TX_SETMETA:
+      {
+        qpos_setmeta setmeta;
+        ExtractSetMeta(vSolutions.front(), setmeta);
+        StakerIDToJSON(setmeta.id, obj);
+        obj.push_back(Pair("meta_key", setmeta.key));
+        obj.push_back(Pair("meta_value", setmeta.value));
+        break;
+      }
+    case TX_FEEWORK:
+      {
+        Feework feework;
+        feework.ExtractFeework(vSolutions.front());
+        feework.limit = chainParams.TX_FEEWORK_LIMIT;
+        CBlock block;
+        CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
+        while (pblockindex->nHeight > feework.height)
+        {
+            pblockindex = pblockindex->pprev;
+            if (!pblockindex->pprev)
+            {
+                break;
+            }
+        }
+        feework.pblockhash = pblockindex->phashBlock;
+        if (ptx)
+        {
+            CTransaction tx(*ptx);
+            tx.CheckFeework(feework, true, pbfrFeeworkValidator);
+        }
+        feework.AsJSON(obj);
+        break;
+      }
+    default:
+      obj.push_back(Pair("ERROR", "TSNH: unrecognized SpecOp"));
+    }
+}
+
+
+void ScriptPubKeyToJSON(const CScript& scriptPubKey,
+                        Object& out,
+                        const CTransaction* ptx)
 {
     out.push_back(Pair("asm", scriptPubKey.ToString()));
     out.push_back(Pair("hex", HexStr(scriptPubKey.begin(), scriptPubKey.end())));
@@ -48,6 +215,7 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
         if ((type >= TX_PURCHASE1) && (type <= TX_FEEWORK))
         {
             out.push_back(Pair("type", GetTxnOutputType(type)));
+            SpecOpToJSON(scriptPubKey, out, ptx);
         }
         else
         {
@@ -55,7 +223,6 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, Object& out)
         }
         return;
     }
-
 
     Array a;
     BOOST_FOREACH(const CTxDestination& addr, addresses)
@@ -99,7 +266,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
         out.push_back(Pair("n", (boost::int64_t)i));
         Object o;
-        ScriptPubKeyToJSON(txout.scriptPubKey, o);
+        ScriptPubKeyToJSON(txout.scriptPubKey, o, &tx);
         out.push_back(Pair("scriptPubKey", o));
         vout.push_back(out);
     }
