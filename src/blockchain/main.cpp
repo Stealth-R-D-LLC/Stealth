@@ -1911,7 +1911,7 @@ bool CTransaction::CheckFeework(Feework &feework,
 
     if (typetxo == TX_FEEWORK)
     {
-        if (!fTestnet && (nVersion < CTransaction::FEELESS_VERSION))
+        if (!fTestNet && (nVersion < CTransaction::FEELESS_VERSION))
         {
             feework.status = Feework::BADVERSION;
             return DoS(100, error("CheckFeework() : bad tx version"));
