@@ -1321,30 +1321,27 @@ void ThreadDNSAddressSeed2(void* parg)
 
     int found = 0;
 
-    if (!fTestNet)
-    {
-        printf("Loading addresses from DNS seeds (could take a while)\n");
+    printf("Loading addresses from DNS seeds (could take a while)\n");
 
-        for (unsigned int seed_idx = 0; strDNSSeed[seed_idx][0] != NULL; seed_idx++) {
-            if (HaveNameProxy()) {
-                AddOneShot(strDNSSeed[seed_idx][1]);
-            } else {
-                vector<CNetAddr> vaddr;
-                vector<CAddress> vAdd;
-                if (LookupHost(strDNSSeed[seed_idx][1], vaddr))
+    for (unsigned int seed_idx = 0; strDNSSeed[seed_idx][0] != NULL; seed_idx++) {
+        if (HaveNameProxy()) {
+            AddOneShot(strDNSSeed[seed_idx][1]);
+        } else {
+            vector<CNetAddr> vaddr;
+            vector<CAddress> vAdd;
+            if (LookupHost(strDNSSeed[seed_idx][1], vaddr))
+            {
+                BOOST_FOREACH(CNetAddr& ip, vaddr)
                 {
-                    BOOST_FOREACH(CNetAddr& ip, vaddr)
-                    {
-                        int nOneDay = 24*3600;
-                        CAddress addr = CAddress(CService(ip, GetDefaultPort()));
-                        // use a random age between 3 and 7 days old
-                        addr.nTime = GetTime() - 3*nOneDay - GetRand(4*nOneDay);
-                        vAdd.push_back(addr);
-                        found++;
-                    }
+                    int nOneDay = 24*3600;
+                    CAddress addr = CAddress(CService(ip, GetDefaultPort()));
+                    // use a random age between 3 and 7 days old
+                    addr.nTime = GetTime() - 3*nOneDay - GetRand(4*nOneDay);
+                    vAdd.push_back(addr);
+                    found++;
                 }
-                addrman.Add(vAdd, CNetAddr(strDNSSeed[seed_idx][0], true));
             }
+            addrman.Add(vAdd, CNetAddr(strDNSSeed[seed_idx][0], true));
         }
     }
 
@@ -2113,7 +2110,7 @@ void StartNode(void* parg)
     //
 
     // start the onion seeder if necessary
-    if (vfReachable[NET_TOR])
+    if (!vfLimited[NET_TOR])
     {
         if (!GetBoolArg("-onionseed", true))
             printf(".onion seeding disabled\n");
@@ -2123,7 +2120,7 @@ void StartNode(void* parg)
     }
 
     // start the DNS seeder if necessary
-    if (vfReachable[NET_IPV4] || vfReachable[NET_IPV6])
+    if (!(vfLimited[NET_IPV4] && vfLimited[NET_IPV6]))
     {
         if (!GetBoolArg("-dnsseed", true))
             printf("DNS seeding disabled\n");
