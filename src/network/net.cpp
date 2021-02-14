@@ -1295,7 +1295,7 @@ void ThreadOnionSeed(void* parg)
 void ThreadDNSAddressSeed(void* parg)
 {
     // Make this thread recognisable as the DNS seeding thread
-    RenameThread("NoLimitCoin-dnsseed");
+    RenameThread("Stealth-dnsseed");
 
     try
     {
@@ -2112,12 +2112,25 @@ void StartNode(void* parg)
     // Start threads
     //
 
-    // start the onion seeder
-    if (!GetBoolArg("-onionseed", true))
-        printf(".onion seeding disabled\n");
-    else
-        if (!NewThread(ThreadOnionSeed, NULL))
-              printf("Error: could not start .onion seeding\n");
+    // start the onion seeder if necessary
+    if (vfReachable[NET_TOR])
+    {
+        if (!GetBoolArg("-onionseed", true))
+            printf(".onion seeding disabled\n");
+        else
+            if (!NewThread(ThreadOnionSeed, NULL))
+                  printf("Error: could not start .onion seeding\n");
+    }
+
+    // start the DNS seeder if necessary
+    if (vfReachable[NET_IPV4] || vfReachable[NET_IPV6])
+    {
+        if (!GetBoolArg("-dnsseed", true))
+            printf("DNS seeding disabled\n");
+        else
+            if (!NewThread(ThreadDNSAddressSeed, NULL))
+                  printf("Error: could not start DNS seeding\n");
+    }
 
     // Map ports with UPnP (default)
 #ifdef USE_UPNP

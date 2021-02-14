@@ -633,7 +633,7 @@ bool AppInit2()
     {
         BOOST_FOREACH(std::string snet, mapMultiArgs["-onlynet"]) {
             // torext doesn't map to unique network, so do this manually
-            if (snet == "torext")
+            if ((snet == "TOREXT") || (snet == "torext"))
             {
                 setNets.insert(NET_TOR);
                 fExternalTor = true;
