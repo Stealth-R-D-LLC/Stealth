@@ -334,7 +334,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
-    if (fFeeless & (GetFork(nBestHeight) < XST_FORKFEELESS))
+    if (fFeeless & (fTestFeature || GetFork(nBestHeight) < XST_FORKFEELESS))
     {
         Object result;
         feework.AsJSON(result);

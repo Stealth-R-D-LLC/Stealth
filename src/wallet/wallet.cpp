@@ -2894,7 +2894,7 @@ string CWallet::SendMoney(CScript scriptPubKey,
     }
 
     // FIXME: this is for testing, remove if found after feeless is active
-    if (pfeework && (GetFork(nBestHeight) < XST_FORKFEELESS))
+    if (pfeework && (fTestFeature || (GetFork(nBestHeight) < XST_FORKFEELESS)))
     {
         return "";
     }

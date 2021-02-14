@@ -150,6 +150,7 @@ inline void MilliSleep(uint64_t n)
 
 extern std::map<std::string, std::string> mapArgs;
 extern std::map<std::string, std::vector<std::string> > mapMultiArgs;
+extern bool fTestFeature;
 extern bool fDebug;
 extern bool fStaking;
 extern bool fDebugNet;

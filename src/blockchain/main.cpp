@@ -1862,12 +1862,6 @@ bool CTransaction::CheckFeework(Feework &feework,
                                 unsigned int nBlockSize,
                                 enum GetMinFee_mode mode) const
 {
-    // short circuit if this tx has already been checked for feework
-    if (feework.IsChecked())
-    {
-        return feework.IsValid();
-    }
-
     if (vout.empty())
     {
         feework.status = Feework::EMPTY;
@@ -1973,13 +1967,6 @@ bool CTransaction::CheckFeework(Feework &feework,
 
     CDataStream ss(SER_DISK, CLIENT_VERSION);
     ss << *(pblockindex->phashBlock) << txTmp;
-
-    feework.bytes = ss.sizeall();
-    // bumping sizes to help ensure mcost is sufficient
-    // signature is typically 73 bytes
-    feework.bytes += 74 * vin.size();
-    // feework output is 27 bytes (16 of data + op + other)
-    feework.bytes += 28;
 
     // dynamic difficulty
     // feework.mcost = chainParams.FEELESS_MCOST_MIN;
@@ -2211,8 +2198,11 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }
 
     Feework feework;
+    feework.bytes = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+
     if (fCheckInputs)
     {
+        unsigned int nSize = feework.bytes;
         // Check for non-standard pay-to-script-hash in inputs
         if (!tx.AreInputsStandard(mapInputs) && !fTestNet)
         {
@@ -2226,14 +2216,13 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
 
         int64_t nFees = tx.GetValueIn(mapInputs, claim.value) -
                         (tx.GetValueOut() + nValuePurchases);
-        unsigned int nSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
+
 
         // Don't accept it if it can't get into a block
         int64_t txMinFee = tx.GetMinFee(1000, GMF_RELAY, nSize);
 
         if (nFees < txMinFee)
         {
-            feework.bytes = nSize;
             tx.CheckFeework(feework, true, pbfrFeeworkValidator,
                             1000, GMF_RELAY);
             switch (feework.status)
@@ -2287,11 +2276,13 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }  // end check inputs
 
     // In case feework hasn't been checked, we check it here anyway to ensure
-    // the tx is well formed. The check function will reasonably short
-    // circuit if the feework has already been checked above.
-    if (!tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+    // the tx is well formed.
+    if (!feework.IsChecked())
     {
-        return error("CTxMemPool::accept() : feework rejected");
+        if (!tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+        {
+            return error("CTxMemPool::accept() : feework rejected");
+        }
     }
 
     // Store transaction in memory
@@ -3253,9 +3244,14 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
             // ppcoin: enforce transaction fees for every block
             if (nTxFee < GetMinFee())
             {
-                // The feework may have already been checked. In this case
-                // the check will reasonably short circuit.
-                CheckFeework(feework, true, pbfrFeeworkValidator);
+                // The feework may have already been checked.
+                if (!feework.IsChecked())
+                {
+                    feework.bytes = ::GetSerializeSize(*this,
+                                                       SER_NETWORK,
+                                                       PROTOCOL_VERSION);
+                    CheckFeework(feework, true, pbfrFeeworkValidator);
+                }
                 if (feework.IsInsufficient())
                 {
                     return fBlock
@@ -7399,6 +7395,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // to bump its priority under times of high demand,
             // not that there seems to be anything wrong with that.
             Feework feework;
+            feework.bytes = nTxSize;
             if (tx.CheckFeework(feework, false, pbfrFeeworkValidator))
             {
                 if (feework.IsOK())

@@ -184,6 +184,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         if (ptx)
         {
             CTransaction tx(*ptx);
+            feework.bytes = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
             tx.CheckFeework(feework, true, pbfrFeeworkValidator);
         }
         feework.AsJSON(obj);

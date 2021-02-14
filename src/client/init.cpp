@@ -297,6 +297,7 @@ std::string HelpMessage()
         "  -daemon                " + _("Run in the background as a daemon and accept commands") + "\n" +
 #endif
         "  -testnet               " + _("Use the test network") + "\n" +
+        "  -testfeature           " + _("Developer setting for testing features") + "\n" +
         "  -debug                 " + _("Output extra debugging information. Implies all other -debug* options") + "\n" +
         "  -debugnet              " + _("Output extra network debugging information") + "\n" +
         "  -debugqpos             " + _("Output extra qPoS debugging information") + "\n" +
@@ -461,6 +462,7 @@ bool AppInit2()
 
     // ********************************************************* Step 3: parameter-to-internal-flags
 
+    fTestFeature = GetBoolArg("-testfeature", false);
     fDebug = GetBoolArg("-debug", false);
 
     // -debug implies fDebug*
