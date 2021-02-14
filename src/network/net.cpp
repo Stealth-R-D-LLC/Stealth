@@ -1264,7 +1264,9 @@ void ThreadOnionSeed(void* parg)
 {
 
     // Make this thread recognisable as the tor thread
-    RenameThread("onionseed");
+    RenameThread("Stealth-onionseed");
+
+    printf("ThreadOnionSeed started\n");
 
     static const char *(*strOnionSeed)[1] = fTestNet ? strTestNetOnionSeed : strMainNetOnionSeed;
 
