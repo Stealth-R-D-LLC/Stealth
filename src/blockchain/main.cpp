@@ -721,11 +721,6 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
             // nonstandard
             return false;
         }
-        if (typetxo == TX_FEEWORK)
-        {
-            // qPoS transactions can't be feeless
-            return DoS(100, error("CheckPurchase() : has feework"));
-        }
         if ((typetxo != TX_PURCHASE1) && (typetxo != TX_PURCHASE3))
         {
             // not a purchase
@@ -822,11 +817,6 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             // nonstandard
             return false;
         }
-        if (typetxo == TX_FEEWORK)
-        {
-            // qPoS transactions can't be feeless
-            return DoS(100, error("CheckSetKeys() : has feework"));
-        }
         if ((typetxo != TX_SETOWNER) &&
             (typetxo != TX_SETDELEGATE) &&
             (typetxo != TX_SETCONTROLLER))
@@ -922,11 +912,6 @@ bool CTransaction::CheckSetState(const QPRegistry *pregistry,
             printf("CheckSetState(): nonstandard\n");
             return false;
         }
-        if (typetxo == TX_FEEWORK)
-        {
-            // qPoS transactions can't be feeless
-            return DoS(100, error("CheckSetState() : has feework"));
-        }
         if ((typetxo != TX_ENABLE) && (typetxo != TX_DISABLE))
         {
             continue;
@@ -990,11 +975,6 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
         {
             // claim outputs must match a template (i.e. nonstandard)
             return false;
-        }
-        if (typetxo == TX_FEEWORK)
-        {
-            // qPoS transactions can't be feeless
-            return DoS(100, error("CheckClaim() : has feework"));
         }
         // claims can only have 1 input and 1 output to keep things simple
         if (typetxo == TX_CLAIM)
@@ -1069,11 +1049,6 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
             printf("CheckSetMetas(): fail: nonstandard\n");
             // nonstandard
             return false;
-        }
-        if (typetxo == TX_FEEWORK)
-        {
-            // qPoS transactions can't be feeless
-            return DoS(100, error("CheckSetMetas() : has feework"));
         }
         if (typetxo != TX_SETMETA)
         {
@@ -1358,6 +1333,26 @@ bool CTransaction::GetQPTxDetails(const uint256& hashBlock,
         vDeets.push_back(deets);
     }
     return fNeedsInputs;
+}
+
+// returns true if any of the outputs are feework
+bool CTransaction::HasFeework() const
+{
+    vector<valtype> vSolutions;
+    txnouttype whichType;
+    for (unsigned int nOut = 0; nOut < vout.size(); ++nOut)
+    {
+        const CTxOut& txout = vout[nOut];
+        if (!Solver(txout.scriptPubKey, whichType, vSolutions))
+        {
+            continue;
+        }
+        if (whichType == TX_FEEWORK)
+        {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool CTransaction::ReadFromDisk(CTxDB& txdb, COutPoint prevout, CTxIndex& txindexRet)
@@ -2090,7 +2085,11 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
     if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapNames))
     {
-        return tx.DoS(100, error("CTxMemPool::accept() : bad purchase"));
+        if (fDebugQPoS)
+        {
+            printf("Bad purchase:\n%s\n", tx.ToString().c_str());
+        }
+        return error("CTxMemPool::accept() : bad purchase");
     }
 
     if (!mapNames.empty())
@@ -2176,6 +2175,10 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     tx.GetQPTxDetails(0, vDeets);
     if (!vDeets.empty())
     {
+        if (tx.HasFeework())
+        {
+            return error("accept(): qPoS tx rejected: has feework");
+        }
         map<string, qpos_purchase> mapPurchasesTx;
         map<unsigned int, vector<qpos_setkey> > mapSetKeysTx;
         map<CPubKey, vector<qpos_claim> > mapClaimsTx;
@@ -2230,24 +2233,28 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
             case Feework::OK:
                 break;
             case Feework::BADVERSION:
-                return error("CTxMemPool::accept(): feework not allowed %s, "
-                                 "%" PRId64 " < %" PRId64,
-                                 hash.ToString().c_str(), nFees, txMinFee);
+                return tx.DoS(100,
+                              error("CTxMemPool::accept(): feework not allowed %s, "
+                                        "%" PRId64 " < %" PRId64,
+                                        hash.ToString().c_str(), nFees, txMinFee));
             case Feework::NONE:
-                return error("CTxMemPool::accept(): not enough fees %s, "
-                                 "%" PRId64 " < %" PRId64,
-                                 hash.ToString().c_str(), nFees, txMinFee);
+                return tx.DoS(100,
+                              error("CTxMemPool::accept(): not enough fees %s, "
+                                        "%" PRId64 " < %" PRId64,
+                                        hash.ToString().c_str(), nFees, txMinFee));
             case Feework::INSUFFICIENT:
-                return error("CTxMemPool::accept(): not enough feework %s, "
-                                "%" PRId64 " < %" PRId64,
-                             hash.ToString().c_str(),
-                             nFees, txMinFee);
+                return tx.DoS(100,
+                              error("CTxMemPool::accept(): not enough feework %s, "
+                                   "%" PRId64 " < %" PRId64,
+                                hash.ToString().c_str(),
+                                nFees, txMinFee));
             default:
                 // the feework check will produce more error info if applicable
-                return error("CTxMemPool::accept(): "
-                                "not enough fees %s, %" PRId64 " < %" PRId64,
-                             hash.ToString().c_str(),
-                             nFees, txMinFee);
+                return tx.DoS(100,
+                              error("CTxMemPool::accept(): "
+                                       "not enough fees %s, %" PRId64 " < %" PRId64,
+                                    hash.ToString().c_str(),
+                                    nFees, txMinFee));
             }
             if (fDebugFeeless)
             {
@@ -2399,6 +2406,36 @@ void CTxMemPool::queryHashes(vector<uint256>& vtxid)
         vtxid.push_back((*mi).first);
 }
 
+int CTxMemPool::removeInvalidPurchases()
+{
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+    set<uint256> setToRemove;
+    std::map<uint256, CTransaction>::iterator it;
+    for (it = mapTx.begin(); it != mapTx.end(); ++it)
+    {
+        CTransaction& tx = it->second;
+        map<string, qpos_purchase> mapPurchases;
+        if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
+        {
+            // maps iterate sorted by key, so no need to do more
+            setToRemove.insert(it->first);
+        }
+    }
+    BOOST_FOREACH(const uint256& txid, setToRemove)
+    {
+        remove(mapTx[txid]);
+        if (fDebugQPoS)
+        {
+            printf("CTxMempool::removeInvalidPurchase():\n  %s\n",
+                   txid.GetHex().c_str());
+        }
+    }
+    return setToRemove.size();
+}
+
+
 bool CTxMemPool::addFeeless(const int nHeight, const uint256& txid)
 {
     return mapFeeless[nHeight].insert(txid).second;
@@ -2423,7 +2460,7 @@ int CTxMemPool::removeOldFeeless()
         remove(mapTx[txid]);
         if (fDebugFeeless)
         {
-            printf("CTxMempool::removeOldFeeless(): %s\n   ",
+            printf("CTxMempool::removeOldFeeless():\n  %s\n",
                    txid.GetHex().c_str());
         }
     }
@@ -3481,7 +3518,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
             {
                 if (!tx.CheckClaim(pregistryTemp, mapInputs, claim))
                 {
-                    return DoS(100, error("ConnectBlock() : bad claim"));
+                    return error("ConnectBlock() : bad claim");
                 }
 
                 if (claim.value != 0)
@@ -3503,7 +3540,11 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                 map<string, qpos_purchase> mapPurchases;
                 if (!tx.CheckPurchases(pregistryTemp, nStakerPrice, mapPurchases))
                 {
-                    return DoS(100, error("ConnectBlock() : bad purchase"));
+                    if (fDebugQPoS)
+                    {
+                        printf("Bad purchase:\n%s\n", tx.ToString().c_str());
+                    }
+                    return error("ConnectBlock() : bad purchase");
                 }
                 map<string, qpos_purchase>::const_iterator it;
                 for (it = mapPurchases.begin(); it != mapPurchases.end(); ++it)
@@ -4534,7 +4575,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                               mapClaims, mapSetMetas,
                               vDeetsRet))
             {
-                return DoS(100, error("CheckBlock(): CheckQPoS fail"));
+                return error("CheckBlock(): CheckQPoS fail");
             }
         }
         /***   end qPos checks   **********************************************/
@@ -5066,6 +5107,14 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         {
             pregistryMain->ExitReplayMode();
         }
+    }
+
+    // Clear mempool of purchases that have aged so much that
+    // the price is too low.
+    int nPurchasesRemoved = mempool.removeInvalidPurchases();
+    if (fDebugQPoS && nPurchasesRemoved)
+    {
+        printf("ProcessBlock(): removed %d purchases\n", nPurchasesRemoved);
     }
 
     // Clear mempool of feeless transactions that reference blocks
@@ -7313,7 +7362,6 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
         pblockRet->nBits = GetNextTargetRequired(pindexPrev,
                                                  pblockRet->IsProofOfStake());
     }
-
 
     // Collect memory pool transactions into the block
     int64_t nFees = 0;

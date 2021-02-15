@@ -1085,21 +1085,52 @@ void CWallet::ResendWalletTransactions(bool fForce)
         LOCK(cs_wallet);
         // Sort them in chronological order
         multimap<unsigned int, CWalletTx*> mapSorted;
+        set<uint256> setToRemove;
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
         {
             CWalletTx& wtx = item.second;
+            CTransaction& tx = (CTransaction&)wtx;
+            Feework feework;
+            if (!tx.CheckFeework(feework, true, pbfrFeeworkMiner))
+            {
+                 setToRemove.insert(tx.GetHash());
+                 continue;
+            }
+            uint32_t N = static_cast<uint32_t>(
+                            pregistryMain->GetNumberQualified());
+            int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+            map<string, qpos_purchase> mapPurchases;
+            if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
+            {
+                setToRemove.insert(tx.GetHash());
+                continue;
+            }
             // Don't rebroadcast until it's had plenty of time that
             // it should have gotten in already by now.
             if (fForce || nTimeBestReceived - (int64_t)wtx.nTimeReceived > 5 * 60)
+            {
                 mapSorted.insert(make_pair(wtx.nTimeReceived, &wtx));
+            }
+        }
+        BOOST_FOREACH(const uint256& txid, setToRemove)
+        {
+            EraseFromWallet(txid);
+            printf("CWallet::ResendWalletTransactions(): Removing old or invalid tx\n  %s\n",
+                   txid.GetHex().c_str());
         }
         BOOST_FOREACH(PAIRTYPE(const unsigned int, CWalletTx*)& item, mapSorted)
         {
             CWalletTx& wtx = *item.second;
             if (wtx.CheckTransaction())
+            {
                 wtx.RelayWalletTransaction(txdb);
+            }
             else
-                printf("ResendWalletTransactions() : CheckTransaction failed for transaction %s\n", wtx.GetHash().ToString().c_str());
+            {
+                printf("ResendWalletTransactions() : "
+                          "CheckTransaction failed for transaction %s\n",
+                       wtx.GetHash().ToString().c_str());
+            }
         }
     }
 }
@@ -1502,7 +1533,6 @@ string CWallet::MineFeework(unsigned int nBlockSize,
     CDataStream ssData(SER_DISK, CLIENT_VERSION);
     ssData << *(feework.pblockhash) << txNew;
 
-    feework.bytes = ssData.size();
     if (feework.bytes > (1000 * chainParams.FEEWORK_MAX_MULTIPLIER))
     {
         string strError = _("Error: tx size exceeds limit for feeless");
@@ -1513,12 +1543,6 @@ string CWallet::MineFeework(unsigned int nBlockSize,
     {
         nBlockSize = chainParams.FEELESS_MAX_BLOCK_SIZE - feework.bytes;
     }
-
-    // bumping sizes to help ensure mcost is sufficient
-    // signature is typically 73 bytes
-    feework.bytes += 74 * txNew.vin.size();
-    // feework output is 27 bytes (16 of data + op + other)
-    feework.bytes += 28;
 
     feework.mcost = txNew.GetFeeworkHardness(nBlockSize, GMF_BLOCK,
                                              feework.bytes);
@@ -1681,6 +1705,23 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     int nBlockSize = nSizeTotal / nBlocks;
                     pfeework->height = nHeight;
                     pfeework->pblockhash = phashBlock;
+                    // sign to see how big the tx would be
+                    int nIn = 0;
+                    BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
+                    {
+                        if (SignSignature(*this, *coin.first, wtxNew, nIn++) != 0)
+                        {
+                            printf("CreateTransaction(): could not sign tx\n");
+                            return false;
+                        }
+                    }
+                    pfeework->bytes = ::GetSerializeSize(*(CTransaction*)&wtxNew,
+                                                         SER_NETWORK,
+                                                         PROTOCOL_VERSION);
+                    // feework output is 27 bytes (16 of data + op + other)
+                    pfeework->bytes += 27;
+                    // add 1 byte for the feework and every input signature
+                    pfeework->bytes += 1 + wtxNew.vin.size();
                     int nRounds;
                     string strErr = MineFeework(nBlockSize, wtxNew,
                                                 *pfeework, nRounds);
@@ -1688,6 +1729,11 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     {
                         printf("CreateTransaction(): %s\n", strErr.c_str());
                         return false;
+                    }
+                    // blank the sigs
+                    for (unsigned int i = 0; i < wtxNew.vin.size(); i++)
+                    {
+                        wtxNew.vin[i].scriptSig = CScript();
                     }
                 }
 
@@ -1715,7 +1761,8 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     if (pfeework->bytes < nBytes)
                     {
                         printf("CreateTransaction(): "
-                                  "TSNH: feework bytes too few\n");
+                                  "TSNH: feework bytes (%d) too few for %d\n",
+                               (int)pfeework->bytes, (int)nBytes);
                         return false;
                     }
                 }

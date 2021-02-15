@@ -889,6 +889,8 @@ public:
     bool GetQPTxDetails(const uint256& hashBlock,
                         std::vector<QPTxDetails> &vDeets) const;
 
+    bool HasFeework() const;
+
     bool ReadFromDisk(CTxDB& txdb, COutPoint prevout, CTxIndex& txindexRet);
     bool ReadFromDisk(CTxDB& txdb, COutPoint prevout);
     bool ReadFromDisk(COutPoint prevout);
@@ -2058,8 +2060,9 @@ public:
         return true;
     }
 
-    bool addFeeless(const int nHeight, const uint256& txid);
+    int removeInvalidPurchases();
 
+    bool addFeeless(const int nHeight, const uint256& txid);
     int removeOldFeeless();
 };
 
