@@ -1089,21 +1089,27 @@ void CWallet::ResendWalletTransactions(bool fForce)
         BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
         {
             CWalletTx& wtx = item.second;
-            CTransaction& tx = (CTransaction&)wtx;
-            Feework feework;
-            if (!tx.CheckFeework(feework, true, pbfrFeeworkMiner))
+            uint256 hash = wtx.GetHash();
+            // remove any loose transactions that have been invalidated
+            // by changes in the blockchain state
+            if (!txdb.ContainsTx(hash))
             {
-                 setToRemove.insert(tx.GetHash());
-                 continue;
-            }
-            uint32_t N = static_cast<uint32_t>(
-                            pregistryMain->GetNumberQualified());
-            int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
-            map<string, qpos_purchase> mapPurchases;
-            if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
-            {
-                setToRemove.insert(tx.GetHash());
-                continue;
+                CTransaction& tx = (CTransaction&)wtx;
+                Feework feework;
+                if (!tx.CheckFeework(feework, false, pbfrFeeworkMiner))
+                {
+                     setToRemove.insert(hash);
+                     continue;
+                }
+                uint32_t N = static_cast<uint32_t>(
+                                pregistryMain->GetNumberQualified());
+                int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+                map<string, qpos_purchase> mapPurchases;
+                if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
+                {
+                    setToRemove.insert(hash);
+                    continue;
+                }
             }
             // Don't rebroadcast until it's had plenty of time that
             // it should have gotten in already by now.
