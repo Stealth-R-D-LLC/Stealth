@@ -334,17 +334,23 @@ Value sendtoaddress(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
 
-    if (fFeeless & (fTestFeature || GetFork(nBestHeight) < XST_FORKFEELESS))
+    Value result;
+    if (fFeeless & (fTestFeature || (GetFork(nBestHeight) < XST_FORKFEELESS)))
     {
-        Object result;
-        feework.AsJSON(result);
+        Object obj;
+        feework.AsJSON(obj);
         CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
         ssTx << (CTransaction)wtx;
         string strTx = HexStr(ssTx.begin(), ssTx.end());
-        result.push_back(Pair("raw_tx_new", strTx));
-        return result;
+        obj.push_back(Pair("raw_tx_new", strTx));
+        obj.push_back(Pair("txid", wtx.GetHash().GetHex()));
+        result = obj;
     }
-    return wtx.GetHash().GetHex();
+    else
+    {
+        result = wtx.GetHash().GetHex();
+    }
+    return result;
 }
 
 Value listaddressgroupings(const Array& params, bool fHelp)

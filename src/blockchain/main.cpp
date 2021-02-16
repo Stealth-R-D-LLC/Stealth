@@ -7500,12 +7500,16 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // Size limits
             unsigned int nTxSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
             if (nBlockSize + nTxSize >= nBlockMaxSize)
+            {
                 continue;
+            }
 
             // Legacy limits on sigOps:
             unsigned int nTxSigOps = tx.GetLegacySigOpCount();
             if (nBlockSigOps + nTxSigOps >= chainParams.MAX_BLOCK_SIGOPS)
+            {
                 continue;
+            }
 
             // Timestamp limit
             if (tx.HasTimestamp())
@@ -7574,7 +7578,10 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             int64_t nTxFees = tx.GetValueIn(mapInputs) - tx.GetValueOut();
             if (nTxFees < nMinFee)
             {
-                continue;
+                if (!feework.IsOK())
+                {
+                    continue;
+                }
             }
 
             nTxSigOps += tx.GetP2SHSigOpCount(mapInputs);

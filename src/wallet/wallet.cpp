@@ -629,7 +629,7 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pbl
         LOCK(cs_wallet);
         bool fExisted = mapWallet.count(hash);
         if (fExisted && !fUpdate) return false;
-                mapValue_t mapNarr;
+        mapValue_t mapNarr;
         FindStealthTransactions(tx, mapNarr);
         if (fExisted || IsMine(tx) || IsFromMe(tx))
         {
@@ -2947,7 +2947,7 @@ string CWallet::SendMoney(CScript scriptPubKey,
     }
 
     // FIXME: this is for testing, remove if found after feeless is active
-    if (pfeework && (fTestFeature || (GetFork(nBestHeight) < XST_FORKFEELESS)))
+    if (pfeework && (GetFork(nBestHeight) < XST_FORKFEELESS))
     {
         return "";
     }
