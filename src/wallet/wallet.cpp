@@ -1692,14 +1692,23 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
 
                 if (fFeeless)
                 {
+                    static const int DEPTH_WANTED = 4;
                     CBlockIndex* pindex = mapBlockIndex[hashBestChain];
-                    const uint256* phashBlock = pindex->phashBlock;
                     int nHeight = pindex->nHeight;
-                    int nDeepest = nHeight - chainParams.FEELESS_MAX_DEPTH;
+                    // If possible, go several blocks deep in the edge case
+                    // where the lead blocks get reorganized before this
+                    // transaction is ossified in the chain.
+                    int nHeightWanted = nHeight - (DEPTH_WANTED - 1);
+                    int nDeepest = pindex->nHeight - chainParams.FEELESS_MAX_DEPTH;
                     unsigned int nBlocks = 0;
                     unsigned int nSizeTotal = 0;
+                    CBlockIndex* pindexFeework;
                     while (pindex->nHeight >= nDeepest)
                     {
+                        if (nHeightWanted <= pindex->nHeight)
+                        {
+                            pindexFeework = pindex;
+                        }
                         nBlocks += 1;
                         nSizeTotal += pindex->nBlockSize;
                         if (!pindex->pprev)
@@ -1709,8 +1718,8 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                         pindex = pindex->pprev;
                     }
                     int nBlockSize = nSizeTotal / nBlocks;
-                    pfeework->height = nHeight;
-                    pfeework->pblockhash = phashBlock;
+                    pfeework->height = pindexFeework->nHeight;
+                    pfeework->pblockhash = pindexFeework->phashBlock;
                     // sign to see how big the tx would be
                     int nIn = 0;
                     BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
