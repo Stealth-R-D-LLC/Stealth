@@ -1699,7 +1699,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     // where the lead blocks get reorganized before this
                     // transaction is ossified in the chain.
                     int nHeightWanted = nHeight - (DEPTH_WANTED - 1);
-                    int nDeepest = pindex->nHeight - chainParams.FEELESS_MAX_DEPTH;
+                    int nDeepest = nHeight - chainParams.FEELESS_MAX_DEPTH;
                     unsigned int nBlocks = 0;
                     unsigned int nSizeTotal = 0;
                     CBlockIndex* pindexFeework;

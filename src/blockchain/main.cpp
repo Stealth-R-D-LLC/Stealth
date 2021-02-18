@@ -2245,9 +2245,10 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
             case Feework::INSUFFICIENT:
                 return tx.DoS(100,
                               error("CTxMemPool::accept(): not enough feework %s, "
-                                   "%" PRId64 " < %" PRId64,
-                                hash.ToString().c_str(),
-                                nFees, txMinFee));
+                                       "%" PRId64 " < %" PRId64 "\n%s\n",
+                                    hash.ToString().c_str(),
+                                    nFees, txMinFee,
+                                    feework.ToString("   ").c_str()));
             default:
                 // the feework check will produce more error info if applicable
                 return tx.DoS(100,
@@ -2365,7 +2366,11 @@ bool CTxMemPool::remove(const CTransaction &tx, bool fRecursive)
             mapTx.erase(hash);
             nTransactionsUpdated++;
         }
-        // cheap, non recursive, so do without checking mapTx, etc
+        // The following are cheap and non recursive
+        //   so they are done without checking mapTx, etc.
+        // Note also that mapFeeless is scanned and cleared every block,
+        //    so there is no need to clear the hash here, which would
+        //    require expensive all v. all checking.
         mapClaims.erase(hash);
         mapRegistrations.erase(hash);
     }
@@ -2402,8 +2407,11 @@ void CTxMemPool::queryHashes(vector<uint256>& vtxid)
 
     LOCK(cs);
     vtxid.reserve(mapTx.size());
-    for (map<uint256, CTransaction>::iterator mi = mapTx.begin(); mi != mapTx.end(); ++mi)
+    for (map<uint256, CTransaction>::iterator mi = mapTx.begin();
+            mi != mapTx.end(); ++mi)
+    {
         vtxid.push_back((*mi).first);
+    }
 }
 
 int CTxMemPool::removeInvalidPurchases()
@@ -2413,6 +2421,7 @@ int CTxMemPool::removeInvalidPurchases()
     int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
     set<uint256> setToRemove;
     std::map<uint256, CTransaction>::iterator it;
+    LOCK(cs);
     for (it = mapTx.begin(); it != mapTx.end(); ++it)
     {
         CTransaction& tx = it->second;
@@ -2425,11 +2434,14 @@ int CTxMemPool::removeInvalidPurchases()
     }
     BOOST_FOREACH(const uint256& txid, setToRemove)
     {
-        remove(mapTx[txid]);
-        if (fDebugQPoS)
+        if (exists(txid))
         {
-            printf("CTxMempool::removeInvalidPurchase():\n  %s\n",
-                   txid.GetHex().c_str());
+            remove(mapTx[txid]);
+            if (fDebugQPoS)
+            {
+                printf("CTxMempool::removeInvalidPurchase():\n  %s\n",
+                       txid.GetHex().c_str());
+            }
         }
     }
     return setToRemove.size();
@@ -2444,8 +2456,10 @@ bool CTxMemPool::addFeeless(const int nHeight, const uint256& txid)
 int CTxMemPool::removeOldFeeless()
 {
     static const int MAXDEPTH = chainParams.FEELESS_MAX_DEPTH;
-    set<uint256> setToRemove;
+    set<uint256> setTxToRemove;
+    set<int> setHeightToRemove;
     MapFeeless::iterator it;
+    LOCK(cs);
     for (it = mapFeeless.begin(); it != mapFeeless.end(); ++it)
     {
         if ((nBestHeight - it->first) <= MAXDEPTH)
@@ -2453,18 +2467,30 @@ int CTxMemPool::removeOldFeeless()
             // maps iterate sorted by key, so no need to do more
             break;
         }
-        setToRemove.insert(it->second.begin(), it->second.end());
+        setTxToRemove.insert(it->second.begin(), it->second.end());
+        setHeightToRemove.insert(it->first);
     }
-    BOOST_FOREACH(const uint256& txid, setToRemove)
+    BOOST_FOREACH(const uint256& txid, setTxToRemove)
     {
-        remove(mapTx[txid]);
-        if (fDebugFeeless)
+        if (exists(txid))
         {
-            printf("CTxMempool::removeOldFeeless():\n  %s\n",
-                   txid.GetHex().c_str());
+            remove(mapTx[txid]);
+            if (fDebugFeeless)
+            {
+                printf("CTxMempool::removeOldFeeless():\n  %s\n",
+                       txid.GetHex().c_str());
+            }
         }
     }
-    return setToRemove.size();
+    BOOST_FOREACH(const int& height, setHeightToRemove)
+    {
+        mapFeeless.erase(height);
+        if (fDebugFeeless)
+        {
+            printf("CTxMempool::removeOldFeeless(): height=%d\n", height);
+        }
+    }
+    return setTxToRemove.size();
 }
 
 
@@ -3032,7 +3058,6 @@ bool CTransaction::FetchInputs(CTxDB& txdb, const map<uint256, CTxIndex>& mapTes
                     return error("FetchInputs() : %s mempool Tx prev not found %s",
                                  GetHash().ToString().c_str(),
                                  prevout.hash.ToString().c_str());
-                // txPrev = mempool.lookup(prevout.hash);
             }
             if (!fFound)
             {
@@ -3294,8 +3319,9 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                     return fBlock
                            ? DoS(100,
                                  error("ConnectInputs() : "
-                                       "%s not enough feework",
-                                       GetHash().ToString().c_str()))
+                                          "%s not enough feework\n%s\n",
+                                       GetHash().ToString().c_str(),
+                                       feework.ToString("   ").c_str()))
                            : false;
                 }
                 else if (!feework.IsOK())

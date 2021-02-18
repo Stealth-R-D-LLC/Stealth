@@ -2047,6 +2047,7 @@ public:
         return (mapTx.count(hash) != 0);
     }
 
+    // don't use the following without checking if it exists first
     CTransaction& lookup(uint256 hash)
     {
         return mapTx[hash];
