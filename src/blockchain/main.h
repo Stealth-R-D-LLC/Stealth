@@ -721,7 +721,7 @@ public:
                       argon2_buffer* pbfrFeework,
                       unsigned int nBlockSize = 1,
                       enum GetMinFee_mode mode = GMF_BLOCK,
-                      fCheckDepth = true) const;
+                      bool fCheckDepth = true) const;
 
     bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)
     {
