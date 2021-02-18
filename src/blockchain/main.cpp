@@ -1855,7 +1855,8 @@ bool CTransaction::CheckFeework(Feework &feework,
                                 bool fRequired,
                                 argon2_buffer* pbfrFeework,
                                 unsigned int nBlockSize,
-                                enum GetMinFee_mode mode) const
+                                enum GetMinFee_mode mode,
+                                bool fCheckDepth) const
 {
     if (vout.empty())
     {
@@ -1936,7 +1937,8 @@ bool CTransaction::CheckFeework(Feework &feework,
         feework.status = Feework::BLOCKUNKNOWN;
         return DoS(34, error("CheckFeework() : unknown block"));
     }
-    if (feework.height < (pblockindex->nHeight - chainParams.FEELESS_MAX_DEPTH))
+    if (fCheckDepth &&
+        feework.height < (pblockindex->nHeight - chainParams.FEELESS_MAX_DEPTH))
     {
         feework.status = Feework::BLOCKTOODEEP;
         return DoS(34, error("CheckFeework() : block is too deep"));
