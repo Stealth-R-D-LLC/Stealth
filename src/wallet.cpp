@@ -935,8 +935,10 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
         LOCK(cs_wallet);
         while (pindex)
         {
-            if (nTimeFirstKey && (pindex->nTime < (nTimeFirstKey - 7200))){
-                pindex = pindex->pnext;
+            if ((!fUpdate) &&
+                 nTimeFirstKey &&
+                 (pindex->nTime < (nTimeFirstKey - 7200)))
+            {
                 continue;
             }
             CBlock block;
