@@ -671,7 +671,7 @@ public:
      */
     unsigned int GetP2SHSigOpCount(const MapPrevTx& mapInputs) const;
 
-    /** Amount of bitcoins spent by this transaction.
+    /** Amount of XST spent by this transaction.
         @return sum of all outputs (note: does not include fees)
      */
     int64_t GetValueOut() const
@@ -686,7 +686,7 @@ public:
         return nValueOut;
     }
 
-    /** Amount of bitcoins coming in to this transaction
+    /** Amount of XST coming in to this transaction
         Note that lightweight clients may not know anything besides the hash of previous transactions,
         so may not be able to calculate this.
 
@@ -695,6 +695,13 @@ public:
         @see CTransaction::FetchInputs
      */
     int64_t GetValueIn(const MapPrevTx& mapInputs, int64_t nClaim=0) const;
+
+    /** Amount of XST coming in to this transaction via qPoS claims.
+        This method performs no checks.
+
+        @return Sum of value of all claims
+     */
+    int64_t GetClaimIn() const;
 
     static bool AllowFree(double dPriority)
     {

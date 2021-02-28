@@ -1012,7 +1012,7 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
 
     if (!pregistry->CanClaim(claimRet.key, claimRet.value))
     {
-        // account owner (key) can not claim this amount
+        // account owner (key) cannot claim this amount
         return DoS(100, error("CheckClaim() : illegal amount"));
     }
 
@@ -3123,6 +3123,25 @@ int64_t CTransaction::GetValueIn(const MapPrevTx& inputs, int64_t nClaim) const
         nResult += GetOutputFor(vin[i], inputs).nValue;
     }
     return nResult;
+}
+
+int64_t CTransaction::GetClaimIn() const
+{
+    int64_t nValue = 0;
+    txnouttype typetxo;
+    vector<valtype> vSolutions;
+    for (unsigned int i = 0; i < vout.size(); ++i)
+    {
+        // seriously, no checks
+        Solver(vout[i].scriptPubKey, typetxo, vSolutions);
+        if (typetxo == TX_CLAIM)
+        {
+            qpos_claim claim;
+            ExtractClaim(vSolutions.front(), claim);
+            nValue += claim.value;
+        }
+    }
+    return nValue;
 }
 
 
@@ -7455,7 +7474,12 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                 int nConf = txindex.GetDepthInMainChain();
                 dPriority += (double)nValueIn * nConf;
             }
-            if (fMissingInputs) continue;
+            if (fMissingInputs)
+            {
+                continue;
+            }
+
+            nTotalIn += tx.GetClaimIn();
 
             // Priority is sum(valuein * age) / txsize
             unsigned int nTxSize = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);

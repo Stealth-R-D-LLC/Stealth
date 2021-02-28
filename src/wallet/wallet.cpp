@@ -635,20 +635,14 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pbl
         {
             CWalletTx wtx(this,tx);
             if (!mapNarr.empty())
-            {
                 wtx.mapValue.insert(mapNarr.begin(), mapNarr.end());
-            }
             // Get merkle branch if transaction was found in a block
             if (pblock)
-            {
                 wtx.SetMerkleBranch(pblock);
-            }
             return AddToWallet(wtx);
         }
         else
-        {
             WalletUpdateSpent(tx);
-        }
     }
     return false;
 }
@@ -656,15 +650,11 @@ bool CWallet::AddToWalletIfInvolvingMe(const CTransaction& tx, const CBlock* pbl
 bool CWallet::EraseFromWallet(uint256 hash)
 {
     if (!fFileBacked)
-    {
         return false;
-    }
     {
         LOCK(cs_wallet);
         if (mapWallet.erase(hash))
-        {
             CWalletDB(strWalletFile).EraseTx(hash);
-        }
     }
     return true;
 }
@@ -955,10 +945,7 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
         LOCK(cs_wallet);
         while (pindex)
         {
-            if ((!fUpdate) &&
-                 nTimeFirstKey &&
-                 (pindex->nTime < (nTimeFirstKey - 7200)))
-            {
+            if (nTimeFirstKey && (pindex->nTime < (nTimeFirstKey - 7200))){
                 pindex = pindex->pnext;
                 continue;
             }
@@ -967,9 +954,7 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
                 if (AddToWalletIfInvolvingMe(tx, &block, fUpdate))
-                {
                     ret++;
-                }
             }
             pindex = pindex->pnext;
         }
@@ -1717,7 +1702,7 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     int nDeepest = nHeight - chainParams.FEELESS_MAX_DEPTH;
                     unsigned int nBlocks = 0;
                     unsigned int nSizeTotal = 0;
-                    CBlockIndex* pindexFeework;
+                    CBlockIndex* pindexFeework = pindexGenesisBlock;
                     while (pindex->nHeight >= nDeepest)
                     {
                         if (nHeightWanted <= pindex->nHeight)
