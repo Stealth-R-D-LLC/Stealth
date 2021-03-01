@@ -247,8 +247,8 @@ bool QPStaker::IsDisqualified() const
 bool QPStaker::ShouldBeDisabled() const
 {
     static const unsigned int nMaxMiss = fTestNet ?
-                                            QP_STAKER_MAX_MISSES_M :
-                                            QP_STAKER_MAX_MISSES_T;
+                                            QP_STAKER_MAX_MISSES_T :
+                                            QP_STAKER_MAX_MISSES_M;
     static const unsigned int nPrevMaxMiss = nMaxMiss / 2;
     bool fDisable = true;
     for (unsigned int i=0; i < nMaxMiss; ++i)
