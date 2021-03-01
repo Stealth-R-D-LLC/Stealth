@@ -12,11 +12,13 @@
 static const uint64_t TRIL = 1000000000000;  // trillion, 1e12
 
 static const int64_t RECIPROCAL_QPOS_INFLATION = 100;
+// maximum number of seconds the best block time can fall behind
+static const unsigned int QP_REGISTRY_MAX_FALL_BEHIND = 120;
 static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 32768;
 static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
 static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
 // consecutive misses, not total
-static const unsigned int QP_STAKER_MAX_MISSES_M = 8;
+static const unsigned int QP_STAKER_MAX_MISSES_M = 512;
 // testnet
 static const unsigned int QP_STAKER_MAX_MISSES_T = 32;
 // makes it hard to game the rotation

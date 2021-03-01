@@ -88,6 +88,9 @@ public:
 
     int64_t nMaxClockDrift;
 
+    int64_t LATEST_INITIAL_BLOCK_DOWNLOAD_TIME;
+    int64_t LATEST_INITIAL_BLOCK_DOWNLOAD_TIME_QPOS;
+
     int64_t FUTURE_DRIFT_MAINNET;
 
     CBigNum bnProofOfWorkLimitMainNet;

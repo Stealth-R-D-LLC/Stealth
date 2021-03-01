@@ -100,6 +100,11 @@ ChainParams::ChainParams()
     // two hours
     nMaxClockDrift = 2 * 60 * 60;
 
+    // PoW/PoS: 2 hr (120 blocks on mainnet)
+    LATEST_INITIAL_BLOCK_DOWNLOAD_TIME = 2 * 60 * 60;
+    // qPoS: 6 min (72 blocks)
+    LATEST_INITIAL_BLOCK_DOWNLOAD_TIME_QPOS = 6 * 60;
+
     FUTURE_DRIFT_MAINNET = 17;
 
     bnProofOfWorkLimitMainNet = CBigNum(~uint256(0) >> 20);

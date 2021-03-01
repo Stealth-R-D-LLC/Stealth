@@ -386,7 +386,6 @@ OBJS= \
     obj/QPRegistry.o \
     obj/QPSlotInfo.o \
     obj/rpcqpos.o \
-    obj/syncregistry.o \
     obj/ExploreDestination.o \
     obj/ExploreInOutLookup.o \
     obj/ExploreInOutList.o \

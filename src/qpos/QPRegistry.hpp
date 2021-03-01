@@ -192,6 +192,7 @@ public:
 
     void ApplyOps(const CBlockIndex *const pindex);
 
+    void EnterReplayMode();
     void ExitReplayMode();
 
     bool GetIDForCurrentTime(CBlockIndex *pindex,

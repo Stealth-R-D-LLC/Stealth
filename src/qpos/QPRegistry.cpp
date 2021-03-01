@@ -1675,12 +1675,19 @@ void QPRegistry::ApplyOps(const CBlockIndex *const pindex)
     }
 }
 
+// This is not ideal. Registry should decide for itself.
+void QPRegistry::EnterReplayMode()
+{
+    if (!fIsInReplayMode)
+    {
+        printf("QPRegistry::EnterReplayMode(): entering replay mode\n");
+        fIsInReplayMode = true;
+    }
+}
+
 void QPRegistry::ExitReplayMode()
 {
     // Explict exit of replay is only necessary to kickstart
-    // block production, and that should only be necessary on testnet.
-    if (fTestNet)
-    {
-        fIsInReplayMode = false;
-    }
+    // block production (typically not needed on mainnet).
+    fIsInReplayMode = false;
 }

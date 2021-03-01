@@ -13,7 +13,6 @@
 #include "ui_interface.h"
 #include "onionseed.h"
 #include "dnsseed.h"
-#include "syncregistry.hpp"
 
 #ifdef WIN32
 #include <string.h>
@@ -1441,35 +1440,6 @@ void static ProcessOneShot()
     }
 }
 
-void static ThreadRegistrySync(void* parg)
-{
-    printf("ThreadRegistrySync started\n");
-    QPRegistry* pregistry = (QPRegistry*)parg;
-    try
-    {
-        vnThreadsRunning[THREAD_REGISTRYSYNC]++;
-        if (vnThreadsRunning[THREAD_REGISTRYSYNC] > 1)
-        {
-            printf("ThreadRegistrySync failure: only 1 thread allowed\n");
-        }
-        else
-        {
-            SyncRegistry(pregistry);
-        }
-        vnThreadsRunning[THREAD_REGISTRYSYNC]--;
-    }
-    catch (std::exception& e) {
-        vnThreadsRunning[THREAD_REGISTRYSYNC]--;
-        PrintException(&e, "ThreadRegistrySync()");
-    } catch (...) {
-        vnThreadsRunning[THREAD_REGISTRYSYNC]--;
-        PrintException(NULL, "ThreadRegistrySync()");
-    }
-    printf("ThreadRegistrySync exiting, %d threads remaining\n",
-                                  vnThreadsRunning[THREAD_REGISTRYSYNC]);
-}
-
-
 // ppcoin: stake minter thread
 void static ThreadStakeMinter(void* parg)
 {
@@ -1801,6 +1771,18 @@ void ThreadMessageHandler2(void* parg)
     SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
     while (!fShutdown)
     {
+        if (GetFork(nBestHeight) >= XST_FORKQPOS)
+        {
+            if (vNodes.empty() ||
+                (pindexBest->nTime < (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)))
+            {
+                pregistryMain->EnterReplayMode();
+            }
+            else
+            {
+                pregistryMain->CheckSynced();
+            }
+        }
         vector<CNode*> vNodesCopy;
         {
             LOCK(cs_vNodes);
@@ -2160,9 +2142,6 @@ void StartNode(void* parg)
     if (!NewThread(ThreadDumpAddress, NULL))
         printf("Error; NewThread(ThreadDumpAddress) failed\n");
 
-    if (!NewThread(ThreadRegistrySync, pregistryMain))
-        printf("Error: NewThread(ThreadRegistrySync) failed\n");
-
     // make sure conf allows it (stake=0 in conf will disallow)
     if (GetBoolArg("-stake", true) && GetBoolArg("-staking", true)) {
         printf("Stake minting enabled at startup.\n");
@@ -2215,7 +2194,6 @@ bool StopNode()
     if (vnThreadsRunning[THREAD_ADDEDCONNECTIONS] > 0) printf("ThreadOpenAddedConnections still running\n");
     if (vnThreadsRunning[THREAD_DUMPADDRESS] > 0) printf("ThreadDumpAddresses still running\n");
     if (vnThreadsRunning[THREAD_STAKEMINTER] > 0) printf("ThreadStakeMinter still running\n");
-    if (vnThreadsRunning[THREAD_REGISTRYSYNC] > 0) printf("ThreadRegistrySync still running\n");
 
     while (vnThreadsRunning[THREAD_MESSAGEHANDLER] > 0 || vnThreadsRunning[THREAD_RPCHANDLER] > 0)
         MilliSleep(20);

@@ -645,6 +645,8 @@ public:
         return (IsCoinBase() || IsCoinStake());
     }
 
+    bool IsQPoSTx() const;
+
     /** Check for standard transaction types
         @return True if all outputs (scriptPubKeys) use only standard transaction forms
     */

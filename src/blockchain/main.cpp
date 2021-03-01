@@ -1383,6 +1383,32 @@ bool CTransaction::ReadFromDisk(COutPoint prevout)
     return ReadFromDisk(txdb, prevout, txindex);
 }
 
+bool CTransaction::IsQPoSTx() const
+{
+    for (unsigned int i = 0; i < vout.size(); ++i)
+    {
+        txnouttype typetxo;
+        vector<valtype> vSolutions;
+        Solver(vout[i].scriptPubKey, typetxo, vSolutions);
+        switch (typetxo)
+        {
+            case TX_PURCHASE1:
+            case TX_PURCHASE3:
+            case TX_SETOWNER:
+            case TX_SETDELEGATE:
+            case TX_SETCONTROLLER:
+            case TX_ENABLE:
+            case TX_DISABLE:
+            case TX_CLAIM:
+            case TX_SETMETA:
+                return true;
+            default:
+                continue;
+        }
+    }
+    return false;
+}
+
 bool CTransaction::IsStandard() const
 {
     if (nVersion > CTransaction::CURRENT_VERSION)
@@ -2930,6 +2956,9 @@ int GetNumBlocksOfPeers()
 
 bool IsInitialBlockDownload()
 {
+    int nBack = (GetFork(nBestHeight) < XST_FORKQPOS) ?
+                   chainParams.LATEST_INITIAL_BLOCK_DOWNLOAD_TIME :
+                   chainParams.LATEST_INITIAL_BLOCK_DOWNLOAD_TIME_QPOS;
     if (pindexBest == NULL ||
         nBestHeight < Checkpoints::GetTotalBlocksEstimate())
     {
@@ -2943,7 +2972,7 @@ bool IsInitialBlockDownload()
         nLastUpdate = GetTime();
     }
     return ((GetTime() - nLastUpdate < 10) &&
-            (pindexBest->GetBlockTime() < GetTime() - 24 * 60 * 60));
+            (pindexBest->GetBlockTime() < GetTime() - nBack));
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
@@ -6331,15 +6360,73 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 {
                     LOCK(cs_mapRelay);
                     map<CInv, CDataStream>::iterator mi = mapRelay.find(inv);
-                    if (mi != mapRelay.end()) {
-                        pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-                        pushed = true;
+                    if (mi != mapRelay.end())
+                    {
+                        if (inv.type == MSG_TX)
+                        {
+                            // don't act as a transaction relay if we are behind
+                            if (((GetFork(nBestHeight) >= XST_FORKQPOS) &&
+                                 (pregistryMain->IsInReplayMode())) ||
+                                IsInitialBlockDownload())
+                            {
+                                 Inventory(inv.hash);
+                                 continue;
+                            }
+                            CDataStream& vRecv = (*mi).second;
+                            CTransaction tx;
+                            vRecv >> tx;
+                            // QPoS transactions are state-dependent, so must
+                            // be checked against the best state of the
+                            // blockchain before they are relayed.
+                            if (tx.IsQPoSTx())
+                            {
+                                CTxDB txdb("r");
+                                CTransaction tx;
+                                vRecv >> tx;
+                                // If it doesn't get into mempool, drop it.
+                                // If it does get in, push it from the mempool.
+                                if (!tx.AcceptToMemoryPool(txdb, true))
+                                {
+                                    Inventory(inv.hash);
+                                    continue;
+                                }
+                            }
+                            else
+                            {
+                                pfrom->PushMessage("tx", vRecv);
+                                pushed = true;
+                            }
+                        }
+                        else
+                        {
+                            pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                            pushed = true;
+                        }
                     }
                 }
-                if (!pushed && inv.type == MSG_TX) {
-                        LOCK(mempool.cs);
-                        if (mempool.exists(inv.hash)) {
-                           CTransaction tx = mempool.lookup(inv.hash);
+                // don't act as a transaction relay if we are behind
+                if ((!pushed) &&
+                    (inv.type == MSG_TX) &&
+                    ((GetFork(nBestHeight) < XST_FORKQPOS) ||
+                     (!(pregistryMain->IsInReplayMode()))) &&
+                    (!IsInitialBlockDownload()))
+                {
+                    LOCK(mempool.cs);
+                    if (mempool.exists(inv.hash))
+                    {
+                        CTransaction tx = mempool.lookup(inv.hash);
+                        // QPoS transactions are checked by
+                        // seeing if they can get accepted into the mempool
+                        if (tx.IsQPoSTx())
+                        {
+                            mempool.remove(tx);
+                            CTxDB txdb("r");
+                            if (!tx.AcceptToMemoryPool(txdb, true))
+                            {
+                                Inventory(inv.hash);
+                                continue;
+                            }
+                        }
                         CDataStream ss(SER_NETWORK, PROTOCOL_VERSION);
                         ss.reserve(1000);
                         ss << tx;
