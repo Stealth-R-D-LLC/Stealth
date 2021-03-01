@@ -20,7 +20,7 @@ static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
 // consecutive misses, not total
 static const unsigned int QP_STAKER_MAX_MISSES_M = 512;
 // testnet
-static const unsigned int QP_STAKER_MAX_MISSES_T = 32;
+static const unsigned int QP_STAKER_MAX_MISSES_T = 8;
 // makes it hard to game the rotation
 static const int QP_ROUNDS = 16;
 // block target time
