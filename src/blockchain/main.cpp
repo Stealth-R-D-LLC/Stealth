@@ -6372,7 +6372,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                                  Inventory(inv.hash);
                                  continue;
                             }
-                            CDataStream& vRecv = (*mi).second;
+                            CDataStream vRecv((*mi).second);
                             CTransaction tx;
                             vRecv >> tx;
                             // QPoS transactions are state-dependent, so must
@@ -6380,20 +6380,21 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                             // blockchain before they are relayed.
                             if (tx.IsQPoSTx())
                             {
-                                CTxDB txdb("r");
-                                CTransaction tx;
-                                vRecv >> tx;
-                                // If it doesn't get into mempool, drop it.
-                                // If it does get in, push it from the mempool.
-                                if (!tx.AcceptToMemoryPool(txdb, true))
+                                if (!mempool.exists(inv.hash))
                                 {
-                                    Inventory(inv.hash);
-                                    continue;
+                                    // If it doesn't get into mempool, drop it.
+                                    // If it does get in, push it from the mempool.
+                                    CTxDB txdb("r");
+                                    if (!tx.AcceptToMemoryPool(txdb, true))
+                                    {
+                                        Inventory(inv.hash);
+                                        continue;
+                                    }
                                 }
                             }
                             else
                             {
-                                pfrom->PushMessage("tx", vRecv);
+                                pfrom->PushMessage(inv.GetCommand(), (*mi).second);
                                 pushed = true;
                             }
                         }
