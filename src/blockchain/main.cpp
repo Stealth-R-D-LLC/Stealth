@@ -2795,21 +2795,34 @@ int64_t GetQPoSReward(const CBlockIndex *pindexPrev)
 
 int64_t GetStakerPrice(uint32_t N, int64_t nSupply, bool fPurchase)
 {
-    // This says
+    // testnet
     //    1) stakers 1 to 22: 1st tier price (discount)
     //    2) stakers 23 to 86: 2nd tier price (no discount)
     //    3) stakers 87 to 214: 3rd tier price (premium)
     //    4) stakers 215 to 470: 4th tier price (unaffordable)
-    static const uint32_t TIER1 = 22;
-    static const uint32_t TIER2 = 64;
-    static const uint32_t K_TIER = TIER2 - TIER1;
-    static const int64_t K_SCALE = 4000;
-    static const int64_t K_INCENTIVE = 200;
+    static const uint32_t TIER1_T = 22;
+    static const uint32_t TIER2_T = 64;
+    static const int64_t K_SCALE_T = 4000;
+    static const int64_t K_INCENTIVE_T = 200;
+    // mainnet
+    //    1) stakers 1 to 11: 1st tier price (big discount)
+    //    2) stakers 12 to 43: 2nd tier price (discount)
+    //    3) stakers 44 to 107: 3rd tier price (no discount)
+    //    4) stakers 108 to 235: 4th tier price (premium)
+    //    5) stakers 236 to 491: 5th tier price (unaffordable)
+    static const uint32_t TIER1_M = 11;
+    static const uint32_t TIER2_M = 32;
+    static const int64_t K_SCALE_M = 12000;
+    static const int64_t K_INCENTIVE_M = 64;
     // Excpeted fraction of the money supply increase waiting on a purchase.
     // Based on 5 second blocks, this is about 10 min meaning if you have
     // to wait 10 min for a purchase this estimate will still be enough.
     // Adds less than 0.2 XST to the price of a 50,000 XST staker.
     static const int64_t INVERSE_WAIT_INCREASE = 3153600;
+    static const int64_t K_SCALE = fTestNet ? K_SCALE_T : K_SCALE_M;
+    static const int64_t K_INCENTIVE = fTestNet ? K_INCENTIVE_T : K_INCENTIVE_M;
+    static const uint32_t K_TIER = fTestNet ? (TIER2_T - TIER1_T) :
+                                              (TIER2_M - TIER1_M);
     int64_t blen = static_cast<int64_t>(bit_length(N + K_TIER));
     if (fPurchase)
     {
