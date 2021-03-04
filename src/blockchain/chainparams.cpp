@@ -32,9 +32,9 @@ ChainParams::ChainParams()
 
     CUTOFF_POW_M = 5460;
 
-    START_PURCHASE_M = 4204204;  // asdf
-    CUTOFF_POS_M = 4420420;      // asdf
-    START_FEELESS_M = 4420690;   // asdf
+    START_PURCHASE_M = 3613500;  // start of staker purchases
+    CUTOFF_POS_M = 3635100;      // end of PoS and start of qPoS
+    START_FEELESS_M = 3642300;   // start of feeless transactions
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -44,10 +44,10 @@ ChainParams::ChainParams()
         /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
         /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
         /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
-        /* Approx ????????????????  */   ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx ????????????????  */   (     CUTOFF_POS_M, XST_FORKQPOS     )
-        /* Approx ????????????????  */   (     CUTOFF_POS_M, XST_FORKQPOSB    )
-        /* Approx ????????????????  */   (  START_FEELESS_M, XST_FORKFEELESS  )
+        /* Approx April 4, 2020     */   ( START_PURCHASE_M, XST_FORKPURCHASE )
+        /* Approx April 19, 2020    */   (     CUTOFF_POS_M, XST_FORKQPOS     )
+        /* Approx April 19, 2020    */   (     CUTOFF_POS_M, XST_FORKQPOSB    )
+        /* Approx April 24, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
                                                 );
 
 
@@ -93,9 +93,11 @@ ChainParams::ChainParams()
     // Go look at GetProofOfWorkReward and do the math yourself
     // Don't quote the value of MAX_MONEY as an indicator
     // of the true money supply or you will look foolish!!!!!!
+    // By coincidence, original max money of 43.3M is good for almost
+    // exactly 1 decade after transition to qPoS (1% per year inflation).
     MAX_MONEY = COIN * 43300000;  // 23.3 Million -> 43.3 bumped to be safe
     CIRCULATION_MONEY = MAX_MONEY;
-    TAX_PERCENTAGE = 0.00; //no tax
+    TAX_PERCENTAGE = 0.00; // no tax
 
     // two hours
     nMaxClockDrift = 2 * 60 * 60;
