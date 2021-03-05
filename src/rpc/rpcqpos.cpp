@@ -538,7 +538,7 @@ Value getstakerauthorities(const Array& params, bool fHelp)
     {
         throw runtime_error("TSNH: can't get delegate key");
     }
-    if (!pregistryMain->GetControllerKey(nID, keyDelegate))
+    if (!pregistryMain->GetControllerKey(nID, keyController))
     {
         throw runtime_error("TSNH: can't get controller key");
     }
@@ -548,13 +548,13 @@ Value getstakerauthorities(const Array& params, bool fHelp)
     CBitcoinAddress addrController(keyController.GetID());
 
     Object objOwner;
-    objOwner.push_back(Pair("addres", addrOwner.ToString()));
+    objOwner.push_back(Pair("address", addrOwner.ToString()));
     objOwner.push_back(Pair("pubkey", HexStr(keyOwner.Raw())));
     Object objDelegate;
-    objDelegate.push_back(Pair("addres", addrDelegate.ToString()));
+    objDelegate.push_back(Pair("address", addrDelegate.ToString()));
     objDelegate.push_back(Pair("pubkey", HexStr(keyDelegate.Raw())));
     Object objController;
-    objController.push_back(Pair("addres", addrController.ToString()));
+    objController.push_back(Pair("address", addrController.ToString()));
     objController.push_back(Pair("pubkey", HexStr(keyController.Raw())));
 
     Object obj;
