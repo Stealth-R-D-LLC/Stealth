@@ -510,6 +510,62 @@ Value getstakerinfo(const Array& params, bool fHelp)
     return obj;
 }
 
+Value getstakerauthorities(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+    {
+        throw runtime_error(
+            "getstakerauthorities <alias>\n"
+            "<alias> is a non-case sensitive staker alias\n"
+            "Returns the staker authorities as pubkeys and addresses");
+    }
+
+    string sAlias = params[0].get_str();
+
+    unsigned int nID;
+    if (!pregistryMain->GetIDForAlias(sAlias, nID))
+    {
+        throw JSONRPCError(RPC_QPOS_STAKER_NONEXISTENT,
+                            "Staker doesn't exist");
+    }
+
+    CPubKey keyOwner, keyDelegate, keyController;
+    if (!pregistryMain->GetOwnerKey(nID, keyOwner))
+    {
+        throw runtime_error("TSNH: can't get owner key");
+    }
+    if (!pregistryMain->GetDelegateKey(nID, keyDelegate))
+    {
+        throw runtime_error("TSNH: can't get delegate key");
+    }
+    if (!pregistryMain->GetControllerKey(nID, keyDelegate))
+    {
+        throw runtime_error("TSNH: can't get controller key");
+    }
+
+    CBitcoinAddress addrOwner(keyOwner.GetID());
+    CBitcoinAddress addrDelegate(keyDelegate.GetID());
+    CBitcoinAddress addrController(keyController.GetID());
+
+    Object objOwner;
+    objOwner.push_back(Pair("addres", addrOwner.ToString()));
+    objOwner.push_back(Pair("pubkey", HexStr(keyOwner.Raw())));
+    Object objDelegate;
+    objDelegate.push_back(Pair("addres", addrDelegate.ToString()));
+    objDelegate.push_back(Pair("pubkey", HexStr(keyDelegate.Raw())));
+    Object objController;
+    objController.push_back(Pair("addres", addrController.ToString()));
+    objController.push_back(Pair("pubkey", HexStr(keyController.Raw())));
+
+    Object obj;
+    obj.push_back(Pair("owner", objOwner));
+    obj.push_back(Pair("delegate", objDelegate));
+    obj.push_back(Pair("controller", objController));
+
+    return obj;
+}
+
+
 Value getqposinfo(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
@@ -595,7 +651,6 @@ Value getblockschedule(const Array& params, bool fHelp)
 
     vector<QPSlotInfo> vPrevious;
     pregistryMain->GetPreviousSlotsInfo(nTime, 0, vPrevious);
-
     vector<QPSlotInfo> vCurrent;
     pregistryMain->GetCurrentSlotsInfo(nTime, 0, vCurrent);
 
@@ -605,7 +660,7 @@ Value getblockschedule(const Array& params, bool fHelp)
         throw runtime_error("no previous queue (too early?)");
     }
     int nSizeCurrent = static_cast<int>(vCurrent.size());
-        if (nSizeCurrent < 1)
+    if (nSizeCurrent < 1)
     {
         throw runtime_error("TSNH: no current queue (unexpected)");
     }
