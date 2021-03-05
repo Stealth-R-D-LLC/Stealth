@@ -577,6 +577,11 @@ Value getblockschedule(const Array& params, bool fHelp)
             "   after the current block.");
     }
 
+    if (GetFork(nBestHeight) < XST_FORKQPOS)
+    {
+        throw runtime_error("qPoS hasn't started yet");
+    }
+
     int nBlocks = params[0].get_int();
     if (nBlocks < 0)
     {
@@ -590,11 +595,20 @@ Value getblockschedule(const Array& params, bool fHelp)
 
     vector<QPSlotInfo> vPrevious;
     pregistryMain->GetPreviousSlotsInfo(nTime, 0, vPrevious);
+
     vector<QPSlotInfo> vCurrent;
     pregistryMain->GetCurrentSlotsInfo(nTime, 0, vCurrent);
 
     int nSizePrevious = static_cast<int>(vPrevious.size());
+    if (nSizePrevious < 1)
+    {
+        throw runtime_error("no previous queue (too early?)");
+    }
     int nSizeCurrent = static_cast<int>(vCurrent.size());
+        if (nSizeCurrent < 1)
+    {
+        throw runtime_error("TSNH: no current queue (unexpected)");
+    }
     int nSizeAll = static_cast<int>(nSizePrevious + nSizeCurrent);
 
     vector<QPSlotInfo> vAll;
