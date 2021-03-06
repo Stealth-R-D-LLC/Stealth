@@ -1096,7 +1096,7 @@ bool QPRegistry::DisableStaker(unsigned int nID)
     }
     if (pstaker->IsDisabled())
     {
-        return error("DisableStaker(): staker already disqualified");
+        return error("DisableStaker(): staker already disabled");
     }
     pstaker->Disable();
     return true;
