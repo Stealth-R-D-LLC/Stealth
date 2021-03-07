@@ -728,17 +728,6 @@ bool CTxDB::LoadBlockIndex()
     }
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
 
-    int nMainChainHeight = 0;
-    BOOST_REVERSE_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
-    {
-        CBlockIndex* pindex = item.second;
-        if (pindex->IsInMainChain())
-        {
-            nMainChainHeight = pindex->nHeight;
-            break;
-        }
-    }
-    
     pregistryMain->SetNull();
 
     CBlockIndex* pindexBestReplay = NULL;
