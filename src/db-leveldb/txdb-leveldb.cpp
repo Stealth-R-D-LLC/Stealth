@@ -563,18 +563,6 @@ bool CTxDB::LoadBlockIndex()
         return true;
     }
 
-    if (ReadBestRegistrySnapshot(*pregistryMain))
-    {
-        printf("LoadBlockIndex(): loaded registry at height %d\n",
-                                           pregistryMain->GetBlockHeight());
-    }
-    else
-    {
-        pregistryMain->SetNull();
-        printf("LoadBlockIndex(): registry snapshot not found, "
-                                   "will replay registry from block 0\n");
-    }
-
     printf("Loading block index...\n");
 
     // The block index is an in-memory structure that maps hashes to on-disk
@@ -750,12 +738,9 @@ bool CTxDB::LoadBlockIndex()
             break;
         }
     }
-    if (nMainChainHeight < pregistryMain->GetBlockHeight())
-    {
-        printf("LoadBlockIndex(): snapshot too new, replaying from 0\n");
-        pregistryMain->SetNull();
-    }
     
+    pregistryMain->SetNull();
+
     CBlockIndex* pindexBestReplay = NULL;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
@@ -777,38 +762,17 @@ bool CTxDB::LoadBlockIndex()
                              pidx->nHeight, pidx->nStakeModifier);
             }
         }
+
         if ((nFork >= XST_FORKPURCHASE) &&
             (pidx->nHeight > pregistryMain->GetBlockHeight()) &&
             (pidx->IsInMainChain()))
         {
             if (!pregistryMain->UpdateOnNewBlock(pidx, false))
             {
-                printf("CTxDB::LoadBlockIndex() : "
-                           "Failed registry update from snapshot height=%d\n",
-                           pidx->nHeight);
-                // something was wrong with the snapshot, start from 0
-                pregistryMain->SetNull();
-                BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item2,
-                              vSortedByHeight)
-                {
-                    CBlockIndex* pidx2 = item2.second;
-                    int nFork2 = GetFork(pidx2->nHeight);
-                    if ((nFork2 >= XST_FORKPURCHASE) &&
-                        (pidx2->nHeight > pregistryMain->GetBlockHeight()) &&
-                        (pidx2->IsInMainChain()))
-                    {
-                        if (!pregistryMain->UpdateOnNewBlock(pidx2, false))
-                        {
-                            return error("CTxDB::LoadBlockIndex() : "
-                                            "Failed registry update on replay height=%d",
-                                            pidx2->nHeight);
-                        }
-                    }
-                    if (pidx2 == pidx)
-                    {
-                        break;
-                    }
-                }
+                return error("CTxDB::LoadBlockIndex() : "
+                                "Failed registry update from snapshot "
+                                "height=%d\n",
+                             pidx->nHeight);
             }
             pindexBestReplay = pidx;
         }
@@ -818,12 +782,17 @@ bool CTxDB::LoadBlockIndex()
     if (!ReadHashBestChain(hashBestChain))
     {
         if (pindexGenesisBlock == NULL)
+        {
             return true;
+        }
         return error("CTxDB::LoadBlockIndex() : hashBestChain not loaded");
     }
 
     if (!mapBlockIndex.count(hashBestChain))
-        return error("CTxDB::LoadBlockIndex() : hashBestChain not found in the block index");
+    {
+        return error("CTxDB::LoadBlockIndex() : "
+                        "hashBestChain not found in the block index");
+    }
 
     pindexBest = mapBlockIndex[hashBestChain];
 
