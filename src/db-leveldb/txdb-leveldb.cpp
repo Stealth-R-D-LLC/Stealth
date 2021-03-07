@@ -718,7 +718,8 @@ bool CTxDB::LoadBlockIndex()
             return true;
     }
 
-    // Calculate nChainTrust
+    // Replay registry from 0 and calculate chain trust.
+    printf("Replaying qPoS registry...\n");
     vector<pair<int, CBlockIndex*> > vSortedByHeight;
     vSortedByHeight.reserve(mapBlockIndex.size());
     BOOST_FOREACH(const PAIRTYPE(uint256, CBlockIndex*)& item, mapBlockIndex)
@@ -756,8 +757,14 @@ bool CTxDB::LoadBlockIndex()
             (pidx->nHeight > pregistryMain->GetBlockHeight()) &&
             (pidx->IsInMainChain()))
         {
+            if (pidx->nHeight % 100000 == 0)
+            {
+                printf("Replayed %d blocks\n", pidx->nHeight);
+            }
             if (!pregistryMain->UpdateOnNewBlock(pidx, false))
             {
+                // force update again to print some debugging info before exit
+                pregistryMain->UpdateOnNewBlock(pidx, false, true);
                 return error("CTxDB::LoadBlockIndex() : "
                                 "Failed registry update from snapshot "
                                 "height=%d\n",
@@ -765,6 +772,7 @@ bool CTxDB::LoadBlockIndex()
             }
             pindexBestReplay = pidx;
         }
+        nBestHeight = pidx->nHeight;
     }
 
     // Load hashBestChain pointer to end of best chain
