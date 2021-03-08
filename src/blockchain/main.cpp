@@ -5168,6 +5168,28 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
              ++mi)
         {
             CBlock* pblockOrphan = (*mi).second;
+            // Ensure that the next orphan would be correct top for this chain.
+            // Reorg should take care of orphans that are wrong here but
+            // eventually end up in the winning chain.
+            if (pblockOrphan->hashPrevBlock == pregistryTemp->GetBlockHash())
+            {
+                if (fDebugQPoS)
+                {
+                    printf("ProcessBlock(): trying next orphan at %d\n   %s\n",
+                           pblockOrphan->nHeight,
+                           pblockOrphan->GetHash().ToString().c_str());
+                }
+            }
+            else
+            {
+                if (fDebugQPoS)
+                {
+                    printf("ProcessBlock(): skipping orphan at %d\n   %s\n",
+                           pblockOrphan->nHeight,
+                           pblockOrphan->GetHash().ToString().c_str());
+                }
+                continue;
+            }
             if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine, fIsBootstrap))
             {
                 printf("ProcessBlock(): accept orphan %s success\n",
