@@ -5169,8 +5169,6 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         {
             CBlock* pblockOrphan = (*mi).second;
             // Ensure that the next orphan would be correct top for this chain.
-            // Reorg should take care of orphans that are wrong here but
-            // eventually end up in the winning chain.
             if (pblockOrphan->hashPrevBlock == pregistryTemp->GetBlockHash())
             {
                 if (fDebugQPoS)
@@ -5182,13 +5180,24 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
             }
             else
             {
-                if (fDebugQPoS)
+                printf("ProcessBlock() rewind registry to accept orphan\n"
+                          "  %s\n  prev: %s\n",
+                       pblockOrphan->GetHash().ToString().c_str(),
+                       pblockOrphan->hashPrevBlock.ToString().c_str());
+                if (!mapBlockIndex.count(pblockOrphan->hashPrevBlock))
                 {
-                    printf("ProcessBlock(): skipping orphan at %d\n   %s\n",
-                           pblockOrphan->nHeight,
-                           pblockOrphan->GetHash().ToString().c_str());
+                    printf("ProcessBlock() : TSNH hash prev not in block index\n");
+                    continue;
                 }
-                continue;
+                CBlockIndex *pindexRewind = mapBlockIndex[pblockOrphan->hashPrevBlock];
+                CTxDB txdb("r");
+                CBlockIndex *pindexCurrent;
+                pregistryTemp->SetNull();
+                if (!RewindRegistry(txdb, pindexRewind, pregistryTemp.get(), pindexCurrent))
+                {
+                    printf("ProcessBlock() : TSNH could not rewind registry\n");
+                    continue;
+                }
             }
             if (pblockOrphan->AcceptBlock(pregistryTemp.get(), fIsMine, fIsBootstrap))
             {
