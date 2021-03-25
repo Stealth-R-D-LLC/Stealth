@@ -88,6 +88,13 @@ private:
 
     bool ApplySetMeta(const QPTxDetails &deet);
 public:
+    enum SnapType
+    {
+        NO_SNAPS = 0,
+        SPARSE_SNAPS,
+        ALL_SNAPS
+    };
+
     static const int QPOS_VERSION = 1;
     static const int CURRENT_VERSION = QPOS_VERSION;
 
@@ -183,11 +190,11 @@ public:
     bool DockInactiveBalances();
 
     bool UpdateOnNewBlock(const CBlockIndex *const pindex,
-                          bool fWriteSnapshot,
+                          int nSnapshotType,
                           bool fWriteLog=false);
     bool UpdateOnNewTime(unsigned int nTime,
                          const CBlockIndex *const pindex,
-                         bool fWriteSnapshot,
+                         int nSnapshotType,
                          bool fWriteLog=false);
 
     void ApplyOps(const CBlockIndex *const pindex);

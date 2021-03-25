@@ -1841,7 +1841,9 @@ void ThreadMessageHandler2(void* parg)
                 (pregistryMain->GetRound() == 0))
             {
                 pregistryMain->UpdateOnNewTime(GetAdjustedTime(),
-                                               pindexPrev, false, fDebugQPoS);
+                                               pindexPrev,
+                                               QPRegistry::NO_SNAPS,
+                                               fDebugQPoS);
             }
 
             AUTO_PTR<CBlock> pblock(new CBlock());

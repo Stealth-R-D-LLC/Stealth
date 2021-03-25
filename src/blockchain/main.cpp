@@ -404,7 +404,9 @@ bool RewindRegistry(CTxDB &txdb,
     for (rit = vreplay.rbegin(); rit != vreplay.rend(); ++rit)
     {
         CBlockIndex *pindex = *rit;
-        if (!pregistry->UpdateOnNewBlock(pindex, true, fDebugQPoS))
+        if (!pregistry->UpdateOnNewBlock(pindex,
+                                         QPRegistry::ALL_SNAPS,
+                                         fDebugQPoS))
         {
             // this should rarely happen, if at all
             printf("RewindRegistry(): TSRH couldn't update on %s, can't replay registry\n",
@@ -3996,7 +3998,9 @@ bool CBlock::SetBestChain(CTxDB& txdb,
             while (pindexCurrent->pnext != NULL)
             {
                 pindexCurrent = pindexCurrent->pnext;
-                pregistryTempTemp->UpdateOnNewBlock(pindexCurrent, true, true);
+                pregistryTempTemp->UpdateOnNewBlock(pindexCurrent,
+                                                    QPRegistry::ALL_SNAPS,
+                                                    true);
                 if ((pindexCurrent->pnext != NULL) &&
                     (!(pindexCurrent->pnext->IsInMainChain() ||
                       // pindexNew is not yet in the main chain
@@ -4018,7 +4022,9 @@ bool CBlock::SetBestChain(CTxDB& txdb,
                     break;
                 }
                 pindexCurrent = pindexCurrent->pnext;
-                pregistryTempTemp->UpdateOnNewBlock(pindexCurrent, true, true);
+                pregistryTempTemp->UpdateOnNewBlock(pindexCurrent,
+                                                    QPRegistry::ALL_SNAPS,
+                                                    true);
             }
             if (pindexCurrent != vpindexSecondary.back()->pprev)
             {
@@ -4045,7 +4051,9 @@ bool CBlock::SetBestChain(CTxDB& txdb,
             {
                 break;
             }
-            pregistryTempTemp->UpdateOnNewBlock(pindex, true, true);
+            pregistryTempTemp->UpdateOnNewBlock(pindex,
+                                                QPRegistry::ALL_SNAPS,
+                                                true);
         }
 
         // copy rather than assign to retain mutexes, etc.
@@ -4302,8 +4310,10 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
             return error("AddToBlockIndex() : creating temp temp registry failed");
         }
         pregistryTempTemp->CheckSynced();
+        int nSnapType = IsInitialBlockDownload() ? QPRegistry::SPARSE_SNAPS :
+                                                   QPRegistry::ALL_SNAPS;
         if (!pregistryTempTemp->UpdateOnNewBlock(pindexNew,
-                                                 !IsInitialBlockDownload(),
+                                                 nSnapType,
                                                  fDebugQPoS))
         {
             return error("AddToBlockIndex() : registry couldn't update new block\n    %s",
@@ -4317,8 +4327,8 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
             return false;
         }
 
-        // The above UpdateOnNewBlock() should not be applied to pregistryTemp
-        //   if SetBestChain() reorganized, orphaning the new block.
+        // The above update on new block should not be applied to the temp registry
+        //   if set best chain reorganized, orphaning the new block.
         if (!fReorganized)
         {
             bool fExitReplay = !pregistryTemp->IsInReplayMode();
@@ -4332,8 +4342,10 @@ bool CBlock::AddToBlockIndex(unsigned int nFile,
     else   // need to update the temp registry just to check
     {
         pregistryTemp->CheckSynced();
+        int nSnapType = IsInitialBlockDownload() ? QPRegistry::SPARSE_SNAPS :
+                                                   QPRegistry::ALL_SNAPS;
         if (!pregistryTemp->UpdateOnNewBlock(pindexNew,
-                                             !IsInitialBlockDownload(),
+                                             nSnapType,
                                              fDebugQPoS))
         {
             return error("AddToBlockIndex() : registry couldn't update new block\n    %s",
@@ -4396,7 +4408,10 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     {
         if (!pregistryTemp->IsInReplayMode())
         {
-            pregistryTemp->UpdateOnNewTime(nTime, pindexBest, false, fDebugQPoS);
+            pregistryTemp->UpdateOnNewTime(nTime,
+                                           pindexBest,
+                                           QPRegistry::NO_SNAPS,
+                                           fDebugQPoS);
             if (!pregistryTemp->TimestampIsValid(nStakerID, nTime))
             {
                 printf("CheckBlock(): now=%" PRId64 ", "

@@ -731,48 +731,60 @@ bool CTxDB::LoadBlockIndex()
 
     pregistryMain->SetNull();
 
+    if (vSortedByHeight.empty())
+    {
+        return error("CTxDB::LoadBlockIndex() : TSNH no blocks");
+    }
+
+    int nMaxHeightSorted = vSortedByHeight.back().first;
+    static const int nRecentBlocks = RECENT_SNAPSHOTS * BLOCKS_PER_SNAPSHOT;
+
     CBlockIndex* pindexBestReplay = NULL;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
+        int nHeight = item.first;
         CBlockIndex* pidx = item.second;
         pidx->bnChainTrust = (pidx->pprev ?  pidx->pprev->bnChainTrust : 0) +
                              pidx->GetBlockTrust(pregistryMain);
 
-        int nFork = GetFork(pidx->nHeight);
+        int nFork = GetFork(nHeight);
         
         if (nFork < XST_FORKQPOS)
         {
             // NovaCoin: calculate stake modifier checksum
             pidx->nStakeModifierChecksum = GetStakeModifierChecksum(pidx);
-            if (!CheckStakeModifierCheckpoints(pidx->nHeight, pidx->nStakeModifierChecksum))
+            if (!CheckStakeModifierCheckpoints(nHeight, pidx->nStakeModifierChecksum))
             {
                 return error("CTxDB::LoadBlockIndex() : "
                              "Failed stake modifier checkpoint height=%d, "
                              "modifier=0x%016" PRIx64,
-                             pidx->nHeight, pidx->nStakeModifier);
+                             nHeight, pidx->nStakeModifier);
             }
         }
 
         if ((nFork >= XST_FORKPURCHASE) &&
-            (pidx->nHeight > pregistryMain->GetBlockHeight()) &&
+            (nHeight > pregistryMain->GetBlockHeight()) &&
             (pidx->IsInMainChain()))
         {
-            if (pidx->nHeight % 100000 == 0)
+            if (nHeight % 100000 == 0)
             {
-                printf("Replayed %d blocks\n", pidx->nHeight);
+                printf("Replayed %d blocks\n", nHeight);
             }
-            if (!pregistryMain->UpdateOnNewBlock(pidx, false))
+            int nSnapType = ((nMaxHeightSorted - nHeight) > nRecentBlocks) ?
+                                                      QPRegistry::SPARSE_SNAPS :
+                                                      QPRegistry::ALL_SNAPS;
+            if (!pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
             {
                 // force update again to print some debugging info before exit
-                pregistryMain->UpdateOnNewBlock(pidx, false, true);
+                pregistryMain->UpdateOnNewBlock(pidx, QPRegistry::NO_SNAPS, true);
                 return error("CTxDB::LoadBlockIndex() : "
                                 "Failed registry update from snapshot "
                                 "height=%d\n",
-                             pidx->nHeight);
+                             nHeight);
             }
             pindexBestReplay = pidx;
         }
-        nBestHeight = pidx->nHeight;
+        nBestHeight = nHeight;
     }
 
     // Load hashBestChain pointer to end of best chain
@@ -801,7 +813,9 @@ bool CTxDB::LoadBlockIndex()
         (pindexBest == pindexBestReplay->pnext))
     {
         printf("Updating on best block: %d\n", pindexBest->nHeight);
-        if (!pregistryMain->UpdateOnNewBlock(pindexBest, false, true))
+        if (!pregistryMain->UpdateOnNewBlock(pindexBest,
+                                             QPRegistry::ALL_SNAPS,
+                                             true))
         {
             return error("CTxDB::LoadBlockIndex() : "
                              "Failed registry update best block height=%d",
@@ -865,7 +879,7 @@ bool CTxDB::LoadBlockIndex()
     while ((pindexCurrent->pnext != NULL) && (pindexCurrent != pindexStart->pprev))
     {
         pindexCurrent = pindexCurrent->pnext;
-        pregistryCheck->UpdateOnNewBlock(pindexCurrent, true);
+        pregistryCheck->UpdateOnNewBlock(pindexCurrent, QPRegistry::ALL_SNAPS);
         if ((pindexCurrent->pnext != NULL) && (!pindexCurrent->pnext->IsInMainChain()))
         {
            // this should never happen because we just backtracked from best
@@ -997,7 +1011,7 @@ bool CTxDB::LoadBlockIndex()
                 // FIXME: is there a check level for qpos?
             }
         }
-        pregistryCheck->UpdateOnNewBlock(pindex, false);
+        pregistryCheck->UpdateOnNewBlock(pindex, QPRegistry::NO_SNAPS);
     }
 
     if (pindexFork && !fRequestShutdown)
@@ -1012,6 +1026,11 @@ bool CTxDB::LoadBlockIndex()
     }
 
     return true;
+}
+
+bool CTxDB::RegistrySnapshotIsViable(int nHeight)
+{
+    return IsViable(make_pair(string("registrySnapShot"), nHeight));
 }
 
 bool CTxDB::WriteRegistrySnapshot(int nHeight, const QPRegistry& registry)

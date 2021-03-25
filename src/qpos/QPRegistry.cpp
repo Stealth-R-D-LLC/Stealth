@@ -1274,23 +1274,47 @@ void QPRegistry::PurgeLowBalances(int64_t nMoneySupply)
 
 bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                                  const CBlockIndex *const pindex,
-                                 bool fWriteSnapshot,
+                                 int nSnapshotType,
                                  bool fWriteLog)
 {
-    fWriteSnapshot = (fWriteSnapshot &&
-                      (pindex->nHeight >= GetPurchaseStart()));
+    static const unsigned int N = BLOCKS_PER_SNAPSHOT * RECENT_SNAPSHOTS;
+    // blocks per sparse snapshot
+    static const unsigned int M = BLOCKS_PER_SNAPSHOT *
+                                  PERMANENT_SNAPSHOT_RATIO;
+
+    int nHeight = pindex->nHeight;
+
+    bool fWriteSnapshot = true;
+    bool fEraseSnapshot = false;
+    if ((nSnapshotType == QPRegistry::NO_SNAPS) ||
+        (GetFork(nHeight) < XST_FORKPURCHASE))
+    {
+        fWriteSnapshot = false;
+    }
+    else if (nSnapshotType == QPRegistry::SPARSE_SNAPS)
+    {
+        fWriteSnapshot = ((nHeight % M) == 0);
+        fEraseSnapshot = !fWriteSnapshot;
+    }
+    else
+    {
+        // all snaps
+        fWriteSnapshot = ((nHeight % BLOCKS_PER_SNAPSHOT) == 0);
+    }
 
     uint256 hash = *(pindex->phashBlock);
 
+    fWriteSnapshot = fWriteSnapshot && (hash != hashBlockLastSnapshot);
+
+    CTxDB txdb;
+    fEraseSnapshot = fEraseSnapshot && txdb.RegistrySnapshotIsViable(nHeight);
+
     // take snapshot here because the registry should be fully caught up
     // with the best (previous) block
-    if (((pindex->nHeight % BLOCKS_PER_SNAPSHOT) == 0) &&
-        fWriteSnapshot &&
-        (hash != hashBlockLastSnapshot))
+    if (fWriteSnapshot)
     {
-        CTxDB txdb;
         hashBlockLastSnapshot = hash;
-        txdb.WriteRegistrySnapshot(pindex->nHeight, *this);
+        txdb.WriteRegistrySnapshot(nHeight, *this);
 
         unsigned int nStakerSlot = 0;
         queue.GetSlotForID(pindex->nStakerID, nStakerSlot);
@@ -1301,9 +1325,9 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                   "staker_id=%d, staker_slot=%d\n"
                "   round=%d, seed=%u, window=%d-%d, picopower=%" PRIu64 "\n"
                "   %s\n",
-               pindex->nHeight,
+               nHeight,
                hash.ToString().c_str(),
-               pindex->nHeight,
+               nHeight,
                pindex->GetBlockTime(),
                pindex->nStakerID,
                nStakerSlot,
@@ -1314,18 +1338,18 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                GetPicoPower(),
                queue.ToString().c_str());
 
-        static const unsigned int N = BLOCKS_PER_SNAPSHOT * RECENT_SNAPSHOTS;
-        static const unsigned int M = BLOCKS_PER_SNAPSHOT *
-                                      PERMANENT_SNAPSHOT_RATIO;
-
-        int nHeightErase = pindex->nHeight - N;
+        int nHeightErase = nHeight - N;
         if (nHeightErase % M != 0)
         {
             txdb.EraseRegistrySnapshot(nHeightErase);
         }
     }
+    else if (fEraseSnapshot)
+    {
+        txdb.EraseRegistrySnapshot(nHeight);
+    }
 
-    if (GetFork(pindex->nHeight + 1) >= XST_FORKQPOS)
+    if (GetFork(nHeight + 1) >= XST_FORKQPOS)
     {
         unsigned int nNewQueues = 0;
         if (queue.IsEmpty())
@@ -1390,7 +1414,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
 }
 
 bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
-                                  bool fWriteSnapshot,
+                                  int nSnapshotType,
                                   bool fWriteLog)
 {
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
@@ -1398,7 +1422,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
     //    for the new block?
     // A: Because we can't advance the queue until we have an event (block)
     //    that says to what time we should advance the queue.
-    if (!UpdateOnNewTime(pindex->nTime, pindexPrev, fWriteSnapshot, fWriteLog))
+    if (!UpdateOnNewTime(pindex->nTime, pindexPrev, nSnapshotType, fWriteLog))
     {
         return error("UpdateOnNewBlock(): could not update on new time for %s",
                      pindex->phashBlock->ToString().c_str());
