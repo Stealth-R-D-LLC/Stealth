@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    0
-#define CLIENT_VERSION_BUILD       5
+#define CLIENT_VERSION_BUILD       6
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -36,7 +36,8 @@ static const int CLIENT_PROTOCOL_VERSION = 63400;
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
 //       : fork 8    XST_FORKFEELESS
-// 63400 : 3.1.0.5 : Feeless tx added during block creation
+// 63400 : 3.1.0.6 : Creating sparse snapshots on startup
+//         3.1.0.5 : Feeless tx added during block creation
 //         3.1.0.3 : Fixing erroneous rejection of all feework
 //         3.1.0.2 : Fixes to feeless
 //         3.1.0.1 : Adding feeless transactions
