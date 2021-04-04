@@ -25,6 +25,8 @@ class CNode;
 class CBlockIndex;
 extern int nBestHeight;
 
+extern int GetTargetSpacing(const int nHeight);
+
 
 inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer",
                                                              chainParams.DEFAULT_MAXRECEIVEBUFFER); }
@@ -358,13 +360,13 @@ public:
 
     void AskFor(const CInv& inv)
     {
+        static int64_t nLastTime;
         // We're using mapAskFor as a priority queue,
         // the key is the earliest time the request can be sent
         int64_t nRequestTime = mapAlreadyAskedFor[inv];
         // Make sure not to reuse time indexes to keep things in the same order
         // Wait at least 1 second
         int64_t nNow = (GetTime() - 1) * 1000000;
-        static int64_t nLastTime;
         ++nLastTime;
         nNow = std::max(nNow, nLastTime);
         nLastTime = nNow;
@@ -382,9 +384,9 @@ public:
                                      nRequestTime/1000000).c_str());
         }
 
-        // asdf: query target interval and adjust here
-        // Each retry is 2 seconds
-        nRequestTime = std::max(nRequestTime + (2 * 1000000), nNow);
+        // Each retry is half of target spacing
+        int nSpacing = GetTargetSpacing(nBestHeight);
+        nRequestTime = std::max(nRequestTime + (nSpacing * 1000000)/2, nNow);
         mapAskFor.insert(std::make_pair(nRequestTime, inv));
     }
 

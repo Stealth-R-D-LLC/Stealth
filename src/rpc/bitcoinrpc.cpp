@@ -330,6 +330,8 @@ static const CRPCCommand vRPCCommands[] =
     { "getstakerid",              &getstakerid,               false,  false },
     { "purchasestaker",           &purchasestaker,            false,  true  },
     { "setstakerowner",           &setstakerowner,            false,  true  },
+    // will enable after everyone on testnet upgrades, to avoid forking logic
+    // { "setstakermanager",         &setstakermanager,          false,  true  },
     { "setstakerdelegate",        &setstakerdelegate,         false,  true  },
     { "setstakercontroller",      &setstakercontroller,       false,  true  },
     { "enablestaker",             &enablestaker,              false,  true  },
@@ -1328,6 +1330,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "purchasestaker"         && n > 4) ConvertTo<double>(params[4]);
     if (strMethod == "purchasestaker"         && n > 7) ConvertTo<double>(params[7]);
     if (strMethod == "setstakerowner"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "setstakermanager"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "setstakerdelegate"      && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "setstakerdelegate"      && n > 4) ConvertTo<double>(params[4]);
     if (strMethod == "setstakercontroller"    && n > 1) ConvertTo<boost::int64_t>(params[1]);

@@ -75,7 +75,8 @@ enum RPCErrorCode
     RPC_QPOS_TRANSFER_UNACKNOWLEDGED   = -107,
     RPC_QPOS_KEY_NOT_IN_LEDGER         = -108,
     RPC_QPOS_META_KEY_NOT_VALID        = -109,
-    RPC_QPOS_META_VALUE_NOT_VALID      = -110
+    RPC_QPOS_META_VALUE_NOT_VALID      = -110,
+    RPC_QPOS_NFT_NOT_AVAILABLE         = -111
 
 };
 
@@ -267,6 +268,7 @@ extern json_spirit::Value getstakerprice(const json_spirit::Array& params, bool 
 extern json_spirit::Value getstakerid(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value purchasestaker(const json_spirit::Array &params, bool fHelp);
 extern json_spirit::Value setstakerowner(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value setstakermanager(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value setstakerdelegate(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value setstakercontroller(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value enablestaker(const json_spirit::Array& params, bool fHelp);

@@ -46,6 +46,7 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
 QPStaker::QPStaker()
 {
     pubkeyOwner = CPubKey();
+    pubkeyManager = CPubKey();
     pubkeyDelegate = CPubKey();
     pubkeyController = CPubKey();
     Reset();
@@ -54,6 +55,7 @@ QPStaker::QPStaker()
 QPStaker::QPStaker(const QPTxDetails& deet)
 {
     pubkeyOwner = deet.keys[0];
+    pubkeyManager = pubkeyOwner;
     pubkeyDelegate = pubkeyOwner;
     pubkeyController = pubkeyOwner;
     hashBlockCreated = deet.hash;
@@ -75,7 +77,7 @@ void QPStaker::Reset()
     hashBlockMostRecent = 0;
     nPrevBlocksMissed = 0;
     nPcmDelegatePayout = 0;
-    fEnabled = false;
+    nHeightDisabled = -1;
     fQualified = true;
     nTotalEarned = 0;
     sAlias = "";
@@ -226,12 +228,12 @@ bool QPStaker::IsProductive() const
 
 bool QPStaker::IsEnabled() const
 {
-    return fQualified && fEnabled;
+    return fQualified && !nHeightDisabled;
 }
 
 bool QPStaker::IsDisabled() const
 {
-    return !(fQualified && fEnabled);
+    return nHeightDisabled || !fQualified;
 }
 
 bool QPStaker::IsQualified() const
@@ -244,12 +246,10 @@ bool QPStaker::IsDisqualified() const
     return !fQualified;
 }
 
-bool QPStaker::ShouldBeDisabled() const
+bool QPStaker::ShouldBeDisabled(int nHeight) const
 {
-    static const unsigned int nMaxMiss = fTestNet ?
-                                            QP_STAKER_MAX_MISSES_T :
-                                            QP_STAKER_MAX_MISSES_M;
-    static const unsigned int nPrevMaxMiss = nMaxMiss / 2;
+    unsigned int nMaxMiss = GetStakerMaxMisses(nHeight);
+    unsigned int nPrevMaxMiss = nMaxMiss / 2;
     bool fDisable = true;
     for (unsigned int i=0; i < nMaxMiss; ++i)
     {
@@ -324,11 +324,13 @@ void QPStaker::CopyMeta(map<string, string> &mapRet) const
 void QPStaker::AsJSON(unsigned int nID,
                       unsigned int nSeniority,
                       Object &objRet,
-                      bool fWithRecentBlocks) const
+                      bool fWithRecentBlocks,
+                      unsigned int nNftID) const
 {
     objRet.clear();
     Object objKeys;
     objKeys.push_back(Pair("owner_key", HexStr(pubkeyOwner.Raw())));
+    objKeys.push_back(Pair("manager_key", HexStr(pubkeyManager.Raw())));
     objKeys.push_back(Pair("delegate_key", HexStr(pubkeyDelegate.Raw())));
     objKeys.push_back(Pair("controller_key", HexStr(pubkeyController.Raw())));
 
@@ -349,7 +351,18 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
     objRet.push_back(Pair("price", ValueFromAmount(nPrice)));
     objRet.push_back(Pair("qualified", fQualified));
-    objRet.push_back(Pair("enabled", fEnabled));
+    if (nHeightDisabled)
+    {
+        objRet.push_back(Pair("enabled", false));
+        objRet.push_back(Pair("height_disabled",
+                              static_cast<int64_t>(nHeightDisabled)));
+        objRet.push_back(Pair("enable_height",
+                              static_cast<int64_t>(GetEnableHeight(nBestHeight))));
+    }
+    else
+    {
+        objRet.push_back(Pair("enabled", true));
+    }
     objRet.push_back(Pair("weight",
                           static_cast<int64_t>(GetWeight(nSeniority))));
     objRet.push_back(Pair("keys", objKeys));
@@ -367,11 +380,18 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("prev_blocks_missed",
                           static_cast<int64_t>(nPrevBlocksMissed)));
 
-    double dProductivity =  (static_cast<double>(nBlocksProduced) /
-                             static_cast<double>(nBlocksAssigned)) * 100;
-
-    objRet.push_back(Pair("percent_productivity",
-                          strprintf("%0.4f", dProductivity)));
+    double dProductivity = 0;
+    if (nBlocksAssigned > 0)
+    {
+        dProductivity = (static_cast<double>(nBlocksProduced) /
+                         static_cast<double>(nBlocksAssigned)) * 100;
+        objRet.push_back(Pair("percent_productivity",
+                              strprintf("%0.4f", dProductivity)));
+    }
+    else
+    {
+        objRet.push_back(Pair("percent_productivity", "0.0000"));
+    }
 
     objRet.push_back(Pair("latest_assignment",
                           bool(bRecentBlocks[0])));
@@ -386,6 +406,13 @@ void QPStaker::AsJSON(unsigned int nID,
     if (!objMeta.empty())
     {
         objRet.push_back(Pair("meta", objMeta));
+    }
+
+    if (nNftID && mapNfts.count(nNftID))
+    {
+        Object objNft;
+        mapNfts[nNftID].AsJSON(objNft, nNftID);
+        objRet.push_back(Pair("character", objNft));
     }
 
     if (fWithRecentBlocks)
@@ -466,24 +493,50 @@ bool QPStaker::SetDelegatePayout(uint32_t pcm)
     return result;
 }
 
+int QPStaker::GetEnableHeight(int nHeight) const
+{
+    if (fTestNet)
+    {
+        if (GetFork(nHeight) < XST_FORKMISSFIX)
+        {
+            return 0;
+        }
+        return (nHeightDisabled + QP_STAKER_REENABLE_WAIT_T);
+    }
+    if (!nHeightDisabled)
+    {
+        return 0;
+    }
+    return (nHeightDisabled + QP_STAKER_REENABLE_WAIT_M);
+}
+
+bool QPStaker::CanBeEnabled(int nHeight) const
+{
+    if (nHeight >= GetEnableHeight(nHeight))
+    {
+        return true;
+    }
+    return false;
+}
+
 bool QPStaker::Enable()
 {
     if (IsDisqualified())
     {
         return error("Enable(): can not enable a disqualified staker");
     }
-    fEnabled = true;
+    nHeightDisabled = 0;
     return true;
 }
 
-void QPStaker::Disable()
+void QPStaker::Disable(int nHeight)
 {
-    fEnabled = false;
+    nHeightDisabled = nHeight;
 }
 
 void QPStaker::Disqualify()
 {
-    fEnabled = false;
+    nHeightDisabled = std::numeric_limits<int>::max() / 2;
     fQualified = false;
 }
 

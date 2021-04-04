@@ -24,6 +24,7 @@
 
 using namespace std;
 
+
 //
 // Global state
 //
@@ -49,6 +50,8 @@ CTxMemPool mempool;
 unsigned int nTransactionsUpdated = 0;
 
 map<uint256, CBlockIndex*> mapBlockIndex;
+map<int, CBlockIndex*> mapBlockLookup;
+
 set<pair<COutPoint, unsigned int> > setStakeSeen;
 uint256 hashGenesisBlock = chainParams.hashGenesisBlockMainNet;
 static CBigNum bnProofOfWorkLimit = chainParams.bnProofOfWorkLimitMainNet;
@@ -91,34 +94,6 @@ int64_t nHPSTimerStart;
 // Settings
 int64_t nTransactionFee = chainParams.MIN_TX_FEE;
 int64_t nReserveBalance = 0;
-
-//////////////////////////////////////////////////////////////////////////////
-//
-// forks
-//
-
-int GetFork(int nHeight)
-{
-    static const map<int, int> mapForks = fTestNet ? chainParams.mapForksTestNet :
-                                                     chainParams.mapForksMainNet;
-    static const map<int, int>::const_iterator b = mapForks.begin();
-    static const map<int, int>::const_iterator e = mapForks.end();
-    assert (b != e);
-
-    int nFork = b->second;
-    // loop has strange logic, but if fork i height is greater than nHeight
-    // then you are on fork i-1
-    // we can do it this way because maps are sorted
-    for (map<int, int>::const_iterator it = b; it != e; ++it)
-    {
-       if (it->first > nHeight)
-       {
-           break;
-       }
-       nFork = it->second;
-    }
-    return nFork;
-}
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -168,6 +143,31 @@ const char* DescribeBlockCreationResult(BlockCreationResult r)
     }
     return NULL;
 }
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// block spacing
+//
+int GetTargetSpacing(const int nHeight)
+{
+    static const int SPACING_M = chainParams.nTargetSpacingMainNet;
+    static const int SPACING_T = chainParams.nTargetSpacingTestNet;
+    if (GetFork(nHeight) < XST_FORKQPOS)
+    {
+        if (fTestNet)
+        {
+            return SPACING_T;
+        }
+        else
+        {
+            return SPACING_M;
+        }
+    }
+    return QP_TARGET_SPACING;
+}
+
+
+
 
 //////////////////////////////////////////////////////////////////////////////
 //
@@ -516,6 +516,33 @@ const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs)
 }
 
 
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// Outputs
+//
+
+int64_t GetMinOutputAmount(int nHeight)
+{
+    int nFork = GetFork(nHeight);
+    if (nFork < XST_FORK004)
+    {
+        return chainParams.MIN_TXOUT_AMOUNT;
+    }
+    else if (nFork < XST_FORKPURCHASE)
+    {
+        return 0;
+    }
+    else if (nTestNet && (nFork < XST_FORKMISSFIX))
+    {
+        return 0;
+    }
+    else
+    {
+        return chainParams.MIN_TXOUT_AMOUNT;
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////////
 //
 // CTransaction and CTxIndex
@@ -683,6 +710,16 @@ bool CTransaction::ValidateSignatory(const QPRegistry *pregistry,
         }
         vKeys.push_back(key);
     }
+    if (fKeyTypes & QPKEY_MANAGER)
+    {
+        CPubKey key;
+        if (!pregistry->GetManagerKey(nStakerID, key))
+        {
+            // ID doesn't correspond to a qualified staker
+            return false;
+        }
+        vKeys.push_back(key);
+    }
     if (fKeyTypes & QPKEY_DELEGATE)
     {
         CPubKey key;
@@ -723,7 +760,7 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
             // nonstandard
             return false;
         }
-        if ((typetxo != TX_PURCHASE1) && (typetxo != TX_PURCHASE3))
+        if ((typetxo != TX_PURCHASE1) && (typetxo != TX_PURCHASE4))
         {
             // not a purchase
             continue;
@@ -754,10 +791,10 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
                 return DoS(100, error("CheckPurchase() : malformed 1"));
             }
         }
-        else if (purchase.keys.size() != 3)
+        else if (purchase.keys.size() < 3 || purchase.keys.size() > 4)
         {
-            // malformed PURCHASE3
-            return DoS(100, error("CheckPurchase() : malformed 3"));
+            // malformed PURCHASE4
+            return DoS(100, error("CheckPurchase() : malformed 4"));
         }
         // disallowing more than 2x price removes any chance of overflow
         if (purchase.value < nStakerPrice)
@@ -775,8 +812,35 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
             // can't delegate more than 100%
             return DoS(100, error("CheckPurchase() : too much delegate pay"));
         }
+
         string sLC;
-        if (!pregistry->AliasIsAvailable(purchase.alias, sLC))
+        // user is selecting an NFT by specifying an NFT ID instead of name
+        if (purchase.nft > 0)
+        {
+            if (!pregistry->NftIsAvailable(purchase.nft, sLC))
+            {
+               return DoS(100, error("CheckPurchase() : NFT unavailable"));
+            }
+            purchase.alias = mapNfts[purchase.nft].strNickname;
+        }
+        else if (pregistry->AliasIsAvailable(purchase.alias, sLC))
+        {
+            if (pregistry->GetNftIDForAlias(sLC, purchase.nft))
+            {
+                string sCharKey;
+                if (!pregistry->NftIsAvailable(purchase.nft, sCharKey))
+                {
+                    return DoS(100, error("CheckPurchase() : NFT unavailable"));
+                }
+                if (sCharKey != sLC)
+                {
+                    // the lookup map doesn't match the map by id
+                    return error("CheckPurchase(): TSNH NFT mismatch");
+                }
+                purchase.alias = mapNfts[purchase.nft].strNickname;
+            }
+        }
+        else
         {
             // alias is not valid or is taken (should have checked)
             return DoS(100, error("CheckPurchase() : alias unavailable"));
@@ -795,7 +859,7 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
 
 
 // this does a full check: depends on the state of the registry
-// lots of checks are done to allow 1, 2, or 3 key changes in one tx
+// lots of checks are done to allow 1, 2, 3, or 4 key changes in one tx
 // enforces that owner change is last, if there are multiple changes
 // vout order determines sequence of key changes
 // return pair is <staker ID, vector of setkeys>
@@ -808,7 +872,6 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
     vRet.clear();
     int fKeyTypes = 0;
     unsigned int nStakerID = 0;
-    bool fCheckedSignatory = false;
     BOOST_FOREACH(const CTxOut &txout, vout)
     {
         txnouttype typetxo;
@@ -820,6 +883,7 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             return false;
         }
         if ((typetxo != TX_SETOWNER) &&
+            (typetxo != TX_SETMANAGER) &&
             (typetxo != TX_SETDELEGATE) &&
             (typetxo != TX_SETCONTROLLER))
         {
@@ -854,10 +918,20 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             //    tx is connected
             return DoS(100, error("CheckSetKeys() : owner already changed"));
         }
+        if (((fThisKeyType != QPKEY_MANAGER) &&
+             (fThisKeyType != QPKEY_OWNER)) &&
+            (QPKEY_MANAGER & fKeyTypes))
+        {
+            // force manager change to come after other key type changes
+            //    except owner, in case the signatory is manager
+            // will not go through the complexities of investigating signatory
+            //    here just to allow more flexible ordering
+            return DoS(100, error("CheckSetKeys() : manager already changed"));
+        }
         qpos_setkey setkey;
         setkey.keytype = fThisKeyType;
         ExtractSetKey(vSolutions.front(), setkey);
-        if ((fThisKeyType == QPKEY_CONTROLLER) && (setkey.pcm > 100000))
+        if ((fThisKeyType == QPKEY_DELEGATE) && (setkey.pcm > 100000))
         {
             return DoS(100, error("CheckSetKeys() : pcm too high"));
         }
@@ -876,18 +950,31 @@ bool CTransaction::CheckSetKeys(const QPRegistry *pregistry,
             // avoid complexities by disallowing more than one ID
             return DoS(100, error("CheckSetKeys() : changing multiple IDs"));
         }
-        // only need to do this once per tx because only one ID allowed
-        if (!fCheckedSignatory)
-        {
-            if (!ValidateSignatory(pregistry, mapInputs, 0, setkey.id, QPKEY_OWNER))
-            {
-                // signatory doesn't own staker
-                return DoS(100, error("CheckSetKeys() : sig not owner"));
-            }
-            fCheckedSignatory = true;
-        }
-        fKeyTypes &= fThisKeyType;
         vRet.push_back(setkey);
+        fKeyTypes |= fThisKeyType;
+    }
+    if (!fKeyTypes)
+    {
+        printf("CheckSetKeys(): fail: no setkeys`\n");
+        return false;
+    }
+    if (QPKEY_OWNER & fKeyTypes)
+    {
+        // only owner can change owner
+        if (!ValidateSignatory(pregistry, mapInputs, 0, nStakerID, QPKEY_OWNER))
+        {
+            // signatory doesn't own staker
+            return DoS(100, error("CheckSetKeys() : sig not owner"));
+        }
+    }
+    else
+    {
+        // manager can change everything but owner, including manager
+        if (!ValidateSignatory(pregistry, mapInputs, 0, nStakerID, QPKEY_OM))
+        {
+            // signatory isn't staker or manager
+            return DoS(100, error("CheckSetKeys() : sig not owner or manager"));
+        }
     }
     return true;
 }
@@ -946,10 +1033,10 @@ bool CTransaction::CheckSetState(const QPRegistry *pregistry,
             // disallow setting state of disqualified stakers even if extant
             return DoS(100, error("CheckSetState() : staker disqualified"));
         }
-        if (!ValidateSignatory(pregistry, mapInputs, 0, setstate.id, QPKEY_OC))
+        if (!ValidateSignatory(pregistry, mapInputs, 0, setstate.id, QPKEY_OMC))
         {
-            // signatory doesn't own or control the staker
-            return DoS(100, error("CheckSetState() : sig not owner"));
+            // signatory doesn't own, manage, or control the staker
+            return DoS(100, error("CheckSetState() : sig not O/M/C"));
         }
     }
     setstateRet.id = setstate.id;
@@ -1148,7 +1235,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
         switch (static_cast<txnouttype>(deet.t))
         {
         case TX_PURCHASE1:
-        case TX_PURCHASE3:
+        case TX_PURCHASE4:
           {
             if (fPurchasesChecked)
             {
@@ -1181,6 +1268,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             break;
           }
         case TX_SETOWNER:
+        case TX_SETMANAGER:
         case TX_SETDELEGATE:
         case TX_SETCONTROLLER:
           {
@@ -1307,10 +1395,11 @@ bool CTransaction::GetQPTxDetails(const uint256& hashBlock,
         switch (whichType)
         {
         case TX_PURCHASE1:
-        case TX_PURCHASE3:
+        case TX_PURCHASE4:
             ExtractPurchase(vSolutions.front(), deets);
             break;
         case TX_SETOWNER:
+        case TX_SETMANAGER:
         case TX_SETDELEGATE:
         case TX_SETCONTROLLER:
             fNeedsInputs = true;
@@ -1395,8 +1484,9 @@ bool CTransaction::IsQPoSTx() const
         switch (typetxo)
         {
             case TX_PURCHASE1:
-            case TX_PURCHASE3:
+            case TX_PURCHASE4:
             case TX_SETOWNER:
+            case TX_SETMANAGER:
             case TX_SETDELEGATE:
             case TX_SETCONTROLLER:
             case TX_ENABLE:
@@ -1636,20 +1726,22 @@ bool CTransaction::CheckTransaction() const
 {
     // Basic checks that don't depend on any context
     if (vin.empty())
-        return DoS(10, error("CTransaction::CheckTransaction() : vin empty %s",
+        return DoS(10, error("CheckTransaction() : vin empty %s",
                                   GetHash().ToString().c_str()));
     if (vout.empty())
     {
-        return DoS(10, error("CTransaction::CheckTransaction() : vout empty %s",
+        return DoS(10, error("CheckTransaction() : vout empty %s",
                                   GetHash().ToString().c_str()));
     }
     // Size limits
     if (::GetSerializeSize(*this, SER_NETWORK, PROTOCOL_VERSION) >
                                                     chainParams.MAX_BLOCK_SIZE)
     {
-        return DoS(100, error("CTransaction::CheckTransaction() : size limits failed %s",
+        return DoS(100, error("CheckTransaction() : size limits failed %s",
                                   GetHash().ToString().c_str()));
     }
+
+    int nNewHeight = nBestHeight + 1;
 
     // Check for negative or overflow output values
     int64_t nValueOut = 0;
@@ -1658,48 +1750,69 @@ bool CTransaction::CheckTransaction() const
         const CTxOut& txout = vout[i];
         if (txout.IsEmpty() && !IsCoinBase() && !IsCoinStake())
         {
-            return DoS(100, error("CTransaction::CheckTransaction() : txout empty for user transaction %s %u",
+            return DoS(100, error("CheckTransaction() : txout empty for user transaction %s %u",
                                   GetHash().ToString().c_str(), i));
         }
 
-        if (GetFork(nBestHeight+1) >= XST_FORK004)
+
+        int nFork = GetFork(nNewHeight);
+        if (nFork < XST_FORK004)
         {
-            if (txout.nValue < 0)
+            if ((!txout.IsEmpty()) &&   // not coinbase or coinstake
+                 txout.nValue < GetMinOutputAmount(nNewHeight))
+            {
                 return DoS(100,
-                  error("CTransaction::CheckTransaction() : txout.nValue negative %s %u",
+                  error("CheckTransaction() : txout.nValue below minimum"));
+            }
+        }
+        else if (nFork < XST_FORKPURCHASE)
+        {
+            if (txout.nValue < GetMinOutputAmount(nNewHeight))
+            {
+                return DoS(100,
+                  error("CheckTransaction() : txout.nValue negative %s %u",
                                   GetHash().ToString().c_str(), i));
+            }
         }
         else
         {
             vector<valtype> vSolutions;
             txnouttype whichType;
-            if (Solver(txout.scriptPubKey, whichType, vSolutions) &&
-                (whichType >= TX_PURCHASE1) && (whichType <= TX_DISABLE))
+            if (Solver(txout.scriptPubKey, whichType, vSolutions))
             {
-                if (txout.nValue < 0)
+                if (((whichType >= TX_PURCHASE1) && (whichType <= TX_DISABLE)) ||
+                    (whichType == TX_SETMETA) ||
+                    (whichType == TX_FEEWORK) ||
+                    (whichType == TX_NULL_DATA))
                 {
-                  return DoS(100,
-                    error("CTransaction::CheckTransaction() : txout.nValue negative %s %u",
-                                  GetHash().ToString().c_str(), i));
+                    if (txout.nValue < 0)
+                    {
+                      return DoS(100,
+                        error("CheckTransaction() : txout.nValue negative %s %u",
+                                      GetHash().ToString().c_str(), i));
+                    }
                 }
-            }
-            else if ((!txout.IsEmpty()) &&
-                     (txout.nValue < chainParams.MIN_TXOUT_AMOUNT))
-            {
-                return DoS(100,
-                  error("CTransaction::CheckTransaction() : txout.nValue below minimum %s %u",
-                                  GetHash().ToString().c_str(), i));
+                // prevent dusting after purchases start
+                else if ((whichType >= TX_PUBKEY) && (whichType <= TX_MULTISIG))
+                {
+                    if (txout.nValue < GetMinOutputAmount(nNewHeight))
+                    {
+                      return DoS(100,
+                        error("CheckTransaction() : txout.nValue too small %s %u",
+                                      GetHash().ToString().c_str(), i));
+                    }
+                }
             }
         }
 
         if (txout.nValue > chainParams.MAX_MONEY)
             return DoS(100,
-              error("CTransaction::CheckTransaction() : txout.nValue too high %s %u",
+              error("CheckTransaction() : txout.nValue too high %s %u",
                                   GetHash().ToString().c_str(), i));
         nValueOut += txout.nValue;
         if (!MoneyRange(nValueOut))
             return DoS(100,
-              error("CTransaction::CheckTransaction() : txout total out of range %s %u",
+              error("CheckTransaction() : txout total out of range %s %u",
                                   GetHash().ToString().c_str(), i));
     }
 
@@ -1716,14 +1829,14 @@ bool CTransaction::CheckTransaction() const
     {
         if (vin[0].scriptSig.size() < 2 || vin[0].scriptSig.size() > 100)
             return DoS(100,
-               error("CTransaction::CheckTransaction() : coinbase script size is invalid %s",
+               error("CheckTransaction() : coinbase script size is invalid %s",
                                   GetHash().ToString().c_str()));
     }
     else
     {
         BOOST_FOREACH(const CTxIn& txin, vin)
             if (txin.prevout.IsNull())
-                return DoS(10, error("CTransaction::CheckTransaction() : prevout is null %s",
+                return DoS(10, error("CheckTransaction() : prevout is null %s",
                                   GetHash().ToString().c_str()));
     }
 
@@ -1881,7 +1994,7 @@ uint64_t CTransaction::GetFeeworkLimit(unsigned int nBlockSize,
 //    * only 1 feework per tx
 bool CTransaction::CheckFeework(Feework &feework,
                                 bool fRequired,
-                                argon2_buffer* pbfrFeework,
+                                FeeworkBuffer& buffer,
                                 unsigned int nBlockSize,
                                 enum GetMinFee_mode mode,
                                 bool fCheckDepth) const
@@ -2002,7 +2115,7 @@ bool CTransaction::CheckFeework(Feework &feework,
                        chainParams.TX_FEEWORK_LIMIT :
                        chainParams.RELAY_TX_FEEWORK_LIMIT;
 
-    feework.GetFeeworkHash(ss, pbfrFeework);
+    feework.GetFeeworkHash(ss, buffer);
 
     uint32_t mcost = GetFeeworkHardness(nBlockSize, mode, feework.bytes);
     if (!feework.Check(mcost))
@@ -2073,6 +2186,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
             // Disable replacement feature for now
             return false;
 
+// TODO: Allow replacement?
 #if 0
             // Allow replacing with a newer version of the same transaction
             if (i != 0)
@@ -2200,7 +2314,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
          }
     }
 
-    // TODO: some duplicate work on claims here
+    // TODO: refactor some duplicate work on claims here
     vector<QPTxDetails> vDeets;
     tx.GetQPTxDetails(0, vDeets);
     if (!vDeets.empty())
@@ -2256,7 +2370,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
 
         if (nFees < txMinFee)
         {
-            tx.CheckFeework(feework, true, pbfrFeeworkValidator,
+            tx.CheckFeework(feework, true, bfrFeeworkValidator,
                             1000, GMF_RELAY);
             switch (feework.status)
             {
@@ -2317,7 +2431,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     // the tx is well formed.
     if (!feework.IsChecked())
     {
-        if (!tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+        if (!tx.CheckFeework(feework, false, bfrFeeworkValidator))
         {
             return error("CTxMemPool::accept() : feework rejected");
         }
@@ -3207,12 +3321,6 @@ unsigned int CTransaction::GetP2SHSigOpCount(const MapPrevTx& inputs) const
 }
 
 
-
-
-
-
-
-
 bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                                  map<uint256, CTxIndex>& mapTestPool,
                                  const CDiskTxPos& posThisTx,
@@ -3271,11 +3379,14 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                 // ppcoin: check transaction timestamp
                 if (txPrev.GetTxTime() > nTxTime)
                 {
-                        return DoS(100, error("ConnectInputs() : transaction timestamp earlier than input transaction"));
+                    return DoS(100,
+                               error("ConnectInputs() : "
+                                        "transaction timestamp earlier than input transaction"));
                 }
             }
 
-            if (txPrev.vout[prevout.n].IsEmpty()  && (GetFork(nBestHeight + 1) >= XST_FORK005))
+            if (txPrev.vout[prevout.n].IsEmpty() &&
+                (GetFork(nBestHeight + 1) >= XST_FORK005))
             {
                 return DoS(1, error("ConnectInputs() : special marker is not spendable"));
             }
@@ -3283,10 +3394,10 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
             // Check for negative or overflow input values
             nValueIn += txPrev.vout[prevout.n].nValue;
             if (!MoneyRange(txPrev.vout[prevout.n].nValue) || !MoneyRange(nValueIn))
+            {
                 return DoS(100, error("ConnectInputs() : txin values out of range"));
-
+            }
         }
-
 
         // The first loop above does all the inexpensive checks.
         // Only if ALL inputs pass do we perform expensive ECDSA signature checks.
@@ -3377,7 +3488,7 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                     feework.bytes = ::GetSerializeSize(*this,
                                                        SER_NETWORK,
                                                        PROTOCOL_VERSION);
-                    CheckFeework(feework, true, pbfrFeeworkValidator);
+                    CheckFeework(feework, true, bfrFeeworkValidator);
                 }
                 if (feework.IsInsufficient())
                 {
@@ -3669,6 +3780,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
     //      fees, unlike Peercoin miners. This has a negligible
     //      impact on the mint and money supply calculations, but should
     //      be fixed with a money supply adjustment upon FORKQPOS.
+#pragma message("asdf has this been done?")
     // mint & supply: claims are included in nValueIn to make accounting easier
     //                elsewhere, so they must be subtracted from nValueIn here
     pindex->nMint = nValueOut + nValuePurchases + nFees - (nValueIn - nValueClaims);
@@ -3852,7 +3964,9 @@ bool static Reorganize(CTxDB& txdb,
 
         // Queue memory transactions to delete
         BOOST_FOREACH(const CTransaction& tx, block.vtx)
+        {
             vDelete.push_back(tx);
+        }
     }
 
     if (!txdb.WriteHashBestChain(pindexNew->GetBlockHash()))
@@ -3862,25 +3976,41 @@ bool static Reorganize(CTxDB& txdb,
 
     // Make sure it's successfully written to disk before changing memory structure
     if (!txdb.TxnCommit())
+    {
         return error("Reorganize() : TxnCommit failed");
+    }
 
     // Disconnect shorter branch
     BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
+    {
         if (pindex->pprev)
+        {
             pindex->pprev->pnext = NULL;
+        }
+        mapBlockLookup.erase(pindex->nHeight);
+    }
 
     // Connect longer branch
     BOOST_FOREACH(CBlockIndex* pindex, vConnect)
+    {
         if (pindex->pprev)
+        {
             pindex->pprev->pnext = pindex;
+        }
+        mapBlockLookup[pindex->nHeight] = pindex;
+    }
 
     // Resurrect memory transactions that were in the disconnected branch
     BOOST_FOREACH(CTransaction& tx, vResurrect)
+    {
         tx.AcceptToMemoryPool(txdb, false);
+    }
 
     // Delete redundant memory transactions that are in the connected branch
     BOOST_FOREACH(CTransaction& tx, vDelete)
+    {
         mempool.remove(tx);
+    }
 
     printf("REORGANIZE: done\n");
 
@@ -3908,6 +4038,7 @@ bool CBlock::SetBestChainInner(CTxDB& txdb,
 
     // Add to current best branch
     pindexNew->pprev->pnext = pindexNew;
+    mapBlockLookup[pindexNew->nHeight] = pindexNew;
 
     // Delete redundant memory transactions
     BOOST_FOREACH(CTransaction& tx, vtx)
@@ -4084,10 +4215,11 @@ bool CBlock::SetBestChain(CTxDB& txdb,
     nTransactionsUpdated++;
 
     printf("SetBestChain: new best=%s\n"
-              "    height=%d  staker=%s  trust=%s  time=%" PRIu64 " (%s)\n",
+              "    height=%d staker=%s-%u trust=%s time=%" PRIu64 " (%s)\n",
            hashBestChain.ToString().c_str(),
            nBestHeight,
            pregistryTemp->GetAliasForID(nStakerID).c_str(),
+           nStakerID,
            bnBestChainTrust.ToString().c_str(),
            pindexBest->GetBlockTime(),
            DateTimeStrFormat("%x %H:%M:%S", pindexBest->GetBlockTime()).c_str());
@@ -5021,8 +5153,8 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         {
               pfrom->Misbehaving(100);
         }
-        printf("Proof-of-stake on or after block %d.\n", GetPoSCutoff());
-        return error("Proof-of-stake on or after block %d.\n", GetPoSCutoff());
+        printf("Proof-of-stake on or after block %d.\n", GetQPoSStart());
+        return error("Proof-of-stake on or after block %d.\n", GetQPoSStart());
     }
 
     bool fUseSyncCheckpoints = !GetBoolArg("-nosynccheckpoints", true);
@@ -5608,6 +5740,7 @@ bool LoadBlockIndex(bool fAllowNew)
         if (!block.AddToBlockIndex(nFile, nBlockPos, hashGenesisBlock, pregistryMain))
             return error("LoadBlockIndex() : genesis block not accepted");
 
+        mapBlockLookup[0] = mapBlockIndex[block.GetHash()];
         // ppcoin: initialize synchronized checkpoint
         if (!Checkpoints::WriteSyncCheckpoint(fTestNet ?
                                        chainParams.hashGenesisBlockTestNet :
@@ -5959,6 +6092,7 @@ bool Rollback()
         {
             pindex->pprev->pnext = NULL;
         }
+        mapBlockLookup.erase(pindex->nHeight);
     }
 
     // Resurrect memory transactions that were in the disconnected branch
@@ -6330,6 +6464,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     printf("   map orphans count %s inv.hash\n",
                                             inv.ToString().c_str());
                 }
+
                 pfrom->PushGetBlocks(pindexBest, GetOrphanRoot(mapOrphanBlocks[inv.hash]));
             }
             else if (nInv == nLastBlock)
@@ -6341,6 +6476,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 // In case we are on a very long side-chain, it is possible that we already have
                 // the last block in an inv bundle sent in response to getblocks. Try to detect
                 // this situation and push another getblocks to continue.
+
                 pfrom->PushGetBlocks(mapBlockIndex[inv.hash], uint256(0));
                 if (fDebugNet)
                 {
@@ -6927,8 +7063,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     // Update the last seen time for this node's address
     if (pfrom->fNetworkNode)
+    {
         if (strCommand == "version" || strCommand == "addr" || strCommand == "inv" || strCommand == "getdata" || strCommand == "ping")
             AddressCurrentlyConnected(pfrom->addr);
+    }
 
 
     return true;
@@ -6949,7 +7087,6 @@ bool ProcessMessages(CNode* pfrom)
         // }
         return true;
     }
-
     //
     // Message format
     //  (4) message start
@@ -7643,7 +7780,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // not that there seems to be anything wrong with that.
             Feework feework;
             feework.bytes = nTxSize;
-            if (tx.CheckFeework(feework, false, pbfrFeeworkValidator))
+            if (tx.CheckFeework(feework, false, bfrFeeworkValidator))
             {
                 if (feework.IsOK())
                 {
@@ -8120,7 +8257,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
              return;
         }
 
-        {  // FIXME: asdf move PoS to ThreadMessageHandler2
+        {   // TODO: move PoS to ThreadMessageHandler2
             BlockCreationResult nResult = CreateNewBlock(pwallet,
                                                          fTypeOfProof,
                                                          pblock);
@@ -8155,7 +8292,7 @@ void StealthMinter(CWallet *pwallet, ProofTypes fTypeOfProof)
                     SetThreadPriority(THREAD_PRIORITY_LOWEST);
                 }
             }
-        }  // asdf    unscope this
+        }
 
         // space blocks better, sleep 1 minute after PoS mint, etc
         MilliSleep(nSleepInterval);

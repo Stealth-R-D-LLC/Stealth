@@ -7,6 +7,35 @@
 #include <boost/assign/list_of.hpp>
 
 
+using namespace std;
+
+//////////////////////////////////////////////////////////////////////////////
+//
+// forks
+//
+
+int GetFork(int nHeight)
+{
+    static const map<int, int> mapForks = fTestNet ? chainParams.mapForksTestNet :
+                                                     chainParams.mapForksMainNet;
+    static const map<int, int>::const_iterator b = mapForks.begin();
+    static const map<int, int>::const_iterator e = mapForks.end();
+    assert (b != e);
+
+    int nFork = b->second;
+    // loop has strange logic, but if fork i height is greater than nHeight
+    // then you are on fork i-1
+    // we can do it this way because maps are sorted
+    for (map<int, int>::const_iterator it = b; it != e; ++it)
+    {
+       if (it->first > nHeight)
+       {
+           break;
+       }
+       nFork = it->second;
+    }
+    return nFork;
+}
 
 ChainParams::ChainParams()
 {
@@ -31,10 +60,12 @@ ChainParams::ChainParams()
                );
 
     CUTOFF_POW_M = 5460;
-
-    START_PURCHASE_M = 3613500;  // start of staker purchases
-    CUTOFF_POS_M = 3635100;      // end of PoS and start of qPoS
-    START_FEELESS_M = 3642300;   // start of feeless transactions
+    START_NFT_M = 3635099;       // add NFT commitment to blockchain
+    START_PURCHASE_M = 3635100;  // start of staker purchases
+    START_QPOS_M = 3656700;      // end of PoS and start of qPoS
+    START_QPOSB_M = 3656700;      // placeholder for fork on testnet
+    START_FEELESS_M = 3663900;   // start of feeless transactions
+    START_MISSFIX_M = 3663901;   // placeholder for fork on testnet
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -44,10 +75,12 @@ ChainParams::ChainParams()
         /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
         /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
         /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
-        /* Approx April 4, 2020     */   ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx April 19, 2020    */   (     CUTOFF_POS_M, XST_FORKQPOS     )
-        /* Approx April 19, 2020    */   (     CUTOFF_POS_M, XST_FORKQPOSB    )
-        /* Approx April 24, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
+        /* Approx April 19, 2020    */   (      START_NFT_M, XST_FORKNFT      )
+        /* Approx April 19, 2020    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
+        /* Approx May    3, 2020    */   (     START_QPOS_M, XST_FORKQPOS     )
+        /* Approx May    3, 2020    */   (    START_QPOSB_M, XST_FORKQPOSB    )
+        /* Approx May    8, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
+        /* Approx May    8, 2020    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
                                                 );
 
 
@@ -224,9 +257,9 @@ ChainParams::ChainParams()
     // This block can be no more than the following depth:
     FEELESS_MAX_DEPTH = 24;
 
-    // We reserve the last 1/4 block for money fee transactions,
+    // We reserve the last 4/5 block for money fee transactions,
     // so there is no way to spam blocks full with feeless transactions.
-    FEELESS_MAX_BLOCK_SIZE = (3 * MAX_BLOCK_SIZE) / 4;
+    FEELESS_MAX_BLOCK_SIZE = MAX_BLOCK_SIZE / 5;
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -383,9 +416,12 @@ ChainParams::ChainParams()
     //
 
     CUTOFF_POW_T = 120;
-    CUTOFF_POS_T = 17400;
+    START_NFT_T = 4203;  // placeholder for mainnet
     START_PURCHASE_T = 4204;
+    START_QPOS_T = 17400;
+    START_QPOSB_T = 22500;
     START_FEELESS_T = 3965963;
+    START_MISSFIX_T = 4768119;
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
@@ -396,10 +432,12 @@ ChainParams::ChainParams()
         /*                          */       (              130, XST_FORK004      )
         /*                          */       (              140, XST_FORK005      )
         /*                          */       (              145, XST_FORK006      )
+        /*                          */       (      START_NFT_T, XST_FORKNFT      )
         /*                          */       ( START_PURCHASE_T, XST_FORKPURCHASE )
-        /*                          */       (     CUTOFF_POS_T, XST_FORKQPOS     )
-        /*                          */       (            22500, XST_FORKQPOSB    )
+        /*                          */       (     START_QPOS_T, XST_FORKQPOS     )
+        /*                          */       (    START_QPOSB_T, XST_FORKQPOSB    )
         /*                          */       (  START_FEELESS_T, XST_FORKFEELESS  )
+        /*                          */       (  START_MISSFIX_T, XST_FORKMISSFIX  )
                                                  );
 
 

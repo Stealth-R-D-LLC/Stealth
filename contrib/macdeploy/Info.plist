@@ -9,16 +9,16 @@
         <key>CFBundlePackageType</key>
         <string>APPL</string>
         <key>CFBundleGetInfoString</key>
-        <string>Stealth [XST] Complete Anonymity 3.1.0.6</string>
+        <string>Stealth [XST] Complete Anonymity 3.1.1.0</string>
         <key>CFBundleExecutable</key>
         <string>Stealth Qt</string>
         <key>CFBundleIdentifier</key>
         <string>org.stealth.stealth-qt</string>
         <key>CFBundleShortVersionString</key>
-        <string>3.1.0.6</string>
+        <string>3.1.1.0</string>
         <key>CFBundleSignature</key>
         <string>oXST</string>
         <key>CFBundleVersion</key>
-        <string>3.1.0.6</string>
+        <string>3.1.1.0</string>
 </dict>
 </plist>

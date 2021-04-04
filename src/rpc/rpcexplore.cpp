@@ -1822,13 +1822,14 @@ Value gethourlymissed(const Array& params, bool fHelp)
             "  - hours: number of hours to look back");
     }
 
-    static const int nStartQPoS = GetPoSCutoff();
+    static const int nStartQPoS = GetQPoSStart();
 
     // these will likely be user parameters in a future generalized RPC
     // first version is implicit 1 hr / window
     static const int64_t nSecondsPerWindow = 3600;
 
-    static const int64_t nBlocksPerWindow = nSecondsPerWindow / QP_TARGET_TIME;
+    static const int64_t nBlocksPerWindow = nSecondsPerWindow /
+                                                  QP_TARGET_SPACING;
 
     if (pindexBest == NULL)
     {
@@ -1844,8 +1845,8 @@ Value gethourlymissed(const Array& params, bool fHelp)
 
     CBlockIndex* pindex = pindexBest;
 
-    // constrain window boundaries to multiples of QP_TARGET_TIME
-    int64_t nTimeNow = QP_TARGET_TIME * (pindex->nTime / QP_TARGET_TIME) ;
+    // constrain window boundaries to multiples of QP_TARGET_SPACING
+    int64_t nTimeNow = QP_TARGET_SPACING * (pindex->nTime / QP_TARGET_SPACING);
     int64_t nTimeBeginning = nTimeNow - (nWindows * nSecondsPerWindow);
     int64_t nTimeLater = nTimeNow;
     int64_t nTimeEarlier = nTimeLater - nSecondsPerWindow;
@@ -1903,7 +1904,8 @@ Value gethourlymissed(const Array& params, bool fHelp)
             // Take modulo nBlocksPerWindow because nTimeOvershoot could span
             // more than 1 window. In these cases, there will be full
             // windows that have no blocks.
-            nOvershoot = (nTimeOvershoot / QP_TARGET_TIME) % nBlocksPerWindow;
+            nOvershoot = (nTimeOvershoot / QP_TARGET_SPACING) %
+                                                        nBlocksPerWindow;
             nMissed -= nOvershoot;
             vMissed.push_back(nMissed);
             nTimeLater = nTimeEarlier;

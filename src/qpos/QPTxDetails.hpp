@@ -12,10 +12,11 @@ class QPTxDetails
 {
 public:
     int t;               // indicates how to use data fields
-    unsigned int id;            // staker ID (0 if N/A)
+    unsigned int id;            // staker ID -- or NFT ID if puchase (0 if N/A)
     std::string alias;          // alias (empty if N/A)
-    std::vector<CPubKey> keys;  // length 1 or 3, latter for TX_PURCHASE3 only
-    int32_t pcm;                // nonzero if TX_PURCHASE3 or TX_SETDELEGATE
+    std::vector<CPubKey> keys;  // length 1, 3 or 4
+                                //    latter 2 for TX_PURCHASE4 only
+    int32_t pcm;                // nonzero if TX_PURCHASE4 or TX_SETDELEGATE
     int64_t value;        // claim value (nonzero if TX_CLAIM)
     std::string meta_key;       // meta key (empty if N/A)
     std::string meta_value;     // meta value (empty if N/A)
@@ -26,6 +27,8 @@ public:
     void Clear();
     void SetNull();
     QPTxDetails();
+
+    std::string ToString() const;
 
     IMPLEMENT_SERIALIZE
     (

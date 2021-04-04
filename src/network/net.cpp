@@ -30,6 +30,7 @@ extern unsigned short onion_port;
 using namespace std;
 using namespace boost;
 
+
 extern "C" {
     int tor_main(int argc, char *argv[]);
 }
@@ -123,8 +124,8 @@ void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
                pindexBegin->phashBlock->ToString().c_str(),
                hashEnd.ToString().c_str());
     }
-
-    PushMessage("getblocks", CBlockLocator(pindexBegin), hashEnd);
+    CBlockLocator locator(pindexBegin);
+    PushMessage("getblocks", locator, hashEnd);
 }
 
 // find 'best' local address for a particular peer
@@ -1763,18 +1764,24 @@ void ThreadMessageHandler2(void* parg)
     // allow conf to disable qPoS minting
     bool fQPoSActive = GetBoolArg("-qposminting", true);
 
-    // qPoS (asdf and PoS)
+    // qPoS (TODO: and PoS)
     // Each block production thread has its own key and counter
     CReserveKey reservekey(pwallet);
-    // unsigned int nExtraNonce = 0;  // asdf  needed for PoS
+    // TODO: add extra nonce if ever putting PoS in this thread
+    // unsigned int nExtraNonce = 0;
 
-    SetThreadPriority(THREAD_PRIORITY_BELOW_NORMAL);
+    SetThreadPriority(THREAD_PRIORITY_ABOVE_NORMAL);
     while (!fShutdown)
     {
         if (GetFork(nBestHeight) >= XST_FORKQPOS)
         {
+            unsigned int nStakersThis = pregistryMain->GetCurrentQueueSize();
+            unsigned int nStakersLast = pregistryMain->GetPreviousQueueSize();
+            unsigned int nPcmRatio = 10000 * nStakersThis / nStakersLast;
             if (vNodes.empty() ||
-                (pindexBest->nTime < (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)))
+                (pindexBest->nTime < (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)) ||
+                (nStakersThis < 3) ||
+                (nPcmRatio < 6667))
             {
                 pregistryMain->EnterReplayMode();
             }
@@ -1801,7 +1808,9 @@ void ThreadMessageHandler2(void* parg)
             {
                 TRY_LOCK(pnode->cs_vRecv, lockRecv);
                 if (lockRecv)
+                {
                     ProcessMessages(pnode);
+                }
             }
             if (fShutdown)
                 return;
@@ -1832,7 +1841,7 @@ void ThreadMessageHandler2(void* parg)
         // rollbacks mean qPoS can keep producing even with 0 connections
         if ((GetFork(nHeight) >= XST_FORKQPOS) &&
             ((nMaxHeight <= 0) || (nBestHeight < nMaxHeight)) &&
-            fQPoSActive)   // asdf  && (!vNodes.empty()))
+            fQPoSActive)
         {
            /*******************************************************************
             ** qPoS
@@ -2136,7 +2145,8 @@ void StartNode(void* parg)
     if (!NewThread(ThreadOpenConnections, NULL))
         printf("Error: NewThread(ThreadOpenConnections) failed\n");
 
-    // Process messages and mint PoS and qPoS blocks     asdf
+    // Process messages and mint qPoS blocks
+    // TODO: add PoS to this thread
     if (!NewThread(ThreadMessageHandler, pwalletMain))
         printf("Error: NewThread(ThreadMessageHandler) failed\n");
 

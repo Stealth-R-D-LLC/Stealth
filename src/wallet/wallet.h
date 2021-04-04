@@ -225,6 +225,7 @@ public:
                                unsigned int nOut,
                                const std::string &sAlias,
                                const valtype &vchOwnerKey,
+                               const valtype &vchManagerKey,
                                const valtype &vchDelegateKey,
                                const valtype &vchControllerKey,
                                int64_t nPrice, uint32_t nPcm,

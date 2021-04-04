@@ -46,15 +46,24 @@ void StakerIDToJSON(const unsigned int nStakerID, Object& obj)
 
 void StakerAliasToJSON(const string& strAlias, Object& obj)
 {
-    obj.push_back(Pair("staker_alias", strAlias));
+    obj.push_back(Pair("purchase_alias", strAlias));
     unsigned int nStakerID;
     if (pregistryMain->GetIDForAlias(strAlias, nStakerID))
     {
         obj.push_back(Pair("staker_id", (int64_t)nStakerID));
+        string strStakerAlias;
+        if (pregistryMain->GetAliasForID(nStakerID, strStakerAlias))
+        {
+            obj.push_back(Pair("staker_alias", strStakerAlias));
+        }
+        else
+        {
+            obj.push_back(Pair("ERROR", "TSNH: no alias for id"));
+        }
     }
     else
     {
-        obj.push_back(Pair("ERROR", "Bad staker alias"));
+        obj.push_back(Pair("WARNING", "unknown alias"));
     }
 }
 
@@ -71,7 +80,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
     switch (static_cast<txnouttype>(typetxo))
     {
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
       {
         qpos_purchase purchase;
         ExtractPurchase(vSolutions.front(), purchase);
@@ -89,10 +98,23 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         {
             obj.push_back(Pair("owner_key",
                                HexStr(purchase.keys[0].Raw())));
+            obj.push_back(Pair("manager_key",
+                               HexStr(purchase.keys[1].Raw())));
             obj.push_back(Pair("delegate_key",
                                HexStr(purchase.keys[1].Raw())));
             obj.push_back(Pair("controller_key",
                                HexStr(purchase.keys[2].Raw())));
+        }
+        else if (purchase.keys.size() == 4)
+        {
+            obj.push_back(Pair("owner_key",
+                               HexStr(purchase.keys[0].Raw())));
+            obj.push_back(Pair("manager_key",
+                               HexStr(purchase.keys[1].Raw())));
+            obj.push_back(Pair("delegate_key",
+                               HexStr(purchase.keys[2].Raw())));
+            obj.push_back(Pair("controller_key",
+                               HexStr(purchase.keys[3].Raw())));
         }
         else
         {
@@ -103,6 +125,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         break;
       }
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
       {
@@ -111,6 +134,10 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         if (setkey.keytype == QPKEY_OWNER)
         {
             obj.push_back(Pair("set_key_type", "owner"));
+        }
+        else if (setkey.keytype == QPKEY_MANAGER)
+        {
+            obj.push_back(Pair("set_key_type", "manager"));
         }
         else if (setkey.keytype == QPKEY_DELEGATE)
         {
@@ -185,7 +212,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         {
             CTransaction tx(*ptx);
             feework.bytes = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
-            tx.CheckFeework(feework, true, pbfrFeeworkValidator,
+            tx.CheckFeework(feework, true, bfrFeeworkValidator,
                             1, GMF_BLOCK, false);
         }
         feework.AsJSON(obj);

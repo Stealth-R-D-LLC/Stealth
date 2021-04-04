@@ -82,6 +82,7 @@ void ExtractQPoSRPCEssentials(const Array &params,
             "with walletpassphrase first.");
     }
 
+    // params: txid, vout, alias
     if (params.size() < 3)
     {
         // should never happen
@@ -103,7 +104,76 @@ void ExtractQPoSRPCEssentials(const Array &params,
 
     nOutRet = static_cast<unsigned int>(nOutParam);
 
-    sAliasRet = params[2].get_str();
+    string sAliasIn = params[2].get_str();
+    bool fAllInt = true;
+    for (unsigned int i = 0; i < sAliasIn.size(); ++i)
+    {
+        char c = sAliasIn[i];
+        if ((c < '0') || (c > '9'))
+        {
+            fAllInt = false;
+            break;
+        }
+    }
+
+    // TODO: Refactor from qPoS.cpp
+    nIDRet = 0;
+    if (fAllInt)
+    {
+        int k = 1;
+        for (int i = sAliasIn.size() - 1; i >= 0; --i)
+        {
+            nIDRet += k * (sAliasIn[i] - '0');
+            // prevents overflow -- there will never be this many NFTs
+            if (nIDRet > 100000)
+            {
+                break;
+            }
+            k *= 10;
+        }
+    }
+
+    if (nIDRet)
+    {
+        if (!fStakerShouldExist)
+        {
+            if (!pregistryMain->NftIsAvailable(nIDRet, sAliasRet))
+            {
+                throw JSONRPCError(RPC_QPOS_NFT_NOT_AVAILABLE,
+                                   "NFT is not available (by ID)");
+            }
+        }
+    }
+    else
+    {
+        string sLC = ToLowercaseSafe(sAliasIn);
+        if (mapNftLookup.count(sLC))
+        {
+            if (fStakerShouldExist)
+            {
+               nIDRet = mapNftLookup[sLC];
+            }
+            else
+            {
+                if (!pregistryMain->NftIsAvailable(sLC, nIDRet))
+                {
+                    throw JSONRPCError(RPC_QPOS_NFT_NOT_AVAILABLE,
+                                       "NFT is not available (by key)");
+                }
+            }
+            sAliasRet = mapNfts[nIDRet].strNickname;
+            if (ToLowercaseSafe(sAliasRet) != sLC)
+            {
+                throw runtime_error("ExtractQPoSRPCEssentials(): "
+                                       "TSNH NFT alias mismatch");
+            }
+        }
+        else
+        {
+            sAliasRet = sAliasIn;
+        }
+    }
+
     if (fStakerShouldExist)
     {
         if (!pregistryMain->GetIDForAlias(sAliasRet, nIDRet))
@@ -114,7 +184,6 @@ void ExtractQPoSRPCEssentials(const Array &params,
     }
     else
     {
-        nIDRet = 0;
         string sLC;  // lower case normalized alias
         if (!pregistryMain->AliasIsAvailable(sAliasRet, sLC))
         {
@@ -141,38 +210,40 @@ void ExtractQPoSRPCEssentials(const Array &params,
 Value purchasestaker(const Array &params, bool fHelp)
 {
     if (fHelp || (params.size()  < 4)  ||
-                 (params.size()  > 8)  ||
+                 (params.size()  > 9)  ||
                  (params.size() == 6)  ||
-                 (params.size() == 7))
+                 (params.size() == 7)  ||
+                 (params.size() == 8))
     {
         throw runtime_error(
             "purchasestaker <txid> <vout> <alias> <owner> [amount] "
-            "[delegate controller payout]\n"
+               "[manager delegate controller payout]\n"
             "    <txid> is the transaction ID of the input\n"
             "    <vout> is the prevout index of the input\n"
             "    <alias> is the case sensitive staker alias\n"
+            "            or the ID of an available NFT\n"
             "    <owner> is the owner compressed pubkey\n"
             "    [amount] is is the amount to pay\n"
             "        If the amount is not specified it will be calculated\n"
             "          automatically.\n"
             "        The amount is real and rounded to the nearest 0.000001\n"
-            "    [delegate] and [controller] are compressed pubkeys\n"
-            "        If delegate and controller are not specified then they\n"
-            "          are taken from owner.\n"
+            "    [manager], [delegate], and [controller] are compressed pubkeys\n"
+            "        If manager, delegate, and controller are not specified then\n"
+            "          they are taken from owner.\n"
             "    [payout] is in percentage, and is rounded to the nearest\n"
             "          thousandths of a percent\n"
-            "        Either just the owner key or all 3 keys plus the payout\n"
+            "        Either just the owner key or all 4 keys plus the payout\n"
             "          must be specified." +
             HelpRequiringPassphrase());
     }
 
     string txid, sAlias;
     unsigned int nOut;
-    valtype vchOwnerKey, vchDelegateKey, vchControllerKey;
+    valtype vchOwnerKey, vchManagerKey, vchDelegateKey, vchControllerKey;
 
-    unsigned int nIDUnused;
+    unsigned int nNftID;
     ExtractQPoSRPCEssentials(params, txid, nOut, sAlias, vchOwnerKey,
-                             nIDUnused, false);
+                             nNftID, false);
 
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
@@ -195,24 +266,31 @@ Value purchasestaker(const Array &params, bool fHelp)
     }
 
     uint32_t nPcm;
-    if (params.size() > 7)
+    if (params.size() > 8)
     {
-        vchDelegateKey = ParseHex(params[5].get_str());
+        vchManagerKey = ParseHex(params[5].get_str());
+        if (vchManagerKey.size() != 33)
+        {
+            throw JSONRPCError(RPC_QPOS_INVALID_QPOS_PUBKEY,
+                               "Delegate key is not a compressed pubkey");
+        }
+        vchDelegateKey = ParseHex(params[6].get_str());
         if (vchDelegateKey.size() != 33)
         {
             throw JSONRPCError(RPC_QPOS_INVALID_QPOS_PUBKEY,
                                "Delegate key is not a compressed pubkey");
         }
-        vchControllerKey = ParseHex(params[6].get_str());
+        vchControllerKey = ParseHex(params[7].get_str());
         if (vchControllerKey.size() != 33)
         {
             throw JSONRPCError(RPC_QPOS_INVALID_QPOS_PUBKEY,
                                "Controller key is not a compressed pubkey");
         }
-        nPcm = PcmFromValue(params[7]);
+        nPcm = PcmFromValue(params[8]);
     }
     else
     {
+        vchManagerKey = vchOwnerKey;
         vchDelegateKey = vchOwnerKey;
         vchControllerKey = vchOwnerKey;
         nPcm = 0;
@@ -224,6 +302,7 @@ Value purchasestaker(const Array &params, bool fHelp)
     string strError = pwalletMain->PurchaseStaker(txid, nOut,
                                                   sAlias,
                                                   vchOwnerKey,
+                                                  vchManagerKey,
                                                   vchDelegateKey,
                                                   vchControllerKey,
                                                   nPrice, nPcm, wtx);
@@ -285,6 +364,22 @@ Value setstakerowner(const Array& params, bool fHelp)
     }
 
     return SetStakerKey(params, OP_SETOWNER, 0);
+}
+
+Value setstakermanager(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 4)
+    {
+        throw runtime_error(
+            "setstakermanager <txid> <vout> <alias> <manager>\n"
+            "    <txid> is the transaction ID of the input\n"
+            "    <vout> is the prevout index of the input\n"
+            "    <alias> is a non-case sensitive staker alias\n"
+            "    <manager> is the controller compressed pubkey" +
+            HelpRequiringPassphrase());
+    }
+
+    return SetStakerKey(params, OP_SETMANAGER, 0);
 }
 
 Value setstakerdelegate(const Array& params, bool fHelp)
@@ -745,7 +840,7 @@ Value getblockschedule(const Array& params, bool fHelp)
         objStkr.push_back(Pair("slot", (int64_t)info.nSlot));
         string strStatus = info.GetStatusType();
         objStkr.push_back(Pair("status", strStatus));
-        int64_t nSchedule = (int64_t)nOffset *  QP_TARGET_TIME;
+        int64_t nSchedule = (int64_t)nOffset *  QP_TARGET_SPACING;
         objStkr.push_back(Pair("relative_schedule", nSchedule));
         objStkr.push_back(Pair("relative_status", vStatus[i]));
         aryStakers.push_back(objStkr);

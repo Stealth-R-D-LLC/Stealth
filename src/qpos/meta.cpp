@@ -13,7 +13,7 @@ typedef std::map<std::string, QPKeyType> MapMetaKeys;
 
 static const MapMetaKeys mapMetaKeys =
     boost::assign::map_list_of
-        (    "certified_node",  QPKEY_OD )
+        (    "certified_node",  QPKEY_OMD )
                 ;
 
 QPKeyType CheckMetaKey(const string &sKey)

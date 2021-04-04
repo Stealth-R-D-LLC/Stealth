@@ -731,12 +731,12 @@ bool CTxDB::LoadBlockIndex()
 
     pregistryMain->SetNull();
 
-    if (vSortedByHeight.empty())
+    int nMaxHeightSorted = 0;
+    if (!vSortedByHeight.empty())
     {
-        return error("CTxDB::LoadBlockIndex() : TSNH no blocks");
+        nMaxHeightSorted = vSortedByHeight.back().first;
     }
 
-    int nMaxHeightSorted = vSortedByHeight.back().first;
     static const int nRecentBlocks = RECENT_SNAPSHOTS * BLOCKS_PER_SNAPSHOT;
 
     CBlockIndex* pindexBestReplay = NULL;
@@ -1012,6 +1012,24 @@ bool CTxDB::LoadBlockIndex()
             }
         }
         pregistryCheck->UpdateOnNewBlock(pindex, QPRegistry::NO_SNAPS);
+    }
+
+    printf("LoadBlockIndex(): building block index lookup\n");
+    CBlockIndex* pindexLookup = pindexBest;
+    int progress = 1;
+    for (int i = pindexBest->nHeight; i >= 0; --i)
+    {
+        if (!pindexLookup)
+        {
+            return error("LoadBlockIndex() : unexpected null index");
+        }
+        mapBlockLookup[i] = pindexLookup;
+        if (progress % 100000 == 0)
+        {
+            printf("LoadBlockIndex(): created %d lookups\n", progress);
+        }
+        progress += 1;
+        pindexLookup = pindexLookup->pprev;
     }
 
     if (pindexFork && !fRequestShutdown)

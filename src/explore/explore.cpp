@@ -79,7 +79,7 @@ void ExploreGetDestinations(const vector<CTxOut>& vout, VecDest& vret)
         else
         {
             nReq = 0;
-            if ((t >= TX_PURCHASE1) && (t <= TX_SETMETA))
+            if ((t >= TX_PURCHASE1) && (t <= TX_FEEWORK))
             {
                 type = GetTxnOutputType(t);
             }
@@ -580,8 +580,9 @@ bool ExploreConnectInput(CTxDB& txdb,
     case TX_MULTISIG:
     // qPoS (standard)
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
     case TX_ENABLE:
@@ -969,8 +970,9 @@ bool ExploreConnectOutput(CTxDB& txdb,
     case TX_MULTISIG:
     // qPoS (standard)
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
     case TX_ENABLE:
@@ -1064,11 +1066,14 @@ bool ExploreConnectTx(CTxDB& txdb,
         case TX_PURCHASE1:
             txflags |= EXPLORE_TXFLAGS_PURCHASE1;
             break;
-        case TX_PURCHASE3:
-            txflags |= EXPLORE_TXFLAGS_PURCHASE3;
+        case TX_PURCHASE4:
+            txflags |= EXPLORE_TXFLAGS_PURCHASE4;
             break;
         case TX_SETOWNER:
             txflags |= EXPLORE_TXFLAGS_SETOWNER;
+            break;
+        case TX_SETMANAGER:
+            txflags |= EXPLORE_TXFLAGS_SETMANAGER;
             break;
         case TX_SETDELEGATE:
             txflags |= EXPLORE_TXFLAGS_SETDELEGATE;
@@ -1084,6 +1089,10 @@ bool ExploreConnectTx(CTxDB& txdb,
             break;
         case TX_SETMETA:
             txflags |= EXPLORE_TXFLAGS_SETMETA;
+            break;
+        // feeless
+        case TX_FEEWORK:
+            txflags |= EXPLORE_TXFLAGS_FEEWORK;
             break;
         // null data
         case TX_NULL_DATA:
@@ -1503,8 +1512,9 @@ bool ExploreDisconnectOutput(CTxDB& txdb,
     case TX_MULTISIG:
     // qPoS (standard)
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
     case TX_ENABLE:
@@ -1935,8 +1945,9 @@ bool ExploreDisconnectInput(CTxDB& txdb,
     case TX_MULTISIG:
     // qPoS (standard)
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
     case TX_ENABLE:

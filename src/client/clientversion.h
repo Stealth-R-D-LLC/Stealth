@@ -8,8 +8,8 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    0
-#define CLIENT_VERSION_BUILD       6
+#define CLIENT_VERSION_REVISION    1
+#define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -21,23 +21,27 @@ enum ForkNumbers
     XST_FORK004,
     XST_FORK005,
     XST_FORK006,
-    XST_FORKPURCHASE,
-    XST_FORKQPOS,
-    XST_FORKQPOSB,
-    XST_FORKFEELESS,
+    XST_FORKNFT,       // fork 7
+    XST_FORKPURCHASE,  // fork 7
+    XST_FORKQPOS,      // fork 7
+    XST_FORKQPOSB,     // fork 7
+    XST_FORKFEELESS,   // fork 8
+    XST_FORKMISSFIX,   // fork 9 (testnet)
     TOTAL_FORKS
 };
 
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 63400;
+static const int CLIENT_PROTOCOL_VERSION = 63500;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+// 63500 : fork 9    XST_FORKMISSFIX
+//       : 3.1.1.0 : Increasing staker acceptable missed blocks on testnet
+//       :         : Adding NFTs to test and mainnets
 //       : fork 8    XST_FORKFEELESS
-// 63400 : 3.1.0.6 : Creating sparse snapshots on startup
-//         3.1.0.5 : Feeless tx added during block creation
+// 63400 : 3.1.0.5 : Feeless tx added during block creation
 //         3.1.0.3 : Fixing erroneous rejection of all feework
 //         3.1.0.2 : Fixes to feeless
 //         3.1.0.1 : Adding feeless transactions
@@ -55,7 +59,6 @@ static const int CLIENT_PROTOCOL_VERSION = 63400;
 //         3.0.0.0 : Testnet version
 //                   Staker purchasing and qPoS
 //                   Immaleable transaction IDs
-
 // 62200 : fork 6
 //         2.2.0.0 : Removing all traces of tx timestamp
 // 62100 : fork 5

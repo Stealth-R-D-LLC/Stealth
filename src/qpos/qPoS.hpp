@@ -7,15 +7,18 @@
 
 #include "QPConstants.hpp"
 #include "QPTxDetails.hpp"
+#include "nfts.hpp"
 
 #include "script.h"
 
 struct qpos_purchase
 {
     std::string alias;          // case as registered, not lower
-    std::vector<CPubKey> keys;  // length 1 or 3, latter for TX_PURCHASE3 only
+    std::vector<CPubKey> keys;  // length 1, 3, or 4
+                                //    latter two for TX_PURCHASE4 only
     int32_t pcm;                // millipercent to delegate
     int64_t value;              // amount to pay
+    unsigned int nft;           // NFT ID
 };
 
 struct qpos_setkey

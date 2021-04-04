@@ -15,6 +15,7 @@ using namespace std;
 // qPoS
 map<txnouttype, QPKeyType> mapQPoSKeyTypes = boost::assign::map_list_of
       (TX_SETOWNER, QPKEY_OWNER)
+      (TX_SETMANAGER, QPKEY_MANAGER)
       (TX_SETDELEGATE, QPKEY_DELEGATE)
       (TX_SETCONTROLLER, QPKEY_CONTROLLER);
 
@@ -39,7 +40,7 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
         first = last;
     }
     last = first;
-    if (prchsRet.keys.size() == 3)
+    if ((prchsRet.keys.size() == 3) || (prchsRet.keys.size() == 4))
     {
         if (!IncrementN(vch, last, 4))
         {
@@ -55,11 +56,50 @@ void ExtractPurchase(const valtype &vch, qpos_purchase &prchsRet)
     last = vch.end();
     string sTemp(first, last);
     prchsRet.alias.clear();
+    bool fAllInt = true;
     for (unsigned int i = 0; i < sTemp.size(); ++i)
     {
-        if (sTemp[i] != static_cast<unsigned char>(0))
+        char c = sTemp[i];
+        if (c)
         {
-            prchsRet.alias.push_back(sTemp[i]);
+            if ((c < '0') || (c > '9'))
+            {
+                fAllInt = false;
+            }
+            prchsRet.alias.push_back(c);
+        }
+        else
+        {
+            break;
+        }
+    }
+    prchsRet.nft = 0;
+    if (fAllInt)
+    {
+        int k = 1;
+        for (int i = prchsRet.alias.size() - 1; i >= 0; --i)
+        {
+            prchsRet.nft += k * (prchsRet.alias[i] - '0');
+            // prevents overflow -- there will never be this many NFTs
+            if (prchsRet.nft > 100000)
+            {
+                break;
+            }
+            k *= 10;
+        }
+        // since nft retains full info of original alias, we can reassign here
+        if (mapNfts.count(k))
+        {
+            prchsRet.alias = mapNfts[k].strNickname;
+        }
+    }
+    else
+    {
+        string sLC = ToLowercaseSafe(prchsRet.alias);
+        if (mapNftLookup.count(sLC))
+        {
+            prchsRet.nft = mapNftLookup[sLC];
+            // prchsRet.alias = mapNft[prchsRet.nft].strNickname;
         }
     }
 }
@@ -73,6 +113,7 @@ void ExtractPurchase(const valtype &vch, QPTxDetails &deetsRet)
     deetsRet.keys = purchase.keys;
     deetsRet.pcm = purchase.pcm;
     deetsRet.value = purchase.value;
+    deetsRet.id = purchase.nft;
 }
 
 // ensure setkeyRet.keytype is assigned

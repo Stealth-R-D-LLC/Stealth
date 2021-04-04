@@ -2,131 +2,16 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "feeless.hpp"
+#include "Feework.hpp"
+
 #include "chainparams.hpp"
 
 #include <boost/multiprecision/cpp_int.hpp>
 
-typedef boost::multiprecision::int128_t int128_t;
-
-using namespace std;
 using namespace json_spirit;
+using namespace std;
 
-argon2_buffer* pbfrFeeworkMiner = NULL;
-argon2_buffer* pbfrFeeworkValidator = NULL;
-
-bool fDebugFeeless = false;
-
-int InitializeFeeless(bool fInitMiner, bool fInitValidator)
-{
-    int fStatus = FEELESS_INIT_OK;
-    if (fInitMiner)
-    {
-       if (pbfrFeeworkMiner == NULL)
-       {
-           pbfrFeeworkMiner = (argon2_buffer*)malloc(sizeof(argon2_buffer));
-       }
-       else if (pbfrFeeworkMiner->memory != NULL)
-       {
-           free(pbfrFeeworkMiner->memory);
-       }
-       if (pbfrFeeworkMiner == NULL)
-       {
-           fStatus |= FEELESS_INIT_MINER_ALLOC_ERROR;
-       }
-       else
-       {
-             pbfrFeeworkMiner->blocks = chainParams.FEEWORK_MAX_MCOST;
-             size_t n = pbfrFeeworkMiner->blocks * sizeof(argon2_block);
-             pbfrFeeworkMiner->memory = (argon2_block*)malloc(n);
-             if (!pbfrFeeworkMiner->memory)
-             {
-                 fStatus |= FEELESS_INIT_MINER_MEM_ALLOC_ERROR;
-             }
-             else
-             {
-                 pbfrFeeworkMiner->clear = false;
-             }
-       }
-    }
-    if (fInitValidator)
-    {
-       if (pbfrFeeworkValidator == NULL)
-       {
-           pbfrFeeworkValidator = (argon2_buffer*)malloc(sizeof(argon2_buffer));
-       }
-       else if (pbfrFeeworkValidator->memory != NULL)
-       {
-           free(pbfrFeeworkValidator->memory);
-       }
-       if (pbfrFeeworkValidator == NULL)
-       {
-           fStatus |= FEELESS_INIT_VALIDATOR_ALLOC_ERROR;
-       }
-       else
-       {
-             pbfrFeeworkValidator->blocks = chainParams.FEEWORK_MAX_MCOST;
-             size_t n = pbfrFeeworkValidator->blocks * sizeof(argon2_block);
-             pbfrFeeworkValidator->memory = (argon2_block*)malloc(n);
-             if (!pbfrFeeworkValidator->memory)
-             {
-                 fStatus |= FEELESS_INIT_VALIDATOR_MEM_ALLOC_ERROR;
-             }
-             else
-             {
-                 pbfrFeeworkValidator->clear = false;
-             }
-       }
-    }
-    return fStatus;
-}
-
-void ShutdownFeeless()
-{
-    if (pbfrFeeworkMiner)
-    {
-        if (pbfrFeeworkMiner->memory)
-        {
-            free(pbfrFeeworkMiner->memory);
-        }
-        free(pbfrFeeworkMiner);
-    }
-    if (pbfrFeeworkValidator)
-    {
-        if (pbfrFeeworkValidator->memory)
-        {
-            free(pbfrFeeworkValidator->memory);
-        }
-        free(pbfrFeeworkValidator);
-    }
-}
-
-uint64_t GetFeeworkHash(const uint32_t mcost,
-                        const void* data,
-                        const size_t datalen,
-                        const void* work,
-                        argon2_buffer* buffer,
-                        int &nResultRet)
-{
-    static const size_t WORKLEN = chainParams.FEELESS_WORKLEN;
-    static const size_t HASHLEN = chainParams.FEELESS_HASHLEN;
-    static const int HASHSIZE = chainParams.FEELESS_HASHLEN;
-
-    static const uint32_t TCOST = chainParams.FEELESS_TCOST;
-    static const uint32_t PARALLELISM = chainParams.FEELESS_PARALLELISM;
-
-    // important: doesn't initialize value of vchnum
-    vchnum vchHash(HASHSIZE);
-    unsigned char* pchHash = vchHash.BeginData();
-
-    nResultRet = argon2d_hash_raw(TCOST, mcost, PARALLELISM,
-                                  data, datalen,
-                                  work, WORKLEN,
-                                  pchHash, HASHLEN,
-                                  buffer);
-
-    return vchHash.GetValue();
-}
+typedef boost::multiprecision::int128_t int128_t;
 
 Feework::Feework()
     : height(-1),
@@ -213,7 +98,36 @@ void Feework::ExtractFeework(const valtype &vch)
     work = GETUINT64(first, last);
 }
 
-int Feework::GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer)
+uint64_t Feework::GetFeeworkHash(const void* data,
+                                 const size_t datalen,
+                                 const void* work,
+                                 FeeworkBuffer& buffer,
+                                 int &nResultRet) const
+{
+    static const size_t WORKLEN = chainParams.FEELESS_WORKLEN;
+    static const size_t HASHLEN = chainParams.FEELESS_HASHLEN;
+    static const int HASHSIZE = chainParams.FEELESS_HASHLEN;
+
+    static const uint32_t TCOST = chainParams.FEELESS_TCOST;
+    static const uint32_t PARALLELISM = chainParams.FEELESS_PARALLELISM;
+
+    // important: doesn't initialize value of vchnum
+    vchnum vchHash(HASHSIZE);
+    unsigned char* pchHash = vchHash.BeginData();
+
+    {
+        boost::lock_guard<FeeworkBuffer> guardBuffer(buffer);
+        nResultRet = argon2d_hash_raw(TCOST, mcost, PARALLELISM,
+                                      data, datalen,
+                                      work, WORKLEN,
+                                      pchHash, HASHLEN,
+                                      buffer.pbuffer);
+    }
+
+    return vchHash.GetValue();
+}
+
+int Feework::GetFeeworkHash(const CDataStream& ss, FeeworkBuffer& buffer)
 {
     static const uint32_t MAX_MCOST = chainParams.FEEWORK_MAX_MCOST;
 
@@ -235,7 +149,7 @@ int Feework::GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer)
     }
     else
     {
-        hash = ::GetFeeworkHash(mcost, pchData, datalen, pchWork, buffer, result);
+        hash = GetFeeworkHash(pchData, datalen, pchWork, buffer, result);
     }
     return result;
 }

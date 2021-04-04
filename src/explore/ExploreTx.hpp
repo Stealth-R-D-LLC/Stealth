@@ -23,14 +23,17 @@ enum ExploreTxFlags
     EXPLORE_TXFLAGS_COINSTAKE      = 1 << 1,
     // Junaeth output types
     EXPLORE_TXFLAGS_PURCHASE1      = 1 << 6,
-    EXPLORE_TXFLAGS_PURCHASE3      = 1 << 7,
+    EXPLORE_TXFLAGS_PURCHASE4      = 1 << 7,
     EXPLORE_TXFLAGS_SETOWNER       = 1 << 8,
-    EXPLORE_TXFLAGS_SETDELEGATE    = 1 << 9,
-    EXPLORE_TXFLAGS_SETCONTROLLER  = 1 << 10,
-    EXPLORE_TXFLAGS_ENABLE         = 1 << 11,
-    EXPLORE_TXFLAGS_DISABLE        = 1 << 12,
-    EXPLORE_TXFLAGS_CLAIM          = 1 << 13,
-    EXPLORE_TXFLAGS_SETMETA        = 1 << 14
+    EXPLORE_TXFLAGS_SETMANAGER     = 1 << 9,
+    EXPLORE_TXFLAGS_SETDELEGATE    = 1 << 10,
+    EXPLORE_TXFLAGS_SETCONTROLLER  = 1 << 11,
+    EXPLORE_TXFLAGS_ENABLE         = 1 << 12,
+    EXPLORE_TXFLAGS_DISABLE        = 1 << 13,
+    EXPLORE_TXFLAGS_CLAIM          = 1 << 14,
+    EXPLORE_TXFLAGS_SETMETA        = 1 << 15,
+    // Feeless
+    EXPLORE_TXFLAGS_FEEWORK        = 1 << 20
 };
 
 const char* GetExploreTxType(int t);

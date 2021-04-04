@@ -157,7 +157,25 @@ unsigned int QPRegistry::GetNumberDisqualified() const
     return GetNumberOf(&QPStaker::IsDisqualified);
 }
 
+bool QPRegistry::IsEnabledStaker(unsigned int nStakerID) const
+{
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
+    {
+        return false;
+    }
+    return pstaker->IsEnabled();
+}
 
+bool QPRegistry::CanEnableStaker(unsigned int nStakerID, int nHeight) const
+{
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
+    {
+        return false;
+    }
+    return pstaker->CanBeEnabled(nHeight);
+}
 
 bool QPRegistry::IsQualifiedStaker(unsigned int nStakerID) const
 {
@@ -236,10 +254,20 @@ unsigned int QPRegistry::GetCurrentID() const
     return queue.GetCurrentID();
 }
 
+unsigned int QPRegistry::GetCurrentQueueSize() const
+{
+    return queue.Size();
+}
+
+unsigned int QPRegistry::GetPreviousQueueSize() const
+{
+    return queuePrev.Size();
+}
+
 void QPRegistry::GetSlotsInfo(int64_t nTime,
                               unsigned int nSlotFirst,
                               const QPQueue& q,
-                              std::vector<QPSlotInfo> &vRet) const
+                              vector<QPSlotInfo> &vRet) const
 {
     vRet.clear();
     for (unsigned int slot = nSlotFirst; slot < q.Size(); ++slot)
@@ -250,14 +278,14 @@ void QPRegistry::GetSlotsInfo(int64_t nTime,
 
 void QPRegistry::GetCurrentSlotsInfo(int64_t nTime,
                                      unsigned int nSlotFirst,
-                                     std::vector<QPSlotInfo> &vRet) const
+                                     vector<QPSlotInfo> &vRet) const
 {
     return GetSlotsInfo(nTime, nSlotFirst, queue, vRet);
 }
 
 void QPRegistry::GetPreviousSlotsInfo(int64_t nTime,
                                       unsigned int nSlotFirst,
-                                      std::vector<QPSlotInfo> &vRet) const
+                                      vector<QPSlotInfo> &vRet) const
 {
     return GetSlotsInfo(nTime, nSlotFirst, queuePrev, vRet);
 }
@@ -377,6 +405,22 @@ bool QPRegistry::GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const
         return error("GetOwnerKey(): staker is disqualified %u", nStakerID);
     }
     keyRet = pstaker->pubkeyOwner;
+    return true;
+}
+
+
+bool QPRegistry::GetManagerKey(unsigned int nStakerID, CPubKey &keyRet) const
+{
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
+    {
+        return error("GetManagerKey(): no such staker %u", nStakerID);
+    }
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetManagerKey(): staker is disqualified %u", nStakerID);
+    }
+    keyRet = pstaker->pubkeyManager;
     return true;
 }
 
@@ -548,7 +592,12 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
     {
         unsigned int nSeniority = pstaker->IsDisqualified() ?
                                               0 : (nIDCounter + 1) - nID;
-        pstaker->AsJSON(nID, nSeniority, objRet, true);
+        unsigned int nNftID = 0;
+        if (mapNftOwners.count(nID))
+        {
+            nNftID = mapNftOwners.at(nID);
+        }
+        pstaker->AsJSON(nID, nSeniority, objRet, fWithRecentBlocks, nNftID);
     }
     else
     {
@@ -594,13 +643,25 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     hashLastBlockPrev3Queue = pother->hashLastBlockPrev3Queue;
     powerRoundPrev = pother->powerRoundPrev;
     powerRoundCurrent = pother->powerRoundCurrent;
+    mapNftOwners = pother->mapNftOwners;
+    mapNftOwnerLookup = pother->mapNftOwnerLookup;
 
     fIsInReplayMode = pother->fIsInReplayMode;
     fShouldRollback = pother->fShouldRollback;
 }
 
-void QPRegistry::ActivatePubKey(const CPubKey &key)
+void QPRegistry::ActivatePubKey(const CPubKey &key,
+                                const CBlockIndex* pindex)
 {
+    if (!mapActive.count(key))
+    {
+        mapActive[key] = 0;
+    }
+    if (mapActive[key] == 0)
+    {
+        mapBalances[key] = 0;
+        mapLastClaim[key] = pindex->nTime;
+    }
     mapActive[key] += 1;
 }
 
@@ -641,6 +702,71 @@ bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
     }
     mapAliases[sKey] = make_pair(nID, sAlias);
     return true;
+}
+
+bool QPRegistry::NftIsAvailable(const unsigned int nID) const
+{
+    return (mapNfts.count(nID) && !mapNftOwners.count(nID));
+}
+
+bool QPRegistry::NftIsAvailable(const unsigned int nID,
+                                string &sCharKeyRet) const
+{
+    sCharKeyRet.clear();
+    if (mapNfts.count(nID) && !mapNftOwners.count(nID))
+    {
+        sCharKeyRet = mapNfts[nID].strCharKey;
+    }
+    return (bool)sCharKeyRet.size();
+}
+
+bool QPRegistry::NftIsAvailable(const string sCharKey,
+                                unsigned int& nIDRet) const
+{
+    nIDRet = 0;
+    // FIXME: this can be removed after testing
+    if (sCharKey != ToLowercaseSafe(sCharKey))
+    {
+        return error("NftIsAvailable(): TSNH alias is not lowercase");
+    }
+    if (mapNftLookup.count(sCharKey))
+    {
+        nIDRet = mapNftLookup[sCharKey];
+    }
+    if (mapNftOwnerLookup.count(nIDRet))
+    {
+        nIDRet = 0;
+    }
+    return (bool)nIDRet;
+}
+
+bool QPRegistry::GetNftIDForAlias(const string &sAlias,
+                                  unsigned int& nIDRet) const
+{
+    string sKey = ToLowercaseSafe(sAlias);
+    if (mapNftLookup.count(sKey))
+    {
+        nIDRet = mapNftLookup[sKey];
+    }
+    else
+    {
+        nIDRet = 0;
+    }
+    return (bool)nIDRet;
+}
+
+bool QPRegistry::GetNftNickForID(const unsigned int nID,
+                                  string &sNickRet) const
+{
+    if (mapNfts.count(nID))
+    {
+        sNickRet = mapNfts[nID].strNickname;
+    }
+    else
+    {
+        sNickRet = "";
+    }
+    return (bool)sNickRet.size();
 }
 
 const QPStaker* QPRegistry::GetStaker(unsigned int nID) const
@@ -1018,7 +1144,7 @@ QPStaker* QPRegistry::GetStakerForAlias(const string &sAlias)
 // this will only be called for a block that is being added to the end of the
 // chain so that the Registry state is synchronous with the block
 // same goes for StakerMissedBlock
-bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
+bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
                                      int64_t nReward)
 {
     unsigned int nID = pindex->nStakerID;
@@ -1040,7 +1166,14 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
                            fPrevBlockWasProduced,
                            nOwnerReward,
                            nDelegateReward);
-    mapBalances[pstaker->pubkeyOwner] += nOwnerReward;
+    if (fTestNet && (GetFork(nBestHeight) < XST_FORKMISSFIX))
+    {
+        mapBalances[pstaker->pubkeyOwner] += nOwnerReward;
+    }
+    else
+    {
+        mapBalances[pstaker->pubkeyManager] += nOwnerReward;
+    }
     if (nDelegateReward > 0)
     {
         mapBalances[pstaker->pubkeyDelegate] += nDelegateReward;
@@ -1053,7 +1186,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *const pindex,
     return true;
 }
 
-bool QPRegistry::StakerMissedBlock(unsigned int nID)
+bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
 {
     QPStaker* pstaker = GetStakerForID(nID);
     if (!pstaker)
@@ -1081,13 +1214,13 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID)
                nBlockHeight);
     }
     DisqualifyStakerIfNecessary(nID, pstaker);
-    DisableStakerIfNecessary(nID, pstaker);
+    DisableStakerIfNecessary(nID, pstaker, nHeight);
     bRecentBlocks <<= 1;
     fPrevBlockWasProduced = false;
     return true;
 }
 
-bool QPRegistry::DisableStaker(unsigned int nID)
+bool QPRegistry::DisableStaker(unsigned int nID, int nHeight)
 {
     QPStaker* pstaker = GetStakerForID(nID);
     if (!pstaker)
@@ -1098,12 +1231,13 @@ bool QPRegistry::DisableStaker(unsigned int nID)
     {
         return error("DisableStaker(): staker already disabled");
     }
-    pstaker->Disable();
+    pstaker->Disable(nHeight);
     return true;
 }
 
 bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
-                                          const QPStaker* pstaker)
+                                          const QPStaker* pstaker,
+                                          int nHeight)
 {
     bool fResult = true;
     // auto disable kicks in with feeless transactions
@@ -1111,9 +1245,9 @@ bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
     {
         return true;
     }
-    if (pstaker->ShouldBeDisabled())
+    if (pstaker->ShouldBeDisabled(nHeight))
     {
-        fResult = DisableStaker(nID);
+        fResult = DisableStaker(nID, nHeight);
     }
     return fResult;
 }
@@ -1204,7 +1338,7 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
         vi_type j = first + shuffler((i - first) + 1);
         if (i != j)
         {
-            std::iter_swap(i, j);
+            iter_swap(i, j);
         }
     }
 
@@ -1234,7 +1368,7 @@ bool QPRegistry::DockInactiveKeys(int64_t nMoneySupply)
     map<CPubKey, int>::const_iterator it;
     for (it = mapActive.begin(); it != mapActive.end(); ++it)
     {
-        if (it->second <= 0)
+        if (it->second < 1)
         {
             map<CPubKey, int64_t>::iterator jt = mapBalances.find(it->first);
             if (jt == mapBalances.end())
@@ -1258,7 +1392,7 @@ void QPRegistry::PurgeLowBalances(int64_t nMoneySupply)
     map<CPubKey, int64_t>::const_iterator it;
     for (it = mapBalances.begin(); it != mapBalances.end(); ++it)
     {
-        if (it->second < nDockValue)
+        if ((it->second < nDockValue) && (!mapActive.count(it->first)))
         {
             vPurge.push_back(it->first);
         }
@@ -1355,7 +1489,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         if (queue.IsEmpty())
         {
             // qPoS shall begin
-            printf("UpdateOnNewTime(): Starting qPoS at block %s\n",
+            printf("UpdateOnNewTime(): Starting qPoS at block\n   %s\n",
                    hash.ToString().c_str());
             if (!NewQueue(pindex->nTime + 1, hash))
             {
@@ -1367,7 +1501,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         {
             if (!fCurrentBlockWasProduced)
             {
-                StakerMissedBlock(queue.GetCurrentID());
+                StakerMissedBlock(queue.GetCurrentID(), nHeight);
             }
             if (!queue.IncrementSlot())
             {
@@ -1508,29 +1642,44 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 }
 
 // this is where new stakers are born
-bool QPRegistry::ApplyPurchase(const QPTxDetails &deet)
+bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
+                               const CBlockIndex* pindex)
 {
+     
     if (deet.keys.empty())
     {
         return error("ApplyPurchase(): no keys");
     }
+
     QPStaker staker(deet);
+ 
+    unsigned int nKeys = deet.keys.size();
 
     if (deet.t == TX_PURCHASE1)
     {
-        if (deet.keys.size() != 1)
+        if (nKeys != 1)
         {
             return error("ApplyPurchase(): not 1 key");
         }
     }
-    else if (deet.t == TX_PURCHASE3)
+    else if (deet.t == TX_PURCHASE4)
     {
-        if (deet.keys.size() != 3)
+        if (nKeys == 4)
         {
-            return error("ApplyPurchase(): not 3 keys");
+            staker.pubkeyManager = deet.keys[1];
+            staker.pubkeyDelegate = deet.keys[2];
+            staker.pubkeyController = deet.keys[3];
         }
-        staker.pubkeyDelegate = deet.keys[1];
-        staker.pubkeyController = deet.keys[2];
+        else if (nKeys == 3)
+        {
+            staker.pubkeyManager = deet.keys[1];
+            staker.pubkeyDelegate = deet.keys[1];
+            staker.pubkeyController = deet.keys[2];
+        }
+        else
+        {
+            return error("ApplyPurchase(): not 3 or 4 keys");
+        }
         if (!staker.SetDelegatePayout(deet.pcm))
         {
             return error("ApplyPurchase(): bad payout");
@@ -1538,31 +1687,104 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet)
     }
     else
     {
-        // should never happen
-        return error("ApplyPurchase(): not a purchase");
+        // this should never happen
+        return error("ApplyPurchase(): TSNH not a purchase");
     }
     string sKey;
     if (!AliasIsAvailable(deet.alias, sKey))
     {
         return error("ApplyPurchase(): alias not valid");
     }
-    if (!staker.SetAlias(deet.alias))
-    {
-        return error("ApplyPurchase(): staker can't set alias");
-    }
-
     unsigned int nID = IncrementID();
     mapStakers[nID] = staker;
-    ActivatePubKey(deet.keys[0]);
-    if (deet.t == TX_PURCHASE3)
+
+    // if not 0, then id specifies an NFT
+    if (deet.id)
     {
-        ActivatePubKey(deet.keys[1]);
+        string sKeyUnused;
+        if (!NftIsAvailable(deet.id, sKeyUnused))
+        {
+            // this should rarely happen
+            return error("ApplyPurchase(): NFT isn't available (by ID)");
+        }
+        if (sKeyUnused != sKey)
+        {
+            // this should never happen
+            return error("ApplyPurchase(): TSNH staker and NFT alias mismatch");
+        }
+        if (!SetStakerNft(nID, deet.id))
+        {
+            // this should never happen
+            return error("ApplyPurchase(): TSNH couldn't set staker NFT (id)");
+        }
+        if (!mapStakers[nID].SetAlias(mapNfts[deet.id].strNickname))
+        {
+            return error("ApplyPurchase(): TSNH staker can't set alias to nick");
+        }
     }
+    else if (mapNftLookup.count(sKey))
+    {
+        unsigned int nNftID;
+        if (!NftIsAvailable(sKey, nNftID))
+        {
+            return error("ApplyPurchase(): NFT isn't available (by key)");
+        }
+        if (!SetStakerNft(nID, nNftID))
+        {
+            // this should never happen
+            return error("ApplyPurchase(): TSNH couldn't set staker NFT (key)");
+        }
+        if (!mapStakers[nID].SetAlias(mapNfts[nNftID].strNickname))
+        {
+            return error("ApplyPurchase(): TSNH can't set staker alias to nick");
+        }
+    }
+    else
+    {
+        // grab next nft
+        QPMapNftIterator it;
+        for (it = mapNfts.begin(); it != mapNfts.end(); ++it)
+        {
+            if (!mapNftOwnerLookup.count(it->first))
+            {
+                break;
+            }
+        }
+        if (it == mapNfts.end())
+        {
+            // this should never happen
+            return error("ApplyPurchase(): TSNH no NFTs available");
+        }
+        if (!SetStakerNft(nID, it->first))
+        {
+            // this should never happen
+            return error("ApplyPurchase(): TSNH couldn't set next NFT");
+        }
+        // user took next available character, so gets to choose staker alias
+        if (!mapStakers[nID].SetAlias(deet.alias))
+        {
+            return error("ApplyPurchase(): TSNH staker can't set alias");
+        }
+    }
+
+    if (fTestNet)
+    {
+        if (GetFork(pindex->nHeight) < XST_FORKMISSFIX)
+        {
+            ActivatePubKey(staker.pubkeyOwner, pindex);
+        }
+    }
+    ActivatePubKey(staker.pubkeyManager, pindex);
+    // for purposes of counting references, it's necessary to activate
+    // the delegate even if it isn't getting a payout
+    ActivatePubKey(staker.pubkeyDelegate, pindex);
+   
     mapAliases[sKey] = make_pair(nID, deet.alias);
     return true;
 }
 
-bool QPRegistry::ApplySetKey(const QPTxDetails &deet)
+bool QPRegistry::ApplySetKey(const QPTxDetails &deet,
+                             const CBlockIndex* pindex)
 {
     if (!mapStakers.count(deet.id))
     {
@@ -1576,48 +1798,104 @@ bool QPRegistry::ApplySetKey(const QPTxDetails &deet)
     {
         return error("ApplySetKey(): wrong number of keys");
     }
+    int nFork = GetFork(pindex->nHeight);
+    QPStaker* pstaker = &mapStakers[deet.id];
+    const CPubKey keyNew = deet.keys[0];
     switch (deet.t)
     {
     case TX_SETOWNER:
-        mapStakers[deet.id].pubkeyOwner = deet.keys[0];
+      {
+        const CPubKey keyOld = pstaker->pubkeyOwner;
+        if (keyNew != keyOld)
+        {
+            if (fTestNet)
+            {
+                // testnet hack for vestigal activated owner keys:
+                //    don't fail if the old key wasn't active
+                if (!DeactivatePubKey(keyOld))
+                {
+                    printf("ApplySetKey(): old testnet owner not active");
+                }
+                if (nFork < XST_FORKMISSFIX)
+                {
+                    ActivatePubKey(keyNew, pindex);
+                }
+            }
+            pstaker->pubkeyOwner = keyNew;
+        }    
         break;
+      }
+    case TX_SETMANAGER:
+      {
+        const CPubKey keyOld = pstaker->pubkeyManager;
+        if (keyNew != keyOld)
+        {
+            if (!DeactivatePubKey(keyOld))
+            {
+                return error("ApplySetKey(): TSNH old manager not active");
+            }
+            ActivatePubKey(keyNew, pindex);
+        }
+        pstaker->pubkeyManager = keyNew;
+        break;
+      }
     case TX_SETDELEGATE:
-        if (!mapStakers[deet.id].SetDelegatePayout(deet.pcm))
+      {
+        const CPubKey keyOld = pstaker->pubkeyDelegate;
+        if (!pstaker->SetDelegatePayout(deet.pcm))
         {
             return error("ApplySetKey(): bad payout");
         }
-        mapStakers[deet.id].pubkeyDelegate = deet.keys[0];
+        if (keyNew != keyOld)
+        {
+            if (!DeactivatePubKey(keyOld))
+            {
+                return error("ApplySetKey(): TSNH old delegate not activated");
+            }
+            ActivatePubKey(keyNew, pindex);
+            pstaker->pubkeyDelegate = keyNew;
+        }
         break;
+      }
     case TX_SETCONTROLLER:
-        mapStakers[deet.id].pubkeyController = deet.keys[0];
+        pstaker->pubkeyController = keyNew;
         break;
     default:
         // should never happen
-        return error("ApplySetKey(): Not a setkey");
+        return error("ApplySetKey(): TSNH Not a setkey");
     }
     return true;
 }
 
-bool QPRegistry::ApplySetState(const QPTxDetails &deet)
+bool QPRegistry::ApplySetState(const QPTxDetails &deet, int nHeight)
 {
     if (!mapStakers.count(deet.id))
     {
         return error("ApplySetState(): no such staker");
     }
-    if (mapStakers[deet.id].IsDisqualified())
+    QPStaker& staker = mapStakers[deet.id];
+    if (staker.IsDisqualified())
     {
         return error("ApplySetState(): staker is disqualified");
     }
     if (deet.t == TX_ENABLE)
     {
-        if (!mapStakers[deet.id].Enable())
+        if (staker.CanBeEnabled(nBestHeight))
         {
-            return error("ApplySetState(): can't enable");
+            if (!staker.Enable())
+            {
+                return error("ApplySetState(): can't enable");
+            }
+        }
+        else
+        {
+           // enabling too soon is a no-op
+           printf("ApplySetState(): too soon to enable, ignoring\n");
         }
     }
     else if (deet.t == TX_DISABLE)
     {
-        mapStakers[deet.id].Disable();
+        staker.Disable(nHeight);
     }
     else
     {
@@ -1666,26 +1944,51 @@ bool QPRegistry::ApplySetMeta(const QPTxDetails &deet)
 }
 
 
+bool QPRegistry::SetStakerNft(unsigned int nStakerID,
+                              unsigned int nNftID)
+{
+    if (!mapStakers.count(nStakerID))
+    {
+        return error("SetStakerNft(): no such staker");
+    }
+    if (!mapNfts.count(nNftID))
+    {
+        return error("SetStakerNft(): no such NFT");
+    }
+    if (mapNftOwners.count(nStakerID))
+    {
+        return error("SetStakerNft(): staker already assigned NFT");
+    }
+    if (mapNftOwnerLookup.count(nNftID))
+    {
+        return error("SetStakerNft(): NFT already assigned to staker");
+    }
+    mapNftOwners[nStakerID] = nNftID;
+    mapNftOwnerLookup[nNftID] = nStakerID;
+    return true;
+}
+
 // any failed ops terminate with an assertion because there is no good
 // way to continue
-void QPRegistry::ApplyOps(const CBlockIndex *const pindex)
+void QPRegistry::ApplyOps(const CBlockIndex *pindex)
 {
     BOOST_FOREACH(const QPTxDetails &deet, pindex->vDeets)
     {
         switch (deet.t)
         {
         case TX_PURCHASE1:
-        case TX_PURCHASE3:
-            assert (ApplyPurchase(deet));
+        case TX_PURCHASE4:
+            assert (ApplyPurchase(deet, pindex));
             break;
         case TX_SETOWNER:
+        case TX_SETMANAGER:
         case TX_SETDELEGATE:
         case TX_SETCONTROLLER:
-            assert (ApplySetKey(deet));
+            assert (ApplySetKey(deet, pindex));
             break;
         case TX_ENABLE:
         case TX_DISABLE:
-            assert (ApplySetState(deet));
+            assert (ApplySetState(deet, pindex->nHeight));
             break;
         case TX_CLAIM:
             assert (ApplyClaim(deet, pindex->nTime));

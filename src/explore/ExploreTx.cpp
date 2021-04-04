@@ -105,13 +105,17 @@ void ExploreTx::FlagsAsJSON(Object& objRet) const
     {
         aryFlags.push_back("purchase1");
     }
-    if (txflags & EXPLORE_TXFLAGS_PURCHASE3)
+    if (txflags & EXPLORE_TXFLAGS_PURCHASE4)
     {
-        aryFlags.push_back("purchase3");
+        aryFlags.push_back("purchase4");
     }
     if (txflags & EXPLORE_TXFLAGS_SETOWNER)
     {
         aryFlags.push_back("setowner");
+    }
+    if (txflags & EXPLORE_TXFLAGS_SETMANAGER)
+    {
+        aryFlags.push_back("setmanager");
     }
     if (txflags & EXPLORE_TXFLAGS_SETDELEGATE)
     {
@@ -136,6 +140,10 @@ void ExploreTx::FlagsAsJSON(Object& objRet) const
     if (txflags & EXPLORE_TXFLAGS_SETMETA)
     {
         aryFlags.push_back("setmeta");
+    }
+    if (txflags & EXPLORE_TXFLAGS_FEEWORK)
+    {
+        aryFlags.push_back("feework");
     }
     if (aryFlags.size() > 0)
     {

@@ -16,6 +16,9 @@ typedef std::map<int, int> mapIntInt_t;
 typedef std::map<int, unsigned int> mapIntUInt_t;
 typedef std::map<int, uint256> mapIntUInt256_t;
 
+// cloners: edit aForks
+int GetFork(int nHeight);
+
 // borrowed from https://tinyurl.com/wmual38
 // fixes assignment collision with newer c++11 compilers
 template<typename T>
@@ -54,9 +57,12 @@ public:
     mapIntInt_t mapProtocolVersions;
 
     int CUTOFF_POW_M;
+    int START_NFT_M;
     int START_PURCHASE_M;
-    int CUTOFF_POS_M;
+    int START_QPOS_M;
+    int START_QPOSB_M;
     int START_FEELESS_M;
+    int START_MISSFIX_M;
 
     mapIntInt_t mapForksMainNet;
 
@@ -227,9 +233,12 @@ public:
     // TestNet
 
     int CUTOFF_POW_T;
-    int CUTOFF_POS_T;
+    int START_NFT_T;
     int START_PURCHASE_T;
+    int START_QPOS_T;
+    int START_QPOSB_T;
     int START_FEELESS_T;
+    int START_MISSFIX_T;
 
     mapIntInt_t mapForksTestNet;
 

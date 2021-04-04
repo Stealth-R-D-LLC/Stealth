@@ -1111,7 +1111,7 @@ void CWallet::ResendWalletTransactions(bool fForce)
             {
                 CTransaction& tx = (CTransaction&)wtx;
                 Feework feework;
-                if (!tx.CheckFeework(feework, false, pbfrFeeworkMiner))
+                if (!tx.CheckFeework(feework, false, bfrFeeworkMiner))
                 {
                      setToRemove.insert(hash);
                      continue;
@@ -1537,7 +1537,7 @@ string CWallet::MineFeework(unsigned int nBlockSize,
     }
     feework.limit = chainParams.TX_FEEWORK_LIMIT;
     // check the new tx for absence of existing feework
-    txNew.CheckFeework(feework, false, pbfrFeeworkMiner);
+    txNew.CheckFeework(feework, false, bfrFeeworkMiner);
     if (!feework.HasNone())
     {
         string strError = _("Error: tx already has feework or is malformed");
@@ -1579,12 +1579,12 @@ string CWallet::MineFeework(unsigned int nBlockSize,
     static XORShift1024Star rng;
 
     feework.work = rng.Next();
-    feework.GetFeeworkHash(ssData, pbfrFeeworkMiner);
+    feework.GetFeeworkHash(ssData, bfrFeeworkMiner);
     nRounds = 1;
     while (feework.hash > feework.limit)
     {
         feework.work = rng.Next();
-        feework.GetFeeworkHash(ssData, pbfrFeeworkMiner);
+        feework.GetFeeworkHash(ssData, bfrFeeworkMiner);
         nRounds += 1;
     }
 
@@ -2955,11 +2955,15 @@ string CWallet::SendMoney(CScript scriptPubKey,
         string strError;
         if (nValue + nFeeRequired > GetBalance())
         {
-            strError = strprintf(_("Error: This transaction requires a transaction fee of at least %s because of its amount, complexity, or use of recently received funds  "), FormatMoney(nFeeRequired).c_str());
+            strError = strprintf(_(
+                          "Error: This transaction requires a transaction fee "
+                             "of at least %s because of its amount, "
+                             "complexity, or use of recently received funds"),
+                          FormatMoney(nFeeRequired).c_str());
         }
         else
         {
-            strError = _("Error: Transaction creation failed  ");
+            strError = _("Error: Transaction creation failed");
         }
         printf("SendMoney() : %s", strError.c_str());
         return strError;
@@ -2993,8 +2997,16 @@ string CWallet::SendMoneyToDestination(const CTxDestination& address,
     // Check amount
     if (nValue <= 0)
         return _("Invalid amount");
-    if (nValue + nTransactionFee > GetBalance())
-        return _("Insufficient funds");
+    if (pfeework)
+    {
+        if (nValue > GetBalance())
+            return _("Insufficient funds (feeless)");
+    }
+    else
+    {
+        if (nValue + nTransactionFee > GetBalance())
+            return _("Insufficient funds with fee");
+    }
 
     // Parse Bitcoin address
     CScript scriptPubKey;
@@ -3069,7 +3081,7 @@ string CWallet::CreateQPoSTx(const string &txid,
 
     wtxNew.BindWallet(this);
 
-    bool fIsPurchase = ((typetxo == TX_PURCHASE1) || (typetxo == TX_PURCHASE3));
+    bool fIsPurchase = ((typetxo == TX_PURCHASE1) || (typetxo == TX_PURCHASE4));
     bool fIsClaim = (typetxo == TX_CLAIM);
 
     int64_t nValueOut0 = 0;
@@ -3260,6 +3272,7 @@ string CWallet::PurchaseStaker(const string &txid,
                                unsigned int nOut,
                                const string &sAlias,
                                const valtype &vchOwnerKey,
+                               const valtype &vchManagerKey,
                                const valtype &vchDelegateKey,
                                const valtype &vchControllerKey,
                                int64_t nPrice, uint32_t nPcm,
@@ -3272,15 +3285,28 @@ string CWallet::PurchaseStaker(const string &txid,
     }
 
     string sLC;
-    if(!pregistryMain->AliasIsAvailable(sAlias, sLC))
+    if (!pregistryMain->AliasIsAvailable(sAlias, sLC))
     {
         return _("PurchaseStaker(): Alias is not available");
     }
 
-    bool fIsPurchase3 = (nPcm > 0);
-
-    if (fIsPurchase3)
+    if (mapNftLookup.count(sLC))
     {
+        unsigned int nNftID;
+        if (!pregistryMain->NftIsAvailable(sLC, nNftID))
+        {
+            return _("PurchaseStaker(): NFT is not available");
+        }
+    }
+
+    bool fIsPurchase4 = (nPcm > 0);
+
+    if (fIsPurchase4)
+    {
+        if (vchManagerKey.size() != 33)
+        {
+            return _("PurchaseStaker(): Manager pubkey is not compressed");
+        }
         if (vchDelegateKey.size() != 33)
         {
             return _("PurchaseStaker(): Delegate pubkey is not compressed");
@@ -3308,9 +3334,16 @@ string CWallet::PurchaseStaker(const string &txid,
     EXTEND(vchPurchase, vchPrice);
     EXTEND(vchPurchase, vchOwnerKey);
 
-    if (fIsPurchase3)
+    if (fIsPurchase4)
     {
         EXTEND(vchPurchase, vchDelegateKey);
+        // asdf this test can be removed after the fork
+        // this is a testnet hack to avoid a lot of forking logic
+        //    elsewhere just for testnet
+        if (GetFork(nBestHeight) >= XST_FORKMISSFIX)
+        {
+            EXTEND(vchPurchase, vchManagerKey);
+        }
         EXTEND(vchPurchase, vchControllerKey);
 
         valtype vchPcm = *vchnum(nPcm).Get();
@@ -3326,10 +3359,20 @@ string CWallet::PurchaseStaker(const string &txid,
 
     // 1 pubkey + purchase price + alias
     unsigned int nSize = 57;  // 57 = 33 + 8 + 16
-    if (fIsPurchase3)
+    if (fIsPurchase4)
     {
-        // 2 more pubkeys + payout
-        nSize += 70 ;  // 70 = 33 + 33 + 4
+        // asdf this test can be removed later, keep post miss fix
+        //   more testnet hack
+        if (GetFork(nBestHeight) >= XST_FORKMISSFIX)
+        {
+            // 3 more pubkeys + payout
+            nSize += 103;  // 103 = 33 + 33 + 33 + 4
+        }
+        else
+        {
+            // 2 more pubkeys + payout
+            nSize += 70;    //  70 = 33 + 33 + 4
+        }
     }
 
     if (vchPurchase.size() != nSize)
@@ -3342,10 +3385,10 @@ string CWallet::PurchaseStaker(const string &txid,
 
     CScript scriptPurchase;
     scriptPurchase << vchPurchase;
-    if (fIsPurchase3)
+    if (fIsPurchase4)
     {
-        scriptPurchase << OP_PURCHASE3;
-        typetxo = TX_PURCHASE3;
+        scriptPurchase << OP_PURCHASE4;
+        typetxo = TX_PURCHASE4;
     }
     else
     {
@@ -3372,6 +3415,10 @@ string CWallet::SetStakerKey(const string &txid,
 
     txnouttype typetxo = TX_SETOWNER;
     bool fIsSetDelegate = false;
+    if (opSetKey == OP_SETMANAGER)
+    {
+        typetxo = TX_SETMANAGER;
+    }
     if (opSetKey == OP_SETDELEGATE)
     {
         typetxo = TX_SETDELEGATE;
@@ -3436,6 +3483,22 @@ string CWallet::SetStakerState(const string &txid,
     if (sError != "")
     {
         return sError;
+    }
+
+    if (fEnable)
+    {
+        if (pregistryMain->IsEnabledStaker(nID))
+        {
+            return _("SetStakerState(): staker already enabled");
+        }
+        if (!pregistryMain->IsQualifiedStaker(nID))
+        {
+            return _("SetStakerState(): staker is not qualified");
+        }
+        else if (!pregistryMain->CanEnableStaker(nID, nBestHeight))
+        {
+            return _("SetStakerState(): staker can't be enabled");
+        }
     }
 
     valtype vchSetState(0);

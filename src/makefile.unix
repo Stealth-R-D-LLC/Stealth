@@ -82,6 +82,7 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/db-bdb" \
  -I"$(CURDIR)/db-leveldb" \
  -I"$(CURDIR)/explore" \
+ -I"$(CURDIR)/feeless" \
  -I"$(CURDIR)/network" \
  -I"$(CURDIR)/qpos" \
  -I"$(CURDIR)/rpc" \
@@ -426,6 +427,7 @@ OBJS= \
     obj/aliases.o \
     obj/meta.o \
     obj/qPoS.o \
+    obj/QPConstants.o \
     obj/QPTxDetails.o \
     obj/QPStaker.o \
     obj/QPQueue.o \
@@ -450,7 +452,12 @@ OBJS= \
     obj/scrypt.o \
     obj/secp256k1_openssl.o \
     obj/XORShift1024Star.o \
-    obj/feeless.o
+    obj/FeeworkBuffer.o \
+    obj/Feework.o \
+    obj/feeless.o \
+    obj/nft-data.o \
+    obj/nfts.o \
+    obj/QPNft.o
 
 ifeq (${STEALTHTEXT}, 1)
     OBJS += obj/stealthtext.o
@@ -566,6 +573,13 @@ obj/%.o: db-leveldb/%.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: explore/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: feeless/%.cpp
 	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \

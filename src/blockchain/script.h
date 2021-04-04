@@ -95,18 +95,19 @@ enum txnouttype
     TX_MULTISIG,        // 4
     // qPoS (standard)
     TX_PURCHASE1,       // 5
-    TX_PURCHASE3,       // 6
+    TX_PURCHASE4,       // 6
     TX_SETOWNER,        // 7
-    TX_SETDELEGATE,     // 8 
-    TX_SETCONTROLLER,   // 9
-    TX_ENABLE,          // 10
-    TX_DISABLE,         // 11
-    TX_CLAIM,           // 12
-    TX_SETMETA,         // 13
+    TX_SETMANAGER,      // 8
+    TX_SETDELEGATE,     // 9 
+    TX_SETCONTROLLER,   // 10
+    TX_ENABLE,          // 11
+    TX_DISABLE,         // 12
+    TX_CLAIM,           // 13
+    TX_SETMETA,         // 14
     // feeless
-    TX_FEEWORK,         // 14
+    TX_FEEWORK,         // 15
     // prunable
-    TX_NULL_DATA        // 15
+    TX_NULL_DATA        // 16
 };
 
 class CNoDestination {
@@ -264,7 +265,7 @@ enum opcodetype
 
     // qPoS
     OP_PURCHASE1     = 0xc1,  /* buy staker, set all keys the same */
-    OP_PURCHASE3     = 0xc2,  /* buy staker, set 3 potentiall different keys */
+    OP_PURCHASE4     = 0xc2,  /* buy staker, set 4 potentially different keys */
     OP_SETOWNER      = 0xc3,  /* set staker owner key */
     OP_SETDELEGATE   = 0xc4,  /* set staker delegate key */
     OP_SETCONTROLLER = 0xc5,  /* set staker controller key */
@@ -272,6 +273,8 @@ enum opcodetype
     OP_DISABLE       = 0xc7,  /* disable staker */
     OP_CLAIM         = 0xc8,  /* claim earnings, spendable */
     OP_SETMETA       = 0xc9,  /* set a metadata key-value pair */
+    // unfortunately out of order because it was added later
+    OP_SETMANAGER    = 0xca,  /* set staker manager key */
 
     // feeless
     OP_FEEWORK       = 0xd1,  /* provide work proof for feeless tx */

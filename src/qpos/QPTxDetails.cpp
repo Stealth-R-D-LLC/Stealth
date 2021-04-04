@@ -6,6 +6,8 @@
 
 #include "script.h"
 
+using namespace std;
+
 void QPTxDetails::Clear()
 {
     id = 0;
@@ -30,3 +32,37 @@ QPTxDetails::QPTxDetails()
 {
     SetNull();
 }
+
+string QPTxDetails::ToString() const
+{
+    string s1 = strprintf("deet id=%u, alias=%s\n", id, alias.c_str());
+    string s2 = "";
+    if (keys.size() == 4)
+    {
+        s2 = strprintf("  owner=%s\n  manager=%s\n  delegate=%s\n  controller=%s\n",
+                          HexStr(keys[0].Raw()).c_str(),
+                          HexStr(keys[1].Raw()).c_str(),
+                          HexStr(keys[2].Raw()).c_str(),
+                          HexStr(keys[3].Raw()).c_str());
+    }
+    else if (keys.size() == 3)
+    {
+        s2 = strprintf("  owner=%s\n  manager=%s\n  delegate=%s\n  controller=%s\n",
+                          HexStr(keys[0].Raw()).c_str(),
+                          HexStr(keys[1].Raw()).c_str(),
+                          HexStr(keys[1].Raw()).c_str(),
+                          HexStr(keys[2].Raw()).c_str());
+    }
+    else if (keys.size() == 1)
+    {
+        s2 = strprintf("  owner=%s\n  manager=%s\n  delegate=%s\n  controller=%s\n",
+                          HexStr(keys[0].Raw()).c_str(),
+                          HexStr(keys[0].Raw()).c_str(),
+                          HexStr(keys[0].Raw()).c_str(),
+                          HexStr(keys[0].Raw()).c_str());
+    }
+    string s3 = strprintf("   pcm=%u, value=%" PRId64 ",  meta=%s:%s",
+                          pcm, value, meta_key.c_str(), meta_value.c_str());
+    return s1 + s2 + s3;
+}
+    

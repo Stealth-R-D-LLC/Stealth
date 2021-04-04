@@ -11,6 +11,7 @@
 #include "QPPowerRound.hpp"
 #include "aliases.hpp"
 #include "meta.hpp"
+#include "nfts.hpp"
 
 #include <boost/random.hpp>
 #include <boost/thread/mutex.hpp>
@@ -57,6 +58,10 @@ private:
     uint256 hashLastBlockPrev3Queue;
     QPPowerRound powerRoundPrev;
     QPPowerRound powerRoundCurrent;
+    // key: staker ID, value: nft ID
+    QPMapNftOwnership mapNftOwners;
+    // key: nftID, staker ID
+    QPMapNftOwnership mapNftOwnerLookup;
 
     // not persistent
     bool fIsInReplayMode;
@@ -68,12 +73,13 @@ private:
                                       uint32_t &nMaxRet) const;
     QPStaker* GetStakerForID(unsigned int nID);
     QPStaker* GetStakerForAlias(const std::string &sAlias);
-    bool StakerProducedBlock(const CBlockIndex *const pindex,
+    bool StakerProducedBlock(const CBlockIndex *pindex,
                              int64_t nReward);
-    bool StakerMissedBlock(unsigned int nID);
-    bool DisableStaker(unsigned int nID);
+    bool StakerMissedBlock(unsigned int nID, int nHeight);
+    bool DisableStaker(unsigned int nID, int nHeight);
     bool DisableStakerIfNecessary(unsigned int nID,
-                                  const QPStaker* pstaker);
+                                  const QPStaker* pstaker,
+                                  int nHeight);
     bool DisqualifyStaker(unsigned int nID);
     bool DisqualifyStakerIfNecessary(unsigned int nID,
                                      const QPStaker* pstaker);
@@ -81,12 +87,15 @@ private:
     void PurgeLowBalances(int64_t nMoneySupply);
     bool NewQueue(unsigned int nTime0, const uint256 &prevHash);
     unsigned int IncrementID();
-    bool ApplyPurchase(const QPTxDetails& deet);
-    bool ApplySetKey(const QPTxDetails &deet);
-    bool ApplySetState(const QPTxDetails &deet);
+    bool ApplyPurchase(const QPTxDetails& deet, const CBlockIndex* pindex);
+    bool ApplySetKey(const QPTxDetails &deet, const CBlockIndex* pindex);
+    bool ApplySetState(const QPTxDetails &deet, int nHeight);
     bool ApplyClaim(const QPTxDetails &deet, int64_t nBlockTime);
 
     bool ApplySetMeta(const QPTxDetails &deet);
+
+    bool SetStakerNft(unsigned int nStakerID, unsigned int nNftID);
+
 public:
     enum SnapType
     {
@@ -116,6 +125,8 @@ public:
     unsigned int GetNumberDisabled() const;
     unsigned int GetNumberQualified() const;
     unsigned int GetNumberDisqualified() const;
+    bool IsEnabledStaker(unsigned int nStakerID) const;
+    bool CanEnableStaker(unsigned int nStakerID, int nHeight) const;
     bool IsQualifiedStaker(unsigned int nStakerID) const;
     bool TimestampIsValid(unsigned int nStakerID, unsigned int nTime) const;
     unsigned int GetQueueMinTime() const;
@@ -124,6 +135,8 @@ public:
     unsigned int GetCurrentSlotEnd() const;
     bool TimeIsInCurrentSlotWindow(unsigned int nTime) const;
     unsigned int GetCurrentID() const;
+    unsigned int GetCurrentQueueSize() const;
+    unsigned int GetPreviousQueueSize() const;
     void GetSlotsInfo(int64_t nTime,
                       unsigned int nSlotFirst,
                       const QPQueue& q,
@@ -147,6 +160,7 @@ public:
                   int64_t nValue,
                   int64_t nClaimTime=0) const;
     bool GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const;
+    bool GetManagerKey(unsigned int nStakerID, CPubKey &keyRet) const;
     bool GetDelegateKey(unsigned int nStakerID, CPubKey &keyRet) const;
     bool GetControllerKey(unsigned int nStakerID, CPubKey &keyRet) const;
     bool GetStakerWeight(unsigned int nStakerID,
@@ -183,11 +197,21 @@ public:
 
     void CheckSynced();
     void Copy(const QPRegistry *const pother);
-    void ActivatePubKey(const CPubKey &key);
+    void ActivatePubKey(const CPubKey &key, const CBlockIndex* pindex);
     bool DeactivatePubKey(const CPubKey &key);
     bool SetStakerAlias(unsigned int nID, const std::string &sAlias);
 
     bool DockInactiveBalances();
+
+    bool NftIsAvailable(const unsigned int nID) const;
+    bool NftIsAvailable(const unsigned int nID,
+                        std::string &sCharKeyRet) const;
+    bool NftIsAvailable(const std::string sCharKey,
+                        unsigned int& nIDRet) const;
+    bool GetNftIDForAlias(const std::string &sAlias,
+                          unsigned int& nIDRet) const;
+    bool GetNftNickForID(const unsigned int nID,
+                         std::string &sNick) const;
 
     bool UpdateOnNewBlock(const CBlockIndex *const pindex,
                           int nSnapshotType,
@@ -215,6 +239,8 @@ public:
         READWRITE(nRoundSeed);
         READWRITE(mapStakers);
         READWRITE(mapBalances);
+        READWRITE(mapLastClaim);
+        READWRITE(mapActive);
         READWRITE(mapAliases);
         READWRITE(queue);
         READWRITE(queuePrev);
@@ -231,6 +257,8 @@ public:
         READWRITE(hashLastBlockPrev3Queue);
         READWRITE(powerRoundPrev);
         READWRITE(powerRoundCurrent);
+        READWRITE(mapNftOwners);
+        READWRITE(mapNftOwnerLookup);
     )
 };
 

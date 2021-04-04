@@ -2,43 +2,27 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#ifndef _STEALTHFEELESS_H_
-#define _STEALTHFEELESS_H_ 1
+#include "FeeworkBuffer.hpp"
 
 #include "script.h"
 #include "serialize.h"
-#include "argon2.h"
 
 #include "json/json_spirit_utils.h"
 
-extern argon2_buffer* pbfrFeeworkMiner;
-extern argon2_buffer* pbfrFeeworkValidator;
 
-extern bool fDebugFeeless;
-
-enum FeeworkInitStatus
-{
-    FEELESS_INIT_OK                         = 0,
-    FEELESS_INIT_MINER_ALLOC_ERROR          = 1<<0,
-    FEELESS_INIT_MINER_MEM_ALLOC_ERROR      = 1<<1,
-    FEELESS_INIT_VALIDATOR_ALLOC_ERROR      = 1<<2,
-    FEELESS_INIT_VALIDATOR_MEM_ALLOC_ERROR  = 1<<3
-};
-
-int InitializeFeeless(bool fInitMiner, bool fInitValidator);
-
-void ShutdownFeeless();
-
-uint64_t GetFeeworkHash(const uint32_t mcost,
-                        const void* data,
-                        const size_t datalen,
-                        const void* work,
-                        argon2_buffer* buffer);
+#ifndef _FEEWORK_H_
+#define _FEEWORK_H_ 1
 
 class Feework
 {
+private:
+    uint64_t GetFeeworkHash(const void* data,
+                            const size_t datalen,
+                            const void* work,
+                            FeeworkBuffer& buffer,
+                            int &nResultRet) const;
 public:
-    enum status
+    enum Status
     {
         UNCHECKED=-1,  // feework has yet to be checked
         // valid statuses
@@ -88,7 +72,8 @@ public:
 
     void ExtractFeework(const valtype &vch);
 
-    int GetFeeworkHash(const CDataStream& ss, argon2_buffer* buffer);
+
+    int GetFeeworkHash(const CDataStream& ss, FeeworkBuffer& buffer);
 
     bool Check(const uint32_t mcostIn);
 
@@ -104,4 +89,7 @@ public:
 };
 
 
-#endif  /* _STEALTHFEELESS_H_ */
+
+
+
+#endif  /* _FEEWORKBUFFER_H_ */

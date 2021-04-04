@@ -111,8 +111,9 @@ const char* GetTxnOutputType(txnouttype t)
     case TX_SCRIPTHASH: return "scripthash";
     case TX_MULTISIG: return "multisig";
     case TX_PURCHASE1: return "purchase1";
-    case TX_PURCHASE3: return "purchase3";
+    case TX_PURCHASE4: return "purchasen";
     case TX_SETOWNER: return "setowner";
+    case TX_SETMANAGER: return "setmanager";
     case TX_SETDELEGATE: return "setdelegate";
     case TX_SETCONTROLLER: return "setcontroller";
     case TX_ENABLE: return "enable";
@@ -272,8 +273,9 @@ const char* GetOpName(opcodetype opcode)
 
     // qPoS
     case OP_PURCHASE1              : return "OP_PURCHASE1";
-    case OP_PURCHASE3              : return "OP_PURCHASE3";
+    case OP_PURCHASE4              : return "OP_PURCHASE4";
     case OP_SETOWNER               : return "OP_SETOWNER";
+    case OP_SETMANAGER             : return "OP_SETMANAGER";
     case OP_SETDELEGATE            : return "OP_SETDELEGATE";
     case OP_SETCONTROLLER          : return "OP_SETCONTROLLER";
     case OP_ENABLE                 : return "OP_ENABLE";
@@ -584,8 +586,9 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                 break;
 
                 // qPoS: no script with these opcodes will be spendable
-                case OP_PURCHASE1: case OP_PURCHASE3:
-                case OP_SETOWNER: case OP_SETDELEGATE: case OP_SETCONTROLLER:
+                case OP_PURCHASE1: case OP_PURCHASE4:
+                case OP_SETOWNER: case OP_SETMANAGER:
+                case OP_SETDELEGATE: case OP_SETCONTROLLER:
                 case OP_ENABLE: case OP_DISABLE:
                 case OP_SETMETA:
                 {
@@ -1550,7 +1553,7 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
         break;
       }
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
       {
         if (vSolutions.size() < 1)
         {
@@ -1559,7 +1562,14 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
             return false;
         }
         valtype v = vSolutions.front();
-        if (v.size() != ((t == TX_PURCHASE1) ? 57 : 127))
+        if (t == TX_PURCHASE1)
+        {
+            if (v.size() != 57)
+            {
+                return false;
+            }
+        }
+        else if ((v.size() != 127) && (v.size() != 160))
         {
             return false;
         }
@@ -1580,6 +1590,7 @@ bool TxTypeIsStandard(txnouttype t, const vector<valtype>& vSolutions)
         break;
       }
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETCONTROLLER:
         if (vSolutions.front().size() != 37)
         {
@@ -1684,38 +1695,63 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // PubKeys are 33 byte compressed keys
         // name is 16 byte 0 padded at the end because canonical
         //   pushes enforce data size < OP_PUSHDATA1 to be fixed width
-        //   and will not treat PURCHASE3 differently from PURCHASE1
+        //   and will not treat PURCHASE4 differently from PURCHASE1
         // 0x00 < OpCodes < OP_PUSHDATA1 (0x4c == 76) specify size to push
-        //
-        // Buy a staker, all 3 keys are the same, amount is 8 byte
+
+        // ====================================================================
+        // Buy a staker, all 4 keys are the same, amount is 8 byte
         // size = 57 bytes (0x39)
         // [size, data(amount, pubKey, name), OP_PURCHASE1]
         mTemplates.insert(make_pair(TX_PURCHASE1, CScript() << OP(0x39) << OP_PURCHASE1));
-        // Buy a staker, all 3 keys are potentially unique, amount is 8 byte
-        // size = 127 bytes (pcm is a 4 byte unsigned int)
-        // [OP_PUSHDATA1, size, data(amount, ownerKey, delegateKey, controllerKey, pcm, name), OP_PURCHASE3]
-        mTemplates.insert(make_pair(TX_PURCHASE3, CScript() << OP_PUSHDATA1 << OP_PURCHASE3));
+
+        // ====================================================================
+        // Buy a staker, all 4 keys are potentially unique, amount is 8 byte
+        // The option to specify 3 keys is for testnet backwards compatibility
+        // size = 127 bytes (0x7f)
+        //        160 bytes (0xa0)
+        // keys = (ownerKey, managerKey/delegateKey, controllerKey) if 127 bytes
+        //      = (ownerKey, managerKey, delegateKey, controllerKey) if 140 
+        // pcm = 4 byte unsigned int
+        // [OP_PUSHDATA1, size, data(amount, keys, pcm, name), OP_PURCHASE4]
+        mTemplates.insert(make_pair(TX_PURCHASE4, CScript() << OP_PUSHDATA1 << OP_PURCHASE4));
+
+        // ====================================================================
         // Assign staker owner key (signatory of input must match owner of stakerID)
         // size = 37 bytes (0x25)
         // [size, data(stakerID, pubKey), OP_SETOWNER]
         mTemplates.insert(make_pair(TX_SETOWNER, CScript() << OP(0x25) << OP_SETOWNER));
+
+        // ====================================================================
+        // Assign staker manager key (signatory of input must match owner of stakerID)
+        // size = 37 bytes (0x25)
+        // [size, data(stakerID, pubKey), OP_SETMANAGER]
+        mTemplates.insert(make_pair(TX_SETMANAGER, CScript() << OP(0x25) << OP_SETMANAGER));
+
+        // ====================================================================
         // Assign staker delegate key and payout (signatory of input must match owner of stakerID)
         // size = 41 bytes (0x29) (pcm is a 4 byte unsigned int)
         // [size, data(stakerID, pubKey, pcm), OP_SETDELEGATE]
         mTemplates.insert(make_pair(TX_SETDELEGATE, CScript() << OP(0x29) << OP_SETDELEGATE));
+
+        // ====================================================================
         // Assign staker controller key (signatory of input must match owner of stakerID)
         // size = 37 bytes (0x25)
         // [size, data(stakerID, pubKey), OP_SETCONTROLLER]
         mTemplates.insert(make_pair(TX_SETCONTROLLER, CScript() << OP(0x25) << OP_SETCONTROLLER));
+
+        // ====================================================================
         // Enable staker (signatory of input must match owner of stakerID)
         // size = 4 bytes (0x04)
         // [size, data(stakerID), OP_ENABLE]
         mTemplates.insert(make_pair(TX_ENABLE, CScript() << OP(0x04) << OP_ENABLE));
+
+        // ====================================================================
         // Disable staker (signatory of input must match owner of stakerID)
         // size = 4 bytes (0x04)
         // [size, data(stakerID), OP_DISABLE]
         mTemplates.insert(make_pair(TX_DISABLE, CScript() << OP(0x04) << OP_DISABLE));
 
+        // ====================================================================
         // Claim rewards from registry ledger, is spendable, use only bitcoin-style address
         // Input pubKey is spent from registry ledger, amount is 8 byte unsigned int
         // size = 41 bytes (0x29) = 33 bytes of pubkey + 8 bytes amount
@@ -1723,6 +1759,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         mTemplates.insert(make_pair(TX_CLAIM, CScript() << OP(0x29) << OP_CLAIM << OP_DUP << OP_HASH160 <<
                                                  OP_PUBKEYHASH << OP_EQUALVERIFY << OP_CHECKSIG));
 
+        // ====================================================================
         // Set metadata for staker (signatory of input must match owner of stakerID)
         // key is <= 16 bytes, with significant other constraints
         // value is a string length <= 40, matching egrep of:
@@ -1734,6 +1771,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // [size, data(stakerID, key, value), OP_SETMETA]
         mTemplates.insert(make_pair(TX_SETMETA, CScript() << OP(0x3c) << OP_SETMETA));
 
+        // ====================================================================
         // Fee work for feeless transactions
         // Must be last vout (aka vout[-1])
         // workhash is 64 bit (8 byte) i.e.:
@@ -1757,6 +1795,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // [size, data(height, mcost, work), OP_FEEWORK]
         mTemplates.insert(make_pair(TX_FEEWORK, CScript() << OP(0x10) << OP_FEEWORK));
 
+        // ====================================================================
         // Empty, provably prunable, data-carrying output
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN));
         mTemplates.insert(make_pair(TX_NULL_DATA, CScript() << OP_RETURN << OP_SMALLDATA));
@@ -2019,8 +2058,9 @@ int ScriptSigArgsExpected(txnouttype t, const std::vector<std::vector<unsigned c
     switch (t)
     {
     case TX_PURCHASE1:
-    case TX_PURCHASE3:
+    case TX_PURCHASE4:
     case TX_SETOWNER:
+    case TX_SETMANAGER:
     case TX_SETDELEGATE:
     case TX_SETCONTROLLER:
     case TX_ENABLE:

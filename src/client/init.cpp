@@ -88,7 +88,6 @@ void Shutdown(void* parg)
         boost::filesystem::remove(GetPidFile());
         UnregisterWallet(pwalletMain);
         delete pwalletMain;
-        ShutdownFeeless();
         delete pregistryMain;
         NewThread(ExitTimeout, NULL);
         MilliSleep(50);
@@ -896,13 +895,16 @@ bool AppInit2()
         return InitError(msg);
     }
 
-    int nFeelessInitResult = InitializeFeeless(true, true);
-    if (nFeelessInitResult != FEELESS_INIT_OK)
+
+    int nFeelessInitResult = bfrFeeworkMiner.status | bfrFeeworkValidator.status;
+    if (nFeelessInitResult != FeeworkBuffer::INIT_OK)
     {
         printf("Error initializing feeless hashing memory: %d\n", 
                nFeelessInitResult);
         exit(nFeelessInitResult);
     }
+
+    InitNfts();
 
     pregistryMain = new QPRegistry();
 

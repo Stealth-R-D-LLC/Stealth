@@ -43,9 +43,6 @@ static const int fHaveUPnP = true;
 static const int fHaveUPnP = false;
 #endif
 
-// cloners: edit aForks
-int GetFork(int nHeight);
-
 // blackcoin pos 2.0 drift recommendations
 // back to time of previous block in the past
 // inline int64_t PastDrift(CBlockIndex *pprev) {return pprev->nTime; }
@@ -68,11 +65,11 @@ inline int GetPurchaseStart()
                       chainParams.START_PURCHASE_M;
 }
 
-inline int GetPoSCutoff()
+inline int GetQPoSStart()
 {
     // switch to qPoS
-    return fTestNet ? chainParams.CUTOFF_POS_T :
-                      chainParams.CUTOFF_POS_M;
+    return fTestNet ? chainParams.START_QPOS_T :
+                      chainParams.START_QPOS_M;
 }
 
 
@@ -80,7 +77,10 @@ inline int GetPoSCutoff()
 extern CScript COINBASE_FLAGS;
 
 extern CCriticalSection cs_main;
+
 extern std::map<uint256, CBlockIndex*> mapBlockIndex;
+extern std::map<int, CBlockIndex*> mapBlockLookup;
+
 extern std::set<std::pair<COutPoint, unsigned int> > setStakeSeen;
 extern uint256 hashGenesisBlock;
 extern CBlockIndex* pindexGenesisBlock;
@@ -127,6 +127,8 @@ class CTxIndex;
 
 
 const char* DescribeBlockCreationResult(BlockCreationResult r);
+
+int GetTargetSpacing(const int nHeight);
 
 void RegisterWallet(CWallet* pwalletIn);
 void UnregisterWallet(CWallet* pwalletIn);
@@ -727,7 +729,7 @@ public:
 
     bool CheckFeework(Feework &feework,
                       bool fRequired,
-                      argon2_buffer* pbfrFeework,
+                      FeeworkBuffer& buffer,
                       unsigned int nBlockSize = 1,
                       enum GetMinFee_mode mode = GMF_BLOCK,
                       bool fCheckDepth = true) const;
@@ -1179,7 +1181,18 @@ public:
 
     uint256 GetHash() const
     {
-        if (nVersion < QPOS_VERSION)
+        // unfortunately start of NFTs came in a different fork for testnet
+        static const int NFTHEIGHT = (fTestNet ? chainParams.START_MISSFIX_T :
+                                                  chainParams.START_NFT_M);
+
+        if (nHeight == NFTHEIGHT)
+        {
+            CDataStream ss(SER_DISK, CLIENT_VERSION);
+            ss << hashOfNftHashes;  // prepend the hash of NFT hashes
+            ss << Hash9(BEGIN(nVersion), END(nStakerID));
+            return Hash9(ss.begin(), ss.end());
+        }
+        else if (nVersion < QPOS_VERSION)
         {
             return Hash9(BEGIN(nVersion), END(nNonce));
         }
@@ -1187,7 +1200,7 @@ public:
         {
             return Hash9(BEGIN(nVersion), END(nStakerID));
         }
-   }
+    }
 
     int64_t GetBlockTime() const
     {
@@ -1936,20 +1949,62 @@ public:
 
     void Set(const CBlockIndex* pindex)
     {
+        static const uint256 HASH_GENESIS = fTestNet ?
+                                     chainParams.hashGenesisBlockTestNet :
+                                     hashGenesisBlock;
+
         vHave.clear();
+
+        if (!pindex->pprev)
+        {
+            if (pindex)
+            {
+                vHave.push_back(HASH_GENESIS);
+            }
+            return;
+        }
+
+        int nHeight = pindex->nHeight;
+
         int nStep = 1;
         while (pindex)
         {
             vHave.push_back(pindex->GetBlockHash());
 
+            nHeight -= nStep;
+            if (nHeight < 1)
+            {
+                break;
+            }
+
+            if (nStep < 21)
+            {
+                // given >2M blocks, it is cheaper to step through pprev
+                //    than search a map until step is around 20
+                for (int i = 0; pindex && i < nStep; i++)
+                {
+                    pindex = pindex->pprev;
+                }
+            }
+            else if (mapBlockLookup.count(nHeight))
+            {
+                pindex = mapBlockLookup[nHeight];
+            }
+            else
+            {
+                printf("CBlockLocator::Set(): TSNH no block found at %d\n",
+                       nHeight);
+                break;
+            }
+
+
             // Exponentially larger steps back
-            for (int i = 0; pindex && i < nStep; i++)
-                pindex = pindex->pprev;
             if (vHave.size() > 10)
+            {
                 nStep *= 2;
-        }
-        vHave.push_back((fTestNet ? chainParams.hashGenesisBlockTestNet :
-                                    hashGenesisBlock));
+            }
+        } 
+        vHave.push_back(HASH_GENESIS);
     }
 
     int GetDistanceBack()

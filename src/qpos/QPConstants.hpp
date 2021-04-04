@@ -5,9 +5,12 @@
 #ifndef _QPCONSTANTS_H_
 #define _QPCONSTANTS_H_ 1
 
-#include <stdint.h>
+#include "chainparams.hpp"
 
 #include <string>
+
+// consecutive misses not total
+unsigned int GetStakerMaxMisses(int nHeight);
 
 static const uint64_t TRIL = 1000000000000;  // trillion, 1e12
 
@@ -20,13 +23,17 @@ static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
 // consecutive misses, not total
 static const unsigned int QP_STAKER_MAX_MISSES_M = 512;
 // testnet
-static const unsigned int QP_STAKER_MAX_MISSES_T = 8;
+static const unsigned int QP_STAKER_MAX_MISSES_1_T = 8;
+static const unsigned int QP_STAKER_MAX_MISSES_2_T = 512;
+// number of blocks to wait after being disabled
+static const unsigned int QP_STAKER_REENABLE_WAIT_M = 8640;  // 12 hr
+static const unsigned int QP_STAKER_REENABLE_WAIT_T = 6;     // 30 seconds
 // makes it hard to game the rotation
-static const int QP_ROUNDS = 16;
+static const int QP_ROUNDS = 1;
 // block target time
-static const int QP_TARGET_TIME = 5;
+static const int QP_TARGET_SPACING = 5;
 // blocks per day
-static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_TIME;
+static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_SPACING;
 // fraction of money supply (stealthtoshis) to dock per round for inactive keys
 static const int64_t DOCK_INACTIVE_FRACTION = 310000000000;
 // number of blocks between snapshots
@@ -64,11 +71,17 @@ enum QPKeyType
 {
     QPKEY_NONE       = 0,
     QPKEY_OWNER      = 1 << 0,
-    QPKEY_DELEGATE   = 1 << 1,
-    QPKEY_CONTROLLER = 1 << 2,
+    QPKEY_MANAGER    = 1 << 1,
+    QPKEY_DELEGATE   = 1 << 2,
+    QPKEY_CONTROLLER = 1 << 3,
+    QPKEY_OM         = QPKEY_OWNER | QPKEY_MANAGER,
     QPKEY_OD         = QPKEY_OWNER | QPKEY_DELEGATE,
     QPKEY_OC         = QPKEY_OWNER | QPKEY_CONTROLLER,
-    QPKEY_ANY        = QPKEY_OWNER | QPKEY_DELEGATE | QPKEY_CONTROLLER
+    QPKEY_OMD        = QPKEY_OM | QPKEY_DELEGATE,
+    QPKEY_OMC        = QPKEY_OM | QPKEY_CONTROLLER,
+    QPKEY_ODC        = QPKEY_OD | QPKEY_CONTROLLER,
+    QPKEY_ANY        = QPKEY_OWNER | QPKEY_MANAGER |
+                          QPKEY_DELEGATE | QPKEY_CONTROLLER
 };
 
 enum ProofTypes
@@ -77,6 +90,7 @@ enum ProofTypes
     PROOFTYPE_POS  = 1 << 1,
     PROOFTYPE_QPOS = 1 << 2
 };
+
 
 uint32_t bit_length(uint32_t v);
 uint32_t uisqrt(uint32_t n);

@@ -155,9 +155,9 @@ bool QPQueue::GetWindowForID(unsigned int nID, QPWindow& windowRet) const
     {
         return false;
     }
-    unsigned int start = nSlotTime0 + (QP_TARGET_TIME * slot);
+    unsigned int start = nSlotTime0 + (QP_TARGET_SPACING * slot);
     windowRet.start = start;
-    windowRet.end = start + QP_TARGET_TIME - 1;
+    windowRet.end = start + QP_TARGET_SPACING - 1;
     return true;
 }
 
@@ -167,9 +167,9 @@ bool QPQueue::GetWindowForSlot(unsigned int nSlot, QPWindow& windowRet) const
     {
         return false;
     }
-    unsigned int start = nSlotTime0 + (QP_TARGET_TIME * nSlot);
+    unsigned int start = nSlotTime0 + (QP_TARGET_SPACING * nSlot);
     windowRet.start = start;
-        windowRet.end = start + QP_TARGET_TIME - 1;
+        windowRet.end = start + QP_TARGET_SPACING - 1;
     return true;
 }
 
@@ -213,7 +213,7 @@ unsigned int QPQueue::GetMinTime() const
 unsigned int QPQueue::GetMaxTime() const
 {
     unsigned int nSize = static_cast<unsigned int>(vStakerIDs.size());
-    return nSlotTime0 + (QP_TARGET_TIME * nSize) - 1;
+    return nSlotTime0 + (QP_TARGET_SPACING * nSize) - 1;
 }
 
 
@@ -223,7 +223,7 @@ bool QPQueue::GetSlotStartTime(unsigned int nSlot, unsigned int &nTimeRet) const
     {
         return false;
     }
-    nTimeRet = nSlotTime0 + (QP_TARGET_TIME * (unsigned int)nSlot);
+    nTimeRet = nSlotTime0 + (QP_TARGET_SPACING * (unsigned int)nSlot);
     return true;
 }
 
@@ -237,28 +237,28 @@ bool QPQueue::GetSlotForTime(unsigned int nTime, unsigned int &nSlotRet) const
     {
         return error("GetSlotForTime(): time %u too late", nTime);
     }
-    nSlotRet = (nTime - nSlotTime0) / QP_TARGET_TIME;
+    nSlotRet = (nTime - nSlotTime0) / QP_TARGET_SPACING;
     return true;
 }
 
 
 unsigned int QPQueue::GetCurrentSlotStart() const
 {
-    return nSlotTime0 + (QP_TARGET_TIME * nCurrentSlot);
+    return nSlotTime0 + (QP_TARGET_SPACING * nCurrentSlot);
 }
 
 unsigned int QPQueue::GetCurrentSlotEnd() const
 {
-    unsigned int start = nSlotTime0 + (QP_TARGET_TIME * nCurrentSlot);
-    return start + QP_TARGET_TIME - 1;
+    unsigned int start = nSlotTime0 + (QP_TARGET_SPACING * nCurrentSlot);
+    return start + QP_TARGET_SPACING - 1;
 }
 
 QPWindow QPQueue::GetCurrentSlotWindow() const
 {
-    unsigned int start = nSlotTime0 + (QP_TARGET_TIME * nCurrentSlot);
+    unsigned int start = nSlotTime0 + (QP_TARGET_SPACING * nCurrentSlot);
     QPWindow w;
     w.start = start;
-    w.end = start + QP_TARGET_TIME - 1;
+    w.end = start + QP_TARGET_SPACING - 1;
     return w;
 }
 

@@ -36,7 +36,7 @@ private:
     uint256 hashBlockMostRecent;
     uint32_t nPrevBlocksMissed;
     uint32_t nPcmDelegatePayout;
-    bool fEnabled;
+    int nHeightDisabled;
     bool fQualified;
     int64_t nTotalEarned;
     std::string sAlias;
@@ -46,6 +46,7 @@ public:
     static const int CURRENT_VERSION = QPOS_VERSION;
 
     CPubKey pubkeyOwner;
+    CPubKey pubkeyManager;
     CPubKey pubkeyDelegate;
     CPubKey pubkeyController;
     QPStaker();
@@ -78,7 +79,7 @@ public:
     bool IsDisabled() const;
     bool IsQualified() const;
     bool IsDisqualified() const;
-    bool ShouldBeDisabled() const;
+    bool ShouldBeDisabled(int nHeight) const;
     bool ShouldBeDisqualified(uint32_t nPrevRecentBlocksMissedMax) const;
     int64_t GetTotalEarned() const;
     std::string GetAlias() const;
@@ -89,7 +90,8 @@ public:
     void AsJSON(unsigned int nID,
                 unsigned int nSeniority,
                 json_spirit::Object &objRet,
-                bool fWithRecentBlocks=false) const;
+                bool fWithRecentBlocks=false,
+                unsigned int nNftID=0) const;
 
     void ProducedBlock(const uint256 *const phashBlock,
                        int64_t nBlockReward,
@@ -100,8 +102,10 @@ public:
     void SawBlock();
     void UpdatePrevRecentBlocks(bool fPrevDidProduceBlock);
     bool SetDelegatePayout(uint32_t pcm);
+    int GetEnableHeight(int nHeight) const;
+    bool CanBeEnabled(int nHeight) const;
     bool Enable();
-    void Disable();
+    void Disable(int nHeight);
     void Disqualify();
     bool SetAlias(const std::string &sAliasIn);
     void SetMeta(const std::string &key, const std::string &value);
@@ -124,11 +128,12 @@ public:
         READWRITE(hashBlockMostRecent);
         READWRITE(nPrevBlocksMissed);
         READWRITE(nPcmDelegatePayout);
-        READWRITE(fEnabled);
+        READWRITE(nHeightDisabled);
         READWRITE(fQualified);
         READWRITE(nTotalEarned);
         READWRITE(sAlias);
         READWRITE(pubkeyOwner);
+        READWRITE(pubkeyManager);
         READWRITE(pubkeyDelegate);
         READWRITE(pubkeyController);
         READWRITE(mapMeta);
