@@ -624,10 +624,14 @@ Value getstakerauthorities(const Array& params, bool fHelp)
                             "Staker doesn't exist");
     }
 
-    CPubKey keyOwner, keyDelegate, keyController;
+    CPubKey keyOwner, keyManager, keyDelegate, keyController;
     if (!pregistryMain->GetOwnerKey(nID, keyOwner))
     {
         throw runtime_error("TSNH: can't get owner key");
+    }
+    if (!pregistryMain->GetManagerKey(nID, keyManager))
+    {
+        throw runtime_error("TSNH: can't get manager key");
     }
     if (!pregistryMain->GetDelegateKey(nID, keyDelegate))
     {
@@ -639,12 +643,16 @@ Value getstakerauthorities(const Array& params, bool fHelp)
     }
 
     CBitcoinAddress addrOwner(keyOwner.GetID());
+    CBitcoinAddress addrManager(keyManager.GetID());
     CBitcoinAddress addrDelegate(keyDelegate.GetID());
     CBitcoinAddress addrController(keyController.GetID());
 
     Object objOwner;
     objOwner.push_back(Pair("address", addrOwner.ToString()));
     objOwner.push_back(Pair("pubkey", HexStr(keyOwner.Raw())));
+    Object objManager;
+    objManager.push_back(Pair("address", addrManager.ToString()));
+    objManager.push_back(Pair("pubkey", HexStr(keyManager.Raw())));
     Object objDelegate;
     objDelegate.push_back(Pair("address", addrDelegate.ToString()));
     objDelegate.push_back(Pair("pubkey", HexStr(keyDelegate.Raw())));
@@ -654,6 +662,7 @@ Value getstakerauthorities(const Array& params, bool fHelp)
 
     Object obj;
     obj.push_back(Pair("owner", objOwner));
+    obj.push_back(Pair("manager", objManager));
     obj.push_back(Pair("delegate", objDelegate));
     obj.push_back(Pair("controller", objController));
 

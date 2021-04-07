@@ -331,7 +331,7 @@ static const CRPCCommand vRPCCommands[] =
     { "purchasestaker",           &purchasestaker,            false,  true  },
     { "setstakerowner",           &setstakerowner,            false,  true  },
     // will enable after everyone on testnet upgrades, to avoid forking logic
-    // { "setstakermanager",         &setstakermanager,          false,  true  },
+    { "setstakermanager",         &setstakermanager,          false,  true  },
     { "setstakerdelegate",        &setstakerdelegate,         false,  true  },
     { "setstakercontroller",      &setstakercontroller,       false,  true  },
     { "enablestaker",             &enablestaker,              false,  true  },

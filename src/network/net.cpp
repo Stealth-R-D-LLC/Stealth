@@ -1773,23 +1773,6 @@ void ThreadMessageHandler2(void* parg)
     SetThreadPriority(THREAD_PRIORITY_ABOVE_NORMAL);
     while (!fShutdown)
     {
-        if (GetFork(nBestHeight) >= XST_FORKQPOS)
-        {
-            unsigned int nStakersThis = pregistryMain->GetCurrentQueueSize();
-            unsigned int nStakersLast = pregistryMain->GetPreviousQueueSize();
-            unsigned int nPcmRatio = 10000 * nStakersThis / nStakersLast;
-            if (vNodes.empty() ||
-                (pindexBest->nTime < (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)) ||
-                (nStakersThis < 3) ||
-                (nPcmRatio < 6667))
-            {
-                pregistryMain->EnterReplayMode();
-            }
-            else
-            {
-                pregistryMain->CheckSynced();
-            }
-        }
         vector<CNode*> vNodesCopy;
         {
             LOCK(cs_vNodes);
@@ -1922,6 +1905,23 @@ void ThreadMessageHandler2(void* parg)
         if (fShutdown)
         {
             return;
+        }
+        if (GetFork(nBestHeight) >= XST_FORKQPOS)
+        {
+            unsigned int nStakersThis = pregistryMain->GetCurrentQueueSize();
+            unsigned int nStakersLast = pregistryMain->GetPreviousQueueSize();
+            unsigned int nPcmRatio = 10000 * nStakersThis / nStakersLast;
+            if (vNodes.empty() ||
+                (pindexBest->nTime < (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)) ||
+                (nStakersThis < 3) ||
+                (nPcmRatio < 6667))
+            {
+                pregistryMain->EnterReplayMode();
+            }
+            else
+            {
+                pregistryMain->CheckSynced();
+            }
         }
     }
     printf("ThreadMessageHandler2 exited\n");

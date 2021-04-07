@@ -57,6 +57,7 @@ ChainParams::ChainParams()
         (              XST_FORKQPOS,     63000 )
         (             XST_FORKQPOSB,     63300 )
         (           XST_FORKFEELESS,     63400 )
+        (           XST_FORKMISSFIX,     63500 )
                );
 
     CUTOFF_POW_M = 5460;

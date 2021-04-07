@@ -64,7 +64,7 @@ private:
     QPMapNftOwnership mapNftOwnerLookup;
 
     // not persistent
-    bool fIsInReplayMode;
+    unsigned int nHeightExitedReplay;
     bool fShouldRollback;
 
     unsigned int Size() const;
@@ -111,6 +111,7 @@ public:
     QPRegistry(const QPRegistry *const pother);
     void SetNull();
     bool IsInReplayMode() const;
+    bool OutOfReplayMode() const;
     unsigned int GetRound() const;
     unsigned int GetRoundSeed() const;
     int GetBlockHeight() const;

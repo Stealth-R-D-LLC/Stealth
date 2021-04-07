@@ -52,7 +52,7 @@ void QPRegistry::SetNull()
     hashLastBlockPrev1Queue = hashBlock;
     hashLastBlockPrev2Queue = hashBlock;
     hashLastBlockPrev3Queue = hashBlock;
-    fIsInReplayMode = true;
+    nHeightExitedReplay = 0;
     queue.SetNull();
     queuePrev.SetNull();
     powerRoundPrev.SetNull();
@@ -77,7 +77,12 @@ unsigned int QPRegistry::Size() const
 
 bool QPRegistry::IsInReplayMode() const
 {
-    return fIsInReplayMode;
+    return !nHeightExitedReplay;
+}
+
+bool QPRegistry::OutOfReplayMode() const
+{
+    return (bool)nHeightExitedReplay;
 }
 
 int QPRegistry::GetBlockHeight() const
@@ -562,7 +567,7 @@ void QPRegistry::AsJSON(Object &objRet) const
                            hashLastBlockPrev2Queue.GetHex()));
     objRet.push_back(Pair("last_block_hash_prev_3_queue",
                            hashLastBlockPrev3Queue.GetHex()));
-    objRet.push_back(Pair("in_replay", fIsInReplayMode));
+    objRet.push_back(Pair("in_replay", IsInReplayMode()));
     objRet.push_back(Pair("should_roll_back", fShouldRollback));
     objRet.push_back(Pair("counter_next",
                           static_cast<int64_t>(nIDCounter + 1)));
@@ -607,13 +612,13 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
 
 void QPRegistry::CheckSynced()
 {
-    if (fIsInReplayMode)
+    if (IsInReplayMode())
     {
         int nTime = GetAdjustedTime();
         if (HasEnoughPower() && queue.TimeIsInCurrentSlotWindow(nTime))
         {
             printf("QPRegistry::CheckSynced(): exiting replay mode\n");
-            fIsInReplayMode = false;
+            ExitReplayMode();
         }
     }
 }
@@ -646,7 +651,7 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     mapNftOwners = pother->mapNftOwners;
     mapNftOwnerLookup = pother->mapNftOwnerLookup;
 
-    fIsInReplayMode = pother->fIsInReplayMode;
+    nHeightExitedReplay = pother->nHeightExitedReplay;
     fShouldRollback = pother->fShouldRollback;
 }
 
@@ -1200,7 +1205,7 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
     unsigned int nSeniority = (nIDCounter + 1) - nID;
     powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), false);
     pstaker->MissedBlock(fPrevBlockWasProduced);
-    if (!fIsInReplayMode && fDebugBlockCreation)
+    if (OutOfReplayMode() && fDebugBlockCreation)
     {
         printf("StakerMissedBlock(): staker=%s, round=%d, seed=%u, slot=%d, "
                "window=%d-%d, picopower=%" PRIu64 ", registryheight=%d\n",
@@ -1247,7 +1252,11 @@ bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
     }
     if (pstaker->ShouldBeDisabled(nHeight))
     {
-        fResult = DisableStaker(nID, nHeight);
+        // want at least 3 enabled stakers in times of disaster
+        if (GetNumberEnabled() > 3)
+        {
+            fResult = DisableStaker(nID, nHeight);
+        }
     }
     return fResult;
 }
@@ -1527,9 +1536,9 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                 {
                     fShouldRollback = true;
                 }
-                if (!fIsInReplayMode)
+                if (OutOfReplayMode())
                 {
-                    fIsInReplayMode = true;
+                    ExitReplayMode();
                 }
             }
         }
@@ -1610,7 +1619,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                          queue.GetCurrentSlot());
         }
 
-        if (fCurrentBlockWasProduced && !fIsInReplayMode)
+        if (fCurrentBlockWasProduced && OutOfReplayMode())
         {
             return error("UpdateOnNewBlock(): "
                          "block already produced for this slot");
@@ -2005,10 +2014,15 @@ void QPRegistry::ApplyOps(const CBlockIndex *pindex)
 // This is not ideal. Registry should decide for itself.
 void QPRegistry::EnterReplayMode()
 {
-    if (!fIsInReplayMode)
+    if (OutOfReplayMode())
     {
-        printf("QPRegistry::EnterReplayMode(): entering replay mode\n");
-        fIsInReplayMode = true;
+        // wait for enough blocks to roll in to advance the queue
+        //   before going back into replay
+        if (nBlockHeight > (int)(nHeightExitedReplay + (1 + queue.Size())))
+        {
+            printf("QPRegistry::EnterReplayMode(): entering replay mode\n");
+            nHeightExitedReplay = 0;
+        }
     }
 }
 
@@ -2016,5 +2030,5 @@ void QPRegistry::ExitReplayMode()
 {
     // Explict exit of replay is only necessary to kickstart
     // block production (typically not needed on mainnet).
-    fIsInReplayMode = false;
+    nHeightExitedReplay = nBlockHeight;
 }
