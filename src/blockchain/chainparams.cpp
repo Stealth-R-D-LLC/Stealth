@@ -61,12 +61,12 @@ ChainParams::ChainParams()
                );
 
     CUTOFF_POW_M = 5460;
-    START_NFT_M = 3635099;       // add NFT commitment to blockchain
-    START_PURCHASE_M = 3635100;  // start of staker purchases
-    START_QPOS_M = 3656700;      // end of PoS and start of qPoS
-    START_QPOSB_M = 3656700;      // placeholder for fork on testnet
-    START_FEELESS_M = 3663900;   // start of feeless transactions
-    START_MISSFIX_M = 3663901;   // placeholder for fork on testnet
+    START_NFT_M = 3657599;       // add NFT commitment to blockchain
+    START_PURCHASE_M = 3657600;  // start of staker purchases
+    START_QPOS_M = 3679200;      // end of PoS and start of qPoS
+    START_QPOSB_M = 3679200;      // placeholder for fork on testnet
+    START_FEELESS_M = 3686400;   // start of feeless transactions
+    START_MISSFIX_M = 3686401;   // placeholder for fork on testnet
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -76,12 +76,12 @@ ChainParams::ChainParams()
         /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
         /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
         /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
-        /* Approx April 19, 2020    */   (      START_NFT_M, XST_FORKNFT      )
-        /* Approx April 19, 2020    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx May    3, 2020    */   (     START_QPOS_M, XST_FORKQPOS     )
-        /* Approx May    3, 2020    */   (    START_QPOSB_M, XST_FORKQPOSB    )
-        /* Approx May    8, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
-        /* Approx May    8, 2020    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
+        /* Approx May    4, 2020    */   (      START_NFT_M, XST_FORKNFT      )
+        /* Approx May    4, 2020    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
+        /* Approx May   19, 2020    */   (     START_QPOS_M, XST_FORKQPOS     )
+        /* Approx May   19, 2020    */   (    START_QPOSB_M, XST_FORKQPOSB    )
+        /* Approx May   24, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
+        /* Approx May   24, 2020    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
                                                 );
 
 
