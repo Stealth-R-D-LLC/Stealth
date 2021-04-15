@@ -65,8 +65,8 @@ ChainParams::ChainParams()
     START_PURCHASE_M = 3657600;  // start of staker purchases
     START_QPOS_M = 3679200;      // end of PoS and start of qPoS
     START_QPOSB_M = 3679200;      // placeholder for fork on testnet
-    START_FEELESS_M = 3686400;   // start of feeless transactions
-    START_MISSFIX_M = 3686401;   // placeholder for fork on testnet
+    START_FEELESS_M = 3765600;   // start of feeless transactions
+    START_MISSFIX_M = 3765601;   // placeholder for fork on testnet
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
