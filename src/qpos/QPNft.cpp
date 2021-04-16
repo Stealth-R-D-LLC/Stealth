@@ -20,7 +20,8 @@ QPNft::QPNft()
       strNickname(""),
       nMoxie(0),
       nIrreverance(0),
-      nNarcissism(0) {}
+      nNarcissism(0),
+      strNarrative("") {}
 
 QPNft::QPNft(string strHashIn,
              string strImageUrlIn,
@@ -34,7 +35,8 @@ QPNft::QPNft(string strHashIn,
              string strNicknameIn,
              uint8_t nMoxieIn,
              uint8_t nIrreveranceIn,
-             uint8_t nNarcissismIn)
+             uint8_t nNarcissismIn,
+             string strNarrativeIn)
     : hash(strHashIn),
       strImageUrl(strImageUrlIn),
       strCollection(strCollectionIn),
@@ -47,9 +49,10 @@ QPNft::QPNft(string strHashIn,
       strNickname(strNicknameIn),
       nMoxie(nMoxieIn),
       nIrreverance(nIrreveranceIn),
-      nNarcissism(nNarcissismIn) {}
+      nNarcissism(nNarcissismIn),
+      strNarrative(strNarrativeIn) {}
 
-void QPNft::AsJSON(Object& objRet, unsigned int nNftID) const
+void QPNft::AsJSON(Object& objRet) const
 {
     objRet.push_back(Pair("nickname", strNickname));
     objRet.push_back(Pair("full_name", strFullName));
@@ -63,9 +66,6 @@ void QPNft::AsJSON(Object& objRet, unsigned int nNftID) const
     objRet.push_back(Pair("image_url", strImageUrl));
     objRet.push_back(Pair("artist_url", strArtistUrl));
     objRet.push_back(Pair("hash", hash.ToString()));
-    if (nNftID)
-    {
-        objRet.push_back(Pair("character_id", (int64_t)nNftID));
-        objRet.push_back(Pair("character_key", strCharKey));
-    }
+    objRet.push_back(Pair("narrative", strNarrative));
+    objRet.push_back(Pair("character_key", strCharKey));
 }

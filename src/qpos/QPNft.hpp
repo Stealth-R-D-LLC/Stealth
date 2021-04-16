@@ -29,6 +29,7 @@ public:
     uint8_t nMoxie;
     uint8_t nIrreverance;
     uint8_t nNarcissism;
+    std::string strNarrative;
 
     QPNft();
 
@@ -44,10 +45,10 @@ public:
           std::string strNicknameIn,
           uint8_t nMoxieIn,
           uint8_t nIrreveranceIn,
-          uint8_t nNarcissismIn);
+          uint8_t nNarcissismIn,
+          std::string strNarrativeIn);
 
-    void AsJSON(json_spirit::Object& objRet,
-                unsigned int nNftID=0) const;
+    void AsJSON(json_spirit::Object& objRet) const;
 };
 
 

@@ -455,7 +455,8 @@ OBJS= \
     obj/FeeworkBuffer.o \
     obj/Feework.o \
     obj/feeless.o \
-    obj/nft-data.o \
+    obj/nft-mainnet-data.o \
+    obj/nft-testnet-data.o \
     obj/nfts.o \
     obj/QPNft.o
 
