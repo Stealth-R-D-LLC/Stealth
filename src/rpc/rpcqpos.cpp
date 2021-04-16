@@ -1370,8 +1370,8 @@ Value getcharacterspg(const Array &params, bool fHelp)
             }
             objNft.push_back(Pair("owner_alias", strAlias));
             objNft.push_back(Pair("owner_id", static_cast<uint64_t>(nStakerID)));
-            vNfts.push_back(objNft);
         }
+        vNfts.push_back(objNft);
     }
 
     if (!pg.forward)
