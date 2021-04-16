@@ -306,6 +306,7 @@ extern json_spirit::Value getstakersummary(const json_spirit::Array& params, boo
 extern json_spirit::Value getstakerpriceinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrecentqueue(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getcharacterspg(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value exitreplay(const json_spirit::Array& params, bool fHelp);
 
 #endif

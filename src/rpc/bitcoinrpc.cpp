@@ -402,6 +402,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getstakerpriceinfo",       &getstakerpriceinfo,        false,  false },
     { "getrecentqueue",           &getrecentqueue,            false,  false },
     { "getqposbalance",           &getqposbalance,            false,  false },
+    { "getcharacterspg",          &getcharacterspg,           false,  false },
     { "exitreplay",               &exitreplay,                false,  false },
     // explorer api
     { "gettxvolume",              &gettxvolume,               false,  false },
@@ -1398,6 +1399,9 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "getstakersbyid"         && n > 0) ConvertTo<bool>(params[0]);
     if (strMethod == "getstakerpriceinfo"     && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getrecentqueue"         && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getcharacterspg"        && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getcharacterspg"        && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "getcharacterspg"        && n > 2) ConvertTo<bool>(params[2]);
     // explorer api methods
     if (((strMethod == "gettxvolume")             ||
          (strMethod == "getxstvolume")            ||
