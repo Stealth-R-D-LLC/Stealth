@@ -41,6 +41,7 @@ const Object emptyobj;
 
 void ThreadRPCServer3(void* parg);
 
+
 static inline unsigned short GetDefaultRPCPort()
 {
     //                                   testnet : rpc
@@ -156,6 +157,59 @@ vector<unsigned char> ParseHexV(const Value& v, string strName)
 vector<unsigned char> ParseHexO(const Object& o, string strKey)
 {
     return ParseHexV(find_value(o, strKey), strKey);
+}
+
+
+//
+// Pagination
+//
+void GetPagination(const Array& params, const unsigned int nLeadingParams,
+                   const int nTotal, pagination_t& pgRet)
+{
+    pgRet.page = params[nLeadingParams].get_int();
+    if (pgRet.page < 1)
+    {
+         throw runtime_error("Number of pages must be greater than 1.");
+    }
+
+    pgRet.per_page = params[1 + nLeadingParams].get_int();
+    if (pgRet.per_page < 1)
+    {
+         throw runtime_error("Number per page must be greater than 1.");
+    }
+
+    pgRet.forward = true;
+    if (params.size() > (2 + nLeadingParams))
+    {
+        pgRet.forward = params[2 + nLeadingParams].get_bool();
+    }
+
+    int nFinish;
+    if (pgRet.forward)
+    {
+        pgRet.start = 1 + ((pgRet.page - 1) * pgRet.per_page);
+        if (pgRet.start > nTotal)
+        {
+             throw runtime_error("Start exceeds total number of in-outs.");
+        }
+        nFinish = min(pgRet.start + pgRet.per_page - 1, nTotal);
+    }
+    else
+    {
+        // calculate as if the sequence is reversed
+        int nFirst_r = 1 + ((pgRet.page - 1) * pgRet.per_page);
+        if (nFirst_r > nTotal)
+        {
+             throw runtime_error("Start exceeds total number of in-outs.");
+        }
+        int nLast_r = pgRet.page * pgRet.per_page;
+        // now reverse those calculations
+        int nFirst = 1 + (nTotal - nLast_r);
+        pgRet.start = max(1, nFirst);
+        nFinish = 1 + (nTotal - nFirst_r);
+    }
+    pgRet.max = min(nFinish - pgRet.start + 1, pgRet.per_page);
+    pgRet.last_page = 1 + (nTotal - 1) / pgRet.per_page;
 }
 
 

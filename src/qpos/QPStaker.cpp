@@ -413,8 +413,9 @@ void QPStaker::AsJSON(unsigned int nID,
         Object objNft;
         mapNfts[nNftID].AsJSON(objNft);
         objNft.push_back(Pair("character_id", static_cast<int64_t>(nNftID)));
-        objRet.push_back(Pair("owner_alias", sAlias));
-        objRet.push_back(Pair("owner_id", static_cast<int64_t>(nID)));
+        objNft.push_back(Pair("owner_alias", sAlias));
+        objNft.push_back(Pair("owner_id", static_cast<int64_t>(nID)));
+        objRet.push_back(Pair("character", objNft));
     }
 
     if (fWithRecentBlocks)

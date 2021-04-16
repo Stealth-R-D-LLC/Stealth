@@ -209,6 +209,7 @@ public:
                         std::string &sCharKeyRet) const;
     bool NftIsAvailable(const std::string sCharKey,
                         unsigned int& nIDRet) const;
+    unsigned int GetNftOwner(const unsigned int nID) const;
     bool GetNftIDForAlias(const std::string &sAlias,
                           unsigned int& nIDRet) const;
     bool GetNftNickForID(const unsigned int nID,

@@ -1319,3 +1319,76 @@ Value getqposbalance(const Array& params, bool fHelp)
 
     return ValueFromAmount(nBalance);
 }
+
+Value getcharacterspg(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size() < 2) || (params.size() > 3))
+    {
+        throw runtime_error(
+                "getcharacterspg <page> <perpage> [ordering]\n"
+                "Returns up to <perpage> characters\n"
+                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+                "  For example, <page>=2 and <perpage>=20 means to\n"
+                "  return characters 21 - 40 (if possible).\n"
+                "    <page> is the page number\n"
+                "    <perpage> is the number of transactions per page\n"
+                "    [ordering] by character id (default=true -> forward)");
+    }
+
+    // leading params = 1 (1st param is <address>, 2nd is <page>)
+    static const unsigned int LEADING_PARAMS = 0;
+
+    int nQtyNfts = mapNfts.size();
+
+    if (nQtyNfts == 0)
+    {
+         throw runtime_error("No characters.");
+    }
+
+    pagination_t pg;
+    GetPagination(params, LEADING_PARAMS, nQtyNfts, pg);
+
+    vector<Object> vNfts;
+    int nStop = min(pg.start + pg.max -1, nQtyNfts);
+    for (int i = pg.start; i <= nStop; ++i)
+    {
+        if (!mapNfts.count(i))
+        {
+            throw runtime_error(strprintf("TSNH: no such character %d\n", i));
+        }
+        Object objNft;
+        mapNfts[i].AsJSON(objNft);
+        objNft.push_back(Pair("character_id", static_cast<int64_t>(i)));
+        unsigned int nStakerID = pregistryMain->GetNftOwner(i);
+        if (nStakerID)
+        {
+            string strAlias;
+            if (!pregistryMain->GetAliasForID(nStakerID, strAlias))
+            {
+                throw runtime_error(strprintf("TSNH: no such staker %u\n",
+                                              nStakerID));
+            }
+            objNft.push_back(Pair("owner_alias", strAlias));
+            objNft.push_back(Pair("owner_id", static_cast<uint64_t>(nStakerID)));
+            vNfts.push_back(objNft);
+        }
+    }
+
+    if (!pg.forward)
+    {
+        reverse(vNfts.begin(), vNfts.end());
+    }
+
+    if (vNfts.size() == 1)
+    {
+        return vNfts[0];
+    }
+
+    Array result;
+    for (unsigned int i = 0; i < vNfts.size(); ++i)
+    {
+        result.push_back(vNfts[i]);
+    }
+
+    return result;
+}

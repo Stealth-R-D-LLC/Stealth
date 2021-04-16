@@ -107,6 +107,27 @@ void ScriptPubKeyToJSON(const CScript& scriptPubKey, json_spirit::Object& out);
 
 typedef json_spirit::Value(*rpcfn_type)(const json_spirit::Array& params, bool fHelp);
 
+
+//
+// Pagination
+//
+typedef struct pagination_t
+{
+    int page;
+    int per_page;
+    bool forward;
+    int start;
+    int finish;
+    int max;
+    int last_page;
+} pagination_t;
+
+void GetPagination(const json_spirit::Array& params,
+                   const unsigned int nLeadingParams,
+                   const int nTotal,
+                   pagination_t& pgRet);
+
+
 class CRPCCommand
 {
 public:
