@@ -1379,16 +1379,18 @@ Value getcharacterspg(const Array &params, bool fHelp)
         reverse(vNfts.begin(), vNfts.end());
     }
 
-    if (vNfts.size() == 1)
-    {
-        return vNfts[0];
-    }
-
-    Array result;
+    Array data;
     for (unsigned int i = 0; i < vNfts.size(); ++i)
     {
-        result.push_back(vNfts[i]);
+        data.push_back(vNfts[i]);
     }
+
+    Object result;
+    result.push_back(Pair("total", nQtyNfts));
+    result.push_back(Pair("page", pg.page));
+    result.push_back(Pair("per_page", pg.per_page));
+    result.push_back(Pair("last_page", pg.last_page));
+    result.push_back(Pair("data", data));
 
     return result;
 }
