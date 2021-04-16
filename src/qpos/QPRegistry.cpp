@@ -748,9 +748,9 @@ bool QPRegistry::NftIsAvailable(const string sCharKey,
 unsigned int QPRegistry::GetNftOwner(const unsigned int nID) const
 {
     unsigned int nStakerID = 0;
-    if (mapNftOwners.count(nID))
+    if (mapNftOwnerLookup.count(nID))
     {
-        nStakerID = mapNftOwners.at(nID);
+        nStakerID = mapNftOwnerLookup.at(nID);
     }
     return nStakerID;
 }
