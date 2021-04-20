@@ -1,0 +1,23 @@
+.stealthmake:
+  stage: build
+  image: stealthsend/stealth-base-for-make
+  needs: []
+  script:
+    - cd src/
+    - make -f makefile.unix clean
+    - make -f makefile.unix
+  # rules:
+  #   - if: $CI_COMMIT_BRANCH == 'qpos-3.0'
+  #     when: always
+
+Make for qpos-3.0 on ubuntu 16.04:
+  extends: .stealthmake
+  image: stealthsend/stealth-base-for-make:16.04
+
+Make for qpos-3.0 on ubuntu 18.04:
+  extends: .stealthmake
+  image: stealthsend/stealth-base-for-make:18.04
+
+Make for qpos-3.0 on ubuntu 20.04:
+  extends: .stealthmake
+  image: stealthsend/stealth-base-for-make:20.04
