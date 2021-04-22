@@ -3772,19 +3772,22 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
     }
 
 
-    // Peercoin: track money supply and mint amount info
-    // XST: The following calculation is inherited from Peercoin
-    //      but it is incorrect for XST PoW blocks, of which there were
-    //      only a couple thousand. Including fees in this calculation
-    //      was incorrect for XST PoW because XST PoW miners were awarded
-    //      fees, unlike Peercoin miners. This has a negligible
-    //      impact on the mint and money supply calculations, but should
-    //      be fixed with a money supply adjustment upon FORKQPOS.
-#pragma message("asdf has this been done?")
+    // XST: track money supply and mint amount info
     // mint & supply: claims are included in nValueIn to make accounting easier
     //                elsewhere, so they must be subtracted from nValueIn here
-    pindex->nMint = nValueOut + nValuePurchases + nFees - (nValueIn - nValueClaims);
-    // supply: purchases are not reflected in nValueIn, so must be added to it
+    if (pindex->IsProofOfWork())
+    {
+        // XST: PoW miners keep fees
+        pindex->nMint = nValueOut + nValuePurchases - (nValueIn - nValueClaims);
+    }
+    else
+    {
+        // XST: non-PoW blocks burn fees
+        pindex->nMint = nValueOut + nValuePurchases + nFees - (nValueIn - nValueClaims);
+    }
+    // supply
+    //   - purchases are not reflected in nValueIn, so must be added to it
+    //   - fees are not considered here because the are captured by values out and in
     pindex->nMoneySupply = (pindex->pprev? pindex->pprev->nMoneySupply : 0) +
                                nValueOut - (nValuePurchases + nValueIn - nValueClaims);
 
