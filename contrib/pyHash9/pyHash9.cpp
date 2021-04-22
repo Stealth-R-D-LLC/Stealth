@@ -4,16 +4,19 @@
 
 #include "hashblock.h"
 
+// forces python formatting to be Py_ssize_t
+#define PY_SSIZE_T_CLEAN
+
 #include <Python.h>
 
-static const int HASHLEN = 32;
+static const unsigned int HASHLEN = 32;
 
 PyObject* hash9(PyObject *self, PyObject *args)
 {
     char* stringIn;
-    int size = 0;
+    Py_ssize_t size = 0;
 
-    /* can't parse args */
+    // can't parse args
     if (! PyArg_ParseTuple(args, "s#", &stringIn, &size)) {
       PyErr_SetString(PyExc_TypeError,
         "method expects a string(s)") ;
@@ -22,15 +25,15 @@ PyObject* hash9(PyObject *self, PyObject *args)
 
     uint256 hash = Hash9(stringIn, stringIn + size);
 
-    return PyString_FromString(hash.ToString().c_str());
+    return PyBytes_FromString(hash.ToString().c_str());
 }
 
 PyObject* hash(PyObject *self, PyObject *args)
 {
     char* stringIn;
-    int size = 0;
+    Py_ssize_t size = 0;
 
-    /* can't parse args */
+    // can't parse args
     if (! PyArg_ParseTuple(args, "s#", &stringIn, &size)) {
       PyErr_SetString(PyExc_TypeError,
         "method expects a string(s)") ;
@@ -43,14 +46,14 @@ PyObject* hash(PyObject *self, PyObject *args)
     bytes[HASHLEN] = 0x00;
 
     // uint256 internal representation is reversed
-    int i = HASHLEN - 1;
+    unsigned int i = HASHLEN - 1;
     for (unsigned char *c = h.begin(); c != h.end(); ++c)
     {
         bytes[i] = (char)*c;
         i -= 1;
     }
 
-    return PyString_FromStringAndSize(bytes, HASHLEN);
+    return PyBytes_FromStringAndSize(bytes, HASHLEN);
 }
 
 
@@ -61,8 +64,17 @@ static struct PyMethodDef pyHash9_methods[] =
     {NULL, NULL}
 };
 
-
-extern "C" void initpyHash9(void)
+static struct PyModuleDef pyHash9 =
 {
-    (void) Py_InitModule("pyHash9", pyHash9_methods);
+    PyModuleDef_HEAD_INIT,
+    "pyHash9",               // name of module
+    "Calculate X13 hashes",  // module documentation, may be NULL
+    -1,                      // size of per-interpreter state of the module,
+                             //   or -1 if the module keeps state in global variables.
+    pyHash9_methods
+};
+
+PyMODINIT_FUNC PyInit_pyHash9(void)
+{
+    return PyModule_Create(&pyHash9);
 }

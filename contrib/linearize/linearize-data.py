@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 #
 # linearize-data.py: Construct a linear, no-fork version of the chain.
 #
@@ -13,11 +13,11 @@ import struct
 import re
 import os
 import base64
-import httplib
 import sys
 import hashlib
 import datetime
 import time
+import codecs
 
 from pyHash9 import hash9
 
@@ -36,7 +36,7 @@ def getTF(v):
   return None
 
 def uint32(x):
-    return x & 0xffffffffL
+    return x & 0xffffffff
 
 def bytereverse(x):
     return uint32(( ((x) << 24) | (((x) << 8) & 0x00ff0000) |
@@ -92,9 +92,9 @@ def get_block_hashes(settings):
     f = open(settings['hashlist'], "r")
     for line in f:
         line = line.rstrip()
-        blkindex.append(line)
+        blkindex.append(bytes(line, "utf-8"))
 
-    print("Read " + str(len(blkindex)) + " hashes")
+    print("Read %s hashes" % len(blkindex))
 
     return blkindex
 
@@ -129,7 +129,7 @@ def mklookup(settings, blkindex):
     while True:
 
         if (blkCount % 1000) == 0:
-            print("Read " + str(blkCount) + " blocks")
+            print("Read %s blocks" % blkCount)
 
         # height is 1 + number of blocks
         if (max_height is not None) and (len(lookup) >= (max_height+1)):
@@ -137,11 +137,15 @@ def mklookup(settings, blkindex):
 
         if inF is None:
             fname = "%s/blk%04d.dat" % (settings['input'], inFn)
-            print("Input file" + fname)
+            if not (os.path.exists(fname) and os.path.isfile(fname)):
+              print("No such file: %s" % fname)
+              if blkCount == 0:
+                sys.exit(1)
+            print("Input file: %s" % fname)
             try:
                 inF = open(fname, "rb")
             except IOError:
-                print "Done"
+                print("Done")
                 return lookup
 
         position = (fname, inF.tell())
@@ -155,13 +159,18 @@ def mklookup(settings, blkindex):
 
         inMagic = inhdr[:4]
         if (inMagic != settings['netmagic']):
-            print("Invalid magic: 0x" + base64.b16encode(inMagic))
+            print("Invalid magic: 0x%s" % base64.b16encode(inMagic))
             return lookup
         inLenLE = inhdr[4:]
         su = struct.unpack("<I", inLenLE)
         inLen = su[0]
         rawblock = inF.read(inLen)
-        blk_hdr = rawblock[:80]
+        blk_ver = struct.unpack("<i", rawblock[:4])[0]
+        if blk_ver < 8:
+          header_len = 80
+        else:
+          header_len = 88
+        blk_hdr = rawblock[:header_len]
 
         hash_str = calc_hash_str(blk_hdr)
 
@@ -169,7 +178,7 @@ def mklookup(settings, blkindex):
 
         if hash_str not in blkset:
             if settings['verbose']:
-              print("Skipping unknown block " + hash_str)
+              print("Skipping unknown block: %s" % hash_str.decode("utf-8"))
             continue
 
         lookup[hash_str] = position
@@ -186,12 +195,12 @@ def copydata(settings, blkindex, blkset):
             used for lookup in old method
     """
 
-    print "Making lookup"
+    print("Making lookup")
     # random access to block index
     # key: block hash, value: (filename, seek)
     lookup = mklookup(settings, blkindex)
 
-    print "Writing data"
+    print("Writing data")
 
     # open all the files you need to read data, won't be that many
     # key: filename, value: open file()
@@ -223,7 +232,6 @@ def copydata(settings, blkindex, blkset):
         timestampSplit = True
 
     for (blkCount, hash_str) in enumerate(blkindex):
-
         fname, fpos = lookup[hash_str]
         if fname in fileset:
             inF = fileset[fname]
@@ -231,7 +239,7 @@ def copydata(settings, blkindex, blkset):
             try:
                 inF = open(fname, "rb")
             except IOError:
-                print "Suddenly can't read '%s'. Aborting." % fname
+                print("Suddenly can't read \"%s\". Aborting." % fname)
                 return
             fileset[fname] = inF
 
@@ -241,24 +249,30 @@ def copydata(settings, blkindex, blkset):
             inF.close()
             inF = None
             inFn = inFn + 1
-            print "File '%s' changed. Aborting." % fname
+            print("File \"%s\" changed. Aborting." % fname)
             return
 
         inMagic = inhdr[:4]
         if (inMagic != settings['netmagic']):
-            print("Invalid magic: 0x. Aborting" + base64.b16encode(inMagic))
+            print("Invalid magic: 0x%s. Aborting" % base64.b16encode(inMagic))
             return
 
         inLenLE = inhdr[4:]
         su = struct.unpack("<I", inLenLE)
         inLen = su[0]
         rawblock = inF.read(inLen)
-        blk_hdr = rawblock[:80]
+        blk_ver = struct.unpack("<i", rawblock[:4])[0]
+        if blk_ver < 8:
+          header_len = 80
+        else:
+          header_len = 88
+        blk_hdr = rawblock[:header_len]
 
         hash_str_check = calc_hash_str(blk_hdr)
 
         if hash_str_check != hash_str:
-            print("Block '%s' unexpectedly changed. Aborting " % hash_str)
+            _h = hash_str.decode("utf-8")
+            print("Block %s unexpectedly changed. Aborting " % _h)
             return
 
         if not fileOutput and ((outsz + inLen) > maxOutSz):
@@ -272,7 +286,8 @@ def copydata(settings, blkindex, blkset):
 
         (blkDate, blkTS) = get_blk_dt(blk_hdr)
         if timestampSplit and (blkDate > lastDate):
-            print("New month " + blkDate.strftime("%Y-%m") + " @ " + hash_str)
+            _h = hash_str.decode("utf-8")
+            print("New month %s @ %s" % (blkDate.strftime("%Y-%m"), _h))
             lastDate = blkDate
             if outF:
                 outF.close()
@@ -287,8 +302,8 @@ def copydata(settings, blkindex, blkset):
             if fileOutput:
                 outFname = settings['output_file']
             else:
-                outFname = "%s/blk%05d.dat" % (settings['output'], outFn)
-            print("Output file" + outFname)
+                outFname = os.path.join(settings['output'], "blk%05d.dat" % outFn)
+            print("Output file: %s" % outFname)
             outF = open(outFname, "wb")
 
         outF.write(inhdr)
@@ -300,11 +315,11 @@ def copydata(settings, blkindex, blkset):
             highTS = blkTS
 
         if (blkCount % 1000) == 0:
-            print("Wrote " + str(blkCount) + " blocks")
+            print("Wrote %s blocks" % blkCount)
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:
-        print "Usage: linearize-data.py CONFIG-FILE"
+        print("Usage: linearize-data.py CONFIG-FILE")
         sys.exit(1)
 
     f = open(sys.argv[1])
@@ -324,7 +339,7 @@ if __name__ == '__main__':
     if 'max_height' in settings:
         try:
             settings['max_height'] = int(settings['max_height'])
-        except ValueError, TypeError:
+        except (ValueError, TypeError):
             settings['max_height'] = None
     else:
         settings['max_height'] = None
@@ -339,27 +354,35 @@ if __name__ == '__main__':
     if 'split_timestamp' not in settings:
         settings['split_timestamp'] = 0
     if 'max_out_sz' not in settings:
-        settings['max_out_sz'] = 1000L * 1000 * 1000
+        settings['max_out_sz'] = 1000 * 1000 * 1000
     if 'verbose' in settings:
         settings['verbose'] = getTF(settings['verbose'])
         if settings['verbose'] is None:
-            print("Value for 'verbose' setting should be 'true'/'false'")
+            print("Value for \"verbose\" setting should be \"true\"/\"false\"")
             sys.exit(1)
 
-    settings['max_out_sz'] = long(settings['max_out_sz'])
+    settings['max_out_sz'] = int(settings['max_out_sz'])
     settings['split_timestamp'] = int(settings['split_timestamp'])
     settings['file_timestamp'] = int(settings['file_timestamp'])
-    settings['netmagic'] = settings['netmagic'].decode('hex')
+    settings['netmagic'] = codecs.decode(settings['netmagic'], 'hex')
 
     if 'output_file' not in settings and 'output' not in settings:
         print("Missing output file / directory")
         sys.exit(1)
 
     blkindex = get_block_hashes(settings)
+    print("Length of block index: %d" % len(blkindex))
     blkset = mkblockset(blkindex)
 
-    if not "1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a" in blkset:
-        print("not found")
+
+    if "hash_genesis" in settings:
+      hash_genesis = settings['hash_genesis']
+    else:
+      hash_genesis = "1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a"
+
+    hash_genesis = bytes(hash_genesis, "utf-8")
+    if not hash_genesis in blkset:
+        print("hash %s not found" % hash_genesis.decode("utf-8"))
     else:
         copydata(settings, blkindex, blkset)
 

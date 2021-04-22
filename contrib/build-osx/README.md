@@ -76,7 +76,14 @@ BOOST_LIB_SUFFIX="-mt"
 
 ## Make
 
-To build first source the appropriate setup script:
+The building process requires [cmake](https://cmake.org/).
+Install it with homebrew:
+
+```bash
+brew install cmake
+```
+
+Building on OSX requires sourcing the appropriate setup script:
 
 **bash:**
 
@@ -95,12 +102,13 @@ source setup-build-osx.csh
 
 These scripts are located at:
 
-  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/build-osx/setup-build-osx.sh
-  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/build-osx/setup-build-osx.csh
+  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/macdeploy/setup-build-osx.sh
+  * https://raw.githubusercontent.com/StealthSend/Stealth/master/contrib/macdeploy/setup-build-osx.csh
 
 
 The command to make (inside the "src" directory) would be
-
+  
 ```bash
 make -f makefile.osx
 ```
+

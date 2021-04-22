@@ -28,8 +28,8 @@ This wallet supports the `stake=0` option in the StealthCoin.conf file to disabl
 
 * Daemon Name: `StealthCoind`
 * Conf File (Case Sensitive): `StealthCoin.conf`
-* Addresses: Usually start with "S" (netbyte is 62, hex 0x3E)
-* Testnet Addresses: Usually start with "m" (netbyte is 111, hex 0x6F)
+* Addresses: Usually start with "S"
+* Testnet Addresses: Usually start with "m"
 
 Application Directories
 =======================
@@ -38,4 +38,3 @@ Application Directories
 * Windows >= Vista: `C:\Users\Username\AppData\Roaming\StealthCoin`
 * Mac: `~/Library/Application Support/StealthCoin`
 * Unix: `~/.StealthCoin`
-
