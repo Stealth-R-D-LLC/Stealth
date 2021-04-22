@@ -416,9 +416,7 @@ ifeq (${STEALTHTEXT}, 1)
     OBJS += obj/stealthtext.o
 endif
 
-LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
-libcryptopp/libcryptopp.a:
-	@echo "Building libcryptopp ..."; cd libcryptopp; make libcryptopp.a; cd ..;
+all: StealthCoind
 
 LIBS += $(CURDIR)/crypto/argon2/libargon2.a
 crypto/argon2/libargon2.a:
