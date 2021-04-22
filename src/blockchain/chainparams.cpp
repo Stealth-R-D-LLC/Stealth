@@ -76,12 +76,12 @@ ChainParams::ChainParams()
         /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
         /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
         /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
-        /* Approx May    4, 2020    */   (      START_NFT_M, XST_FORKNFT      )
-        /* Approx May    4, 2020    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx May   19, 2020    */   (     START_QPOS_M, XST_FORKQPOS     )
-        /* Approx May   19, 2020    */   (    START_QPOSB_M, XST_FORKQPOSB    )
-        /* Approx May   24, 2020    */   (  START_FEELESS_M, XST_FORKFEELESS  )
-        /* Approx May   24, 2020    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
+        /* Approx May    4, 2021    */   (      START_NFT_M, XST_FORKNFT      )
+        /* Approx May    4, 2021    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
+        /* Approx May   19, 2021    */   (     START_QPOS_M, XST_FORKQPOS     )
+        /* Approx May   19, 2021    */   (    START_QPOSB_M, XST_FORKQPOSB    )
+        /* Approx May   24, 2021    */   (  START_FEELESS_M, XST_FORKFEELESS  )
+        /* Approx May   24, 2021    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
                                                 );
 
 
