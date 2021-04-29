@@ -420,8 +420,9 @@ static const CRPCCommand vRPCCommands[] =
     { "getaddressinouts",         &getaddressinouts,          false,  false },
     { "getaddressinoutspg",       &getaddressinoutspg,        false,  false },
     { "getaddressoutputs",        &getaddressoutputs,         false,  false },
-    { "gethdaccount",             &gethdaccount,              false,  false },
     { "gethdaccountpg",           &gethdaccountpg,            false,  false },
+    { "gethdaccount",             &gethdaccount,              false,  false },
+    { "gethdaddresses",           &gethdaddresses,            false,  false },
     { "getrichlistsize",          &getrichlistsize,           false,  false },
     { "getrichlist",              &getrichlist,               false,  false },
     { "getrichlistpg",            &getrichlistpg,             false,  false }

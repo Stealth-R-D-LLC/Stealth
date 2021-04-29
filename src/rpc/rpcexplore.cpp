@@ -394,12 +394,13 @@ public:
 // HD Wallets
 //
 string GetHDChildAddress(const Bip32::HDKeychain& hdParent,
-                         const uint32_t nChild)
+                         const uint32_t nChild,
+                         CPubKey& pubKeyRet)
 {
     Bip32::HDKeychain hdChild(hdParent.getChild(nChild));
     uchar_vector vchPub = uchar_vector(hdChild.key());
-    CPubKey pubKey(vchPub);
-    CKeyID keyID = pubKey.GetID();
+    pubKeyRet.Set(vchPub);
+    CKeyID keyID = pubKeyRet.GetID();
     CBitcoinAddress address;
     address.Set(keyID);
     return address.ToString();
@@ -464,7 +465,8 @@ void GetHDTxs(const uchar_vector& vchExtKey, vector<HDTxInfo>& vHDTxRet)
     {
         for (uint32_t nChild = 0; nChild < nMaxHDChildren; ++nChild)
         {
-            string strAddress = GetHDChildAddress(hdParent, nChild);
+            CPubKey pubKey;
+            string strAddress = GetHDChildAddress(hdParent, nChild, pubKey);
             if (!GetAddrInOuts(txdb, strAddress, vHDTxTemp))
             {
                 break;
@@ -1200,7 +1202,7 @@ Value gethdaccount(const Array &params, bool fHelp)
     {
         throw runtime_error(
                 "gethdaccount <extended key>\n"
-                "Returns all transactions for the hdaccount.");
+                "Returns all transactions for the <extended key>.");
     }
 
     string strExtKey = params[0].get_str();
@@ -1227,6 +1229,99 @@ Value gethdaccount(const Array &params, bool fHelp)
     return result;
 }
 
+void DescribeChild(uint64_t i,
+                   const tuple<CPubKey, string, int>& t,
+                   Object& objRet)
+{
+    objRet.push_back(Pair("child", i));
+    objRet.push_back(Pair("pubkey", HexStr(get<0>(t).Raw())));
+    objRet.push_back(Pair("address", get<1>(t)));
+    objRet.push_back(Pair("inouts", (int64_t)get<2>(t)));
+}
+
+Value gethdaddresses(const Array &params, bool fHelp)
+{
+    if (fHelp || (params.size()  != 1))
+    {
+        throw runtime_error(
+                "gethdaddresses <extended key>\n"
+                "Returns all known addresses for the <extended key> "
+                "separated by external and change");
+    }
+
+    string strExtKey = params[0].get_str();
+    uchar_vector vchExtKey;
+    if (!DecodeBase58Check(strExtKey, vchExtKey))
+    {
+        throw runtime_error("Invalid extended key.");
+    }
+
+    CTxDB txdb;
+
+    const unsigned int nMaxHDChildren = GetMaxHDChildren();
+
+    Bip32::HDKeychain hdAccount(vchExtKey);
+
+    Bip32::HDKeychain hdExternal(hdAccount.getChild(0));
+    vector<tuple<CPubKey, string, int> > vExternalKeys;
+    for (uint32_t nChild = 0; nChild < nMaxHDChildren; ++nChild)
+    {
+        CPubKey pubKey;
+        string strAddress = GetHDChildAddress(hdExternal, nChild, pubKey);
+        if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
+        {
+            vExternalKeys.push_back(make_tuple(pubKey, strAddress, 0));
+            break;
+        }
+        int nQtyInOuts;
+        if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+        {
+            throw runtime_error("TSNH: Can't read number of in-outs.");
+        }
+        vExternalKeys.push_back(make_tuple(pubKey, strAddress, nQtyInOuts));
+    }
+
+    Bip32::HDKeychain hdChange(hdAccount.getChild(1));
+    vector<tuple<CPubKey, string, int> > vChangeKeys;
+    for (uint32_t nChild = 0; nChild < nMaxHDChildren; ++nChild)
+    {
+        CPubKey pubKey;
+        string strAddress = GetHDChildAddress(hdChange, nChild, pubKey);
+        if (!txdb.AddrValueIsViable(ADDR_BALANCE, strAddress))
+        {
+            vChangeKeys.push_back(make_tuple(pubKey, strAddress, 0));
+            break;
+        }
+        int nQtyInOuts;
+        if (!txdb.ReadAddrQty(ADDR_QTY_INOUT, strAddress, nQtyInOuts))
+        {
+            throw runtime_error("TSNH: Can't read number of in-outs.");
+        }
+        vChangeKeys.push_back(make_tuple(pubKey, strAddress, nQtyInOuts));
+    }
+
+    Array aryExternal;
+    for (uint64_t i = 0; i < vExternalKeys.size(); ++i)
+    {
+        Object obj;
+        DescribeChild(i, vExternalKeys[i], obj);
+        aryExternal.push_back(obj);
+    }
+
+    Array aryChange;
+    for (uint64_t i = 0; i < vChangeKeys.size(); ++i)
+    {
+        Object obj;
+        DescribeChild(i, vChangeKeys[i], obj);
+        aryChange.push_back(obj);
+    }
+
+    Object result;
+    result.push_back(Pair("external", aryExternal));
+    result.push_back(Pair("change", aryChange));
+
+    return result;
+}
 
 //////////////////////////////////////////////////////////////////////////////
 //

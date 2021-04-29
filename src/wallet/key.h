@@ -85,7 +85,6 @@ public:
         return Hash(vchPubKey.begin(), vchPubKey.end());
     }
 
-
     bool IsValid() const {
         return vchPubKey.size() == 33 || vchPubKey.size() == 65;
     }
@@ -106,6 +105,11 @@ public:
     void Clear()
     {
         vchPubKey.clear();
+    }
+
+    void Set(const std::vector<unsigned char> &vchPubKeyIn)
+    {
+        vchPubKey = vchPubKeyIn;
     }
 };
 
