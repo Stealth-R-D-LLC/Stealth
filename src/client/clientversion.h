@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    1
-#define CLIENT_VERSION_BUILD       2
+#define CLIENT_VERSION_BUILD       3
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -38,6 +38,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63500;
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
 // 63500 : fork 9    XST_FORKMISSFIX
+//       : 3.1.1.3 : Added gethdaddresses RPC
 //       : 3.1.1.2 : Fixed mint calculation for PoW blocks
 //       : 3.1.1.1 : Adding getcharacterspg
 //       : 3.1.1.0 : Increasing staker acceptable missed blocks on testnet
