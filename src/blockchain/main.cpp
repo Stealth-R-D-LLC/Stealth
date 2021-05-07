@@ -524,12 +524,12 @@ const CTxOut& GetOutputFor(const CTxIn& input, const MapPrevTx& inputs)
 
 int64_t GetMinOutputAmount(int nHeight)
 {
-    int nFork = GetFork(nHeight);
-    if (nFork < XST_FORK004)
+    if (nHeight < 0)
     {
-        return chainParams.MIN_TXOUT_AMOUNT;
+        return 0;
     }
-    else if (nFork < XST_FORKPURCHASE)
+    int nFork = GetFork(nHeight);
+    if (nFork < XST_FORKPURCHASE)
     {
         return 0;
     }
@@ -1501,14 +1501,16 @@ bool CTransaction::IsQPoSTx() const
     return false;
 }
 
-bool CTransaction::IsStandard() const
+bool CTransaction::IsStandard(int nNewHeight) const
 {
     if (nVersion > CTransaction::CURRENT_VERSION)
     {
         return false;
     }
 
-    if (GetFork(nBestHeight + 1) >= XST_FORK005)
+    int nFork = GetFork(nNewHeight);
+
+    if (nFork >= XST_FORK005)
     {
         if (vout.size() < 1)
         {
@@ -1533,7 +1535,8 @@ bool CTransaction::IsStandard() const
         // Timestamps on the other hand don't get any special treatment, because we
         // can't know what timestamp the next block will have, and there aren't
         // timestamp applications where it matters.
-        if (!IsFinal(nBestHeight + 1)) {
+        if (!IsFinal(nNewHeight))
+        {
             return false;
         }
 
@@ -1551,7 +1554,8 @@ bool CTransaction::IsStandard() const
         // computing signature hashes is O(ninputs*txsize). Limiting transactions
         // to MAX_STANDARD_TX_SIZE mitigates CPU exhaustion attacks.
         unsigned int sz = GetSerializeSize(SER_NETWORK, CTransaction::CURRENT_VERSION);
-        if (sz >= chainParams.MAX_STANDARD_TX_SIZE) {
+        if (sz >= chainParams.MAX_STANDARD_TX_SIZE)
+        {
             return false;
         }
     }
@@ -1562,28 +1566,39 @@ bool CTransaction::IsStandard() const
         // pay-to-script-hash, which is 3 ~80-byte signatures, 3
         // ~65-byte public keys, plus a few script ops.
         if (txin.scriptSig.size() > 500)
+        {
             return false;
+        }
         if (!txin.scriptSig.IsPushOnly())
+        {
             return false;
+        }
     }
 
     unsigned int nDataOut = 0;
     unsigned int nTxnOut = 0;
     txnouttype whichType;
-    BOOST_FOREACH(const CTxOut& txout, vout) {
+    BOOST_FOREACH(const CTxOut& txout, vout)
+    {
         if (!::IsStandard(txout.scriptPubKey, whichType))
+        {
             return false;
+        }
         if (whichType == TX_NULL_DATA)
         {
             nDataOut++;
-        } else
+        }
+        else
         {
-        if (txout.nValue == 0)
-            return false;
-        nTxnOut++;
+            if ((txout.nValue == 0) && (nFork < XST_FORKPURCHASE2))
+            {
+                return false;
+            }
+            nTxnOut++;
         }
     }
-    if (nDataOut > nTxnOut) {
+    if (nDataOut > nTxnOut)
+    {
         return false;
     }
     return true;
@@ -1722,7 +1737,7 @@ int CMerkleTx::SetMerkleBranch(const CBlock* pblock)
 }
 
 
-bool CTransaction::CheckTransaction() const
+bool CTransaction::CheckTransaction(int nNewHeight) const
 {
     // Basic checks that don't depend on any context
     if (vin.empty())
@@ -1740,8 +1755,6 @@ bool CTransaction::CheckTransaction() const
         return DoS(100, error("CheckTransaction() : size limits failed %s",
                                   GetHash().ToString().c_str()));
     }
-
-    int nNewHeight = nBestHeight + 1;
 
     // Check for negative or overflow output values
     int64_t nValueOut = 0;
@@ -2136,7 +2149,9 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         *pfMissingInputs = false;
     }
 
-    if (!tx.CheckTransaction())
+    int nNewHeight = nBestHeight + 1;
+
+    if (!tx.CheckTransaction(nNewHeight))
     {
         return error("CTxMemPool::accept() : CheckTransaction failed");
     }
@@ -2154,7 +2169,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }
 
     // Rather not work on nonstandard transactions (unless -testnet)
-    if (!fTestNet && !tx.IsStandard())
+    if (!fTestNet && !tx.IsStandard(nNewHeight))
     {
         return error("CTxMemPool::accept() : nonstandard transaction type");
     }
@@ -2411,7 +2426,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         }
 
         unsigned int flags = STANDARD_SCRIPT_VERIFY_FLAGS;
-        if (GetFork(nBestHeight+1) < XST_FORK005)
+        if (GetFork(nNewHeight) < XST_FORK005)
         {
             flags = flags & ~SCRIPT_VERIFY_CHECKLOCKTIMEVERIFY;
         }
@@ -4699,7 +4714,7 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
     // Check transactions
     BOOST_FOREACH(const CTransaction& tx, vtx)
     {
-        if (!tx.CheckTransaction())
+        if (!tx.CheckTransaction(nHeight))
         {
             return DoS(tx.nDoS, error("CheckBlock() : CheckTransaction failed"));
         }

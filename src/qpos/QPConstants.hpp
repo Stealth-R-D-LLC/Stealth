@@ -37,7 +37,7 @@ static const int QP_BLOCKS_PER_DAY = (60 * 60 * 24) / QP_TARGET_SPACING;
 // fraction of money supply (stealthtoshis) to dock per round for inactive keys
 static const int64_t DOCK_INACTIVE_FRACTION = 310000000000;
 // number of blocks between snapshots
-static const unsigned int BLOCKS_PER_SNAPSHOT = 24;
+static const unsigned int BLOCKS_PER_SNAPSHOT = 240;
 // number of recent snapshots to keep
 static const unsigned int RECENT_SNAPSHOTS = 144;
 // number of snapshots per permanent snapshot

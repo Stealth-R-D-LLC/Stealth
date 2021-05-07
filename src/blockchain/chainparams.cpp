@@ -54,35 +54,38 @@ ChainParams::ChainParams()
         (               XST_FORK005,     62100 )
         (               XST_FORK006,     62200 )
         (          XST_FORKPURCHASE,     63000 )
-        (              XST_FORKQPOS,     63000 )
-        (             XST_FORKQPOSB,     63300 )
-        (           XST_FORKFEELESS,     63400 )
+        (         XST_FORKPURCHASE2,     63500 )
+        (              XST_FORKQPOS,     63500 )
+        (             XST_FORKQPOSB,     63500 )
+        (           XST_FORKFEELESS,     63500 )
         (           XST_FORKMISSFIX,     63500 )
                );
 
     CUTOFF_POW_M = 5460;
-    START_NFT_M = 3657599;       // add NFT commitment to blockchain
-    START_PURCHASE_M = 3657600;  // start of staker purchases
-    START_QPOS_M = 3679200;      // end of PoS and start of qPoS
-    START_QPOSB_M = 3679200;      // placeholder for fork on testnet
-    START_FEELESS_M = 3765600;   // start of feeless transactions
-    START_MISSFIX_M = 3765601;   // placeholder for fork on testnet
+    START_PURCHASE_M = 3657600;  // original start of staker purchases
+    START_PURCHASE2_M = 3673500;  // new start of staker purchases
+    START_QPOS_M = 3695100;      // end of PoS and start of qPoS
+    START_QPOSB_M = 3695100;      // placeholder for fork on testnet
+    START_NFT_M = 3695200;       // add NFT commitment to blockchain
+    START_FEELESS_M = 3702300;   // start of feeless transactions
+    START_MISSFIX_M = 3702301;   // placeholder for fork on testnet
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
-        /* MAIN NET */                  /*           Height, Fork Number      */
-        /* Jul  4 02:47:04 MST 2014 */   (                0, XST_GENESIS      )
-        /* Jul 11 18:33:08 MST 2014 */   (     CUTOFF_POW_M, XST_FORK002      )
-        /* Oct  9 00:00:42 MST 2014 */   (           130669, XST_FORK004      )
-        /* Aug 16 10:23:28 MST 2017 */   (          1732201, XST_FORK005      )
-        /* Nov 14 08:09:53 MDT 2018 */   (          2378000, XST_FORK006      )
-        /* Approx May    4, 2021    */   (      START_NFT_M, XST_FORKNFT      )
-        /* Approx May    4, 2021    */   ( START_PURCHASE_M, XST_FORKPURCHASE )
-        /* Approx May   19, 2021    */   (     START_QPOS_M, XST_FORKQPOS     )
-        /* Approx May   19, 2021    */   (    START_QPOSB_M, XST_FORKQPOSB    )
-        /* Approx May   24, 2021    */   (  START_FEELESS_M, XST_FORKFEELESS  )
-        /* Approx May   24, 2021    */   (  START_MISSFIX_M, XST_FORKMISSFIX  )
-                                                );
+        /* MAIN NET */                  /*            Height, Fork Number       */
+        /* Jul  4 02:47:04 MST 2014 */   (                 0, XST_GENESIS       )
+        /* Jul 11 18:33:08 MST 2014 */   (      CUTOFF_POW_M, XST_FORK002       )
+        /* Oct  9 00:00:42 MST 2014 */   (            130669, XST_FORK004       )
+        /* Aug 16 10:23:28 MST 2017 */   (           1732201, XST_FORK005       )
+        /* Nov 14 08:09:53 MDT 2018 */   (           2378000, XST_FORK006       )
+        /* Approx May    4, 2021    */   (  START_PURCHASE_M, XST_FORKPURCHASE  )
+        /* Approx May   16, 2021    */   ( START_PURCHASE2_M, XST_FORKPURCHASE2 )
+        /* Approx May   31, 2021    */   (      START_QPOS_M, XST_FORKQPOS      )
+        /* Approx May   31, 2021    */   (     START_QPOSB_M, XST_FORKQPOSB     )
+        /* Approx May   31, 2021    */   (       START_NFT_M, XST_FORKNFT       )
+        /* Approx June   5, 2021    */   (   START_FEELESS_M, XST_FORKFEELESS   )
+        /* Approx June   5, 2021    */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
+                                                 );
 
 
     //////////////////////////////////////////////////////////////////////////////
@@ -417,29 +420,31 @@ ChainParams::ChainParams()
     //
 
     CUTOFF_POW_T = 120;
-    START_NFT_T = 4203;  // placeholder for mainnet
     START_PURCHASE_T = 4204;
+    START_PURCHASE2_T = 4205;  // placeholder for mainnet
     START_QPOS_T = 17400;
     START_QPOSB_T = 22500;
+    START_NFT_T = 22501;       // placeholder for mainnet
     START_FEELESS_T = 3965963;
     START_MISSFIX_T = 4768119;
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
         boost::assign::map_list_of
-        /* TEST NET */                      /*           Height, Fork Number      */
-                                             (                0, XST_GENESIS      )
-        /*                          */       (     CUTOFF_POW_T, XST_FORK002      )
-        /*                          */       (              130, XST_FORK004      )
-        /*                          */       (              140, XST_FORK005      )
-        /*                          */       (              145, XST_FORK006      )
-        /*                          */       (      START_NFT_T, XST_FORKNFT      )
-        /*                          */       ( START_PURCHASE_T, XST_FORKPURCHASE )
-        /*                          */       (     START_QPOS_T, XST_FORKQPOS     )
-        /*                          */       (    START_QPOSB_T, XST_FORKQPOSB    )
-        /*                          */       (  START_FEELESS_T, XST_FORKFEELESS  )
-        /*                          */       (  START_MISSFIX_T, XST_FORKMISSFIX  )
-                                                 );
+        /* TEST NET */                      /*            Height, Fork Number       */
+                                             (                 0, XST_GENESIS       )
+        /*                          */       (      CUTOFF_POW_T, XST_FORK002       )
+        /*                          */       (               130, XST_FORK004       )
+        /*                          */       (               140, XST_FORK005       )
+        /*                          */       (               145, XST_FORK006       )
+        /*                          */       (  START_PURCHASE_T, XST_FORKPURCHASE  )
+        /*                          */       ( START_PURCHASE2_T, XST_FORKPURCHASE2 )
+        /*                          */       (      START_QPOS_T, XST_FORKQPOS      )
+        /*                          */       (     START_QPOSB_T, XST_FORKQPOSB     )
+        /*                          */       (       START_NFT_T, XST_FORKNFT       )
+        /*                          */       (   START_FEELESS_T, XST_FORKFEELESS   )
+        /*                          */       (   START_MISSFIX_T, XST_FORKMISSFIX   )
+                                                    );
 
 
     pchMessageStartTestNet[0] = 0xcf;

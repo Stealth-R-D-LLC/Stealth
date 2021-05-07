@@ -739,9 +739,14 @@ bool CTxDB::LoadBlockIndex()
 
     static const int nRecentBlocks = RECENT_SNAPSHOTS * BLOCKS_PER_SNAPSHOT;
 
+    int nReplayedCount = 0;
     CBlockIndex* pindexBestReplay = NULL;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
+        if ((nReplayedCount % 100000 == 0) && nReplayedCount)
+        {
+            printf("  Replayed %d blocks\n", nReplayedCount);
+        }
         int nHeight = item.first;
         CBlockIndex* pidx = item.second;
         pidx->bnChainTrust = (pidx->pprev ?  pidx->pprev->bnChainTrust : 0) +
@@ -785,6 +790,7 @@ bool CTxDB::LoadBlockIndex()
             pindexBestReplay = pidx;
         }
         nBestHeight = nHeight;
+        nReplayedCount += 1;
     }
 
     // Load hashBestChain pointer to end of best chain

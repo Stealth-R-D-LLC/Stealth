@@ -652,7 +652,7 @@ public:
     /** Check for standard transaction types
         @return True if all outputs (scriptPubKeys) use only standard transaction forms
     */
-    bool IsStandard() const;
+    bool IsStandard(int nNewHeight=-1) const;
 
     /** Check for standard transaction types
         @param[in] mapInputs	Map of previous transactions that have outputs we're spending
@@ -942,7 +942,7 @@ public:
                        int64_t nValuePurchases, int64_t nClaim,
                        Feework& feework);
     bool ClientConnectInputs();
-    bool CheckTransaction() const;
+    bool CheckTransaction(int nNewHeight=-1) const;
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true, bool* pfMissingInputs=NULL);
     // ppcoin: get transaction coin age
     bool GetCoinAge(CTxDB& txdb, unsigned int nBlockTime, uint64_t& nCoinAge) const;
@@ -1183,7 +1183,7 @@ public:
     {
         // unfortunately start of NFTs came in a different fork for testnet
         static const int NFTHEIGHT = (fTestNet ? chainParams.START_MISSFIX_T :
-                                                  chainParams.START_NFT_M);
+                                                 chainParams.START_NFT_M);
 
         if (nHeight == NFTHEIGHT)
         {

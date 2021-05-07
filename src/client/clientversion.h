@@ -8,8 +8,8 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    1
-#define CLIENT_VERSION_BUILD       3
+#define CLIENT_VERSION_REVISION    2
+#define CLIENT_VERSION_BUILD       1
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -21,12 +21,13 @@ enum ForkNumbers
     XST_FORK004,
     XST_FORK005,
     XST_FORK006,
-    XST_FORKNFT,       // fork 7
-    XST_FORKPURCHASE,  // fork 7
-    XST_FORKQPOS,      // fork 7
-    XST_FORKQPOSB,     // fork 7
-    XST_FORKFEELESS,   // fork 8
-    XST_FORKMISSFIX,   // fork 9 (testnet)
+    XST_FORKPURCHASE,   // fork 7
+    XST_FORKPURCHASE2,  // fork 8
+    XST_FORKQPOS,       // fork 8
+    XST_FORKQPOSB,      // fork 8
+    XST_FORKNFT,        // fork 8
+    XST_FORKFEELESS,    // fork 9
+    XST_FORKMISSFIX,    // fork 10 (testnet)
     TOTAL_FORKS
 };
 
@@ -37,18 +38,20 @@ static const int CLIENT_PROTOCOL_VERSION = 63500;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
-// 63500 : fork 9    XST_FORKMISSFIX
+// 63500 : fork 10   XST_FORKMISSFIX
+//       : 3.1.2.1 : Fixing purchases
 //       : 3.1.1.3 : Added gethdaddresses RPC
 //       : 3.1.1.2 : Fixed mint calculation for PoW blocks
 //       : 3.1.1.1 : Adding getcharacterspg
 //       : 3.1.1.0 : Increasing staker acceptable missed blocks on testnet
 //       :         : Adding NFTs to test and mainnets
-//       : fork 8    XST_FORKFEELESS
+//       : fork 9    XST_FORKFEELESS
 // 63400 : 3.1.0.5 : Feeless tx added during block creation
 //         3.1.0.3 : Fixing erroneous rejection of all feework
 //         3.1.0.2 : Fixes to feeless
 //         3.1.0.1 : Adding feeless transactions
 //                 : Adding nBlockSize to block indices
+// 63300 : fork 8  : Fixing purchases
 //       : fork 7
 // 63300 : 3.0.3.5 : Changes to StealthExplore DB for HD account handling
 //         3.0.3.4 : Changes to ExploreTxInfo (StealthExplore Database)

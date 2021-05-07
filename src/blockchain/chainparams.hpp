@@ -59,6 +59,7 @@ public:
     int CUTOFF_POW_M;
     int START_NFT_M;
     int START_PURCHASE_M;
+    int START_PURCHASE2_M;
     int START_QPOS_M;
     int START_QPOSB_M;
     int START_FEELESS_M;
@@ -235,6 +236,7 @@ public:
     int CUTOFF_POW_T;
     int START_NFT_T;
     int START_PURCHASE_T;
+    int START_PURCHASE2_T;
     int START_QPOS_T;
     int START_QPOSB_T;
     int START_FEELESS_T;
