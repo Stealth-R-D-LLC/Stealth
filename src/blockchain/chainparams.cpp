@@ -83,8 +83,8 @@ ChainParams::ChainParams()
         /* Approx May   31, 2021    */   (      START_QPOS_M, XST_FORKQPOS      )
         /* Approx May   31, 2021    */   (     START_QPOSB_M, XST_FORKQPOSB     )
         /* Approx May   31, 2021    */   (       START_NFT_M, XST_FORKNFT       )
-        /* Approx June   5, 2021    */   (   START_FEELESS_M, XST_FORKFEELESS   )
-        /* Approx June   5, 2021    */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
+        /* Approx June   1, 2021    */   (   START_FEELESS_M, XST_FORKFEELESS   )
+        /* Approx June   1, 2021    */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
                                                  );
 
 
