@@ -1421,7 +1421,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "sendtostealthaddress"   && n > 1) ConvertTo<double>(params[1]);
     if (strMethod == "purchasestaker"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "purchasestaker"         && n > 4) ConvertTo<double>(params[4]);
-    if (strMethod == "purchasestaker"         && n > 7) ConvertTo<double>(params[7]);
+    if (strMethod == "purchasestaker"         && n > 8) ConvertTo<double>(params[8]);
     if (strMethod == "setstakerowner"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "setstakermanager"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "setstakerdelegate"      && n > 1) ConvertTo<boost::int64_t>(params[1]);
