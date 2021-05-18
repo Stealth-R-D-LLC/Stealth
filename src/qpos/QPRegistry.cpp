@@ -1078,10 +1078,16 @@ bool QPRegistry::AliasIsAvailable(const string &sAlias,
 {
     if (!AliasIsValid(sAlias))
     {
+        printf("AliasIsAvailable(): not valid: %s\n", sAlias.c_str());
         return false;
     }
     sKeyRet = ToLowercaseSafe(sAlias);
-    return (mapAliases.count(sKeyRet) == 0);
+    if (mapAliases.count(sKeyRet) > 0)
+    {
+        printf("AliasIsAvailable(): alias exists: %s\n", sAlias.c_str());
+        return false;
+    }
+    return true;
 }
 
 bool QPRegistry::GetIDForAlias(const string &sAlias,

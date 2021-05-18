@@ -845,6 +845,7 @@ bool CTransaction::CheckPurchases(const QPRegistry *pregistry,
             // alias is not valid or is taken (should have checked)
             return DoS(100, error("CheckPurchase() : alias unavailable"));
         }
+
         if (mapRet.count(sLC) > 0)
         {
             // tx registers same alias more than once
@@ -7914,7 +7915,27 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
             if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
             {
-                return BLOCKCREATION_PURCHASE_FAIL;
+                printf("CreateNewBlock(): purchase failed, removing:\n  %s\n",
+                       tx.GetHash().ToString().c_str());
+                mempool.remove(tx);
+                continue;
+            }
+            // FIXME: this will be unnecessary after FORK_PURCHASE3
+            BOOST_FOREACH(const PAIRTYPE(string, qpos_purchase)& item,
+                          mapPurchases)
+            {
+                string strUnused;
+                if (!pregistryMain->AliasIsAvailable(item.first, strUnused))
+                {
+                    // this shouldn't happen normally
+                    printf("CreateNewBlock(): TSHN alias %s unavailable, "
+                              "removing\n  %s\n",
+                           item.first.c_str(),
+                           tx.GetHash().ToString().c_str());
+                    mempool.remove(tx);
+                    continue;
+                }
+
             }
             map<string, qpos_purchase>::const_iterator kt;
             int64_t nValuePurchases = 0;
@@ -7926,7 +7947,10 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             qpos_claim claim;
             if (!tx.CheckClaim(pregistryMain, mapInputs, claim))
             {
-                return BLOCKCREATION_CLAIM_FAIL;
+                printf("CreateNewBlock(): claim failed, removing:\n  %s\n",
+                       tx.GetHash().ToString().c_str());
+                mempool.remove(tx);
+                continue;
             }
 
             int64_t nTxFees = tx.GetValueIn(mapInputs) - tx.GetValueOut();
