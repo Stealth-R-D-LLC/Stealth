@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    2
-#define CLIENT_VERSION_BUILD       2
+#define CLIENT_VERSION_BUILD       3
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -39,6 +39,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63500;
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
 // 63500 : fork 10   XST_FORKMISSFIX
+//       : 3.1.2.3 : Moving failed purchase/claim removal from CreateNewBlock
 //       : 3.1.2.2 : Fixing block creation for failed purchase or claim
 //       : 3.1.2.1 : Fixing purchases
 //       : 3.1.1.3 : Added gethdaddresses RPC

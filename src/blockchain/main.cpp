@@ -2591,6 +2591,17 @@ int CTxMemPool::removeInvalidPurchases()
             // maps iterate sorted by key, so no need to do more
             setToRemove.insert(it->first);
         }
+        // FIXME: this will be unnecessary after FORK_PURCHASE3
+        BOOST_FOREACH(const PAIRTYPE(string, qpos_purchase)& item,
+                      mapPurchases)
+        {
+            string strUnused;
+            if (!pregistryMain->AliasIsAvailable(item.first, strUnused))
+            {
+                setToRemove.insert(it->first);
+            }
+
+        }
     }
     BOOST_FOREACH(const uint256& txid, setToRemove)
     {
@@ -7915,9 +7926,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
             if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
             {
-                printf("CreateNewBlock(): purchase failed, removing:\n  %s\n",
+                printf("CreateNewBlock(): purchase failed, skipping:\n  %s\n",
                        tx.GetHash().ToString().c_str());
-                mempool.remove(tx);
                 continue;
             }
             // FIXME: this will be unnecessary after FORK_PURCHASE3
@@ -7929,10 +7939,9 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                 {
                     // this shouldn't happen normally
                     printf("CreateNewBlock(): TSHN alias %s unavailable, "
-                              "removing\n  %s\n",
+                              "skipping\n  %s\n",
                            item.first.c_str(),
                            tx.GetHash().ToString().c_str());
-                    mempool.remove(tx);
                     continue;
                 }
 
@@ -7947,9 +7956,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             qpos_claim claim;
             if (!tx.CheckClaim(pregistryMain, mapInputs, claim))
             {
-                printf("CreateNewBlock(): claim failed, removing:\n  %s\n",
+                printf("CreateNewBlock(): claim failed, skipping:\n  %s\n",
                        tx.GetHash().ToString().c_str());
-                mempool.remove(tx);
                 continue;
             }
 
