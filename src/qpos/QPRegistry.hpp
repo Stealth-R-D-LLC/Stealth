@@ -58,9 +58,9 @@ private:
     uint256 hashLastBlockPrev3Queue;
     QPPowerRound powerRoundPrev;
     QPPowerRound powerRoundCurrent;
-    // key: staker ID, value: nft ID
+    // key: staker ID  |  value: nft ID
     QPMapNftOwnership mapNftOwners;
-    // key: nftID, staker ID
+    // key: nftID  |  value: staker ID
     QPMapNftOwnership mapNftOwnerLookup;
 
     // not persistent
@@ -217,13 +217,14 @@ public:
 
     bool UpdateOnNewBlock(const CBlockIndex *const pindex,
                           int nSnapshotType,
-                          bool fWriteLog=false);
+                          bool fWriteLog=false,
+                          bool fJustCheck=false);
     bool UpdateOnNewTime(unsigned int nTime,
                          const CBlockIndex *const pindex,
                          int nSnapshotType,
                          bool fWriteLog=false);
 
-    void ApplyOps(const CBlockIndex *const pindex);
+    int ApplyOps(const CBlockIndex *const pindex);
 
     void EnterReplayMode();
     void ExitReplayMode();

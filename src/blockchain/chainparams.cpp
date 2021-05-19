@@ -46,24 +46,27 @@ ChainParams::ChainParams()
 
     // Make sure forks are ascending!
 
-     mapProtocolVersions =  MakeMapIntInt(
+    // MinPeerProtocol
+    mapProtocolVersions =  MakeMapIntInt(
         boost::assign::map_list_of
-        //                         Protocol
-        //                  Fork,   Version
+        //                            Protocol
+        //                     Fork,   Version
         (               XST_GENESIS,     62020 )
         (               XST_FORK005,     62100 )
         (               XST_FORK006,     62200 )
         (          XST_FORKPURCHASE,     63000 )
         (         XST_FORKPURCHASE2,     63500 )
-        (              XST_FORKQPOS,     63500 )
-        (             XST_FORKQPOSB,     63500 )
-        (           XST_FORKFEELESS,     63500 )
-        (           XST_FORKMISSFIX,     63500 )
+        (         XST_FORKPURCHASE3,     63600 )
+        (              XST_FORKQPOS,     63600 )
+        (             XST_FORKQPOSB,     63600 )
+        (           XST_FORKFEELESS,     63600 )
+        (           XST_FORKMISSFIX,     63600 )
                );
 
     CUTOFF_POW_M = 5460;
     START_PURCHASE_M = 3657600;  // original start of staker purchases
     START_PURCHASE2_M = 3673500;  // new start of staker purchases
+    START_PURCHASE3_M = 3683900;  // purchase fix for NFTs
     START_QPOS_M = 3695100;      // end of PoS and start of qPoS
     START_QPOSB_M = 3695100;      // placeholder for fork on testnet
     START_NFT_M = 3695200;       // add NFT commitment to blockchain
@@ -80,6 +83,7 @@ ChainParams::ChainParams()
         /* Nov 14 08:09:53 MDT 2018 */   (           2378000, XST_FORK006       )
         /* Approx May    4, 2021    */   (  START_PURCHASE_M, XST_FORKPURCHASE  )
         /* Approx May   16, 2021    */   ( START_PURCHASE2_M, XST_FORKPURCHASE2 )
+        /* Approx May   23, 2021    */   ( START_PURCHASE3_M, XST_FORKPURCHASE3 )
         /* Approx May   31, 2021    */   (      START_QPOS_M, XST_FORKQPOS      )
         /* Approx May   31, 2021    */   (     START_QPOSB_M, XST_FORKQPOSB     )
         /* Approx May   31, 2021    */   (       START_NFT_M, XST_FORKNFT       )
@@ -422,6 +426,7 @@ ChainParams::ChainParams()
     CUTOFF_POW_T = 120;
     START_PURCHASE_T = 4204;
     START_PURCHASE2_T = 4205;  // placeholder for mainnet
+    START_PURCHASE3_T = 4205;  // placeholder for mainnet
     START_QPOS_T = 17400;
     START_QPOSB_T = 22500;
     START_NFT_T = 22501;       // placeholder for mainnet
@@ -439,6 +444,7 @@ ChainParams::ChainParams()
         /*                          */       (               145, XST_FORK006       )
         /*                          */       (  START_PURCHASE_T, XST_FORKPURCHASE  )
         /*                          */       ( START_PURCHASE2_T, XST_FORKPURCHASE2 )
+        /*                          */       ( START_PURCHASE3_T, XST_FORKPURCHASE3 )
         /*                          */       (      START_QPOS_T, XST_FORKQPOS      )
         /*                          */       (     START_QPOSB_T, XST_FORKQPOSB     )
         /*                          */       (       START_NFT_T, XST_FORKNFT       )

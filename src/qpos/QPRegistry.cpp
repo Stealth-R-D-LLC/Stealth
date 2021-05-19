@@ -711,16 +711,35 @@ bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
 
 bool QPRegistry::NftIsAvailable(const unsigned int nID) const
 {
-    return (mapNfts.count(nID) && !mapNftOwners.count(nID));
+    // FIXME: this test can be removed after XST_FORKPURCHASE3
+    if (GetFork(nBlockHeight) < XST_FORKPURCHASE3)
+    {
+        return (mapNfts.count(nID) && !mapNftOwners.count(nID));
+    }
+    else
+    {
+        return (mapNfts.count(nID) && !mapNftOwnerLookup.count(nID));
+    }
 }
 
 bool QPRegistry::NftIsAvailable(const unsigned int nID,
                                 string &sCharKeyRet) const
 {
     sCharKeyRet.clear();
-    if (mapNfts.count(nID) && !mapNftOwners.count(nID))
+    // FIXME: this test can be removed after XST_FORKPURCHASE3
+    if (GetFork(nBlockHeight) < XST_FORKPURCHASE3)
     {
-        sCharKeyRet = mapNfts[nID].strCharKey;
+        if (mapNfts.count(nID) && !mapNftOwners.count(nID))
+        {
+            sCharKeyRet = mapNfts[nID].strCharKey;
+        }
+    }
+    else
+    {
+        if (mapNfts.count(nID) && !mapNftOwnerLookup.count(nID))
+        {
+            sCharKeyRet = mapNfts[nID].strCharKey;
+        }
     }
     return (bool)sCharKeyRet.size();
 }
@@ -1574,7 +1593,8 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
 
 bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                                   int nSnapshotType,
-                                  bool fWriteLog)
+                                  bool fWriteLog,
+                                  bool fJustCheck)
 {
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
     // Q: Why do we update on new time before updating the registry
@@ -1595,7 +1615,17 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                 printf("UpdateOnNewBlock(): apply ops for block %d\n",
                        pindex->nHeight);
             }
-            ApplyOps(pindex);
+            int nCode = ApplyOps(pindex);
+            if (nCode != 0)
+            {
+                printf("UpdateOnNewBlock(): apply ops fail %d\n", nCode);
+                if (!fJustCheck)
+                {
+                    printf("UpdateOnNewBlock(): no good way to continue\n");
+                    exit(0);
+                }
+                return false;
+            }
         }
     }
     if (GetFork(pindex->nHeight) >= XST_FORKQPOS)
@@ -1993,9 +2023,10 @@ bool QPRegistry::SetStakerNft(unsigned int nStakerID,
     return true;
 }
 
-// any failed ops terminate with an assertion because there is no good
-// way to continue
-void QPRegistry::ApplyOps(const CBlockIndex *pindex)
+// unless just checking, any failed ops terminate with an assertion by
+//    caller because there is no good way to continue
+// TODO: make return an enum
+int QPRegistry::ApplyOps(const CBlockIndex *pindex)
 {
     BOOST_FOREACH(const QPTxDetails &deet, pindex->vDeets)
     {
@@ -2003,28 +2034,44 @@ void QPRegistry::ApplyOps(const CBlockIndex *pindex)
         {
         case TX_PURCHASE1:
         case TX_PURCHASE4:
-            assert (ApplyPurchase(deet, pindex));
+            if (!ApplyPurchase(deet, pindex))
+            {
+                return 1;
+            }
             break;
         case TX_SETOWNER:
         case TX_SETMANAGER:
         case TX_SETDELEGATE:
         case TX_SETCONTROLLER:
-            assert (ApplySetKey(deet, pindex));
+            if (!ApplySetKey(deet, pindex))
+            {
+                return 2;
+            }
             break;
         case TX_ENABLE:
         case TX_DISABLE:
-            assert (ApplySetState(deet, pindex->nHeight));
+            if (!ApplySetState(deet, pindex->nHeight))
+            {
+                return 3;
+            }
             break;
         case TX_CLAIM:
-            assert (ApplyClaim(deet, pindex->nTime));
+            if (!ApplyClaim(deet, pindex->nTime))
+            {
+                return 4;
+            }
             break;
         case TX_SETMETA:
-            assert (ApplySetMeta(deet));
+            if (!ApplySetMeta(deet))
+            {
+                return 5;
+            }
             break;
         default:
-            assert (error("ApplyQPoSOps(): No such operation"));
+            return 6;
         }
     }
+    return 0;
 }
 
 // This is not ideal. Registry should decide for itself.

@@ -3813,10 +3813,20 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
         pindex->nMint = nValueOut + nValuePurchases + nFees - (nValueIn - nValueClaims);
     }
     // supply
-    //   - purchases are not reflected in nValueIn, so must be added to it
-    //   - fees are not considered here because the are captured by values out and in
-    pindex->nMoneySupply = (pindex->pprev? pindex->pprev->nMoneySupply : 0) +
-                               nValueOut - (nValuePurchases + nValueIn - nValueClaims);
+    //   - fees are not considered here because they are captured by values out and in
+    if (nFork >= XST_FORKPURCHASE3)
+    {
+        // FIXME: need to calculate correct money supply retroactively and
+        //        move this test to GetStakerPrice
+        pindex->nMoneySupply = (pindex->pprev ? pindex->pprev->nMoneySupply : 0) +
+                                   nValueOut - (nValueIn - nValueClaims);
+    }
+    else
+    {
+        // purchases were mistakenly added to nValueIn
+        pindex->nMoneySupply = (pindex->pprev ? pindex->pprev->nMoneySupply : 0) +
+                                   nValueOut - (nValuePurchases + nValueIn - nValueClaims);
+    }
 
     pindex->vDeets = vDeets;
 
@@ -4834,7 +4844,6 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                     }
                 }
             }
-
             if (!tx.CheckQPoS(pregistryTemp, mapInputs,
                               nTime, vDeets, pindexPrev,
                               mapPurchases, mapSetKeys,
@@ -4843,6 +4852,27 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
             {
                 return error("CheckBlock(): CheckQPoS fail");
             }
+        }
+        // dry-run to ensure registry can successfully update
+        CBlock block = *this;
+        AUTO_PTR<CBlockIndex> pindexTempTemp(new CBlockIndex(0, 0, block));
+        if (!pindexTempTemp.get())
+        {
+            return error("CheckBlock(): TSNH create temp block index failed");
+        }
+        pindexTempTemp->pprev = pindexPrev;
+        pindexTempTemp->phashBlock = &hashBlock;
+        AUTO_PTR<QPRegistry> pregistryTempTemp(new QPRegistry(pregistryTemp));
+        if (!pregistryTempTemp.get())
+        {
+            return error("CheckBlock(): TSNH create temp*2 registry failed");
+        }
+        if (!pregistryTempTemp->UpdateOnNewBlock(pindexTempTemp.get(),
+                                                 QPRegistry::NO_SNAPS,
+                                                 false,
+                                                 true))
+        {
+            return error("CheckBlock(): registry update failed");
         }
         /***   end qPos checks   **********************************************/
     }
@@ -7931,6 +7961,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                 continue;
             }
             // FIXME: this will be unnecessary after FORK_PURCHASE3
+            bool fSkip = false;
             BOOST_FOREACH(const PAIRTYPE(string, qpos_purchase)& item,
                           mapPurchases)
             {
@@ -7942,10 +7973,16 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                               "skipping\n  %s\n",
                            item.first.c_str(),
                            tx.GetHash().ToString().c_str());
-                    continue;
+                    fSkip = true;
+                    break;
                 }
 
             }
+            if (fSkip)
+            {
+                continue;
+            }
+            // end of FIXME
             map<string, qpos_purchase>::const_iterator kt;
             int64_t nValuePurchases = 0;
             for (kt = mapPurchases.begin(); kt != mapPurchases.end(); ++kt)
