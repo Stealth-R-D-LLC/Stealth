@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    3
-#define CLIENT_VERSION_BUILD       0
+#define CLIENT_VERSION_BUILD       1
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -45,6 +45,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63600;
 //                   XST_FORKQPOSB
 //                   XST_FORKQPOS
 //                   XST_FORKPURCHASE3
+//         3.1.3.1 : Fixing NFT prices
 //         3.1.3.0 : Fixing NFT purchases
 // 63500 : fork 8  : XST_FORKPURCHASE2
 //         3.1.2.3 : Moving failed purchase/claim removal from CreateNewBlock

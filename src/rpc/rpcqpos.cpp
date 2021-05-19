@@ -45,7 +45,9 @@ Value getstakerprice(const Array& params, bool fHelp)
     }
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    return ValueFromAmount(GetStakerPrice(N, pindexBest->nMoneySupply));
+    int nFork = GetFork(pindexBest->nHeight + 1);
+    int64_t nPrice = GetStakerPrice(N, pindexBest->nMoneySupply, nFork);
+    return ValueFromAmount(nPrice);
 }
 
 Value getstakerid(const Array& params, bool fHelp)
@@ -247,7 +249,8 @@ Value purchasestaker(const Array &params, bool fHelp)
 
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    int64_t nPrice = GetStakerPrice(N, pindexBest->nMoneySupply, true);
+    int nFork = GetFork(pindexBest->nHeight + 1);
+    int64_t nPrice = GetStakerPrice(N, pindexBest->nMoneySupply, nFork, true);
     int64_t nAmount;
     if (params.size() > 4)
     {
@@ -1051,7 +1054,8 @@ Value getstakersummary(const Array& params, bool fHelp)
     }
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    int64_t nPriceNext = GetStakerPrice(N, pindex->nMoneySupply);
+    int nFork = GetFork(pindex->nHeight + 1);
+    int64_t nPriceNext = GetStakerPrice(N, pindex->nMoneySupply, nFork);
 
     Object obj;
     // time
@@ -1158,14 +1162,15 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
 
     N += 1;
     int64_t nSupply = pindex->nMoneySupply;
-    int64_t nPriceNext = GetStakerPrice(N, nSupply);
+    int nFork = GetFork(pindex->nHeight + 1);
+    int64_t nPriceNext = GetStakerPrice(N, nSupply, nFork);
     nSupply -= nPriceNext;
     aryPrices.push_back(ValueFromAmount(nPriceNext));
     arySupply.push_back(ValueFromAmount(nSupply));
     aryFractionalPrices.push_back((double)nPriceNext / (double)nSupply);
     for (N += 1 ; N <= nStakers; ++N)
     {
-        int64_t nPrice = GetStakerPrice(N, nSupply);
+        int64_t nPrice = GetStakerPrice(N, nSupply, nFork);
         aryPrices.push_back(ValueFromAmount(nPrice));
         arySupply.push_back(ValueFromAmount(nSupply));
         aryFractionalPrices.push_back((double)nPrice / (double)nSupply);

@@ -161,6 +161,7 @@ int64_t GetProofOfStakeReward(int64_t nCoinAge, unsigned int nBits);
 int64_t GetQPoSReward(const CBlockIndex *pindexPrev);
 int64_t GetStakerPrice(uint32_t N,
                        int64_t nSupply,
+                       int nFork,
                        bool fPurchase=false);
 unsigned int ComputeMinWork(unsigned int nBase, int64_t nTime);
 unsigned int ComputeMinStake(unsigned int nBase, int64_t nTime, unsigned int nBlockTime);

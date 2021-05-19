@@ -1093,6 +1093,10 @@ void CWallet::ResendWalletTransactions(bool fForce)
         return;
     nLastTime = GetTime();
     }
+    uint32_t N = static_cast<uint32_t>(
+                    pregistryMain->GetNumberQualified());
+    int nFork = GetFork(pindexBest->nHeight + 1);
+    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply, nFork);
     // Rebroadcast any of our txes that aren't in a block yet
     printf("ResendWalletTransactions()\n");
     CTxDB txdb("r");
@@ -1116,9 +1120,6 @@ void CWallet::ResendWalletTransactions(bool fForce)
                      setToRemove.insert(hash);
                      continue;
                 }
-                uint32_t N = static_cast<uint32_t>(
-                                pregistryMain->GetNumberQualified());
-                int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
                 map<string, qpos_purchase> mapPurchases;
                 if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
                 {
@@ -3323,7 +3324,8 @@ string CWallet::PurchaseStaker(const string &txid,
 
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    if (nPrice < GetStakerPrice(N, pindexBest->nMoneySupply))
+    int nFork = GetFork(pindexBest->nHeight + 1);
+    if (nPrice < GetStakerPrice(N, pindexBest->nMoneySupply, nFork))
     {
         return _("PurchaseStaker(): Price too low");
     }

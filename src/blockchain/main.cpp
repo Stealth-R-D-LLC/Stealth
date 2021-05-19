@@ -1225,6 +1225,7 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
                              map<unsigned int, vector<qpos_setmeta> > &mapSetMetasRet,
                              vector<QPTxDetails> &vDeetsRet) const
 {
+    int nFork = GetFork(pindexPrev->nHeight + 1);
     bool fPurchasesChecked = false;
     bool fSetKeysChecked = false;
     bool fSetStateChecked = false;
@@ -1244,7 +1245,9 @@ bool CTransaction::CheckQPoS(const QPRegistry *pregistryTemp,
             }
             uint32_t N = static_cast<uint32_t>(
                             pregistryTemp->GetNumberQualified());
-            int64_t nStakerPrice = GetStakerPrice(N, pindexPrev->nMoneySupply);
+            int64_t nStakerPrice = GetStakerPrice(N,
+                                                  pindexPrev->nMoneySupply,
+                                                  nFork);
             map<string, qpos_purchase> mapTxPrchs;
             if (!CheckPurchases(pregistryTemp, nStakerPrice, mapTxPrchs))
             {
@@ -2151,6 +2154,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     }
 
     int nNewHeight = nBestHeight + 1;
+    int nFork = GetFork(nNewHeight);
 
     if (!tx.CheckTransaction(nNewHeight))
     {
@@ -2242,7 +2246,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     map<string, qpos_purchase> mapNames;
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply, nFork);
     if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapNames))
     {
         if (fDebugQPoS)
@@ -2578,7 +2582,8 @@ int CTxMemPool::removeInvalidPurchases()
 {
     uint32_t N = static_cast<uint32_t>(
                     pregistryMain->GetNumberQualified());
-    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+    int nFork = GetFork(pindexBest->nHeight + 1);
+    int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply, nFork);
     set<uint256> setToRemove;
     std::map<uint256, CTransaction>::iterator it;
     LOCK(cs);
@@ -2936,7 +2941,7 @@ int64_t GetQPoSReward(const CBlockIndex *pindexPrev)
     return pindexPrev->nMoneySupply / divisor;
 }
 
-int64_t GetStakerPrice(uint32_t N, int64_t nSupply, bool fPurchase)
+int64_t GetStakerPrice(uint32_t N, int64_t nSupply, int nFork, bool fPurchase)
 {
     // testnet
     //    1) stakers 1 to 22: 1st tier price (discount)
@@ -2970,6 +2975,11 @@ int64_t GetStakerPrice(uint32_t N, int64_t nSupply, bool fPurchase)
     if (fPurchase)
     {
         nSupply += (nSupply / INVERSE_WAIT_INCREASE);
+    }
+    if (nFork >= XST_FORKPURCHASE3)
+    {
+        return COIN * ((((nSupply / COIN) / K_SCALE) * (blen - 1)) +
+                       (K_INCENTIVE * N));
     }
     return ((nSupply / K_SCALE) * (blen - 1)) + (K_INCENTIVE * N);
 }
@@ -3765,7 +3775,9 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
             {
                 uint32_t N = static_cast<uint32_t>(
                                 pregistryTemp->GetNumberQualified());
-                int64_t nStakerPrice = GetStakerPrice(N, pindex->pprev->nMoneySupply);
+                int64_t nStakerPrice = GetStakerPrice(N,
+                                                      pindex->pprev->nMoneySupply,
+                                                      nFork);
                 map<string, qpos_purchase> mapPurchases;
                 if (!tx.CheckPurchases(pregistryTemp, nStakerPrice, mapPurchases))
                 {
@@ -7601,6 +7613,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
     CBlockIndex* pindexPrev = pindexBest;
 
     int nHeight = pindexPrev->nHeight+1;  // height of new block
+    int nFork = GetFork(nHeight);
 
     if (fQuantumPoS)
     {
@@ -7680,8 +7693,6 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
         ParseMoney(mapArgs["-mintxfee"], nMinTxFee);
     }
 
-
-    int nFork = GetFork(nHeight);
 
     // ppcoin: if coinstake available add coinstake tx
     // only initialized at startup
@@ -7953,7 +7964,9 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             map<string, qpos_purchase> mapPurchases;
             uint32_t N = static_cast<uint32_t>(
                             pregistryMain->GetNumberQualified());
-            int64_t nStakerPrice = GetStakerPrice(N, pindexBest->nMoneySupply);
+            int64_t nStakerPrice = GetStakerPrice(N,
+                                                  pindexBest->nMoneySupply,
+                                                  nFork);
             if (!tx.CheckPurchases(pregistryMain, nStakerPrice, mapPurchases))
             {
                 printf("CreateNewBlock(): purchase failed, skipping:\n  %s\n",
