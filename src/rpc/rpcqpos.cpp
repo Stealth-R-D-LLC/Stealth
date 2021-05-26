@@ -16,7 +16,7 @@ using namespace std;
 uint32_t PcmFromValue(const Value &value)
 {
     double dPercent = value.get_real();
-    if ((dPercent <= 0.0) || (dPercent > 100.0))
+    if ((dPercent < 0.0) || (dPercent > 100.0))
     {
         throw JSONRPCError(RPC_QPOS_INVALID_PAYOUT, "Invalid payout");
     }

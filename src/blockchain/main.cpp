@@ -1121,8 +1121,8 @@ bool CTransaction::CheckClaim(const QPRegistry *pregistry,
 // vout order determines sequence of key changes
 // return is vector of setmetas
 bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
-                                const MapPrevTx &mapInputs,
-                                vector<qpos_setmeta> &vRet) const
+                                 const MapPrevTx &mapInputs,
+                                 vector<qpos_setmeta> &vRet) const
 {
     // one block after the purchase period starts
     int nFork = GetFork(nBestHeight);
@@ -4862,6 +4862,9 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                               mapClaims, mapSetMetas,
                               vDeetsRet))
             {
+                // OK to remove from mempool here because the block production
+                //    thread is done with the vecPriority from which the tx came
+                mempool.remove(tx);
                 return error("CheckBlock(): CheckQPoS fail");
             }
         }
@@ -7961,6 +7964,31 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                 continue;
             }
 
+            vector<QPTxDetails> vDeetsToCheck;
+            // use prev block hash for lack of any alternative
+            tx.GetQPTxDetails(*pindexBest->phashBlock, vDeetsToCheck);
+            map<string, qpos_purchase> mapPurchasesUnused;
+            map<unsigned int, vector<qpos_setkey> > mapSetKeysUnused;
+            map<CPubKey, vector<qpos_claim> > mapClaimsUnused;
+            map<unsigned int, vector<qpos_setmeta> > mapSetMetasUnused;
+            vector<QPTxDetails> vDeetsUnused;
+            if (!tx.CheckQPoS(pregistryMain,
+                              mapInputs,
+                              GetTime(),
+                              vDeetsToCheck,
+                              pindexBest,
+                              mapPurchasesUnused,
+                              mapSetKeysUnused,
+                              mapClaimsUnused,
+                              mapSetMetasUnused,
+                              vDeetsUnused))
+            {
+                printf("CreateNewBlock(): check qPoS failed, skipping:\n  %s\n",
+                       tx.GetHash().ToString().c_str());
+                continue;
+            }
+
+            // FIXME: this will be unnecessary after FORK_PURCHASE3
             map<string, qpos_purchase> mapPurchases;
             uint32_t N = static_cast<uint32_t>(
                             pregistryMain->GetNumberQualified());
@@ -7973,7 +8001,6 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                        tx.GetHash().ToString().c_str());
                 continue;
             }
-            // FIXME: this will be unnecessary after FORK_PURCHASE3
             bool fSkip = false;
             BOOST_FOREACH(const PAIRTYPE(string, qpos_purchase)& item,
                           mapPurchases)

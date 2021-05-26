@@ -441,6 +441,7 @@ void QPStaker::ProducedBlock(const uint256 *const phashBlock,
 
     nPcmDelegatePayout = min(100000u, nPcmDelegatePayout);
 
+    // FIXME: following test should be delegate v. manager
     if ((nPcmDelegatePayout == 0) || (pubkeyDelegate == pubkeyOwner))
     {
        nDelegateRewardRet = 0;
