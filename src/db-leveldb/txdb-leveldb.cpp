@@ -715,7 +715,9 @@ bool CTxDB::LoadBlockIndex()
         delete iter;
 
         if (fRequestShutdown)
+        {
             return true;
+        }
     }
 
     // Replay registry from 0 and calculate chain trust.

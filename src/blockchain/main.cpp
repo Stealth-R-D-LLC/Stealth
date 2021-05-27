@@ -1204,8 +1204,8 @@ bool CTransaction::CheckSetMetas(const QPRegistry *pregistry,
         {
             if (!ValidateSignatory(pregistry, mapInputs, 0, setmeta.id, fAuthorities))
             {
-                // signatory doesn't own staker
-                return DoS(100, error("CheckSetMetas() : sig not owner"));
+                // signatory isn't authorized to set meta
+                return DoS(100, error("CheckSetMetas() : sig not authorized"));
             }
             fCheckedSignatory = true;
         }
@@ -4844,6 +4844,9 @@ bool CBlock::CheckBlock(QPRegistry *pregistryTemp,
                 if (!tx.FetchInputs(txdb, mapUnused,
                                     false, false, mapInputs, fInvalid))
                 {
+                    // OK to remove from mempool here because the block production
+                    //    thread is done with the vecPriority from which the tx came
+                    mempool.remove(tx);
                     if (fInvalid)
                     {
                         return DoS(50, error("CheckBlock(): invalid qPoS inputs\n"));
@@ -7967,25 +7970,28 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             vector<QPTxDetails> vDeetsToCheck;
             // use prev block hash for lack of any alternative
             tx.GetQPTxDetails(*pindexBest->phashBlock, vDeetsToCheck);
-            map<string, qpos_purchase> mapPurchasesUnused;
-            map<unsigned int, vector<qpos_setkey> > mapSetKeysUnused;
-            map<CPubKey, vector<qpos_claim> > mapClaimsUnused;
-            map<unsigned int, vector<qpos_setmeta> > mapSetMetasUnused;
-            vector<QPTxDetails> vDeetsUnused;
-            if (!tx.CheckQPoS(pregistryMain,
-                              mapInputs,
-                              GetTime(),
-                              vDeetsToCheck,
-                              pindexBest,
-                              mapPurchasesUnused,
-                              mapSetKeysUnused,
-                              mapClaimsUnused,
-                              mapSetMetasUnused,
-                              vDeetsUnused))
+            if (!vDeetsToCheck.empty())
             {
-                printf("CreateNewBlock(): check qPoS failed, skipping:\n  %s\n",
-                       tx.GetHash().ToString().c_str());
-                continue;
+                map<string, qpos_purchase> mapPurchasesUnused;
+                map<unsigned int, vector<qpos_setkey> > mapSetKeysUnused;
+                map<CPubKey, vector<qpos_claim> > mapClaimsUnused;
+                map<unsigned int, vector<qpos_setmeta> > mapSetMetasUnused;
+                vector<QPTxDetails> vDeetsUnused;
+                if (!tx.CheckQPoS(pregistryMain,
+                                  mapInputs,
+                                  GetTime(),
+                                  vDeetsToCheck,
+                                  pindexBest,
+                                  mapPurchasesUnused,
+                                  mapSetKeysUnused,
+                                  mapClaimsUnused,
+                                  mapSetMetasUnused,
+                                  vDeetsUnused))
+                {
+                    printf("CreateNewBlock(): check qPoS failed, skipping:\n  %s\n",
+                           tx.GetHash().ToString().c_str());
+                    continue;
+                }
             }
 
             // FIXME: this will be unnecessary after FORK_PURCHASE3
