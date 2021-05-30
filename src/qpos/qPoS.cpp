@@ -149,13 +149,15 @@ void ExtractSetKey(const valtype &vch, qpos_setkey &setkeyRet)
 
 void ExtractSetKey(const valtype &vch, QPTxDetails &deetsRet)
 {
-    deetsRet.Clear();
     qpos_setkey setkey;
-    if (mapQPoSKeyTypes.count(static_cast<txnouttype>(deetsRet.t)))
+    txnouttype typetxo(static_cast<txnouttype>(deetsRet.t));
+    if (mapQPoSKeyTypes.count(typetxo))
     {
-        setkey.keytype = mapQPoSKeyTypes[static_cast<txnouttype>(deetsRet.t)];
+        setkey.keytype = mapQPoSKeyTypes[typetxo];
     }
     ExtractSetKey(vch, setkey);
+    deetsRet.Clear();
+    deetsRet.t = typetxo;
     deetsRet.id = setkey.id;
     deetsRet.keys.clear();
     deetsRet.keys.push_back(setkey.key);

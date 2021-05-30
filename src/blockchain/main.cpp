@@ -6936,8 +6936,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         bool fProcessOK;
 
-        if ((GetFork(block.nHeight) < XST_FORKQPOS) ||
-            (block.hashPrevBlock == hashBestChain))
+        if (block.hashPrevBlock == hashBestChain)
         {
             printf("Processing block fully: %s\n"
                    "   best=%s\n"

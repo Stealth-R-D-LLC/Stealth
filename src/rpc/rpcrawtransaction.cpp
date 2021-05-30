@@ -131,25 +131,21 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
       {
         qpos_setkey setkey;
         ExtractSetKey(vSolutions.front(), setkey);
-        if (setkey.keytype == QPKEY_OWNER)
+        if (typetxo == TX_SETOWNER)
         {
             obj.push_back(Pair("set_key_type", "owner"));
         }
-        else if (setkey.keytype == QPKEY_MANAGER)
+        else if (typetxo == TX_SETMANAGER)
         {
             obj.push_back(Pair("set_key_type", "manager"));
         }
-        else if (setkey.keytype == QPKEY_DELEGATE)
+        else if (typetxo == TX_SETDELEGATE)
         {
             obj.push_back(Pair("set_key_type", "delegate"));
         }
-        else if (setkey.keytype == QPKEY_CONTROLLER)
-        {
-            obj.push_back(Pair("set_key_type", "controller"));
-        }
         else
         {
-            obj.push_back(Pair("ERROR", "TSNH: Bad setkey type"));
+            obj.push_back(Pair("set_key_type", "controller"));
         }
         StakerIDToJSON(setkey.id, obj);
         obj.push_back(Pair("pubkey", HexStr(setkey.key.Raw())));
