@@ -160,7 +160,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
       {
         qpos_setstate setstate;
         ExtractSetState(vSolutions.front(), setstate);
-        if (setstate.enable)
+        if (typetxo == TX_ENABLE)
         {
             obj.push_back(Pair("set_state", "enable"));
         }
