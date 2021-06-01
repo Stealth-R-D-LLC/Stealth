@@ -57,10 +57,10 @@ ChainParams::ChainParams()
         (          XST_FORKPURCHASE,     63000 )
         (         XST_FORKPURCHASE2,     63500 )
         (         XST_FORKPURCHASE3,     63600 )
-        (              XST_FORKQPOS,     63600 )
-        (             XST_FORKQPOSB,     63600 )
-        (           XST_FORKFEELESS,     63600 )
-        (           XST_FORKMISSFIX,     63600 )
+        (              XST_FORKQPOS,     63700 )
+        (             XST_FORKQPOSB,     63700 )
+        (           XST_FORKFEELESS,     63700 )
+        (           XST_FORKMISSFIX,     63700 )
                );
 
     CUTOFF_POW_M = 5460;

@@ -1545,7 +1545,14 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         {
             if (!fCurrentBlockWasProduced)
             {
-                StakerMissedBlock(queue.GetCurrentID(), nHeight);
+                if (GetFork(nHeight) >= XST_FORKQPOS)
+                {
+                    StakerMissedBlock(queue.GetCurrentID(), nHeight);
+                }
+                else
+                {
+                    ExitReplayMode();
+                }
             }
             if (!queue.IncrementSlot())
             {
