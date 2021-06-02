@@ -8,7 +8,7 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    4
+#define CLIENT_VERSION_REVISION    5
 #define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
@@ -35,15 +35,16 @@ enum ForkNumbers
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 63700;
+static const int CLIENT_PROTOCOL_VERSION = 63800;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
-// 63700 : fork 11 : XST_FORKMISSFIX
+// 63800 : fork 11 : XST_FORKMISSFIX
 //         fork 10 : XST_FORKFEELESS
 //         fork 9  : XST_FORKNFT
 //                   XST_FORKQPOSB
-//                   XST_FORKQPOS
+//         3.1.5.0 : Fixing erroneous staker termination on mainnet
+// 63700             XST_FORKQPOS
 //         3.1.4.0 : Fixing stall on transition to Junaeth
 // 63600   3.1.3.4 : Fixing erroneous full checking of nonsequential blocks
 //         3.1.3.3 : Fixing bad qPoS inputs in block production

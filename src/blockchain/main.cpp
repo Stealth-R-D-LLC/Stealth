@@ -3969,10 +3969,15 @@ bool static Reorganize(CTxDB& txdb,
     {
         CBlock block;
         if (!block.ReadFromDisk(pindex))
+        {
             return error("Reorganize() : ReadFromDisk for disconnect failed");
+        }
 
         if (!block.DisconnectBlock(txdb, pindex))
-            return error("Reorganize() : DisconnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
+        {
+            return error("Reorganize() : DisconnectBlock %s failed",
+                         pindex->GetBlockHash().ToString().c_str());
+        }
 
         // Queue memory transactions to resurrect
         BOOST_REVERSE_FOREACH(const CTransaction& tx, block.vtx)
@@ -3983,7 +3988,6 @@ bool static Reorganize(CTxDB& txdb,
                 vResurrect.push_front(tx);
             }
         }
-
     }
 
     // registry must replay from at least the fork

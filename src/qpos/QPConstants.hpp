@@ -20,6 +20,7 @@ static const unsigned int QP_REGISTRY_MAX_FALL_BEHIND = 120;
 static const unsigned int QP_REGISTRY_RECENT_BLOCKS = 32768;
 static const unsigned int QP_STAKER_RECENT_BLOCKS = 4096;
 static const unsigned int QP_NOOB_BLOCKS = QP_STAKER_RECENT_BLOCKS * 2;
+static const unsigned int QP_MIN_OF_BLOCKS_MISSED_MAX = 16;
 // consecutive misses, not total
 static const unsigned int QP_STAKER_MAX_MISSES_M = 512;
 // testnet

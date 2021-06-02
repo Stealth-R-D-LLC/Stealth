@@ -31,6 +31,7 @@ private:
     int64_t nPrice;
     uint32_t nBlocksProduced;
     uint32_t nBlocksMissed;
+    uint32_t nBlocksDocked;
     uint32_t nBlocksAssigned;
     uint32_t nBlocksSeen;
     uint256 hashBlockMostRecent;
@@ -65,6 +66,7 @@ public:
     uint32_t GetPrevRecentBlocksMissed() const;
     uint32_t GetBlocksProduced() const;
     uint32_t GetBlocksMissed() const;
+    uint32_t GetBlocksDocked() const;
     uint32_t GetBlocksAssigned() const;
     uint32_t GetBlocksSeen() const;
     uint32_t GetNetBlocks() const;
@@ -98,7 +100,7 @@ public:
                        bool fPrevDidProduceBlock,
                        int64_t& nReward,
                        int64_t& nDelegateReward);
-    void MissedBlock(bool fPrevDidProduceBlock);
+    void MissedBlock(bool fPrevDidProduceBlock, int nFork);
     void SawBlock();
     void UpdatePrevRecentBlocks(bool fPrevDidProduceBlock);
     bool SetDelegatePayout(uint32_t pcm);
@@ -123,6 +125,7 @@ public:
         READWRITE(nPrice);
         READWRITE(nBlocksProduced);
         READWRITE(nBlocksMissed);
+        READWRITE(nBlocksDocked);
         READWRITE(nBlocksAssigned);
         READWRITE(nBlocksSeen);
         READWRITE(hashBlockMostRecent);

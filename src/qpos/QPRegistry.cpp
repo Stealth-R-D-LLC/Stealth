@@ -1088,7 +1088,7 @@ bool QPRegistry::GetPrevRecentBlocksMissedMax(unsigned int nID,
         sum_of_delta_sq += delta * delta;
     }
     uint32_t stdev = uisqrt(sum_of_delta_sq / n);
-    nMaxRet = mean + (stdev * MAX_STDDEVS);
+    nMaxRet = max(QP_MIN_OF_BLOCKS_MISSED_MAX, mean + (stdev * MAX_STDDEVS));
     return true;
 }
 
@@ -1228,6 +1228,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
 
 bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
 {
+    int nFork = GetFork(nHeight);
     QPStaker* pstaker = GetStakerForID(nID);
     if (!pstaker)
     {
@@ -1239,7 +1240,7 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
     }
     unsigned int nSeniority = (nIDCounter + 1) - nID;
     powerRoundCurrent.PushBack(nID, pstaker->GetWeight(nSeniority), false);
-    pstaker->MissedBlock(fPrevBlockWasProduced);
+    pstaker->MissedBlock(fPrevBlockWasProduced, nFork);
     if (OutOfReplayMode() && fDebugBlockCreation)
     {
         printf("StakerMissedBlock(): staker=%s, round=%d, seed=%u, slot=%d, "
@@ -1253,8 +1254,10 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
                GetPicoPower(),
                nBlockHeight);
     }
-    DisqualifyStakerIfNecessary(nID, pstaker);
-    DisableStakerIfNecessary(nID, pstaker, nHeight);
+    if (nFork >= XST_FORKMISSFIX)
+    {
+        DisableStakerIfNecessary(nID, pstaker, nHeight);
+    }
     bRecentBlocks <<= 1;
     fPrevBlockWasProduced = false;
     return true;

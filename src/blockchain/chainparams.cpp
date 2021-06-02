@@ -58,9 +58,9 @@ ChainParams::ChainParams()
         (         XST_FORKPURCHASE2,     63500 )
         (         XST_FORKPURCHASE3,     63600 )
         (              XST_FORKQPOS,     63700 )
-        (             XST_FORKQPOSB,     63700 )
-        (           XST_FORKFEELESS,     63700 )
-        (           XST_FORKMISSFIX,     63700 )
+        (             XST_FORKQPOSB,     63800 )
+        (           XST_FORKFEELESS,     63800 )
+        (           XST_FORKMISSFIX,     63800 )
                );
 
     CUTOFF_POW_M = 5460;
@@ -71,7 +71,7 @@ ChainParams::ChainParams()
     START_QPOSB_M = 3695100;      // placeholder for fork on testnet
     START_NFT_M = 3695200;       // add NFT commitment to blockchain
     START_FEELESS_M = 3702300;   // start of feeless transactions
-    START_MISSFIX_M = 3702301;   // placeholder for fork on testnet
+    START_MISSFIX_M = 3719600;   // allow network stalls on transition to qPoS
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of

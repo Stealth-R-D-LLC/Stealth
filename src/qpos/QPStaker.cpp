@@ -68,10 +68,12 @@ QPStaker::QPStaker(const QPTxDetails& deet)
 void QPStaker::Reset()
 {
     nVersion = QPStaker::CURRENT_VERSION;
-    bRecentBlocks.reset();
-    bPrevRecentBlocks.reset();
+    // start as if staker hit all blocks
+    bRecentBlocks.set();
+    bPrevRecentBlocks.set();
     nBlocksProduced = 0;
     nBlocksMissed = 0;
+    nBlocksDocked = 0;
     nBlocksAssigned = 0;
     nBlocksSeen = 0;
     hashBlockMostRecent = 0;
@@ -159,6 +161,11 @@ uint32_t QPStaker::GetBlocksMissed() const
     return nBlocksMissed;
 }
 
+uint32_t QPStaker::GetBlocksDocked() const
+{
+    return nBlocksDocked;
+}
+
 uint32_t QPStaker::GetBlocksAssigned() const
 {
     return nBlocksAssigned;
@@ -171,11 +178,11 @@ uint32_t QPStaker::GetBlocksSeen() const
 
 uint32_t QPStaker::GetNetBlocks() const
 {
-    if (nBlocksMissed >= nBlocksProduced)
+    if (nBlocksDocked >= nBlocksProduced)
     {
         return 0;
     }
-    return nBlocksProduced - nBlocksMissed;
+    return nBlocksProduced - nBlocksDocked;
 }
 
 uint256 QPStaker::GetHashBlockMostRecent() const
@@ -373,6 +380,8 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nBlocksProduced)));
     objRet.push_back(Pair("blocks_missed",
                           static_cast<int64_t>(nBlocksMissed)));
+    objRet.push_back(Pair("blocks_docked",
+                          static_cast<int64_t>(nBlocksDocked)));
     objRet.push_back(Pair("blocks_assigned",
                           static_cast<int64_t>(nBlocksAssigned)));
     objRet.push_back(Pair("blocks_seen",
@@ -456,10 +465,14 @@ void QPStaker::ProducedBlock(const uint256 *const phashBlock,
     UpdatePrevRecentBlocks(fPrevDidProduceBlock);
 }
 
-void QPStaker::MissedBlock(bool fPrevDidProduceBlock)
+void QPStaker::MissedBlock(bool fPrevDidProduceBlock, int nFork)
 {
     nBlocksAssigned += 1;
     nBlocksMissed += 1;
+    if (nFork >= XST_FORKMISSFIX)
+    {
+        nBlocksDocked += 1;
+    }
     bRecentBlocks <<= 1;  // FIXME: use modular
     UpdatePrevRecentBlocks(fPrevDidProduceBlock);
 }
