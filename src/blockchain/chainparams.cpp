@@ -397,6 +397,9 @@ ChainParams::ChainParams()
     // max size of high-priority/low-fee transactions in bytes
     DEFAULT_BLOCKPRIORITYSIZE = 27000;
 
+    // Rate limit of forced unsecured client disconnects in seconds
+    DEFAULT_REMODEL_SLEEP = 360;
+
     // maximum tx fee in XST
     MAX_TXFEE = COIN / 4;
 

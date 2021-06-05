@@ -219,6 +219,8 @@ public:
     int DEFAULT_BLOCKMAXSIZE;
     int DEFAULT_BLOCKPRIORITYSIZE;
 
+    int64_t DEFAULT_REMODEL_SLEEP;
+
     float MAX_TXFEE;
 
 

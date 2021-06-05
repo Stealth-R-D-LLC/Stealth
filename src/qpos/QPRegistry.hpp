@@ -130,6 +130,7 @@ public:
     bool CanEnableStaker(unsigned int nStakerID, int nHeight) const;
     bool IsQualifiedStaker(unsigned int nStakerID) const;
     bool TimestampIsValid(unsigned int nStakerID, unsigned int nTime) const;
+    const QPQueue* GetQueue() const;
     unsigned int GetQueueMinTime() const;
     unsigned int GetCurrentSlot() const;
     unsigned int GetCurrentSlotStart() const;

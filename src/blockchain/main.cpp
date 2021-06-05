@@ -4015,7 +4015,8 @@ bool static Reorganize(CTxDB& txdb,
         if (!block.ConnectBlock(txdb, pindex, pregistryTemp.get()))
         {
             // Invalid block
-            return error("Reorganize() : ConnectBlock %s failed", pindex->GetBlockHash().ToString().c_str());
+            return error("Reorganize() : ConnectBlock %s failed",
+                         pindex->GetBlockHash().ToString().c_str());
         }
 
         // Queue memory transactions to delete
@@ -4023,6 +4024,17 @@ bool static Reorganize(CTxDB& txdb,
         {
             vDelete.push_back(tx);
         }
+
+        if (!pregistryTemp->UpdateOnNewBlock(pindex,
+                                             QPRegistry::ALL_SNAPS,
+                                             true))
+        {
+            return error("Reorganize() : Update to %s failed",
+                         pindex->GetBlockHash().ToString().c_str());
+        }
+
+        printf("Reorganize(): connected %s\n",
+               pindex->GetBlockHash().ToString().c_str());
     }
 
     if (!txdb.WriteHashBestChain(pindexNew->GetBlockHash()))
@@ -6939,6 +6951,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         pfrom->AddInventoryKnown(inv);
 
         bool fProcessOK;
+        bool fCheck = true;
 
         if (block.hashPrevBlock == hashBestChain)
         {
@@ -6951,16 +6964,86 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                    GetFork(block.nHeight), XST_FORKQPOS);
 
             fProcessOK = ProcessBlock(pfrom, &block);
+            fCheck = false;
         }
-        else
+        else if (mapBlockIndex.count(block.hashPrevBlock))
+        {
+            CBlockIndex* pindexPrev = mapBlockIndex[block.hashPrevBlock];
+            printf("Previous of new nonsequential block %d is known:\n"
+                      "  Prev: %s\n  This: %s\n",
+                   pindexPrev->nHeight + 1,
+                   pindexPrev->GetBlockHash().ToString().c_str(),
+                   block.GetHash().ToString().c_str());
+            CBlockIndex* pindex = pindexPrev;
+            while (pindex && (pindex->nHeight > pindexBest->nHeight))
+            {
+               pindex = pindex->pprev;
+            }
+            if (pindex && (pindex == pindexBest))
+            {
+                // The chain from pindexBest to this block has somehow avoided
+                // being properly linked, but since it builds on the
+                // best chain, we assume it is best and set it as such.
+                printf("Setting best chain for prev of nonsequential block:\n"
+                       "  this=%s\n"
+                       "  best=%s\n"
+                       "  prev=%s, fork=%u (FORKQPOS=%u)\n",
+                       block.GetHash().ToString().c_str(),
+                       hashBestChain.ToString().c_str(),
+                       block.hashPrevBlock.ToString().c_str(),
+                       GetFork(block.nHeight), XST_FORKQPOS);
+
+                CTxDB txdb;
+                AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry(pregistryMain));
+                if (!pregistryTemp.get())
+                {
+                    return error("ProcessMessage(): could not create temp registry\n");
+                }
+                pregistryTemp->CheckSynced();
+                bool fReorganized;
+                CBlock blockPrev;
+                if (!blockPrev.ReadFromDisk(pindexPrev))
+                {
+                    return error("ProcessMessag(): ReadFromDisk failed");
+                }
+                if (blockPrev.SetBestChain(txdb,
+                                           pindexPrev,
+                                           pregistryTemp.get(),
+                                           fReorganized))
+                {
+                    printf("Chain %s reorganized.\n",
+                           fReorganized ? "was" : "was not");
+                    bool fExitReplay = !pregistryMain->IsInReplayMode();
+                    pregistryMain->Copy(pregistryTemp.get());
+                    if (fExitReplay)
+                    {
+                        pregistryMain->ExitReplayMode();
+                    }
+                    fProcessOK = ProcessBlock(pfrom, &block);
+                }
+                else
+                {
+                    const QPQueue* queue = pregistryTemp->GetQueue();
+                    printf("ProcessMessage(): could not set best chain with block\n");
+                    printf("  staker: %u\n  Queue: %s\n",
+                           block.nStakerID,
+                           queue->ToString().c_str());
+                    return false;
+                }
+                fCheck = false;
+            }
+        }
+        if (fCheck)
         {
             // Check nonsequential blocks as much as possible
             // to mitigate certain types of spam attacks.
             // A qPoS block can only fully validate if the registry is synced
             // with the block's immediate predecessor.
             // This full validation happens uppon connecting the block.
-            printf("Processing block just check: %s\n",
-                   block.GetHash().ToString().c_str());
+            printf("Processing block just check:\n"
+                      "  This: %d  %s\n  Best: %d %s\n",
+                   block.nHeight, block.GetHash().ToString().c_str(),
+                   nBestHeight, hashBestChain.ToString().c_str());
             fProcessOK = ProcessBlock(pfrom, &block, false, true);
         }
 

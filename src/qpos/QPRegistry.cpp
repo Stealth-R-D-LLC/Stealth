@@ -95,6 +95,11 @@ uint256 QPRegistry::GetBlockHash() const
     return hashBlock;
 }
 
+const QPQueue* QPRegistry::GetQueue() const
+{
+    return &queue;
+}
+
 uint256 QPRegistry::GetHashLastBlockPrev1Queue() const
 {
     return hashLastBlockPrev1Queue;
@@ -1589,11 +1594,15 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         }
         if (nNewQueues > 0)
         {
-            if (fWriteLog)
+            if (fWriteLog || fDebugQPoS)
             {
                 printf("UpdateOnNewTime(): %u new queues with %s\n",
                        nNewQueues, hashBlock.ToString().c_str());
                 printf("   newest queue starts at %d\n", queue.GetMinTime());
+            }
+            if (fDebugQPoS)
+            {
+                printf("  Queue: %s\n", queue.ToString().c_str());
             }
         }
     }
@@ -1647,7 +1656,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                          pindex->nStakerID);
         }
 
-        if (fWriteLog)
+        if (fWriteLog || fDebugQPoS)
         {
             printf("UpdateOnNewBlock(): hash=%s\n"
                    "   height=%d, time=%" PRId64 ", "
@@ -1669,6 +1678,23 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 
         if (nStakerSlot != queue.GetCurrentSlot())
         {
+            printf("UpdateOnNewBlock(): hash=%s\n"
+                   "   height=%d, time=%" PRId64 ", "
+                   "staker_id=%d, staker_slot=%d\n"
+                   "   round=%d, seed=%u, window=%d-%d, picopower=%" PRIu64 "\n"
+                   "   %s\n",
+                   pindex->phashBlock->ToString().c_str(),
+                   pindex->nHeight,
+                   pindex->GetBlockTime(),
+                   pindex->nStakerID,
+                   nStakerSlot,
+                   nRound,
+                   nRoundSeed,
+                   queue.GetCurrentSlotStart(),
+                   queue.GetCurrentSlotEnd(),
+                   GetPicoPower(),
+                   queue.ToString().c_str());
+
             return error("UpdateOnNewBlock(): staker slot (%d) "
                          "is not current slot (%d)",
                          nStakerSlot,

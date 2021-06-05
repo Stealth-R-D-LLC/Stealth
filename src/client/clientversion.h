@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    5
-#define CLIENT_VERSION_BUILD       0
+#define CLIENT_VERSION_BUILD       1
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -43,6 +43,8 @@ static const int CLIENT_PROTOCOL_VERSION = 63800;
 //         fork 10 : XST_FORKFEELESS
 //         fork 9  : XST_FORKNFT
 //                   XST_FORKQPOSB
+//         3.1.5.1 : Fixing case when best chain is not properly linked
+//                 : Rate limiting unsecured node disconnects
 //         3.1.5.0 : Fixing erroneous staker termination on mainnet
 // 63700             XST_FORKQPOS
 //         3.1.4.0 : Fixing stall on transition to Junaeth

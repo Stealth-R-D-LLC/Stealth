@@ -733,12 +733,20 @@ void ThreadSocketHandler(void* parg)
 
 void ThreadSocketHandler2(void* parg)
 {
+
+    // Remodeling entails the forced disconnecting of
+    // nodes. It's better to rate limit this process
+    // 
+    static const int64_t REMODEL_SLEEP = GetArg("-remodel_sleep",
+                                                chainParams.DEFAULT_REMODEL_SLEEP);
+
     printf("ThreadSocketHandler started\n");
     list<CNode*> vNodesDisconnected;
     unsigned int nPrevNodeCount = 0;
 
     while (true)
     {
+        int64_t nTimeLastDisconnect = GetTime();
         //
         // Disconnect nodes
         //
@@ -820,10 +828,12 @@ void ThreadSocketHandler2(void* parg)
                 }
             }
             // don't remove unsecure nodes if no secure nodes
-            // don't purposefully make peer count smaller than five
+            // don't purposefully make peer count smaller than 40
+            // rate limit disconnects to once per REMODEL_SLEEP seconds
             if ((secured > 0) &&
-                (secured + unsecured > 5) &&
-                ((2 * secured - 3 * unsecured) < 0))
+                (secured + unsecured > 40) &&
+                ((2 * secured - 3 * unsecured) < 0) &&
+                (GetTime() - (nTimeLastDisconnect + REMODEL_SLEEP)) > 0)
             {
                 random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
 
