@@ -65,6 +65,7 @@ public:
     int START_QPOSB_M;
     int START_FEELESS_M;
     int START_MISSFIX_M;
+    int REINSTATE_M;
 
     mapIntInt_t mapForksMainNet;
 
@@ -207,6 +208,8 @@ public:
     int DEFAULT_PROXY_MAINNET;
     int DEFAULT_TORPORT;
     int DEFAULT_MAXCONNECTIONS;
+    int DEFAULT_MINCONNREMODEL;
+    int DEFAULT_REMODELSLEEP;
     int DEFAULT_BANSCORE;
     int DEFAULT_MAXRECEIVEBUFFER;
     int DEFAULT_MAXSENDBUFFER;
@@ -219,7 +222,6 @@ public:
     int DEFAULT_BLOCKMAXSIZE;
     int DEFAULT_BLOCKPRIORITYSIZE;
 
-    int64_t DEFAULT_REMODEL_SLEEP;
 
     float MAX_TXFEE;
 
@@ -245,6 +247,7 @@ public:
     int START_QPOSB_T;
     int START_FEELESS_T;
     int START_MISSFIX_T;
+    int REINSTATE_T;
 
     mapIntInt_t mapForksTestNet;
 

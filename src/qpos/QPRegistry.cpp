@@ -118,7 +118,7 @@ uint256 QPRegistry::GetHashLastBlockPrev3Queue() const
 int64_t QPRegistry::GetTotalEarned() const
 {
     int64_t total = 0;
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         total += it->second.GetTotalEarned();
@@ -131,7 +131,7 @@ int64_t QPRegistry::GetTotalEarned() const
 unsigned int QPRegistry::GetNumberOf(bool (QPStaker::* f)() const) const
 {
     unsigned int count = 0;
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if ((it->second.*f)())
@@ -511,7 +511,7 @@ void QPRegistry::AsJSON(Object &objRet) const
     unsigned int nCurrentSlot = queue.GetCurrentSlot();
 
     vector<pair<unsigned int, const QPStaker*> > vIDs;
-    QPRegistryIterator mit;
+    QPRegistryConstIterator mit;
     for (mit = mapStakers.begin(); mit != mapStakers.end(); ++mit)
     {
         if (mit->second.IsQualified())
@@ -589,6 +589,7 @@ void QPRegistry::AsJSON(Object &objRet) const
     objRet.push_back(Pair("current_pico_power", GetPicoPowerCurrent()));
     objRet.push_back(Pair("queue", aryQueue));
     objRet.push_back(Pair("queue_blocks", HexStr(queue.GetBlockStats())));
+    objRet.push_back(Pair("queue_summary", queue.ToString()));
     objRet.push_back(Pair("stakers", objStakers));
     objRet.push_back(Pair("balances", objBalances));
 }
@@ -812,7 +813,7 @@ const QPStaker* QPRegistry::GetStaker(unsigned int nID) const
 {
     if ((nID > 0) && (nID <= nIDCounter))
     {
-        QPRegistryIterator iter = mapStakers.find(nID);
+        QPRegistryConstIterator iter = mapStakers.find(nID);
         if (iter != mapStakers.end())
         {
             return &(iter->second);
@@ -829,7 +830,7 @@ const QPStaker* QPRegistry::GetNewestStaker() const
 void QPRegistry::GetEnabledStakers(vector<const QPStaker*> &vRet) const
 {
     vRet.clear();
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->second.IsEnabled())
@@ -843,7 +844,7 @@ void QPRegistry::GetEnabledStakers(vector<const QPStaker*> &vRet) const
 void QPRegistry::GetDisabledStakers(vector<const QPStaker*> &vRet) const
 {
     vRet.clear();
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->second.IsDisabled())
@@ -858,7 +859,7 @@ void QPRegistry::GetStakers(vector<const QPStaker*> &vRet) const
     vRet.clear();
     for (unsigned int n = 1; n <= nIDCounter; ++n)
     {
-        QPRegistryIterator it = mapStakers.find(n);
+        QPRegistryConstIterator it = mapStakers.find(n);
         if (it == mapStakers.end())
         {
             // this should never happen: no such ID
@@ -874,7 +875,7 @@ void QPRegistry::GetStakers(vector<const QPStaker*> &vRet) const
 void QPRegistry::GetStakers(QPMapPStakers &mapRet) const
 {
     mapRet.clear();
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         mapRet[it->first] = &(it->second);
@@ -944,7 +945,7 @@ bool QPRegistry::ShouldRollback() const
 
 void QPRegistry::GetCertifiedNodes(vector<string> &vNodesRet) const
 {
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->second.IsDisqualified())
@@ -961,7 +962,7 @@ void QPRegistry::GetCertifiedNodes(vector<string> &vNodesRet) const
 
 bool QPRegistry::IsCertifiedNode(const string &sNodeAddress) const
 {
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->second.IsDisqualified())
@@ -1063,7 +1064,7 @@ bool QPRegistry::GetPrevRecentBlocksMissedMax(unsigned int nID,
     uint32_t n = 0;
     uint32_t total = 0;
     vector<uint32_t> vMissed;
-    QPRegistryIterator it;
+    QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
     {
         if (it->first == nID)
@@ -1223,7 +1224,10 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
     {
         mapBalances[pstaker->pubkeyDelegate] += nDelegateReward;
     }
-    DisqualifyStakerIfNecessary(nID, pstaker);
+    if (GetFork(nBestHeight) < XST_FORKREINSTATE)
+    {
+        DisqualifyStakerIfNecessary(nID, pstaker);
+    }
     bRecentBlocks <<= 1;
     bRecentBlocks[0] = true;
     fCurrentBlockWasProduced = true;
@@ -1342,7 +1346,7 @@ bool QPRegistry::DisqualifyStakerIfNecessary(unsigned int nID,
 bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
 {
     vector<unsigned int> vIDs;
-    QPRegistryIterator iter;
+    QPRegistryConstIterator iter;
     for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
     {
         if (iter->second.IsEnabled())
@@ -1444,7 +1448,12 @@ void QPRegistry::PurgeLowBalances(int64_t nMoneySupply)
     map<CPubKey, int64_t>::const_iterator it;
     for (it = mapBalances.begin(); it != mapBalances.end(); ++it)
     {
-        if ((it->second < nDockValue) && (!mapActive.count(it->first)))
+        int number = 0;
+        if (mapActive.count(it->first))
+        {
+            number = mapActive[it->first];
+        }
+        if ((it->second < nDockValue) && (number <= 0))
         {
             vPurge.push_back(it->first);
         }
@@ -1469,11 +1478,12 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                                   PERMANENT_SNAPSHOT_RATIO;
 
     int nHeight = pindex->nHeight;
+    int nFork = GetFork(nHeight);
 
     bool fWriteSnapshot = true;
     bool fEraseSnapshot = false;
     if ((nSnapshotType == QPRegistry::NO_SNAPS) ||
-        (GetFork(nHeight) < XST_FORKPURCHASE))
+        (nFork < XST_FORKPURCHASE))
     {
         fWriteSnapshot = false;
     }
@@ -1553,7 +1563,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         {
             if (!fCurrentBlockWasProduced)
             {
-                if (GetFork(nHeight) >= XST_FORKQPOS)
+                if (nFork >= XST_FORKQPOS)
                 {
                     StakerMissedBlock(queue.GetCurrentID(), nHeight);
                 }
@@ -1616,6 +1626,26 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                                   bool fJustCheck)
 {
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
+
+    int nFork = GetFork(pindex->nHeight);
+
+    // Unfortunately, a line that disqualified stakers accidentally
+    // remained in a previous commit, so now we have to undo the damage.
+    if ((GetFork(nBestHeight) < XST_FORKREINSTATE) &&
+        (nFork >= XST_FORKREINSTATE))
+    {
+        QPRegistryIterator iter;
+        for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
+        {
+            QPStaker& staker = iter->second;
+            if (staker.IsDisqualified())
+            {
+                staker.Requalify(true);
+            }
+            staker.ResetDocked();
+        }
+    }
+
     // Q: Why do we update on new time before updating the registry
     //    for the new block?
     // A: Because we can't advance the queue until we have an event (block)
@@ -1625,7 +1655,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
         return error("UpdateOnNewBlock(): could not update on new time for %s",
                      pindex->phashBlock->ToString().c_str());
     }
-    if (GetFork(pindex->nHeight) >= XST_FORKPURCHASE)
+    if (nFork >= XST_FORKPURCHASE)
     {
         if (!pindex->vDeets.empty())
         {
@@ -1647,7 +1677,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
             }
         }
     }
-    if (GetFork(pindex->nHeight) >= XST_FORKQPOS)
+    if (nFork >= XST_FORKQPOS)
     {
         unsigned int nStakerSlot = 0;
         if (!queue.GetSlotForID(pindex->nStakerID, nStakerSlot))

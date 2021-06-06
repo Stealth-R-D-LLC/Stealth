@@ -8,8 +8,8 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    5
-#define CLIENT_VERSION_BUILD       1
+#define CLIENT_VERSION_REVISION    6
+#define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -28,23 +28,28 @@ enum ForkNumbers
     XST_FORKQPOSB,      // fork 9
     XST_FORKNFT,        // fork 9
     XST_FORKFEELESS,    // fork 10
-    XST_FORKMISSFIX,    // fork 11 (testnet)
+    XST_FORKMISSFIX,    // fork 11
+    XST_FORKREINSTATE,  // fork 12
     TOTAL_FORKS
 };
 
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 63800;
+static const int CLIENT_PROTOCOL_VERSION = 63900;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+// 63900 : fork 12 : XST_FORKREINSTATE
+//         3.1.6.0 : Reinstating stakers and resetting docked blocks
+//                 : Fixing low balance purge
+//                 : RPC imporvements: getqueuesummary
 // 63800 : fork 11 : XST_FORKMISSFIX
+//         3.1.5.1 : Fixing case when best chain is not properly linked
+//                 : Rate limiting unsecured node disconnects
 //         fork 10 : XST_FORKFEELESS
 //         fork 9  : XST_FORKNFT
 //                   XST_FORKQPOSB
-//         3.1.5.1 : Fixing case when best chain is not properly linked
-//                 : Rate limiting unsecured node disconnects
 //         3.1.5.0 : Fixing erroneous staker termination on mainnet
 // 63700             XST_FORKQPOS
 //         3.1.4.0 : Fixing stall on transition to Junaeth

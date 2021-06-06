@@ -1997,9 +1997,16 @@ public:
             {
                 printf("CBlockLocator::Set(): TSNH no block found at %d\n",
                        nHeight);
-                break;
+                while (pindex)
+                {
+                    if (pindex->nHeight == nHeight)
+                    {
+                        mapBlockLookup[nHeight] = mapBlockIndex[pindex->GetBlockHash()];
+                        break;
+                    }
+                    pindex = pindex->pprev;
+                }
             }
-
 
             // Exponentially larger steps back
             if (vHave.size() > 10)

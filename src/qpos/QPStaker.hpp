@@ -109,8 +109,10 @@ public:
     bool Enable();
     void Disable(int nHeight);
     void Disqualify();
+    void Requalify(bool fEnable);
     bool SetAlias(const std::string &sAliasIn);
     void SetMeta(const std::string &key, const std::string &value);
+    void ResetDocked();
 
 
     IMPLEMENT_SERIALIZE

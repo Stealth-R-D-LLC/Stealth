@@ -61,6 +61,7 @@ ChainParams::ChainParams()
         (             XST_FORKQPOSB,     63800 )
         (           XST_FORKFEELESS,     63800 )
         (           XST_FORKMISSFIX,     63800 )
+        (         XST_FORKREINSTATE,     63900 )
                );
 
     CUTOFF_POW_M = 5460;
@@ -72,6 +73,7 @@ ChainParams::ChainParams()
     START_NFT_M = 3695200;       // add NFT commitment to blockchain
     START_FEELESS_M = 3702300;   // start of feeless transactions
     START_MISSFIX_M = 3719600;   // allow network stalls on transition to qPoS
+    REINSTATE_M = 3776758;         // reinstate disqualified stakers
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -81,14 +83,15 @@ ChainParams::ChainParams()
         /* Oct  9 00:00:42 MST 2014 */   (            130669, XST_FORK004       )
         /* Aug 16 10:23:28 MST 2017 */   (           1732201, XST_FORK005       )
         /* Nov 14 08:09:53 MDT 2018 */   (           2378000, XST_FORK006       )
-        /* Approx May    4, 2021    */   (  START_PURCHASE_M, XST_FORKPURCHASE  )
-        /* Approx May   16, 2021    */   ( START_PURCHASE2_M, XST_FORKPURCHASE2 )
-        /* Approx May   23, 2021    */   ( START_PURCHASE3_M, XST_FORKPURCHASE3 )
-        /* Approx May   31, 2021    */   (      START_QPOS_M, XST_FORKQPOS      )
-        /* Approx May   31, 2021    */   (     START_QPOSB_M, XST_FORKQPOSB     )
-        /* Approx May   31, 2021    */   (       START_NFT_M, XST_FORKNFT       )
-        /* Approx June   1, 2021    */   (   START_FEELESS_M, XST_FORKFEELESS   )
-        /* Approx June   1, 2021    */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
+        /* May  5 01:38:48 MST 2021 */   (  START_PURCHASE_M, XST_FORKPURCHASE  )
+        /* May 16 06:54:14 MST 2021 */   ( START_PURCHASE2_M, XST_FORKPURCHASE2 )
+        /* May 23 19:46:03 MST 2021 */   ( START_PURCHASE3_M, XST_FORKPURCHASE3 )
+        /* Jun  2 03:18:32 MST 2021 */   (      START_QPOS_M, XST_FORKQPOS      )
+        /* Jun  2 03:18:32 MST 2021 */   (     START_QPOSB_M, XST_FORKQPOSB     )
+        /* Jun  2 03:28:17 MST 2021 */   (       START_NFT_M, XST_FORKNFT       )
+        /* Jun  2 14:12:17 MST 2021 */   (   START_FEELESS_M, XST_FORKFEELESS   )
+        /* Jun  3 15:45:07 MST 2021 */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
+        /*  Approx 6/7 2021 2PM MST */   (       REINSTATE_M, XST_FORKREINSTATE )
                                                  );
 
 
@@ -367,6 +370,12 @@ ChainParams::ChainParams()
 
     DEFAULT_MAXCONNECTIONS = 125;
 
+    // minimum connections before attempting remodeling by forced disconnects
+    DEFAULT_MINCONNREMODEL = 40;
+
+    // Rate limit of forced unsecured client disconnects in seconds
+    DEFAULT_REMODELSLEEP = 600;
+
     DEFAULT_BANSCORE = 100;
 
     // max per connection receive buffer, x1000 bytes
@@ -396,9 +405,6 @@ ChainParams::ChainParams()
 
     // max size of high-priority/low-fee transactions in bytes
     DEFAULT_BLOCKPRIORITYSIZE = 27000;
-
-    // Rate limit of forced unsecured client disconnects in seconds
-    DEFAULT_REMODEL_SLEEP = 360;
 
     // maximum tx fee in XST
     MAX_TXFEE = COIN / 4;
@@ -435,6 +441,7 @@ ChainParams::ChainParams()
     START_NFT_T = 22501;       // placeholder for mainnet
     START_FEELESS_T = 3965963;
     START_MISSFIX_T = 4768119;
+    REINSTATE_T = 99999999;    // placeholder for testnet
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
@@ -453,6 +460,7 @@ ChainParams::ChainParams()
         /*                          */       (       START_NFT_T, XST_FORKNFT       )
         /*                          */       (   START_FEELESS_T, XST_FORKFEELESS   )
         /*                          */       (   START_MISSFIX_T, XST_FORKMISSFIX   )
+        /*                          */       (       REINSTATE_T, XST_FORKREINSTATE )
                                                     );
 
 

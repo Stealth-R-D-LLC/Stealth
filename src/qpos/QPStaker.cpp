@@ -557,6 +557,19 @@ void QPStaker::Disqualify()
     fQualified = false;
 }
 
+void QPStaker::Requalify(bool fEnable)
+{
+    if (fEnable)
+    {
+        nHeightDisabled = 0;
+    }
+    else
+    {
+        nHeightDisabled = -1;
+    }
+    fQualified = true;
+}
+
 bool QPStaker::SetAlias(const string &sAliasIn)
 {
     if (sAlias != "")
@@ -577,4 +590,9 @@ void QPStaker::SetMeta(const string &key, const string &value)
     {
         mapMeta[key] = value;
     }
+}
+
+void QPStaker::ResetDocked()
+{
+    nBlocksDocked = 0;
 }

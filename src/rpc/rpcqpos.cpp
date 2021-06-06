@@ -23,6 +23,48 @@ uint32_t PcmFromValue(const Value &value)
     return static_cast<uint32_t>(roundint(dPercent * 1000));
 }
 
+string GetRegistryAtHeight(int nHeight, QPRegistry* &pRet)
+{
+    if (nHeight == -1)
+    {
+        pRet = pregistryMain;
+    }
+    else
+    {
+        CBlockIndex *pindex = pindexBest;
+        // TODO: refactor (see also CBlockLocator)
+        if (mapBlockLookup.count(nHeight))
+        {
+            pindex = mapBlockLookup[nHeight];
+        }
+        else
+        {
+            printf("GetRegistryAtHeight(): TSNH no block found at %d\n",
+                   nHeight);
+            while (pindex)
+            {
+                if (pindex->nHeight == nHeight)
+                {
+                    mapBlockLookup[nHeight] = pindex;
+                    break;
+                }
+                pindex = pindex->pprev;
+            }
+            if (!pindex)
+            {
+                return strprintf("TSNH: index not found at %d", nHeight);
+            }
+        }
+        CTxDB txdb;
+        CBlockIndex* pindexCurrent;
+        if (!RewindRegistry(txdb, pindex, pRet, pindexCurrent))
+        {
+            return strprintf("TSRH Error rewinding registry to %d.", nHeight);
+        }
+    }
+    return "";
+}
+
 Value exitreplay(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 0 || !fTestNet)
@@ -310,7 +352,7 @@ Value purchasestaker(const Array &params, bool fHelp)
                                                   vchControllerKey,
                                                   nPrice, nPcm, wtx);
 
-    if (strError != "")
+    if (!strError.empty())
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -337,7 +379,7 @@ Value SetStakerKey(const Array& params,
                                                 nID, vchPubKey,
                                                 opSetKey, nPcm, wtx);
 
-    if (strError != "")
+    if (!strError.empty())
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -438,7 +480,7 @@ Value SetStakerState(const Array& params, bool fEnable)
                                                   nID, vchPubKey,
                                                   fEnable, wtx);
 
-    if (strError != "")
+    if (!strError.empty())
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -519,7 +561,7 @@ Value claimqposbalance(const Array& params, bool fHelp)
     // SetKey
     string strError = pwalletMain->ClaimQPoSBalance(txid, nOut, nAmount, wtx);
 
-    if (strError != "")
+    if (!strError.empty())
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -575,7 +617,7 @@ Value setstakermeta(const Array& params, bool fHelp)
                                                  nID, vchPubKey,
                                                  sKey, sValue, wtx);
 
-    if (strError != "")
+    if (!strError.empty())
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
     }
@@ -680,7 +722,7 @@ Value getqposinfo(const Array& params, bool fHelp)
         throw runtime_error(
             "getqposinfo [height]\n"
             "Returns exhaustive qPoS information\n"
-            "Optional [height] will get info as of that height (expensive)");
+            "Optional [height] will get info as of that height");
     }
 
     int nHeight = -1;
@@ -693,38 +735,58 @@ Value getqposinfo(const Array& params, bool fHelp)
         }
     }
 
-    Object obj;
-    if (nHeight == -1)
+    QPRegistry registry;
+    QPRegistry* pregistry = &registry;
+    string strError = GetRegistryAtHeight(nHeight, pregistry);
+
+    if (!strError.empty())
     {
-        pregistryMain->AsJSON(obj);
-    }
-    else
-    {
-        bool fFound = false;
-        CBlockIndex *pindex = pindexBest;
-        while (pindex->pprev)
-        {
-            if (pindex->nHeight == nHeight)
-            {
-                fFound = true;
-                break;
-            }
-            pindex = pindex->pprev;
-        }
-        if (!fFound)
-        {
-            throw runtime_error("TSNH Block not found at this height.");
-        }
-        AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry());
-        CTxDB txdb;
-        CBlockIndex* pindexCurrent;
-        if (!RewindRegistry(txdb, pindex, pregistryTemp.get(), pindexCurrent))
-        {
-            throw runtime_error("TSRH Error calculating info.");
-        }
-        pregistryTemp->AsJSON(obj);
+        throw runtime_error(strError);
     }
 
+    Object obj;
+    pregistry->AsJSON(obj);
+
+    return obj;
+}
+
+
+Value getqueuesummary(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() > 1)
+    {
+        throw runtime_error(
+            "getqueuesummary [height]\n"
+            "Returns a consise summary of the queue\n"
+            "Optional [height] will get info as of that height");
+    }
+
+    int nHeight = -1;
+    if (params.size() > 0)
+    {
+        nHeight = params[0].get_int();
+        if ((nHeight < 0) || (nHeight > pindexBest->nHeight))
+        {
+            throw runtime_error("Height out of range.");
+        }
+    }
+
+    QPRegistry registry;
+    QPRegistry* pregistry = &registry;
+    string strError = GetRegistryAtHeight(nHeight, pregistry);
+
+    if (!strError.empty())
+    {
+        throw runtime_error(strError);
+    }
+
+    if (nHeight == -1)
+    {
+        nHeight = pindexBest->nHeight;
+    }
+
+    Object obj;
+    pregistry->GetQueue()->SummaryAsJSON(nHeight, obj);
     return obj;
 }
 

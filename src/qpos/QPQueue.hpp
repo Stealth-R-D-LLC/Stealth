@@ -65,6 +65,7 @@ public:
     unsigned int SlotProduced(unsigned int nSlot);
     bool IncrementSlot();
     void Reset();
+    void SummaryAsJSON(int nHeight, json_spirit::Object &objRet) const;
 
     IMPLEMENT_SERIALIZE
     (

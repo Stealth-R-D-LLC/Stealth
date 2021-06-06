@@ -735,10 +735,16 @@ void ThreadSocketHandler2(void* parg)
 {
 
     // Remodeling entails the forced disconnecting of
-    // nodes. It's better to rate limit this process
-    // 
-    static const int64_t REMODEL_SLEEP = GetArg("-remodel_sleep",
-                                                chainParams.DEFAULT_REMODEL_SLEEP);
+    // nodes. It's better to rate limit this process.
+    static int REMODELSLEEP = GetArg("-remodelsleep",
+                                     chainParams.DEFAULT_REMODELSLEEP);
+
+    static int MAXCONNECTIONS = GetArg("-maxconnections",
+                                       chainParams.DEFAULT_MAXCONNECTIONS);
+
+    static int MINCONNREMODEL = GetArg("-minconnremodel",
+                                       min(MAXCONNECTIONS,
+                                           chainParams.DEFAULT_MINCONNREMODEL));
 
     printf("ThreadSocketHandler started\n");
     list<CNode*> vNodesDisconnected;
@@ -828,12 +834,12 @@ void ThreadSocketHandler2(void* parg)
                 }
             }
             // don't remove unsecure nodes if no secure nodes
-            // don't purposefully make peer count smaller than 40
-            // rate limit disconnects to once per REMODEL_SLEEP seconds
+            // don't purposefully make peer count smaller than MINCONNREMODEL
+            // rate limit disconnects to once per REMODELSLEEP seconds
             if ((secured > 0) &&
-                (secured + unsecured > 40) &&
+                (secured + unsecured > MINCONNREMODEL) &&
                 ((2 * secured - 3 * unsecured) < 0) &&
-                (GetTime() - (nTimeLastDisconnect + REMODEL_SLEEP)) > 0)
+                (GetTime() - (nTimeLastDisconnect + REMODELSLEEP)) > 0)
             {
                 random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
 

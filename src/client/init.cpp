@@ -258,6 +258,10 @@ std::string HelpMessage()
                                             cp.DEFAULT_TORPORT) + "\n" 
         "  -maxconnections=<n>    " + strprintf(_("Maintain at most <n> connections to peers (default: %d)"),
                                             cp.DEFAULT_MAXCONNECTIONS) + "\n" +
+        "  -minconnremodel=<n>    " + strprintf(_("Require at least <n> connections to remodel (default: %d)"),
+                                            cp.DEFAULT_MINCONNREMODEL) + "\n" +
+        "  -remodelsleep=<n>      " + strprintf(_("Wait at least <n> seconds between removing connnections (default: %d)"),
+                                            cp.DEFAULT_REMODELSLEEP) + "\n" +
         "  -addnode=<ip>          " + _("Add a node to connect to and attempt to keep the connection open") + "\n" +
         "  -connect=<ip>          " + _("Connect only to the specified node(s)") + "\n" +
         "  -seednode=<ip>         " + _("Connect to a node to retrieve peer addresses, and disconnect") + "\n" +

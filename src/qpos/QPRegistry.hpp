@@ -20,7 +20,8 @@
 class CBlockIndex;
 
 typedef std::map<unsigned int, QPStaker> QPMapStakers;
-typedef QPMapStakers::const_iterator QPRegistryIterator;
+typedef QPMapStakers::iterator QPRegistryIterator;
+typedef QPMapStakers::const_iterator QPRegistryConstIterator;
 
 typedef std::map<unsigned int, const QPStaker*> QPMapPStakers;
 typedef QPMapPStakers::const_iterator QPRegistryPIterator;

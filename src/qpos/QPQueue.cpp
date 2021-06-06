@@ -8,6 +8,7 @@
 #include <sstream>
 
 using namespace std;
+using namespace json_spirit;
 
 
 unsigned int BitIsOn(const valtype& vch, unsigned int nBit)
@@ -348,4 +349,33 @@ bool QPQueue::IncrementSlot()
 void QPQueue::Reset()
 {
     nCurrentSlot = 0;
+}
+
+void QPQueue::SummaryAsJSON(int nHeight, Object &objRet) const
+{
+    int n = vStakerIDs.size();
+    int last = n - 1;
+    ostringstream ss;
+    for (int i = 0; i < n; ++i)
+    {
+        QPSlotStatus status;
+        if (!GetStatusForSlot(i, status))
+        {
+            // this should never happen: practically impossible
+            printf("QPQueue::SummaryAsJSON() TSNH No such slot\n");
+        }
+        const char* chStat = GetSlotStatusAbbrev(status);
+        ss << chStat << i << ":" << vStakerIDs[i];
+        if (i < last)
+        {
+            ss << ",";
+        }
+    }
+    string sSlots = ss.str();
+    objRet.push_back(Pair("height", (boost::int64_t)nHeight));
+    objRet.push_back(Pair("current_slot", (boost::int64_t)nCurrentSlot));
+    objRet.push_back(Pair("size", (boost::int64_t)vStakerIDs.size()));
+    objRet.push_back(Pair("min_time", (boost::int64_t)nSlotTime0));
+    objRet.push_back(Pair("max_time", (boost::int64_t)GetMaxTime()));
+    objRet.push_back(Pair("slots", sSlots));
 }
