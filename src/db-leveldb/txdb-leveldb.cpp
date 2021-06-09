@@ -766,10 +766,6 @@ bool CTxDB::LoadBlockIndex()
     CBlockIndex* pindexBestReplay = NULL;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
-        if ((nReplayedCount % 100000 == 0) && nReplayedCount)
-        {
-            printf("  Replayed %d blocks\n", nReplayedCount);
-        }
         int nHeight = item.first;
         CBlockIndex* pidx = item.second;
         pidx->bnChainTrust = (pidx->pprev ?  pidx->pprev->bnChainTrust : 0) +
@@ -789,44 +785,60 @@ bool CTxDB::LoadBlockIndex()
                              nHeight, pidx->nStakeModifier);
             }
         }
-
-        if ((nFork >= XST_FORKPURCHASE) &&
-            (nHeight > pregistryMain->GetBlockHeight()) &&
-            (pidx->IsInMainChain()))
+        if (pidx->IsInMainChain())
         {
             if (nHeight % 100000 == 0)
             {
                 printf("Replayed %d blocks\n", nHeight);
             }
-            int nSnapType = ((nMaxHeightSorted - nHeight) > nRecentBlocks) ?
-                                                      QPRegistry::SPARSE_SNAPS :
-                                                      QPRegistry::ALL_SNAPS;
-            if (!pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
+            if ((nFork >= XST_FORKPURCHASE) &&
+                (nHeight > pregistryMain->GetBlockHeight()))
             {
-                // force update again to print some debugging info before exit
-                pregistryMain->UpdateOnNewBlock(pidx, QPRegistry::NO_SNAPS, true);
-                printf("CTxDB::LoadBlockIndex() : "
-                          "Failed registry update from snapshot height=%d\n",
-                       nHeight);
-                break;
+                int nSnapType = ((nMaxHeightSorted - nHeight) > nRecentBlocks) ?
+                                                          QPRegistry::SPARSE_SNAPS :
+                                                          QPRegistry::ALL_SNAPS;
+                if (!pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
+                {
+                    // force update again to print some debugging info before exit
+                    pregistryMain->UpdateOnNewBlock(pidx, QPRegistry::NO_SNAPS, true);
+                    printf("CTxDB::LoadBlockIndex() : "
+                              "Failed registry update from snapshot height=%d\n",
+                           nHeight);
+                }
             }
             pindexBestReplay = pidx;
-        }
-        nBestHeight = nHeight;
-        nReplayedCount += 1;
-        if (nBestHeight == (pindexBest->nHeight - 1))
-        {
-            break;
+            nBestHeight = nHeight;
+            nReplayedCount += 1;
+            if (nBestHeight >= (pindexBest->nHeight - 1))
+            {
+                break;
+            }
         }
     }
-    printf("Replayed to %d: %s\n",
-           nBestHeight,
-           pindexBestReplay->GetBlockHash().ToString().c_str());
+    if (pindexBestReplay)
+    {
+        printf("Replayed to %d: %s\n",
+               nBestHeight,
+               pindexBestReplay->GetBlockHash().ToString().c_str());
+    }
+    else
+    {
+        printf("No blocks to replay\n");
+    }
 
     CBlockIndex* pindexFork = NULL;
 
     // nBestHeight has been replayed, pindexBest is best at prior shutdown
-    if (pindexBest->nHeight > (nBestHeight + 1))
+    if (pindexBest->nHeight == nBestHeight)
+    {
+        // Replay loop will cycle at least once, for the genesis block
+        if (pindexBest != pindexGenesisBlock)
+        {
+            return error("CTxDB::LoadBlockIndex(): TSNH not genesis:\n"
+                            "  %s", pindexBest->GetBlockHash().ToString().c_str());
+        }
+    }
+    else if (pindexBest->nHeight > (nBestHeight + 1))
     {
         // disconnect invalidated blocks
         printf("WARNING: Protocol change?\n"
@@ -837,11 +849,11 @@ bool CTxDB::LoadBlockIndex()
         pindexBest->bnChainTrust = pindexBestReplay->bnChainTrust;
         pindexFork = pindexBestReplay;
     }
-    else if (pindexBest->nHeight <= nBestHeight)
+    else if (pindexBest->nHeight < nBestHeight)
     {
         // this should never happen
-        return error("CTxDB::LoadBlockIndex(): TSNH"
-                        "prev of best index lower than best replay");
+        return error("CTxDB::LoadBlockIndex(): TSNH "
+                        "best index lower than best replay");
     }
     // pindexBest is not in main chain according to test
     //    but it is subject to replay
@@ -872,7 +884,7 @@ bool CTxDB::LoadBlockIndex()
     }
     bnBestChainTrust = pindexBest->bnChainTrust;
 
-    printf("LoadBlockIndex():  height=%d  trust=%s  date=%s\n   hashBestChain=%s",
+    printf("LoadBlockIndex():  height=%d  trust=%s  date=%s\n   hashBestChain=%s\n",
       nBestHeight, CBigNum(bnBestChainTrust).ToString().c_str(),
       DateTimeStrFormat("%x %H:%M:%S", pindexBest->GetBlockTime()).c_str(),
       hashBestChain.ToString().c_str());
