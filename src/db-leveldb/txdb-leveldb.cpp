@@ -548,7 +548,7 @@ static CBlockIndex *InsertBlockIndex(uint256 hash)
     // Create new
     CBlockIndex* pindexNew = new CBlockIndex();
     if (!pindexNew)
-        throw runtime_error("LoadBlockIndex() : new CBlockIndex failed");
+        throw runtime_error("InsertBlockIndex() : new CBlockIndex failed");
     mi = mapBlockIndex.insert(make_pair(hash, pindexNew)).first;
     pindexNew->phashBlock = &((*mi).first);
 
@@ -737,8 +737,9 @@ bool CTxDB::LoadBlockIndex()
     }
 
     pindexBest = mapBlockIndex[hashBestChain];
+    nBestHeight = pindexBest->nHeight;
     printf("Best index is %d: %s\n",
-           pindexBest->nHeight,
+           nBestHeight,
            pindexBest->GetBlockHash().ToString().c_str());
 
     // Replay registry from 0 and calculate chain trust.
@@ -754,6 +755,7 @@ bool CTxDB::LoadBlockIndex()
 
     pregistryMain->SetNull();
 
+    // Used to determine which registry snapshots to create.
     int nMaxHeightSorted = 0;
     if (!vSortedByHeight.empty())
     {
@@ -768,7 +770,7 @@ bool CTxDB::LoadBlockIndex()
     {
         int nHeight = item.first;
         CBlockIndex* pidx = item.second;
-        pidx->bnChainTrust = (pidx->pprev ?  pidx->pprev->bnChainTrust : 0) +
+        pidx->bnChainTrust = (pidx->pprev ? pidx->pprev->bnChainTrust : 0) +
                              pidx->GetBlockTrust(pregistryMain);
 
         int nFork = GetFork(nHeight);
@@ -807,9 +809,8 @@ bool CTxDB::LoadBlockIndex()
                 }
             }
             pindexBestReplay = pidx;
-            nBestHeight = nHeight;
             nReplayedCount += 1;
-            if (nBestHeight >= (pindexBest->nHeight - 1))
+            if (pregistryMain->GetBlockHeight() >= (pindexBest->nHeight - 1))
             {
                 break;
             }
@@ -818,7 +819,7 @@ bool CTxDB::LoadBlockIndex()
     if (pindexBestReplay)
     {
         printf("Replayed to %d: %s\n",
-               nBestHeight,
+               pindexBestReplay->nHeight,
                pindexBestReplay->GetBlockHash().ToString().c_str());
     }
     else
@@ -826,10 +827,12 @@ bool CTxDB::LoadBlockIndex()
         printf("No blocks to replay\n");
     }
 
+    int nReplayHeight = pregistryMain->GetBlockHeight();
+
     CBlockIndex* pindexFork = NULL;
 
-    // nBestHeight has been replayed, pindexBest is best at prior shutdown
-    if (pindexBest->nHeight == nBestHeight)
+    // Best height has been replayed, pindexBest is best at prior shutdown
+    if (pindexBest->nHeight == nReplayHeight)
     {
         // Replay loop will cycle at least once, for the genesis block
         if (pindexBest != pindexGenesisBlock)
@@ -838,18 +841,18 @@ bool CTxDB::LoadBlockIndex()
                             "  %s", pindexBest->GetBlockHash().ToString().c_str());
         }
     }
-    else if (pindexBest->nHeight > (nBestHeight + 1))
+    else if (pindexBest->nHeight > (nReplayHeight + 1))
     {
         // disconnect invalidated blocks
         printf("WARNING: Protocol change?\n"
                    "         Registry could not replay further than %d\n  %s\n",
-               nBestHeight,
+               nReplayHeight,
                pindexBestReplay->GetBlockHash().ToString().c_str());
         // estimate trust as minimum possible
         pindexBest->bnChainTrust = pindexBestReplay->bnChainTrust;
         pindexFork = pindexBestReplay;
     }
-    else if (pindexBest->nHeight < nBestHeight)
+    else if (pindexBest->nHeight < nReplayHeight)
     {
         // this should never happen
         return error("CTxDB::LoadBlockIndex(): TSNH "
@@ -874,7 +877,7 @@ bool CTxDB::LoadBlockIndex()
         pindexBest->bnChainTrust = (pindexBest->pprev ?
                                        pindexBest->pprev->bnChainTrust : 0) +
                                     pindexBest->GetBlockTrust(pregistryMain);
-        nBestHeight = pindexBest->nHeight;
+        nReplayHeight = pindexBest->nHeight;
     }
     else
     {

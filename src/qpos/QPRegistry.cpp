@@ -1212,7 +1212,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
                            fPrevBlockWasProduced,
                            nOwnerReward,
                            nDelegateReward);
-    if (fTestNet && (GetFork(nBestHeight) < XST_FORKMISSFIX))
+    if (fTestNet && (GetFork(nBlockHeight) < XST_FORKMISSFIX))
     {
         mapBalances[pstaker->pubkeyOwner] += nOwnerReward;
     }
@@ -1224,7 +1224,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
     {
         mapBalances[pstaker->pubkeyDelegate] += nDelegateReward;
     }
-    if (GetFork(nBestHeight) < XST_FORKREINSTATE)
+    if (GetFork(nBlockHeight) < XST_FORKREINSTATE)
     {
         DisqualifyStakerIfNecessary(nID, pstaker);
     }
@@ -1293,7 +1293,7 @@ bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
 {
     bool fResult = true;
     // auto disable kicks in with feeless transactions
-    if (GetFork(nBestHeight) < XST_FORKFEELESS)
+    if (GetFork(nBlockHeight) < XST_FORKFEELESS)
     {
         return true;
     }
@@ -1631,7 +1631,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 
     // Unfortunately, a line that disqualified stakers accidentally
     // remained in a previous commit, so now we have to undo the damage.
-    if ((GetFork(nBestHeight) < XST_FORKREINSTATE) &&
+    if ((GetFork(nBlockHeight) < XST_FORKREINSTATE) &&
         (nFork >= XST_FORKREINSTATE))
     {
         QPRegistryIterator iter;
@@ -2001,7 +2001,7 @@ bool QPRegistry::ApplySetState(const QPTxDetails &deet, int nHeight)
     }
     if (deet.t == TX_ENABLE)
     {
-        if (staker.CanBeEnabled(nBestHeight))
+        if (staker.CanBeEnabled(nBlockHeight))
         {
             if (!staker.Enable())
             {

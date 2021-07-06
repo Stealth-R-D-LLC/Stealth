@@ -16,6 +16,7 @@ extern Value ValueFromAmount(int64_t amount);
 void HDTxInfo::SetNull()
 {
     addrinouts.clear();
+    payees.clear();
     extx.SetNull();
 }
 
@@ -33,6 +34,28 @@ bool HDTxInfo::operator < (const HDTxInfo& other) const
 bool HDTxInfo::operator > (const HDTxInfo& other) const
 {
     return (extx > other.extx);
+}
+
+void HDTxInfo::SetPayees()
+{
+    payees.clear();
+    VecDest::const_iterator it;
+    for (it = extx.vto.begin(); it != extx.vto.end(); ++it)
+    {
+        bool fIsOther = true;
+        BOOST_FOREACH(const AddrInOutInfo& addrinout, addrinouts)
+        {
+            if (it->IsSameAs(addrinout.address))
+            {
+                fIsOther = false;
+                break;
+            }
+        }
+        if (fIsOther)
+        {
+            payees.push_back(*it);
+        }
+    }
 }
 
 const AddrInOutInfo* HDTxInfo::GetLast() const
@@ -66,7 +89,6 @@ int64_t HDTxInfo::GetAccountBalanceChange() const
     }
     return nChange;
 }
-
 
 void HDTxInfo::AsJSON(const int nBestHeight,
                       const unsigned int i,
@@ -104,6 +126,14 @@ void HDTxInfo::AsJSON(const int nBestHeight,
         }
     }
 
+    Array aryPayees;
+    BOOST_FOREACH(const ExploreDestination& dest, payees)
+    {
+        Object objPayee;
+        dest.AsJSON(objPayee);
+        aryPayees.push_back(objPayee);
+    }
+
     Object objExTx;
     extx.AsJSON(objExTx, nBestHeight);
 
@@ -115,5 +145,6 @@ void HDTxInfo::AsJSON(const int nBestHeight,
                           ValueFromAmount(GetAccountBalanceChange())));
     objRet.push_back(Pair("inputs", aryInputs));
     objRet.push_back(Pair("outputs", aryOutputs));
+    objRet.push_back(Pair("payees", aryPayees));
     objRet.push_back(Pair("txinfo", objExTx));
 }

@@ -19,9 +19,18 @@
 
 class ExploreTx;
 
+///////////////////////////////////////////////////////////////////////////////
+// LevelDB Keys
+///////////////////////////////////////////////////////////////////////////////
+// generalized explore keys
 typedef pair<exploreKey_t, string> ss_key_t;
+// amount key (e.g. balances)
+typedef pair<ss_key_t, int64_t> amount_key_t;
+// in-out lookup key
 typedef pair<uint256, int> txidn_key_t;
 typedef pair<ss_key_t, txidn_key_t> lookup_key_t;
+///////////////////////////////////////////////////////////////////////////////
+
 
 template<typename K>
 std::string DBKeyToString(K& key)

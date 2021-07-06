@@ -35,6 +35,19 @@ ExploreDestination::ExploreDestination(const vector<string>& addressesIn,
     type = typeIn;
 }
 
+
+bool ExploreDestination::HasAddress(const string& sAddr) const
+{
+    // linear search should be fast enough because of expected
+    //    small size of addresses
+    return find(addresses.begin(), addresses.end(), sAddr) != addresses.end();
+}
+
+bool ExploreDestination::IsSameAs(const string& sAddr) const
+{
+    return (addresses.size() == 1) && (addresses[0] == sAddr);
+}
+    
 void ExploreDestination::AsJSON(Object& objRet) const
 {
     objRet.clear();

@@ -27,6 +27,10 @@ public:
                        const int64_t& amountIn,
                        const std::string& typeIn);
 
+    bool HasAddress(const std::string& sAddr) const;
+
+    bool IsSameAs(const std::string& sAddr) const;
+
     void AsJSON(json_spirit::Object& objRet) const;
 
     IMPLEMENT_SERIALIZE

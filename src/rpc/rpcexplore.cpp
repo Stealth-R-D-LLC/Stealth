@@ -1051,7 +1051,7 @@ Value gethdaccountpg(const Array &params, bool fHelp)
                 if (vIO.vinouts.empty())
                 {
                     // this should never happen because
-                    //nQtyTxs says this tx exists
+                    //    nQtyTxs says this tx exists
                     throw runtime_error("TSNH: transaction has no in-outs");
                 }
 
@@ -1168,6 +1168,7 @@ Value gethdaccountpg(const Array &params, bool fHelp)
                 }
             }  // inner loop (in-out)
         }  // middle loop (address)
+        hdtx.SetPayees();
         vHDTx.push_back(hdtx);
     }  // outer loop (tx)
 

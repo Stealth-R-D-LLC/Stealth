@@ -11,6 +11,7 @@ class HDTxInfo
 {
 public:
     std::set<AddrInOutInfo> addrinouts;
+    VecDest payees;
     ExploreTx extx;
 
     void SetNull();
@@ -20,11 +21,14 @@ public:
     bool operator < (const HDTxInfo& other) const;
     bool operator > (const HDTxInfo& other) const;
 
+    void SetPayees();
+
     const AddrInOutInfo* GetLast() const;
     const uint256* GetTxID() const;
 
     void GetBalanceChanges(std::map<std::string*, int64_t>& mapChanges) const;
     int64_t GetAccountBalanceChange() const;
+
 
     void AsJSON(const int nBestHeight,
                 const unsigned int i,

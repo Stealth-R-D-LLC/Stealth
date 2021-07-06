@@ -436,7 +436,7 @@ QPMapNft mapNftsMain = {
                "https://stealth.org/nft-images/nft-072.png",
                "Dragons", "Johanna Westerman", 72, 100,
                "https://westerman.art",
-               "katrina", "Katrina Gaius", "Katrina",  95, 41, 19,
+               "katarina", "Katarina Gaius", "Katarina",  95, 41, 19,
                "Curabitur quis justo tortor. Nam blandit quam eu nibh gravida tempus. Pellentesque consectetur venenatis lacus, ac sagittis leo ultricies ut. Ut nec urna in ligula tincidunt tristique. Quisque sodales ut ante in elementum. Praesent scelerisque ex ut tortor consequat iaculis. Nullam lobortis id orci id dignissim. Mauris interdum tincidunt aliquam. Proin et felis nibh. In et lorem vitae massa malesuada commodo. Donec auctor hendrerit varius. Quisque laoreet arcu consectetur elit tincidunt iaculis." } },
       {  73, { "0xee49bbdc2677b8b512364bbb5b8908cc53eaa578b4a9d0002221cffeb7f17d46",
                "https://stealth.org/nft-images/nft-073.png",
