@@ -635,7 +635,8 @@ Value submitblock(const Array& params, bool fHelp)
     {
         boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
 
-        bool fAccepted = ProcessBlock(NULL, &block);
+        bool fProcessOK;
+        bool fAccepted = ProcessBlock(NULL, &block, fProcessOK);
     }
     if (!fAccepted)
         return "rejected";

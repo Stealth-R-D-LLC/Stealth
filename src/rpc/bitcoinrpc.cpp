@@ -1420,6 +1420,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "signrawtransaction"     && n > 1) ConvertTo<Array>(params[1], true);
     if (strMethod == "signrawtransaction"     && n > 2) ConvertTo<Array>(params[2], true);
     if (strMethod == "sendtostealthaddress"   && n > 1) ConvertTo<double>(params[1]);
+    if (strMethod == "scanforalltxns"         && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "purchasestaker"         && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "purchasestaker"         && n > 4) ConvertTo<double>(params[4]);
     if (strMethod == "purchasestaker"         && n > 8) ConvertTo<double>(params[8]);

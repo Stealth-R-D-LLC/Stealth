@@ -195,8 +195,10 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         feework.limit = chainParams.TX_FEEWORK_LIMIT;
         CBlock block;
         CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
+        CBlockIndex* pblocknext = pblockindex;
         while (pblockindex->nHeight > feework.height)
         {
+            pblocknext = pblockindex;
             pblockindex = pblockindex->pprev;
             if (!pblockindex->pprev)
             {
@@ -208,7 +210,7 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         {
             CTransaction tx(*ptx);
             feework.bytes = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
-            tx.CheckFeework(feework, true, bfrFeeworkValidator,
+            tx.CheckFeework(feework, true, bfrFeeworkValidator, pblocknext,
                             1, GMF_BLOCK, false);
         }
         feework.AsJSON(obj);

@@ -79,15 +79,18 @@ double GetPoSKernelPS()
     return nStakesTime ? dStakeKernelsTriedAvg / nStakesTime : 0;
 }
 
-Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPrintTransactionDetail)
+Object blockToJSON(const CBlock& block,
+                   const CBlockIndex* blockindex,
+                   bool fPrintTransactionDetail)
 {
     Object result;
     result.push_back(Pair("hash", block.GetHash().GetHex()));
 
     if (block.IsQuantumProofOfStake())
     {
-        int nConfs = pindexBest->nHeight + 1 - blockindex->nHeight;
-        if (blockindex->IsInMainChain())
+        int nConfs = blockindex ?
+                        (pindexBest->nHeight + 1 - blockindex->nHeight) : 0;
+        if (blockindex && blockindex->IsInMainChain())
         {
             result.push_back(Pair("isinmainchain", true));
             result.push_back(Pair("confirmations", nConfs));
@@ -99,19 +102,22 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
             result.push_back(Pair("confirmations", 0));
             result.push_back(Pair("depth", nConfs));
         }
-        result.push_back(Pair("pico_power", blockindex->nPicoPower));
+        result.push_back(Pair("pico_power",
+                              blockindex ? blockindex->nPicoPower : 0));
     }
     else
     {
         CMerkleTx txGen(block.vtx[0]);
         txGen.SetMerkleBranch(&block);
-        result.push_back(Pair("confirmations", (int)txGen.GetDepthInMainChain()));
+        result.push_back(Pair("confirmations",
+                              (int)txGen.GetDepthInMainChain()));
     }
-    result.push_back(Pair("size", (int)blockindex->nBlockSize));
-    result.push_back(Pair("height", blockindex->nHeight));
+    result.push_back(Pair("size", blockindex ?
+                                     (int)blockindex->nBlockSize : -1));
+    result.push_back(Pair("height", blockindex ? blockindex->nHeight : -1));
     result.push_back(Pair("version", block.nVersion));
     result.push_back(Pair("merkleroot", block.hashMerkleRoot.GetHex()));
-    if (blockindex->IsQuantumProofOfStake())
+    if (blockindex && blockindex->IsQuantumProofOfStake())
     {
         result.push_back(Pair("staker_id", (boost::int64_t)block.nStakerID));
         string sAlias;
@@ -122,22 +128,42 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
         if (blockindex->pprev != NULL)
         {
             result.push_back(Pair("block_reward",
-              ValueFromAmount(GetQPoSReward(blockindex->pprev))));
+               ValueFromAmount(GetQPoSReward(blockindex->pprev))));
         }
     }
-    result.push_back(Pair("mint", ValueFromAmount(blockindex->nMint)));
+    result.push_back(Pair("mint",
+                          blockindex ?
+                             ValueFromAmount(blockindex->nMint) : -1));
     result.push_back(Pair("time", (boost::int64_t)block.GetBlockTime()));
     result.push_back(Pair("nonce", (boost::uint64_t)block.nNonce));
     result.push_back(Pair("bits", HexBits(block.nBits)));
-    result.push_back(Pair("difficulty", GetDifficulty(blockindex)));
-    result.push_back(Pair("trust", blockindex->bnChainTrust.ToString()));
+    result.push_back(Pair("difficulty",
+                          blockindex ? GetDifficulty(blockindex) : -1));
+    result.push_back(Pair("trust",
+                          blockindex ?
+                             blockindex->bnChainTrust.ToString() : "???"));
 
-    if (blockindex->pprev)
-        result.push_back(Pair("previousblockhash", blockindex->pprev->GetBlockHash().GetHex()));
-    if (blockindex->pnext)
-        result.push_back(Pair("nextblockhash", blockindex->pnext->GetBlockHash().GetHex()));
+    if (blockindex && blockindex->pprev)
+    {
+        result.push_back(Pair("previousblockhash",
+                              blockindex->pprev->GetBlockHash().GetHex()));
+    }
+    else
+    {
+        result.push_back(Pair("previousblockhash",
+                              block.hashPrevBlock.GetHex()));
+    }
+    if (blockindex && blockindex->pnext)
+    {
+        result.push_back(Pair("nextblockhash",
+                              blockindex->pnext->GetBlockHash().GetHex()));
+    }
     string sFlags;
-    if (blockindex->IsQuantumProofOfStake())
+    if (!blockindex)
+    {
+        sFlags = "???";
+    }
+    else if (blockindex->IsQuantumProofOfStake())
     {
         sFlags = "quantum-proof-of-stake";
     }
@@ -149,13 +175,26 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
     {
         sFlags = "proof-of-work";
     }
-    result.push_back(Pair("flags", strprintf("%s%s", sFlags.c_str(), blockindex->GeneratedStakeModifier()? " stake-modifier": "")));
-    result.push_back(Pair("proofhash", blockindex->IsProofOfStake()? blockindex->hashProofOfStake.GetHex() : blockindex->GetBlockHash().GetHex()));
-    if (blockindex->IsProofOfStake())
+    result.push_back(Pair("flags",
+                          strprintf("%s%s",
+                                    sFlags.c_str(),
+                                    (blockindex &&
+                                     blockindex->GeneratedStakeModifier()) ?
+                                        " stake-modifier" : "")));
+    result.push_back(Pair("proofhash",
+                          (blockindex && blockindex->IsProofOfStake()) ?
+                              blockindex->hashProofOfStake.GetHex() :
+                              block.GetHash().GetHex()));
+    if (blockindex && blockindex->IsProofOfStake())
     {
-        result.push_back(Pair("entropybit", (int)blockindex->GetStakeEntropyBit()));
-        result.push_back(Pair("modifier", strprintf("%016" PRIx64, blockindex->nStakeModifier)));
-        result.push_back(Pair("modifierchecksum", strprintf("%08x", blockindex->nStakeModifierChecksum)));
+        result.push_back(Pair("entropybit",
+                         (int)blockindex->GetStakeEntropyBit()));
+        result.push_back(Pair("modifier",
+                              strprintf("%016" PRIx64,
+                                        blockindex->nStakeModifier)));
+        result.push_back(Pair("modifierchecksum",
+                              strprintf("%08x",
+                                        blockindex->nStakeModifierChecksum)));
     }
     Array txinfo;
     BOOST_FOREACH (const CTransaction& tx, block.vtx)
@@ -174,7 +213,8 @@ Object blockToJSON(const CBlock& block, const CBlockIndex* blockindex, bool fPri
     }
 
     result.push_back(Pair("tx", txinfo));
-    result.push_back(Pair("signature", HexStr(block.vchBlockSig.begin(), block.vchBlockSig.end())));
+    result.push_back(Pair("signature", HexStr(block.vchBlockSig.begin(),
+                                              block.vchBlockSig.end())));
 
     return result;
 }
@@ -271,15 +311,24 @@ Value getblock(const Array& params, bool fHelp)
             "txinfo optional to print more detailed tx info\n"
             "Returns details of a block with given block-hash.");
 
-    std::string strHash = params[0].get_str();
+    string strHash = params[0].get_str();
     uint256 hash(strHash);
 
-    if (mapBlockIndex.count(hash) == 0)
-        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
-
     CBlock block;
-    CBlockIndex* pblockindex = mapBlockIndex[hash];
-    block.ReadFromDisk(pblockindex, true);
+    CBlockIndex* pblockindex = NULL;
+    if (mapBlockIndex.count(hash))
+    {
+        pblockindex = mapBlockIndex[hash];
+        block.ReadFromDisk(pblockindex, true);
+    }
+    else if (mapOrphanBlocks.count(hash))
+    {
+        block = *mapOrphanBlocks[hash];
+    }
+    else
+    {
+        throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
+    }
 
     return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
 }

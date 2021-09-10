@@ -133,7 +133,7 @@ int GetTargetSpacing(const int nHeight);
 void RegisterWallet(CWallet* pwalletIn);
 void UnregisterWallet(CWallet* pwalletIn);
 void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool fUpdate = false, bool fConnect = true);
-bool ProcessBlock(CNode* pfrom, CBlock* pblock,
+bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
                   bool fIsBootstrap=false, bool fJustCheck=false, bool fIsMine=false);
 bool CheckDiskSpace(uint64_t nAdditionalBytes=0);
 FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
@@ -733,6 +733,7 @@ public:
     bool CheckFeework(Feework &feework,
                       bool fRequired,
                       FeeworkBuffer& buffer,
+                      const CBlockIndex* pindex,
                       unsigned int nBlockSize = 1,
                       enum GetMinFee_mode mode = GMF_BLOCK,
                       bool fCheckDepth = true) const;
@@ -943,7 +944,8 @@ public:
                        bool fBlock, bool fMiner,
                        unsigned int flags,
                        int64_t nValuePurchases, int64_t nClaim,
-                       Feework& feework);
+                       Feework& feework,
+                       bool fInBlock=false);
     bool ClientConnectInputs();
     bool CheckTransaction(int nNewHeight=-1) const;
     bool AcceptToMemoryPool(CTxDB& txdb, bool fCheckInputs=true, bool* pfMissingInputs=NULL);
@@ -1431,7 +1433,7 @@ public:
                       QPRegistry *pregistryTemp, bool fJustCheck=false);
     bool ReadFromDisk(const CBlockIndex* pindex, bool fReadTransactions=true);
     bool SetBestChain(CTxDB& txdb,
-                      CBlockIndex* pindexNew,
+                      CBlockIndex* pindexNewBest,
                       QPRegistry *pregistryTemp,
                       bool &fReorganizedRet);
     bool SetBestChain(CTxDB& txdb, CBlockIndex* pindexNew);
@@ -2002,6 +2004,8 @@ public:
                     if (pindex->nHeight == nHeight)
                     {
                         mapBlockLookup[nHeight] = mapBlockIndex[pindex->GetBlockHash()];
+                        printf("CBlockLocator::Set(): Added block\n  %s\n",
+                               pindex->phashBlock->ToString().c_str());
                         break;
                     }
                     pindex = pindex->pprev;

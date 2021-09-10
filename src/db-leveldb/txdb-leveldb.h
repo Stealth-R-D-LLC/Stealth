@@ -112,7 +112,9 @@ protected:
             if (!status.ok())
             {
                 if (status.IsNotFound())
+                {
                     return false;
+                }
                 // Some unexpected error.
                 printf("LevelDB read failure: %s\n", status.ToString().c_str());
                 fOk = false;

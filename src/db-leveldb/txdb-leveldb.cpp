@@ -764,7 +764,6 @@ bool CTxDB::LoadBlockIndex()
 
     static const int nRecentBlocks = RECENT_SNAPSHOTS * BLOCKS_PER_SNAPSHOT;
 
-    int nReplayedCount = 0;
     CBlockIndex* pindexBestReplay = NULL;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
@@ -787,19 +786,30 @@ bool CTxDB::LoadBlockIndex()
                              nHeight, pidx->nStakeModifier);
             }
         }
+
         if (pidx->IsInMainChain())
         {
             if (nHeight % 100000 == 0)
             {
                 printf("Replayed %d blocks\n", nHeight);
             }
+            int nRegistryHeight = pregistryMain->GetBlockHeight();
+            // The height test will ensure that no attempt will be made to replay
+            // any blocks after a failed main chain block.
             if ((nFork >= XST_FORKPURCHASE) &&
-                (nHeight > pregistryMain->GetBlockHeight()))
+                ((nRegistryHeight == 0) ||
+                 (nHeight == pregistryMain->GetBlockHeight() + 1)))
             {
+                // Failing to update on a new block will be interpreted as a protocol
+                // change, forking the chain at the precursor to the failed block.
                 int nSnapType = ((nMaxHeightSorted - nHeight) > nRecentBlocks) ?
                                                           QPRegistry::SPARSE_SNAPS :
                                                           QPRegistry::ALL_SNAPS;
-                if (!pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
+                if (pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
+                {
+                    pindexBestReplay = pidx;
+                }
+                else
                 {
                     // force update again to print some debugging info before exit
                     pregistryMain->UpdateOnNewBlock(pidx, QPRegistry::NO_SNAPS, true);
@@ -808,8 +818,6 @@ bool CTxDB::LoadBlockIndex()
                            nHeight);
                 }
             }
-            pindexBestReplay = pidx;
-            nReplayedCount += 1;
             if (pregistryMain->GetBlockHeight() >= (pindexBest->nHeight - 1))
             {
                 break;
@@ -818,13 +826,13 @@ bool CTxDB::LoadBlockIndex()
     }
     if (pindexBestReplay)
     {
-        printf("Replayed to %d: %s\n",
+        printf("Replayed main chain to %d: %s\n",
                pindexBestReplay->nHeight,
                pindexBestReplay->GetBlockHash().ToString().c_str());
     }
     else
     {
-        printf("No blocks to replay\n");
+        printf("No main chain blocks to replay\n");
     }
 
     int nReplayHeight = pregistryMain->GetBlockHeight();
@@ -861,9 +869,9 @@ bool CTxDB::LoadBlockIndex()
     // pindexBest is not in main chain according to test
     //    but it is subject to replay
     else if ((GetFork(pindexBest->nHeight) >= XST_FORKPURCHASE) &&
-        (pindexBest->nHeight > pregistryMain->GetBlockHeight()) &&
-        (pindexBestReplay != NULL) &&
-        (pindexBest == pindexBestReplay->pnext))
+             (pindexBest->nHeight > pregistryMain->GetBlockHeight()) &&
+             (pindexBestReplay != NULL) &&
+             (pindexBest == pindexBestReplay->pnext))
     {
         printf("Updating on best block: %d\n", pindexBest->nHeight);
         if (!pregistryMain->UpdateOnNewBlock(pindexBest,
@@ -1139,7 +1147,7 @@ bool CTxDB::WriteRegistrySnapshot(int nHeight, const QPRegistry& registry)
     if (!Write(string("bestRegistryHeight"), nHeight))
     {
         return error("WriteRegistrySnapshot(): could not write best height");
-    } 
+    }
     if (!Write(make_pair(string("registrySnapshot"), nHeight), registry))
     {
         return error("WriteRegistrySnapshot(): could not write registry");
@@ -1175,7 +1183,7 @@ bool CTxDB::ReadBestRegistrySnapshot(QPRegistry &registry)
     }
     return ReadRegistrySnapshot(nHeight, registry);
 }
- 
+
 bool CTxDB::EraseRegistrySnapshot(int nHeight)
 {
     return Erase(make_pair(string("registrySnapshot"), nHeight));

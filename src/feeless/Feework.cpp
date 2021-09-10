@@ -280,7 +280,7 @@ CScript Feework::GetScript() const
 string Feework::ToString(string strLPad) const
 {
     std::string str;
-    str += strprintf("%sFeework: height=%d, bytes=%" PRIu64 "mcost=%s, limit=%s\n"
+    str += strprintf("%sFeework: height=%d, bytes=%" PRIu64 " mcost=%s, limit=%s\n"
                         "%s         work=%s, hash=%s, status=%s\n"
                         "%s  block_hash=%s",
                      strLPad.c_str(),

@@ -26,26 +26,26 @@ public:
     {
         UNCHECKED=-1,  // feework has yet to be checked
         // valid statuses
-        OK,
-        NONE,          // tx has no feework and is not needed
+        OK,            // 0
+        NONE,          // 1 tx has no feework and is not needed
         // invalid statuses
-        EMPTY,         // vout is empty
-        COINBASE,      // vout is coinbase
-        COINSTAKE,     // vout is coinstake
-        INSOLUBLE,     // an output script can't be solved
-        MISPLACED,     // a feework output is not last in vout
-        BADVERSION,    // tx version does not support feeleess
-        MISSING,       // vout has no feework output, but is expected
-        BLOCKUNKNOWN,  // the block referenced by the feework is unknown
-        BLOCKTOODEEP,  // the block referenced by the feework is too deep
-        LOWMCOST,      //  mcost is too low to get in block
-        HIGHMCOST,     //  mcost exceeds limits imposed by protocol
-        NOHEIGHT,      // feework object is incomplete, missing height
-        NOLIMIT,       //                               missing limit
-        NOMCOST,       //                               missing mcost
-        NOHASH,        //                               missing hash
-        NOWORK,        //                               missing work
-        INSUFFICIENT   // feework is insufficient to be included in block
+        EMPTY,         // 2 vout is empty
+        COINBASE,      // 3 vout is coinbase
+        COINSTAKE,     // 4 vout is coinstake
+        INSOLUBLE,     // 5 an output script can't be solved
+        MISPLACED,     // 6 a feework output is not last in vout
+        BADVERSION,    // 7 tx version does not support feeleess
+        MISSING,       // 8 vout has no feework output, but is expected
+        BLOCKUNKNOWN,  // 9 the block referenced by the feework is unknown
+        BLOCKTOODEEP,  // 10 the block referenced by the feework is too deep
+        LOWMCOST,      // 11 mcost is too low to get in block
+        HIGHMCOST,     // 12 mcost exceeds limits imposed by protocol
+        NOHEIGHT,      // 13 feework object is incomplete, missing height
+        NOLIMIT,       // 14                            missing limit
+        NOMCOST,       // 15                            missing mcost
+        NOHASH,        // 16                            missing hash
+        NOWORK,        // 17                            missing work
+        INSUFFICIENT   // 18 feework is insufficient to be included in block
     };
 
     int height;

@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    6
-#define CLIENT_VERSION_BUILD       2
+#define CLIENT_VERSION_BUILD       3
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -40,6 +40,8 @@ static const int CLIENT_PROTOCOL_VERSION = 63900;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+//         3.1.6.3 : Fixing inconsistent feework checking
+//                   Fixing inclusion of disconnected blocks in some chains
 //         3.1.6.2 : Eliminate some global state dependence from the registry
 //         3.1.6.1 : Fixing crash on start if no blocks
 // 63900 : fork 12 : XST_FORKREINSTATE

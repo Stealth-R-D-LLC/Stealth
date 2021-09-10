@@ -1454,7 +1454,9 @@ bool CTransaction::ReadFromDisk(CTxDB& txdb, COutPoint prevout, CTxIndex& txinde
 {
     SetNull();
     if (!txdb.ReadTxIndex(prevout.hash, txindexRet))
+    {
         return false;
+    }
     if (!ReadFromDisk(txindexRet.pos))
         return false;
     if (prevout.n >= vout.size())
@@ -1771,7 +1773,6 @@ bool CTransaction::CheckTransaction(int nNewHeight) const
                                   GetHash().ToString().c_str(), i));
         }
 
-
         int nFork = GetFork(nNewHeight);
         if (nFork < XST_FORK004)
         {
@@ -2012,6 +2013,7 @@ uint64_t CTransaction::GetFeeworkLimit(unsigned int nBlockSize,
 bool CTransaction::CheckFeework(Feework &feework,
                                 bool fRequired,
                                 FeeworkBuffer& buffer,
+                                const CBlockIndex* pblockindex,
                                 unsigned int nBlockSize,
                                 enum GetMinFee_mode mode,
                                 bool fCheckDepth) const
@@ -2089,11 +2091,14 @@ bool CTransaction::CheckFeework(Feework &feework,
         return DoS(100, error("CheckFeework(): too soon for feeless"));
     }
 
-    CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
     if (feework.height > pblockindex->nHeight)
     {
         feework.status = Feework::BLOCKUNKNOWN;
-        return DoS(34, error("CheckFeework() : unknown block"));
+        printf("Feework error at block %d:\n %s\n",
+               pblockindex->nHeight,
+               pblockindex->phashBlock->ToString().c_str());
+        printf("%s\n", feework.ToString("   ").c_str());
+        return DoS(34, error("CheckFeework() : unknown block %d", feework.height));
     }
     if (fCheckDepth &&
         feework.height < (pblockindex->nHeight - chainParams.FEELESS_MAX_DEPTH))
@@ -2391,6 +2396,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
         if (nFees < txMinFee)
         {
             tx.CheckFeework(feework, true, bfrFeeworkValidator,
+                            pindexBest,
                             1000, GMF_RELAY);
             switch (feework.status)
             {
@@ -2451,7 +2457,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
     // the tx is well formed.
     if (!feework.IsChecked())
     {
-        if (!tx.CheckFeework(feework, false, bfrFeeworkValidator))
+        if (!tx.CheckFeework(feework, false, bfrFeeworkValidator, pindexBest))
         {
             return error("CTxMemPool::accept() : feework rejected");
         }
@@ -3177,25 +3183,33 @@ bool CTransaction::DisconnectInputs(CTxDB& txdb)
             // Get prev txindex from disk
             CTxIndex txindex;
             if (!txdb.ReadTxIndex(prevout.hash, txindex))
-                return error("DisconnectInputs() : ReadTxIndex failed");
+            {
+                // There is no good reason to fail here, as a problem
+                // here has no influence on the transaction (i.e. this
+                // transaction) that is disconnecting from its inputs.
+                printf("DisconnectInputs() : WARNING ReadtxIndex failed\n  %s",
+                       prevout.hash.ToString().c_str());
+                return true;
+            }
 
             if (prevout.n >= txindex.vSpent.size())
-                return error("DisconnectInputs() : prevout.n out of range");
+            {
+                return error("DisconnectInputs() : prevout.n %d out of range\n  %s",
+                             prevout.n,
+                             prevout.hash.ToString().c_str());
+            }
 
             // Mark outpoint as not spent
             txindex.vSpent[prevout.n].SetNull();
 
             // Write back
             if (!txdb.UpdateTxIndex(prevout.hash, txindex))
-                return error("DisconnectInputs() : UpdateTxIndex failed");
+            {
+                return error("DisconnectInputs() : UpdateTxIndex failed\n %s",
+                             prevout.hash.ToString().c_str());
+            }
         }
     }
-
-    // Remove transaction from index
-    // This can fail if a duplicate of this transaction was in a chain that got
-    // reorganized away. This is only possible if this transaction was completely
-    // spent, so erasing it would be a no-op anyway.
-    txdb.EraseTxIndex(*this);
 
     return true;
 }
@@ -3365,7 +3379,8 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                                  bool fBlock, bool fMiner,
                                  unsigned int flags,
                                  int64_t nValuePurchases, int64_t nClaim,
-                                 Feework& feework)
+                                 Feework& feework,
+                                 bool fInBlock)
 {
     // Take over previous transactions' spent pointers
     // fBlock is true when this is called from AcceptBlock when a new best-block is added to the blockchain
@@ -3525,7 +3540,9 @@ bool CTransaction::ConnectInputs(CTxDB& txdb, MapPrevTx inputs,
                     feework.bytes = ::GetSerializeSize(*this,
                                                        SER_NETWORK,
                                                        PROTOCOL_VERSION);
-                    CheckFeework(feework, true, bfrFeeworkValidator);
+                    CheckFeework(feework, true, bfrFeeworkValidator,
+                                 (fInBlock && pindexBlock->pprev) ?
+                                       pindexBlock->pprev : pindexBlock);
                 }
                 if (feework.IsInsufficient())
                 {
@@ -3616,9 +3633,13 @@ bool CTransaction::ClientConnectInputs()
 bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 {
     // Disconnect in reverse order
-    for (int i = vtx.size()-1; i >= 0; i--)
+    for (int i = vtx.size() - 1; i >= 0; --i)
+    {
         if (!vtx[i].DisconnectInputs(txdb))
+        {
             return false;
+        }
+    }
 
     // Update block index on disk without changing it in memory.
     // The memory index structure will be changed after the db commits.
@@ -3627,7 +3648,9 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         CDiskBlockIndex blockindexPrev(pindex->pprev);
         blockindexPrev.hashNext = 0;
         if (!txdb.WriteBlockIndex(blockindexPrev))
+        {
             return error("DisconnectBlock() : WriteBlockIndex failed");
+        }
     }
 
     // ppcoin: clean up wallet after disconnecting coinstake
@@ -3636,14 +3659,24 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
         SyncWithWallets(tx, this, false, false);
     }
 
-    if (fDebugExplore)
-    {
-        printf("DisconnectBlock(): %s done\n", pindex->GetBlockHash().ToString().c_str());
-    }
-
     if (fWithExploreAPI)
     {
         ExploreDisconnectBlock(txdb, this);
+    }
+
+    // Defer removing tx indexes until after block is fully disconnected.
+    BOOST_FOREACH(CTransaction& tx, vtx)
+    {
+        // Remove transaction from index
+        // This can fail if a duplicate of this transaction was in a chain that got
+        // reorganized away. This is only possible if this transaction was completely
+        // spent, so erasing it would be a no-op anyway.
+        txdb.EraseTxIndex(tx);
+    }
+
+    if (fDebugExplore)
+    {
+        printf("DisconnectBlock(): %s done\n", pindex->GetBlockHash().ToString().c_str());
     }
 
     return true;
@@ -3652,6 +3685,12 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                           QPRegistry *pregistryTemp, bool fJustCheck)
 {
+    // ensure that previous block is itself properly connected
+    if (pindex->pprev && pindex->pprev->pprev && !pindex->pprev->pprev->pnext)
+    {
+        return error("ConnectBlock(): previous not properly connected");
+    }
+
     vector<QPTxDetails> vDeets;
     // Check it again in case a previous version let a bad block in
     // fCheckSig was always true here by default
@@ -3702,6 +3741,10 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                  GetSizeOfCompactSize(vtx.size());
     }
 
+    // Although ordered by hash, mapQueuedChanges fills in the order
+    // of vtx, so FetchInputs() implicitly enforces that inputs for
+    // a transaction from the same block must have a lower index
+    // in vtx than said transaction.
     map<uint256, CTxIndex> mapQueuedChanges;
     int64_t nFees = 0;
     int64_t nValueIn = 0;
@@ -3801,7 +3844,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
             if (!tx.ConnectInputs(txdb, mapInputs, mapQueuedChanges,
                                   posThisTx, pindex, true, false,
                                   flags, nTxValuePurchases, claim.value,
-                                  feework))
+                                  feework, true))
             {
                 return false;
             }
@@ -3868,7 +3911,7 @@ bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
     }
 
     uint256 prevHash = 0;
-    if(pindex->pprev)
+    if (pindex->pprev)
     {
          prevHash = pindex->pprev->GetBlockHash();
     }
@@ -3923,14 +3966,14 @@ bool static Reorganize(CTxDB& txdb,
             return error("Reorganize() : pfork->pprev is null");
     }
 
-    // List of what to disconnect
+    // List of what to disconnect (ends up descending by height)
     vector<CBlockIndex*> vDisconnect;
     for (CBlockIndex* pindex = pindexBest; pindex != pfork; pindex = pindex->pprev)
     {
         vDisconnect.push_back(pindex);
     }
 
-    // List of what to connect
+    // List of what to connect (ends up ascending by height)
     vector<CBlockIndex*> vConnect;
     for (CBlockIndex* pindex = pindexNew; pindex != pfork; pindex = pindex->pprev)
     {
@@ -3965,6 +4008,7 @@ bool static Reorganize(CTxDB& txdb,
 
     // Disconnect shorter branch
     list<CTransaction> vResurrect;
+    // iterate from top down
     BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
     {
         CBlock block;
@@ -4001,7 +4045,7 @@ bool static Reorganize(CTxDB& txdb,
     CBlockIndex *pindexCurrent;
     RewindRegistry(txdb, pfork, pregistryTemp.get(), pindexCurrent);
 
-    // Connect longer branch
+    // Connect longer branch from bottom up
     vector<CTransaction> vDelete;
     for (unsigned int i = 0; i < vConnect.size(); i++)
     {
@@ -4048,7 +4092,7 @@ bool static Reorganize(CTxDB& txdb,
         return error("Reorganize() : TxnCommit failed");
     }
 
-    // Disconnect shorter branch
+    // Disconnect shorter branch from top down
     BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
     {
         if (pindex->pprev)
@@ -4058,7 +4102,7 @@ bool static Reorganize(CTxDB& txdb,
         mapBlockLookup.erase(pindex->nHeight);
     }
 
-    // Connect longer branch
+    // Connect longer branch from bottom up
     BOOST_FOREACH(CBlockIndex* pindex, vConnect)
     {
         if (pindex->pprev)
@@ -4116,7 +4160,7 @@ bool CBlock::SetBestChainInner(CTxDB& txdb,
 }
 
 bool CBlock::SetBestChain(CTxDB& txdb,
-                          CBlockIndex *pindexNew,
+                          CBlockIndex *pindexNewBest,
                           QPRegistry *pregistryTemp,
                           bool &fReorganizedRet)
 {
@@ -4133,11 +4177,11 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         txdb.WriteHashBestChain(hash);
         if (!txdb.TxnCommit())
             return error("SetBestChain() : TxnCommit failed");
-        pindexGenesisBlock = pindexNew;
+        pindexGenesisBlock = pindexNewBest;
     }
     else if (hashPrevBlock == hashBestChain)
     {
-        if (!SetBestChainInner(txdb, pindexNew, pregistryTemp))
+        if (!SetBestChainInner(txdb, pindexNewBest, pregistryTemp))
             return error("SetBestChain() : SetBestChainInner failed");
     }
     else
@@ -4146,7 +4190,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         * REORGANIZE
         **********************************************************************/
         // the first block in the new chain that will cause it to become the new best chain
-        CBlockIndex *pindexIntermediate = pindexNew;
+        CBlockIndex *pindexIntermediate = pindexNewBest;
 
         // list of blocks that need to be connected afterwards
         vector<CBlockIndex*> vpindexSecondary;
@@ -4162,7 +4206,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
 
         if (!vpindexSecondary.empty())
         {
-            printf("Postponing %" PRIszu " reconnects\n", vpindexSecondary.size());
+            printf("Queued %" PRIszu " reconnects\n", vpindexSecondary.size());
         }
 
         // Switch to new best branch
@@ -4171,7 +4215,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         if (!Reorganize(txdb, pindexIntermediate, pindexReplay))
         {
             txdb.TxnAbort();
-            InvalidChainFound(pindexNew);
+            InvalidChainFound(pindexNewBest);
             return error("SetBestChain() : Reorganize failed");
         }
 
@@ -4192,6 +4236,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
 
         if (vpindexSecondary.empty())
         {
+            // No blocks queued to reconnect, so just replay the registry.
             uint256 blockHash = pregistryTempTemp->GetBlockHash();
             CBlockIndex *pindexCurrent = mapBlockIndex[blockHash];
             while (pindexCurrent->pnext != NULL)
@@ -4202,8 +4247,8 @@ bool CBlock::SetBestChain(CTxDB& txdb,
                                                     true);
                 if ((pindexCurrent->pnext != NULL) &&
                     (!(pindexCurrent->pnext->IsInMainChain() ||
-                      // pindexNew is not yet in the main chain
-                      (pindexCurrent->pnext == pindexNew))))
+                      // pindexNewBest is not yet in the main chain
+                      (pindexCurrent->pnext == pindexNewBest))))
                 {
                    break;
                 }
@@ -4211,6 +4256,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         }
         else
         {
+            // Replay the registry to catch it up with the queued reconnects.
             uint256 blockHash = pregistryTempTemp->GetBlockHash();
             CBlockIndex *pindexCurrent = mapBlockIndex[blockHash];
             // note vpindexSecondary is descending block height
@@ -4231,7 +4277,7 @@ bool CBlock::SetBestChain(CTxDB& txdb,
             }
         }
 
-        // Connect further blocks
+        // Connect the queued blocks from lowest to highest.
         BOOST_REVERSE_FOREACH(CBlockIndex *pindex, vpindexSecondary)
         {
             CBlock block;
@@ -4245,9 +4291,15 @@ bool CBlock::SetBestChain(CTxDB& txdb,
                 printf("SetBestChain() : TxnBegin 2 failed\n");
                 break;
             }
-            // errors now are not fatal, we still did a reorganisation to a new chain in a valid way
+            // Errors now are not fatal.
+            // We still did a reorganisation to a new chain in a valid way.
+            // However, we did not reconnect all the way to pindexNewBest,
+            // so we simply set pindexNewBest to the highest reconnect.
             if (!block.SetBestChainInner(txdb, pindex, pregistryTempTemp.get()))
             {
+                // All elements of vpindexSecondary have non-null pprevs.
+                pindexNewBest = pindex->pprev;
+                hash = pindexNewBest->GetBlockHash();
                 break;
             }
             pregistryTempTemp->UpdateOnNewBlock(pindex,
@@ -4269,16 +4321,16 @@ bool CBlock::SetBestChain(CTxDB& txdb,
     bool fIsInitialDownload = IsInitialBlockDownload();
     if (!fIsInitialDownload)
     {
-        const CBlockLocator locator(pindexNew);
+        const CBlockLocator locator(pindexNewBest);
         ::SetBestChain(locator);
     }
 
     // New best block
+    pindexBest = pindexNewBest;
     hashBestChain = hash;
-    pindexBest = pindexNew;
     pblockindexFBBHLast = NULL;
     nBestHeight = pindexBest->nHeight;
-    bnBestChainTrust = pindexNew->bnChainTrust;
+    bnBestChainTrust = pindexBest->bnChainTrust;
     nTimeBestReceived = GetTime();
     nTransactionsUpdated++;
 
@@ -4286,8 +4338,8 @@ bool CBlock::SetBestChain(CTxDB& txdb,
               "    height=%d staker=%s-%u trust=%s time=%" PRIu64 " (%s)\n",
            hashBestChain.ToString().c_str(),
            nBestHeight,
-           pregistryTemp->GetAliasForID(nStakerID).c_str(),
-           nStakerID,
+           pregistryTemp->GetAliasForID(pindexBest->nStakerID).c_str(),
+           pindexBest->nStakerID,
            bnBestChainTrust.ToString().c_str(),
            pindexBest->GetBlockTime(),
            DateTimeStrFormat("%x %H:%M:%S", pindexBest->GetBlockTime()).c_str());
@@ -4306,14 +4358,22 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         for (int i = 0; i < 100 && pindex != NULL; i++)
         {
             if (pindex->nVersion > CBlock::CURRENT_VERSION)
+            {
                 ++nUpgraded;
+            }
             pindex = pindex->pprev;
         }
         if (nUpgraded > 0)
-            printf("SetBestChain: %d of last 100 blocks above version %d\n", nUpgraded, CBlock::CURRENT_VERSION);
+        {
+            printf("SetBestChain: %d of last 100 blocks above version %d\n",
+                   nUpgraded, CBlock::CURRENT_VERSION);
+        }
         if (nUpgraded > 100/2)
-            // strMiscWarning is read by GetWarnings(), called by Qt and the JSON-RPC code to warn the user:
+        {
+            // strMiscWarning is read by GetWarnings(), called by Qt and
+            // the JSON-RPC code to warn the user:
             strMiscWarning = _("Warning: This version is obsolete, upgrade required!");
+        }
     }
 
     string strCmd = GetArg("-blocknotify", "");
@@ -5156,9 +5216,10 @@ bool CBlockIndex::IsSuperMajority(int minVersion, const CBlockIndex* pstart, uns
 }
 
 
-bool ProcessBlock(CNode* pfrom, CBlock* pblock,
+bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
                   bool fIsBootstrap, bool fJustCheck, bool fIsMine)
 {
+    fProcessOK = true;
     bool fAllowDuplicateStake = (fIsBootstrap && GetBoolArg("-permitdirtybootstrap", false));
     // Check for duplicate
     uint256 hash = pblock->GetHash();
@@ -5169,9 +5230,20 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         return false;
     }
     if (mapBlockIndex.count(hash))
-        return error("ProcessBlock() : already have block %d %s", mapBlockIndex[hash]->nHeight, hash.ToString().c_str());
+    {
+        // not an error, but return false because it was not processed
+        printf ("ProcessBlock() : already have block %d %s\n",
+                mapBlockIndex[hash]->nHeight,
+                hash.ToString().c_str());
+        return false;
+    }
     if (mapOrphanBlocks.count(hash))
-        return error("ProcessBlock() : already have block (orphan) %s", hash.ToString().c_str());
+    {
+        // not an error, but return false because it was not processed
+        printf("ProcessBlock() : already have block (orphan) %s\n",
+               hash.ToString().c_str());
+        return false;
+    }
 
     // ppcoin: check proof-of-stake
     // Limited duplicity on stake: prevents block flood attack
@@ -5182,6 +5254,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         !mapOrphanBlocksByPrev.count(hash) &&
         !Checkpoints::WantedByPendingSyncCheckpoint(hash) && !fAllowDuplicateStake)
     {
+        fProcessOK = false;
         return error("ProcessBlock() : duplicate proof-of-stake (%s, %d) for block %s",
                      pblock->GetProofOfStake().first.ToString().c_str(),
                      pblock->GetProofOfStake().second, hash.ToString().c_str());
@@ -5207,6 +5280,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     AUTO_PTR<QPRegistry> pregistryTemp(new QPRegistry(pregistryMain));
     if (!pregistryTemp.get())
     {
+        fProcessOK = false;
         return error("ProcessBlock() : creating temp registry failed");
     }
     bool fCheckOK;
@@ -5219,13 +5293,17 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     }
     else
     {
-        printf("ProcessBlock(): fully checking block\n");
+        if (fDebug)
+        {
+            printf("ProcessBlock(): fully checking block\n");
+        }
         vector<QPTxDetails> vDeets;
         fCheckOK = pblock->CheckBlock(pregistryTemp.get(), vDeets, pindexBest);
     }
 
     if (!fCheckOK)
     {
+        fProcessOK = false;
         return error("ProcessBlock() : CheckBlock FAILED");
     }
 
@@ -5236,7 +5314,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         {
               pfrom->Misbehaving(100);
         }
-        printf("Proof-of-work on or after block %d.\n", GetPoWCutoff());
+        fProcessOK = false;
         return error("Proof-of-work on or after block %d.\n", GetPoWCutoff());
     }
 
@@ -5247,7 +5325,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         {
               pfrom->Misbehaving(100);
         }
-        printf("Proof-of-stake on or after block %d.\n", GetQPoSStart());
+        fProcessOK = false;
         return error("Proof-of-stake on or after block %d.\n", GetQPoSStart());
     }
 
@@ -5302,7 +5380,10 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
             if (bnNewBlock > bnRequired)
             {
                 if (pfrom)
+                {
                     pfrom->Misbehaving(100);
+                }
+                fProcessOK = false;
                 return error("ProcessBlock() : block with too little %s",
                              pblock->IsProofOfStake() ? "proof-of-stake" :
                                                         "proof-of-work");
@@ -5333,6 +5414,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
                 !mapOrphanBlocksByPrev.count(hash) &&
                 !(fUseSyncCheckpoints && Checkpoints::WantedByPendingSyncCheckpoint(hash)))
             {
+                fProcessOK = false;
                 return error("ProcessBlock() : duplicate proof-of-stake (%s, %d) for orphan block %s",
                              pblock2->GetProofOfStake().first.ToString().c_str(),
                              pblock2->GetProofOfStake().second,
@@ -5387,6 +5469,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
         pregistryTemp->SetNull();
         if (!RewindRegistry(txdb, pindexRewind, pregistryTemp.get(), pindexCurrent))
         {
+            fProcessOK = false;
             return error("ProcessBlock() : Could not rewind registry to prev of %s",
                          hash.ToString().c_str());
         }
@@ -5395,6 +5478,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock,
     // Store to disk
     if (!pblock->AcceptBlock(pregistryTemp.get(), fIsMine, fIsBootstrap))
     {
+        fProcessOK = false;
         return error("ProcessBlock() : AcceptBlock FAILED %s", hash.ToString().c_str());
     }
 
@@ -5978,7 +6062,8 @@ bool LoadExternalBlockFile(FILE* fileIn)
                 {
                     CBlock block;
                     blkdat >> block;
-                    if (ProcessBlock(NULL, &block, true))
+                    bool fProcessOK;
+                    if (ProcessBlock(NULL, &block, fProcessOK, true))
                     {
                         nLoaded++;
                         nPos += 4 + nSize;
@@ -6100,7 +6185,7 @@ bool Rollback()
     // rollback to 3 queues ago (3 is not arbitrary)
     uint256 hashRollback = pregistryMain->GetHashLastBlockPrev3Queue();
 
-    printf("ROLLBACK from %s to %s\n",
+    printf("ROLLBACK from\n  %s to\n  %s\n",
            pindexBest->GetBlockHash().ToString().c_str(),
            hashRollback.ToString().c_str());
 
@@ -6134,7 +6219,7 @@ bool Rollback()
         return true;
     }
 
-    printf("ROLLBACK: Disconnect %" PRIszu " blocks; %s back to %s\n",
+    printf("ROLLBACK: Disconnect %" PRIszu " blocks\n  %s\n  back to\n  %s\n",
            vDisconnect.size(),
            pindexBest->GetBlockHash().ToString().c_str(),
            hashRollback.ToString().c_str());
@@ -6950,20 +7035,23 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         CInv inv(MSG_BLOCK, block.GetHash());
         pfrom->AddInventoryKnown(inv);
 
-        bool fProcessOK;
+        bool fProcessOK = false;
         bool fCheck = true;
 
         if (block.hashPrevBlock == hashBestChain)
         {
-            printf("Processing block fully: %s\n"
-                   "   best=%s\n"
-                   "   prev=%s, fork=%u (FORKQPOS=%u)\n",
-                   block.GetHash().ToString().c_str(),
-                   hashBestChain.ToString().c_str(),
-                   block.hashPrevBlock.ToString().c_str(),
-                   GetFork(block.nHeight), XST_FORKQPOS);
+            if (fDebug)
+            {
+                printf("Processing block fully: %s\n"
+                       "   best=%s\n"
+                       "   prev=%s, fork=%u (FORKQPOS=%u)\n",
+                       block.GetHash().ToString().c_str(),
+                       hashBestChain.ToString().c_str(),
+                       block.hashPrevBlock.ToString().c_str(),
+                       GetFork(block.nHeight), XST_FORKQPOS);
+            }
 
-            fProcessOK = ProcessBlock(pfrom, &block);
+            ProcessBlock(pfrom, &block, fProcessOK);
             fCheck = false;
         }
         else if (mapBlockIndex.count(block.hashPrevBlock))
@@ -7019,7 +7107,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     {
                         pregistryMain->ExitReplayMode();
                     }
-                    fProcessOK = ProcessBlock(pfrom, &block);
+                    ProcessBlock(pfrom, &block, fProcessOK);
                 }
                 else
                 {
@@ -7044,7 +7132,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                       "  This: %d  %s\n  Best: %d %s\n",
                    block.nHeight, block.GetHash().ToString().c_str(),
                    nBestHeight, hashBestChain.ToString().c_str());
-            fProcessOK = ProcessBlock(pfrom, &block, false, true);
+            ProcessBlock(pfrom, &block, fProcessOK, false, true);
         }
 
         // TODO: should this be recursive somehow?
@@ -7062,12 +7150,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                     (block.nHeight == (nBestHeight + 1)))
                 {
                     printf("Processing block fully (should rollback)\n");
-                    fProcessOK = ProcessBlock(pfrom, &block);
+                    ProcessBlock(pfrom, &block, fProcessOK);
                 }
                 else
                 {
                     printf("Processing block just check (should rollback)\n");
-                    fProcessOK = ProcessBlock(pfrom, &block, false, true);
+                    ProcessBlock(pfrom, &block, fProcessOK, false, true);
                 }
                 if (fProcessOK)
                 {
@@ -7539,8 +7627,11 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
 
             if (AlreadyHave(txdb, inv))
             {
-                printf("already have %s\n",
-                       inv.ToString().c_str());
+                if (fDebug)
+                {
+                    printf("already have %s\n",
+                           inv.ToString().c_str());
+                }
             }
             else
             {
@@ -7943,7 +8034,7 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // not that there seems to be anything wrong with that.
             Feework feework;
             feework.bytes = nTxSize;
-            if (tx.CheckFeework(feework, false, bfrFeeworkValidator))
+            if (tx.CheckFeework(feework, false, bfrFeeworkValidator, pindexBest))
             {
                 if (feework.IsOK())
                 {
@@ -8361,9 +8452,10 @@ bool CheckWork(CBlock* pblock, CWallet& wallet,
         //    immediate predecessor.
         // This full validation happens uppon connecting the block.
         // Process this block the same as if we had received it from another node.
-        bool fProcessOK = ProcessBlock(NULL, pblock, false, false, true);
+        bool fProcessOK;
+        bool fAccepted = ProcessBlock(NULL, pblock, fProcessOK, false, false, true);
 
-        if (!fProcessOK)
+        if (!fAccepted)
         {
             return error("CheckWork() : ProcessBlock, block not accepted");
         }

@@ -829,6 +829,7 @@ public:
     const char* begindata() const                    { return &(*vch.begin()); }
     const_iterator begin() const                     { return vch.begin() + nReadPos; }
     iterator begin()                                 { return vch.begin() + nReadPos; }
+    const char* enddata() const                      { return &(*vch.end()); }
     const_iterator end() const                       { return vch.end(); }
     iterator end()                                   { return vch.end(); }
     size_type size() const                           { return vch.size() - nReadPos; }

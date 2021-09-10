@@ -1115,7 +1115,7 @@ void CWallet::ResendWalletTransactions(bool fForce)
             {
                 CTransaction& tx = (CTransaction&)wtx;
                 Feework feework;
-                if (!tx.CheckFeework(feework, false, bfrFeeworkMiner))
+                if (!tx.CheckFeework(feework, false, bfrFeeworkMiner, pindexBest))
                 {
                      setToRemove.insert(hash);
                      continue;
@@ -1538,7 +1538,7 @@ string CWallet::MineFeework(unsigned int nBlockSize,
     }
     feework.limit = chainParams.TX_FEEWORK_LIMIT;
     // check the new tx for absence of existing feework
-    txNew.CheckFeework(feework, false, bfrFeeworkMiner);
+    txNew.CheckFeework(feework, false, bfrFeeworkMiner, pindexBest);
     if (!feework.HasNone())
     {
         string strError = _("Error: tx already has feework or is malformed");
