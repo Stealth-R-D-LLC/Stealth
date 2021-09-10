@@ -40,6 +40,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63900;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+//         3.1.6.4 : Enabling exitreplay RPC on mainnet
 //         3.1.6.3 : Fixing inconsistent feework checking
 //                   Fixing inclusion of disconnected blocks in some chains
 //         3.1.6.2 : Eliminate some global state dependence from the registry

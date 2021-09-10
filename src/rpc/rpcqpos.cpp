@@ -67,7 +67,7 @@ string GetRegistryAtHeight(int nHeight, QPRegistry* &pRet)
 
 Value exitreplay(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() > 0 || !fTestNet)
+    if (fHelp || params.size() > 0)
     {
         throw runtime_error(
             "exitreplay\n"
