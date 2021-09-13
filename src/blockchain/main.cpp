@@ -3685,12 +3685,6 @@ bool CBlock::DisconnectBlock(CTxDB& txdb, CBlockIndex* pindex)
 bool CBlock::ConnectBlock(CTxDB& txdb, CBlockIndex* pindex,
                           QPRegistry *pregistryTemp, bool fJustCheck)
 {
-    // ensure that previous block is itself properly connected
-    if (pindex->pprev && pindex->pprev->pprev && !pindex->pprev->pprev->pnext)
-    {
-        return error("ConnectBlock(): previous not properly connected");
-    }
-
     vector<QPTxDetails> vDeets;
     // Check it again in case a previous version let a bad block in
     // fCheckSig was always true here by default
@@ -4009,6 +4003,7 @@ bool static Reorganize(CTxDB& txdb,
     // Disconnect shorter branch
     list<CTransaction> vResurrect;
     // iterate from top down
+
     BOOST_FOREACH(CBlockIndex* pindex, vDisconnect)
     {
         CBlock block;
@@ -4102,6 +4097,19 @@ bool static Reorganize(CTxDB& txdb,
         mapBlockLookup.erase(pindex->nHeight);
     }
 
+    // Ensure that block previous to the first is itself properly connected
+    // before connecting to this.
+    const CBlockIndex* pindexFirst = vConnect.empty() ? NULL : vConnect[0];
+    if (pindexFirst &&
+        pindexFirst->pprev &&
+        pindexFirst->pprev->pprev &&
+        pindexFirst->pprev->pprev->pnext != pindexFirst->pprev)
+    {
+        return error("SetBestChainInner(): "
+                         "previous block is not properly connected\n  %s",
+                     pindexNew->pprev->pprev->phashBlock->ToString().c_str());
+    }
+
     // Connect longer branch from bottom up
     BOOST_FOREACH(CBlockIndex* pindex, vConnect)
     {
@@ -4147,6 +4155,17 @@ bool CBlock::SetBestChainInner(CTxDB& txdb,
 
     if (!txdb.TxnCommit())
         return error("SetBestChainInner() : TxnCommit failed");
+
+    // ensure that previous block is itself properly connected before
+    // connecting to this
+    if (pindexNew->pprev &&
+        pindexNew->pprev->pprev &&
+        (pindexNew->pprev->pprev->pnext != pindexNew->pprev))
+    {
+        return error("SetBestChainInner(): "
+                        "previous block is not properly connected\n  %s",
+                     pindexNew->pprev->pprev->phashBlock->ToString().c_str());
+    }
 
     // Add to current best branch
     pindexNew->pprev->pnext = pindexNew;

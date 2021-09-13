@@ -755,16 +755,20 @@ bool CTxDB::LoadBlockIndex()
 
     pregistryMain->SetNull();
 
-    // Used to determine which registry snapshots to create.
-    int nMaxHeightSorted = 0;
-    if (!vSortedByHeight.empty())
+    if (vSortedByHeight.empty())
     {
-        nMaxHeightSorted = vSortedByHeight.back().first;
+        // This should never happen because at the very least
+        //    mapBlockIndex has pindexBest.
+        return error("LoadBlockIndex(): TSNH No blocks\n");
     }
+
+    // Used to determine which registry snapshots to create.
+    int nMaxHeightSorted = vSortedByHeight.back().first;
 
     static const int nRecentBlocks = RECENT_SNAPSHOTS * BLOCKS_PER_SNAPSHOT;
 
     CBlockIndex* pindexBestReplay = NULL;
+    int nHeightStop = pindexBest->nHeight - 1;
     BOOST_FOREACH(const PAIRTYPE(int, CBlockIndex*)& item, vSortedByHeight)
     {
         int nHeight = item.first;
@@ -805,11 +809,7 @@ bool CTxDB::LoadBlockIndex()
                 int nSnapType = ((nMaxHeightSorted - nHeight) > nRecentBlocks) ?
                                                           QPRegistry::SPARSE_SNAPS :
                                                           QPRegistry::ALL_SNAPS;
-                if (pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
-                {
-                    pindexBestReplay = pidx;
-                }
-                else
+                if (!pregistryMain->UpdateOnNewBlock(pidx, nSnapType))
                 {
                     // force update again to print some debugging info before exit
                     pregistryMain->UpdateOnNewBlock(pidx, QPRegistry::NO_SNAPS, true);
@@ -818,22 +818,25 @@ bool CTxDB::LoadBlockIndex()
                            nHeight);
                 }
             }
-            if (pregistryMain->GetBlockHeight() >= (pindexBest->nHeight - 1))
+            pindexBestReplay = pidx;
+            if (pregistryMain->GetBlockHeight() >= nHeightStop)
             {
                 break;
             }
         }
     }
-    if (pindexBestReplay)
+
+    if (!pindexBestReplay)
     {
-        printf("Replayed main chain to %d: %s\n",
-               pindexBestReplay->nHeight,
-               pindexBestReplay->GetBlockHash().ToString().c_str());
+        // Return error and force a start from scratch because there are
+        //    no mainchain blocks in the block index (i.e. block index
+        //    is a complete disaster).
+        return error("LoadBlockIndex(): no mainchain blocks\n");
     }
-    else
-    {
-        printf("No main chain blocks to replay\n");
-    }
+
+    printf("Replayed main chain to %d: %s\n",
+           pindexBestReplay->nHeight,
+           pindexBestReplay->GetBlockHash().ToString().c_str());
 
     int nReplayHeight = pregistryMain->GetBlockHeight();
 
@@ -1119,7 +1122,7 @@ bool CTxDB::LoadBlockIndex()
         pindexLookup = pindexLookup->pprev;
     }
 
-    if (pindexFork && !fRequestShutdown)
+    if (pindexFork && (pindexFork != pindexBest) && !fRequestShutdown)
     {
         // Reorg back to the fork
         printf("LoadBlockIndex() : *** moving best chain pointer back to block %d\n", pindexFork->nHeight);

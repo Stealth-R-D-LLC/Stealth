@@ -196,6 +196,7 @@ Object blockToJSON(const CBlock& block,
                               strprintf("%08x",
                                         blockindex->nStakeModifierChecksum)));
     }
+
     Array txinfo;
     BOOST_FOREACH (const CTransaction& tx, block.vtx)
     {
@@ -302,6 +303,26 @@ Value getblockhash(const Array& params, bool fHelp)
     CBlockIndex* pblockindex = FindBlockByHeight(nHeight);
     return pblockindex->phashBlock->GetHex();
 }
+
+Value getblockhash9(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 1)
+        throw runtime_error(
+            "getblockhash <index>\n"
+            "Returns hash9 of block in best-block-chain at <index>.");
+
+    int nHeight = params[0].get_int();
+    if (nHeight < 0 || nHeight > nBestHeight)
+        throw runtime_error("Block number out of range.");
+
+    CBlockIndex* pblockindex = FindBlockByHeight(nHeight);
+
+    CBlock block;
+    block.ReadFromDisk(pblockindex, true);
+
+    return block.GetHash9().GetHex();
+}
+
 
 Value getblock(const Array& params, bool fHelp)
 {

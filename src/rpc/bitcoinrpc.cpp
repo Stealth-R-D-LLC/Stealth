@@ -338,6 +338,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getbestblock",             &getbestblock,              false,  false },
     { "getnewestblockbeforetime", &getnewestblockbeforetime,  false,  false },
     { "getblockhash",             &getblockhash,              false,  false },
+    { "getblockhash9",            &getblockhash9,             false,  false },
     { "gettransaction",           &gettransaction,            false,  false },
     { "listtransactions",         &listtransactions,          false,  false },
     { "listaddressgroupings",     &listaddressgroupings,      false,  false },
@@ -1392,6 +1393,7 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "getnewestblockbeforetime"  && n > 0)
                                 ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getblockhash"           && n > 0) ConvertTo<boost::int64_t>(params[0]);
+    if (strMethod == "getblockhash9"          && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "move"                   && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "move"                   && n > 3) ConvertTo<boost::int64_t>(params[3]);
     if (strMethod == "sendfrom"               && n > 2) ConvertTo<double>(params[2]);

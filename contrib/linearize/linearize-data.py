@@ -31,13 +31,6 @@ class ReMap(object):
       self.reason = reason
       self.new_hash = new_hash
 
-# use for both mainnet and testnet
-REMAP = {
-            b'52809cc2f63ff5859f9bd6b2835e3ef25682cb357eea711a8a1be25d864d1b5a':
-                ReMap("Commitment of first set of 100 testnet character images",
-                      b'887bd16107871672c93d1b2da4fde230b1e74772593bd758402028f67cc23361'),
-        }
-
 settings = {}
 
 def getTF(v):
@@ -90,10 +83,7 @@ def calc_hash_str_old(blk_hdr):
     return hash_str
 
 def calc_hash_str(blk_hdr):
-    hash_str = hash9(blk_hdr)
-    if hash_str in REMAP:
-        hash_str = REMAP[hash_str].new_hash
-    return hash_str
+    return hash9(blk_hdr)
 
 def get_blk_dt(blk_hdr):
     members = struct.unpack("<I", blk_hdr[68:68+4])

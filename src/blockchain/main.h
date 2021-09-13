@@ -1207,6 +1207,18 @@ public:
         }
     }
 
+    uint256 GetHash9() const
+    {
+        if (nVersion < QPOS_VERSION)
+        {
+            return Hash9(BEGIN(nVersion), END(nNonce));
+        }
+        else
+        {
+            return Hash9(BEGIN(nVersion), END(nStakerID));
+        }
+    }
+
     int64_t GetBlockTime() const
     {
         return (int64_t)nTime;

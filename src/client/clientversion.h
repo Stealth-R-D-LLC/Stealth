@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    6
-#define CLIENT_VERSION_BUILD       4
+#define CLIENT_VERSION_BUILD       5
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -40,6 +40,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63900;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+//         3.1.6.5 : Fixing fatal reorgs and even more fatal block index load
 //         3.1.6.4 : Enabling exitreplay RPC on mainnet
 //         3.1.6.3 : Fixing inconsistent feework checking
 //                   Fixing inclusion of disconnected blocks in some chains

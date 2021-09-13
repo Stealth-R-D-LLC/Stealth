@@ -54,19 +54,21 @@ class BitcoinRPC:
       return None
 
     return resp_obj['result']
-  def getblock(self, hash, verbose=True):
-    return self.rpc('getblock', [hash, verbose])
+  def getblock(self, hash_, verbose=True):
+    return self.rpc('getblock', [hash_, verbose])
   def getblockhash(self, index):
     return self.rpc('getblockhash', [index])
+  def getblockhash9(self, index):
+    return self.rpc('getblockhash9', [index])
 
 def get_block_hashes(settings):
   rpc = BitcoinRPC(settings['host'], int(settings['port']),
        settings['rpcuser'], settings['rpcpassword'])
 
   for height in range(settings['min_height'], settings['max_height']+1):
-    hash = rpc.getblockhash(height)
+    hash_ = rpc.getblockhash9(height)
 
-    print(hash)
+    print(hash_)
 
 if __name__ == '__main__':
   if len(sys.argv) != 2:
