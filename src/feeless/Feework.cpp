@@ -253,8 +253,9 @@ const int64_t Feework::GetDiff() const
         // This should never happen, but if someone mindlessly changes
         // the feework limit or min fee, int64_t may overflow.
         // So we throw a helpful error message for our cloner friends.
-        printf("Feework::GetDiff(): TSNH: ERROR: exceeded numeric limits\n");
-        throw;
+        printf("Feework::GetDiff(): TSNH: ERROR: exceeded numeric limits\n%s\n",
+               ToString("   ").c_str());
+        diff = MINFEE;
     }
     return (int64_t)diff;
 }
