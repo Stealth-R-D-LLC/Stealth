@@ -6712,7 +6712,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             if (fShutdown)
                 return true;
-            if (fDebugNet || (vInv.size() == 1))
+            if (fDebugNet)
             {
                 printf("   for: %s\n", inv.ToString().c_str());
             }
