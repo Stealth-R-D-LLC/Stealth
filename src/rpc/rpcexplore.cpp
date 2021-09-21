@@ -1741,7 +1741,7 @@ Value gettxvolume(const Array& params, bool fHelp)
 
     static const string strValueName = "tx_volume";
 
-    StatHelper helper("tx_volume", &GetTxVolume, &SumAsIntValue);
+    StatHelper helper("tx_volume", &GetTxVolume, &SumAsAmount);
 
     return GetWindowedValue(params, helper);
 }

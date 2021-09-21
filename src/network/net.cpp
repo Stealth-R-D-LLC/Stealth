@@ -1840,7 +1840,8 @@ void ThreadMessageHandler2(void* parg)
         // rollbacks mean qPoS can keep producing even with 0 connections
         if ((GetFork(nHeight) >= XST_FORKQPOS) &&
             ((nMaxHeight <= 0) || (nBestHeight < nMaxHeight)) &&
-            fQPoSActive)
+            fQPoSActive &&
+            !pwallet->IsLocked())
         {
            /*******************************************************************
             ** qPoS

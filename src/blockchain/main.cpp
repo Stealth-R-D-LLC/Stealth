@@ -1933,7 +1933,7 @@ uint32_t CTransaction::GetFeeworkHardness(unsigned int nBlockSize,
     uint64_t nNewBlockSize = nBlockSize + nBytes;
     if (nNewBlockSize > nMaxSize)
     {
-        return (uint64_t)numeric_limits<uint32_t>::max;
+        return (uint64_t)numeric_limits<uint32_t>::max();
     }
 
     // Exponentially raise the memory hardness of feework as block fills
@@ -1946,7 +1946,7 @@ uint32_t CTransaction::GetFeeworkHardness(unsigned int nBlockSize,
 
     // A 1 MB tx in a 1 MB block (4,578,764,800) would slightly
     // exceed the 32 bit max (1<<32 == 4,294,967,296).
-    return min(nCost, (uint64_t)numeric_limits<uint32_t>::max);
+    return min(nCost, (uint64_t)numeric_limits<uint32_t>::max());
 }
 
 uint64_t CTransaction::GetFeeworkLimit(unsigned int nBlockSize,

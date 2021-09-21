@@ -10,6 +10,7 @@
 #include <string>
 
 std::string ToLowercaseSafe(const std::string &s);
+std::string Despace(const std::string &s);
 bool AliasIsValid(const std::string &sAlias);
 
 #endif  /* _STAKER_ALIASES_H_ */

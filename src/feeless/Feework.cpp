@@ -246,8 +246,9 @@ const int64_t Feework::GetDiff() const
     // Difficulty is measured in XST, to allow comparison with money fees.
     // Minimum feework is worth the minimum tx fee.
     static const int128_t MINFEE = chainParams.MIN_TX_FEE;
-    int128_t diff = ((LIMIT * MINFEE) / hash) * (mcost / MCOST);
-    static const int128_t MAXDIFF = (int64_t)std::numeric_limits<int64_t>::max;
+    // tested overflow with hash=0x0fffff and mcost=5120
+    int128_t diff = (((LIMIT * MINFEE) / hash) * mcost) / MCOST;
+    static const int128_t MAXDIFF = std::numeric_limits<int64_t>::max();
     if (diff > MAXDIFF)
     {
         // This should never happen, but if someone mindlessly changes
@@ -255,6 +256,7 @@ const int64_t Feework::GetDiff() const
         // So we throw a helpful error message for our cloner friends.
         printf("Feework::GetDiff(): TSNH: ERROR: exceeded numeric limits\n%s\n",
                ToString("   ").c_str());
+        // We have no idea how they overflowed it, so set diff to a safe value.
         diff = MINFEE;
     }
     return (int64_t)diff;

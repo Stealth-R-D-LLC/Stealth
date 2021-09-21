@@ -206,10 +206,14 @@ void ExtractQPoSRPCEssentials(const Array &params,
                 }
             }
             sAliasRet = mapNfts[nIDRet].strNickname;
-            if (ToLowercaseSafe(sAliasRet) != sLC)
+            string sAliasDespaced = Despace(sAliasRet);
+            if (ToLowercaseSafe(sAliasDespaced) != sLC)
             {
-                throw runtime_error("ExtractQPoSRPCEssentials(): "
-                                       "TSNH NFT alias mismatch");
+                throw runtime_error(
+                         strprintf("ExtractQPoSRPCEssentials(): "
+                                      "TSNH NFT alias mismatch: "
+                                      "alias=%s, nft=%s",
+                                   sAliasRet.c_str(), sLC.c_str()));
             }
         }
         else
@@ -220,10 +224,12 @@ void ExtractQPoSRPCEssentials(const Array &params,
 
     if (fStakerShouldExist)
     {
-        if (!pregistryMain->GetIDForAlias(sAliasRet, nIDRet))
+        string sAliasDespaced = Despace(sAliasRet);
+        if (!pregistryMain->GetIDForAlias(sAliasDespaced, nIDRet))
         {
-            throw JSONRPCError(RPC_QPOS_STAKER_NONEXISTENT,
-                               "Staker does not exist");
+            string msg = strprintf("Staker '%s' does not exist",
+                                   sAliasRet.c_str());
+            throw JSONRPCError(RPC_QPOS_STAKER_NONEXISTENT, msg);
         }
     }
     else

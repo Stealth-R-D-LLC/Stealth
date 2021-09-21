@@ -6,6 +6,19 @@
 
 using namespace std;
 
+string Despace(const string &s)
+{
+    string result;
+    for (unsigned int i = 0; i < s.size(); ++i)
+    {
+        if (s[i] != ' ')
+        {
+            result.push_back(s[i]);
+        }
+    }
+    return result;
+}
+
 string ToLowercaseSafe(const string &s)
 {
     string t = s;

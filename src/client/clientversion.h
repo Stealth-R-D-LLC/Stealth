@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    6
-#define CLIENT_VERSION_BUILD       6
+#define CLIENT_VERSION_BUILD       7
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -40,6 +40,7 @@ static const int CLIENT_PROTOCOL_VERSION = 63900;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+//         3.1.6.7 : Improving feeless priority calculation, fixed gettxvolume
 //         3.1.6.6 : Fixing ungraceful overflow in feework diff calculation
 //         3.1.6.5 : Fixing fatal reorgs and even more fatal block index load
 //         3.1.6.4 : Enabling exitreplay RPC on mainnet
