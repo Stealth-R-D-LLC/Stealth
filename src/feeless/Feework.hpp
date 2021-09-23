@@ -38,14 +38,16 @@ public:
         MISSING,       // 8 vout has no feework output, but is expected
         BLOCKUNKNOWN,  // 9 the block referenced by the feework is unknown
         BLOCKTOODEEP,  // 10 the block referenced by the feework is too deep
-        LOWMCOST,      // 11 mcost is too low to get in block
-        HIGHMCOST,     // 12 mcost exceeds limits imposed by protocol
-        NOHEIGHT,      // 13 feework object is incomplete, missing height
-        NOLIMIT,       // 14                            missing limit
-        NOMCOST,       // 15                            missing mcost
-        NOHASH,        // 16                            missing hash
-        NOWORK,        // 17                            missing work
-        INSUFFICIENT   // 18 feework is insufficient to be included in block
+        INPUTERROR,    // 11 could not fetch inputs
+        INPUTNOTMAIN,  // 12 an input was not in the main chain
+        LOWMCOST,      // 13 mcost is too low to get in block
+        HIGHMCOST,     // 14 mcost exceeds limits imposed by protocol
+        NOHEIGHT,      // 15 feework object is incomplete, missing height
+        NOLIMIT,       // 16                            missing limit
+        NOMCOST,       // 17                            missing mcost
+        NOHASH,        // 18                            missing hash
+        NOWORK,        // 19                            missing work
+        INSUFFICIENT   // 20 feework is insufficient to be included in block
     };
 
     int height;

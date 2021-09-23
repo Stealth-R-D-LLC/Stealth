@@ -2016,7 +2016,8 @@ bool CTransaction::CheckFeework(Feework &feework,
                                 const CBlockIndex* pblockindex,
                                 unsigned int nBlockSize,
                                 enum GetMinFee_mode mode,
-                                bool fCheckDepth) const
+                                bool fCheckDepth,
+                                bool fMiner) const
 {
     if (vout.empty())
     {
@@ -2084,8 +2085,10 @@ bool CTransaction::CheckFeework(Feework &feework,
     valtype vch = vSolutions.front();
     feework.ExtractFeework(vch);
 
+    int nFork = GetFork(feework.height);
+
     // this test is OK because feework.height has to be in the best chain
-    if (!fTestNet && (GetFork(feework.height) < XST_FORKFEELESS))
+    if (!fTestNet && (nFork < XST_FORKFEELESS))
     {
         feework.status = Feework::BADVERSION;
         return DoS(100, error("CheckFeework(): too soon for feeless"));
@@ -2113,6 +2116,37 @@ bool CTransaction::CheckFeework(Feework &feework,
         pblockindex = pblockindex->pprev;
     }
 
+    // It's up to the sender to ensure that inputs are confirmed.
+    if (fMiner || (nFork >= XST_FORKFEELESS2))
+    {
+        // TODO: Put whatever we find here into a map that travels
+        //       with the TxPriority so we don't have to repeat
+        //       these lookups again.
+        CTxDB txdb("r");
+        map<uint256, CTxIndex> mapUnused;
+        MapPrevTx mapInputs;
+        bool fInvalid;
+        if (!FetchInputs(txdb, mapUnused, false, true, mapInputs, fInvalid))
+        {
+            printf("CheckFeework() : could not fetch inputs for\n  %s",
+                   GetHash().ToString().c_str());
+            feework.status = Feework::INPUTERROR;
+            return false;
+        }
+        MapPrevTx::const_iterator it;
+        for (it = mapInputs.begin(); it != mapInputs.end(); ++it)
+        {
+            if (it->second.first.GetDepthInMainChain() < 1)
+            {
+                printf("CheckFeework() : input not in main chain for\n  %s",
+                       GetHash().ToString().c_str());
+                feework.status = Feework::INPUTNOTMAIN;
+                return false;
+            }
+        }
+    }
+
+    // Temporary tx used as data for feework hash.
     CTransaction txTmp(*this);
 
     // Remove the last output (the feework)
@@ -7759,8 +7793,10 @@ uint64_t nLastBlockTx = 0;
 uint64_t nLastBlockSize = 0;
 int64_t nLastCoinStakeSearchInterval = 0;
 
-// We want to sort transactions by priority and fee, so:
+// We want to sort transactions by priority and fee.
+// Positions: 0:priority, 1:fee per kb, 2:feework, 3:the tx
 typedef boost::tuple<double, double, Feework, CTransaction*> TxPriority;
+
 class TxPriorityCompare
 {
     bool byFee;
@@ -8006,10 +8042,15 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
                     if (!mempool.mapTx.count(txin.prevout.hash))
                     {
                         printf("ERROR: TSNH mempool transaction missing input\n");
-                        if (fDebug) assert("mempool transaction missing input" == 0);
+                        if (fDebug)
+                        {
+                            assert("mempool transaction missing input" == 0);
+                        }
                         fMissingInputs = true;
                         if (porphan)
+                        {
                             vOrphan.pop_back();
+                        }
                         break;
                     }
 
@@ -8053,7 +8094,8 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
             // not that there seems to be anything wrong with that.
             Feework feework;
             feework.bytes = nTxSize;
-            if (tx.CheckFeework(feework, false, bfrFeeworkValidator, pindexBest))
+            if (tx.CheckFeework(feework, false, bfrFeeworkValidator, pindexBest,
+                                1, GMF_BLOCK, true, true))
             {
                 if (feework.IsOK())
                 {

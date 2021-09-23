@@ -215,6 +215,8 @@ const char* Feework::GetStatus() const
     case Feework::MISSING: return "tx_missing_feework";
     case Feework::BLOCKUNKNOWN: return "unknown_block";
     case Feework::BLOCKTOODEEP: return "block_too_deep";
+    case Feework::INPUTERROR: return "error_fetching_inputs";
+    case Feework::INPUTNOTMAIN: return "input_not_in_mainchain";
     case Feework::LOWMCOST: return "low_memory_cost";
     case Feework::HIGHMCOST: return "high_memory_cost";
     case Feework::NOHEIGHT: return "no_height";

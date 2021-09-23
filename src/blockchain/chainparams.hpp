@@ -66,6 +66,7 @@ public:
     int START_FEELESS_M;
     int START_MISSFIX_M;
     int REINSTATE_M;
+    int START_FEELESS2_M;
 
     mapIntInt_t mapForksMainNet;
 
@@ -248,6 +249,7 @@ public:
     int START_FEELESS_T;
     int START_MISSFIX_T;
     int REINSTATE_T;
+    int START_FEELESS2_T;
 
     mapIntInt_t mapForksTestNet;
 

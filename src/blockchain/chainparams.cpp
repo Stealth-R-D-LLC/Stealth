@@ -62,18 +62,20 @@ ChainParams::ChainParams()
         (           XST_FORKFEELESS,     63800 )
         (           XST_FORKMISSFIX,     63800 )
         (         XST_FORKREINSTATE,     63900 )
+        (          XST_FORKFEELESS2,     64000 )
                );
 
     CUTOFF_POW_M = 5460;
-    START_PURCHASE_M = 3657600;  // original start of staker purchases
+    START_PURCHASE_M = 3657600;   // original start of staker purchases
     START_PURCHASE2_M = 3673500;  // new start of staker purchases
     START_PURCHASE3_M = 3683900;  // purchase fix for NFTs
-    START_QPOS_M = 3695100;      // end of PoS and start of qPoS
+    START_QPOS_M = 3695100;       // end of PoS and start of qPoS
     START_QPOSB_M = 3695100;      // placeholder for fork on testnet
-    START_NFT_M = 3695200;       // add NFT commitment to blockchain
-    START_FEELESS_M = 3702300;   // start of feeless transactions
-    START_MISSFIX_M = 3719600;   // allow network stalls on transition to qPoS
-    REINSTATE_M = 3776758;         // reinstate disqualified stakers
+    START_NFT_M = 3695200;        // add NFT commitment to blockchain
+    START_FEELESS_M = 3702300;    // start of feeless transactions
+    START_MISSFIX_M = 3719600;    // allow network stalls on transition to qPoS
+    REINSTATE_M = 3776758;        // reinstate disqualified stakers
+    START_FEELESS2_M = 5798888;   // require feeless inputs to be confirmed
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -91,7 +93,8 @@ ChainParams::ChainParams()
         /* Jun  2 03:28:17 MST 2021 */   (       START_NFT_M, XST_FORKNFT       )
         /* Jun  2 14:12:17 MST 2021 */   (   START_FEELESS_M, XST_FORKFEELESS   )
         /* Jun  3 15:45:07 MST 2021 */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
-        /*  Approx 6/7 2021 2PM MST */   (       REINSTATE_M, XST_FORKREINSTATE )
+        /* Jun  6 23:49:52 MST 2021 */   (       REINSTATE_M, XST_FORKREINSTATE )
+       /* Approx 10/13 2021 6AM MST */   (       REINSTATE_M, XST_FORKFEELESS2  )
                                                  );
 
 
@@ -434,14 +437,15 @@ ChainParams::ChainParams()
 
     CUTOFF_POW_T = 120;
     START_PURCHASE_T = 4204;
-    START_PURCHASE2_T = 4205;  // placeholder for mainnet
-    START_PURCHASE3_T = 4205;  // placeholder for mainnet
+    START_PURCHASE2_T = 4205;     // placeholder for mainnet
+    START_PURCHASE3_T = 4205;     // placeholder for mainnet
     START_QPOS_T = 17400;
     START_QPOSB_T = 22500;
-    START_NFT_T = 22501;       // placeholder for mainnet
+    START_NFT_T = 22501;          // placeholder for mainnet
     START_FEELESS_T = 3965963;
     START_MISSFIX_T = 4768119;
-    REINSTATE_T = 99999999;    // placeholder for testnet
+    REINSTATE_T = 99999999;       // placeholder for testnet
+    START_FEELESS2_T = 99999999;  // placeholder for testnet
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
@@ -461,6 +465,7 @@ ChainParams::ChainParams()
         /*                          */       (   START_FEELESS_T, XST_FORKFEELESS   )
         /*                          */       (   START_MISSFIX_T, XST_FORKMISSFIX   )
         /*                          */       (       REINSTATE_T, XST_FORKREINSTATE )
+        /*                          */       (  START_FEELESS2_T, XST_FORKFEELESS2  )
                                                     );
 
 

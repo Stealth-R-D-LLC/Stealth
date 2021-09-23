@@ -8,8 +8,8 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    6
-#define CLIENT_VERSION_BUILD       7
+#define CLIENT_VERSION_REVISION    7
+#define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -30,16 +30,20 @@ enum ForkNumbers
     XST_FORKFEELESS,    // fork 10
     XST_FORKMISSFIX,    // fork 11
     XST_FORKREINSTATE,  // fork 12
+    XST_FORKFEELESS2,   // fork 13
     TOTAL_FORKS
 };
 
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 63900;
+static const int CLIENT_PROTOCOL_VERSION = 64000;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+// 64000 : fork 13 : XST_FORKFEELESS2
+//         3.1.7.0 : Enforcing that feeless inputs are confirmed
+// 63900 : fork 12 : XST_FORKREINSTATE
 //         3.1.6.7 : Improving feeless priority calculation, fixed gettxvolume
 //         3.1.6.6 : Fixing ungraceful overflow in feework diff calculation
 //         3.1.6.5 : Fixing fatal reorgs and even more fatal block index load
@@ -48,7 +52,6 @@ static const int CLIENT_PROTOCOL_VERSION = 63900;
 //                   Fixing inclusion of disconnected blocks in some chains
 //         3.1.6.2 : Eliminate some global state dependence from the registry
 //         3.1.6.1 : Fixing crash on start if no blocks
-// 63900 : fork 12 : XST_FORKREINSTATE
 //         3.1.6.0 : Reinstating stakers and resetting docked blocks
 //                 : Fixing low balance purge
 //                 : RPC imporvements: getqueuesummary

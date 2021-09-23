@@ -1841,9 +1841,9 @@ void ThreadMessageHandler2(void* parg)
         if ((GetFork(nHeight) >= XST_FORKQPOS) &&
             ((nMaxHeight <= 0) || (nBestHeight < nMaxHeight)) &&
             fQPoSActive &&
-            (!(fTestNet ||
-               (GetBoolArg("-stake", true) &&
-                GetBoolArg("-staking", true)))) &&
+            (fTestNet ||
+              (GetBoolArg("-stake", true) &&
+               GetBoolArg("-staking", true))) &&
             !pwallet->IsLocked())
         {
            /*******************************************************************

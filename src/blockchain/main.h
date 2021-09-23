@@ -736,7 +736,8 @@ public:
                       const CBlockIndex* pindex,
                       unsigned int nBlockSize = 1,
                       enum GetMinFee_mode mode = GMF_BLOCK,
-                      bool fCheckDepth = true) const;
+                      bool fCheckDepth = true,
+                      bool fMiner = false) const;
 
     bool ReadFromDisk(CDiskTxPos pos, FILE** pfileRet=NULL)
     {
