@@ -62,6 +62,7 @@ ChainParams::ChainParams()
         (           XST_FORKFEELESS,     63800 )
         (           XST_FORKMISSFIX,     63800 )
         (         XST_FORKREINSTATE,     63900 )
+        (          XST_FORKMISSFIX2,     64000 )
         (          XST_FORKFEELESS2,     64000 )
                );
 
@@ -75,6 +76,7 @@ ChainParams::ChainParams()
     START_FEELESS_M = 3702300;    // start of feeless transactions
     START_MISSFIX_M = 3719600;    // allow network stalls on transition to qPoS
     REINSTATE_M = 3776758;        // reinstate disqualified stakers
+    START_MISSFIX2_M = 5572400;   // fixing staker misses after chain halting
     START_FEELESS2_M = 5798888;   // require feeless inputs to be confirmed
 
     mapForksMainNet = MakeMapIntInt(
@@ -94,6 +96,7 @@ ChainParams::ChainParams()
         /* Jun  2 14:12:17 MST 2021 */   (   START_FEELESS_M, XST_FORKFEELESS   )
         /* Jun  3 15:45:07 MST 2021 */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
         /* Jun  6 23:49:52 MST 2021 */   (       REINSTATE_M, XST_FORKREINSTATE )
+       /* Approx 10/01 2021 1AM MST */   (  START_MISSFIX2_M, XST_FORKMISSFIX2  )
        /* Approx 10/13 2021 6AM MST */   (  START_FEELESS2_M, XST_FORKFEELESS2  )
                                                  );
 
@@ -445,6 +448,7 @@ ChainParams::ChainParams()
     START_FEELESS_T = 3965963;
     START_MISSFIX_T = 4768119;
     REINSTATE_T = 99999999;       // placeholder for testnet
+    START_MISSFIX2_T = 99999999;  // placeholder for testnet
     START_FEELESS2_T = 99999999;  // placeholder for testnet
 
     // should be similar to aryForksMainNet
@@ -465,6 +469,7 @@ ChainParams::ChainParams()
         /*                          */       (   START_FEELESS_T, XST_FORKFEELESS   )
         /*                          */       (   START_MISSFIX_T, XST_FORKMISSFIX   )
         /*                          */       (       REINSTATE_T, XST_FORKREINSTATE )
+        /*                          */       (  START_MISSFIX2_T, XST_FORKMISSFIX2  )
         /*                          */       (  START_FEELESS2_T, XST_FORKFEELESS2  )
                                                     );
 

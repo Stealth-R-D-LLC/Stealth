@@ -1563,7 +1563,13 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         {
             if (!fCurrentBlockWasProduced)
             {
-                if (nFork >= XST_FORKQPOS)
+                // After FORKFEELESS2, don't dock stakers for blocks
+                //    after the first new queue here because by the 2nd
+                //    queue there has already been a complete queue
+                //    without a block and this could only mean that the
+                //    chain had halted.
+                if ((nFork >= XST_FORKQPOS) &&
+                    ((nFork < XST_FORKFEELESS2) || (nNewQueues <= 1)))
                 {
                     StakerMissedBlock(queue.GetCurrentID(), nHeight);
                 }
@@ -1629,22 +1635,35 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 
     int nFork = GetFork(pindex->nHeight);
 
-    // Unfortunately, a line that disqualified stakers accidentally
-    // remained in a previous commit, so now we have to undo the damage.
-    if ((GetFork(nBlockHeight) < XST_FORKREINSTATE) &&
-        (nFork >= XST_FORKREINSTATE))
+    if (GetFork(nBlockHeight) < XST_FORKMISSFIX2)
     {
-        QPRegistryIterator iter;
-        for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
+        // Chain halting destroyed missed and docked block stats, so
+        //    give everyone a fresh start on docked blocks.
+        if (nFork >= XST_FORKMISSFIX2)
         {
-            QPStaker& staker = iter->second;
-            if (staker.IsDisqualified())
+            QPRegistryIterator iter;
+            for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
             {
-                staker.Requalify(true);
+                iter->second.ResetDocked();
             }
-            staker.ResetDocked();
         }
-    }
+        // Unfortunately, a line that disqualified stakers accidentally
+        // remained in a previous commit, so now we have to undo the damage.
+        else if ((GetFork(nBlockHeight) < XST_FORKREINSTATE) &&
+                 (nFork >= XST_FORKREINSTATE))
+        {
+            QPRegistryIterator iter;
+            for (iter = mapStakers.begin(); iter != mapStakers.end(); ++iter)
+            {
+                QPStaker& staker = iter->second;
+                if (staker.IsDisqualified())
+                {
+                    staker.Requalify(true);
+                }
+                staker.ResetDocked();
+            }
+        }
+     }
 
     // Q: Why do we update on new time before updating the registry
     //    for the new block?
