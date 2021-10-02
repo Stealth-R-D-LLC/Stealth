@@ -390,10 +390,11 @@ void QPStaker::AsJSON(unsigned int nID,
                           static_cast<int64_t>(nPrevBlocksMissed)));
 
     double dProductivity = 0;
-    if (nBlocksAssigned > 0)
+    if ((nBlocksProduced > 0) && (nBlocksDocked > 0))
     {
         dProductivity = (static_cast<double>(nBlocksProduced) /
-                         static_cast<double>(nBlocksAssigned)) * 100;
+                         (static_cast<double>(nBlocksProduced) +
+                          static_cast<double>(nBlocksDocked))) * 100;
         objRet.push_back(Pair("percent_productivity",
                               strprintf("%0.4f", dProductivity)));
     }
