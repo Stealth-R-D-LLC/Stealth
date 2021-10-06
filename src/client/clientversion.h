@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    7
-#define CLIENT_VERSION_BUILD       6
+#define CLIENT_VERSION_BUILD       7
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -44,6 +44,7 @@ static const int CLIENT_PROTOCOL_VERSION = 64000;
 // -----   -------   ----------------------------------------------------------
 // 64000 : fork 14 : XST_FORKFEELESS2
 // 64000 : fork 13 : XST_FORKMISSFIX2
+//       : 3.1.7.7 : Another small fix to productivity reporting
 //       : 3.1.7.6 : Fixing productivity reporting in Staker JSON
 //       : 3.1.7.5 : Fixing staker misses after chain halting
 //       : 3.1.7.0 : Enforcing that feeless inputs are confirmed (FEELESS2)
