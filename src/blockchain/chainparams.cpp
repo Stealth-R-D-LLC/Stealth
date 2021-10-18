@@ -96,8 +96,8 @@ ChainParams::ChainParams()
         /* Jun  2 14:12:17 MST 2021 */   (   START_FEELESS_M, XST_FORKFEELESS   )
         /* Jun  3 15:45:07 MST 2021 */   (   START_MISSFIX_M, XST_FORKMISSFIX   )
         /* Jun  6 23:49:52 MST 2021 */   (       REINSTATE_M, XST_FORKREINSTATE )
-       /* Approx 10/01 2021 1AM MST */   (  START_MISSFIX2_M, XST_FORKMISSFIX2  )
-       /* Approx 10/13 2021 6AM MST */   (  START_FEELESS2_M, XST_FORKFEELESS2  )
+       /*  Sep 30 05:20:02 MST 2021 */   (  START_MISSFIX2_M, XST_FORKMISSFIX2  )
+       /*  Oct 13 07:05:42 MST 2021 */   (  START_FEELESS2_M, XST_FORKFEELESS2  )
                                                  );
 
 

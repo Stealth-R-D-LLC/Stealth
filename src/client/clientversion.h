@@ -44,6 +44,7 @@ static const int CLIENT_PROTOCOL_VERSION = 64000;
 // -----   -------   ----------------------------------------------------------
 // 64000 : fork 14 : XST_FORKFEELESS2
 // 64000 : fork 13 : XST_FORKMISSFIX2
+//       : 3.1.7.8 : Future blocks in feeless won't DoS if init block download
 //       : 3.1.7.7 : Another small fix to productivity reporting
 //       : 3.1.7.6 : Fixing productivity reporting in Staker JSON
 //       : 3.1.7.5 : Fixing staker misses after chain halting

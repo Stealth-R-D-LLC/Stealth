@@ -308,7 +308,7 @@ Value getblockhash9(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
         throw runtime_error(
-            "getblockhash <index>\n"
+            "getblockhash9 <index>\n"
             "Returns hash9 of block in best-block-chain at <index>.");
 
     int nHeight = params[0].get_int();

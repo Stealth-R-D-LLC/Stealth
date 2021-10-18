@@ -2101,7 +2101,16 @@ bool CTransaction::CheckFeework(Feework &feework,
                pblockindex->nHeight,
                pblockindex->phashBlock->ToString().c_str());
         printf("%s\n", feework.ToString("   ").c_str());
-        return DoS(34, error("CheckFeework() : unknown block %d", feework.height));
+        if (IsInitialBlockDownload())
+        {
+            // don't bump the DoS when syncing from the network
+            return error("CheckFeework() : future block %d\n", feework.height);
+        }
+        else
+        {
+            return DoS(34, error("CheckFeework() : unknown block %d",
+                                 feework.height));
+        }
     }
     if (fCheckDepth &&
         feework.height < (pblockindex->nHeight - chainParams.FEELESS_MAX_DEPTH))
@@ -2429,6 +2438,7 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
 
         if (nFees < txMinFee)
         {
+            // TODO: move all CheckFeework() DoSes to same place (e.g. here)
             tx.CheckFeework(feework, true, bfrFeeworkValidator,
                             pindexBest,
                             1000, GMF_RELAY);
@@ -2438,28 +2448,39 @@ bool CTxMemPool::accept(CTxDB& txdb, CTransaction &tx,
                 break;
             case Feework::BADVERSION:
                 return tx.DoS(100,
-                              error("CTxMemPool::accept(): feework not allowed %s, "
+                              error("CTxMemPool::accept(): "
+                                        "feework not allowed\n  %s, "
                                         "%" PRId64 " < %" PRId64,
-                                        hash.ToString().c_str(), nFees, txMinFee));
+                                    hash.ToString().c_str(), nFees, txMinFee));
             case Feework::NONE:
                 return tx.DoS(100,
-                              error("CTxMemPool::accept(): not enough fees %s, "
+                              error("CTxMemPool::accept(): "
+                                        "not enough fees\n  %s, "
                                         "%" PRId64 " < %" PRId64,
-                                        hash.ToString().c_str(), nFees, txMinFee));
+                                    hash.ToString().c_str(), nFees, txMinFee));
             case Feework::INSUFFICIENT:
                 return tx.DoS(100,
-                              error("CTxMemPool::accept(): not enough feework %s, "
-                                       "%" PRId64 " < %" PRId64 "\n%s\n",
+                              error("CTxMemPool::accept(): "
+                                       "not enough feework\n  %s, "
+                                       "%" PRId64 " < %" PRId64 "\n%s",
                                     hash.ToString().c_str(),
                                     nFees, txMinFee,
                                     feework.ToString("   ").c_str()));
+            case Feework::BLOCKUNKNOWN:
+                // DoS already applied in CheckFeework()
+                return error("CTxMemPool::accept(): "
+                                "unknown block\n  %s\n%s\n",
+                             hash.ToString().c_str(),
+                             feework.ToString("   ").c_str());
             default:
                 // the feework check will produce more error info if applicable
                 return tx.DoS(100,
                               error("CTxMemPool::accept(): "
-                                       "not enough fees %s, %" PRId64 " < %" PRId64,
+                                       "not enough fees\n  %s, "
+                                       "%" PRId64 " < %" PRId64 "\n%s",
                                     hash.ToString().c_str(),
-                                    nFees, txMinFee));
+                                    nFees, txMinFee,
+                                    feework.ToString("   ").c_str()));
             }
             if (fDebugFeeless)
             {
@@ -3170,15 +3191,16 @@ bool IsInitialBlockDownload()
     {
         return true;
     }
-    static int64_t nLastUpdate;
+    static int64_t nLastUpdate = pindexGenesisBlock->nTime;
     static CBlockIndex* pindexLastBest;
     if (pindexBest != pindexLastBest)
     {
         pindexLastBest = pindexBest;
         nLastUpdate = GetTime();
     }
-    return ((GetTime() - nLastUpdate < 10) &&
-            (pindexBest->GetBlockTime() < GetTime() - nBack));
+    int nTime = GetTime();
+    return (((nTime - nLastUpdate) < 10) &&
+            (pindexBest->GetBlockTime() < (nTime - nBack)));
 }
 
 void static InvalidChainFound(CBlockIndex* pindexNew)
