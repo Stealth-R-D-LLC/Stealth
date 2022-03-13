@@ -157,9 +157,16 @@ public:
     // Adds an encrypted key to the store, and saves it to disk.
     bool AddCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
     // Adds an encrypted key to the store, without saving it to disk (used by LoadWallet)
-    bool LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret); //{ SetMinVersion(FEATURE_WALLETCRYPT); return CCryptoKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret); }
+    bool LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret);
     bool AddCScript(const CScript& redeemScript);
-    bool LoadCScript(const CScript& redeemScript);// { return CCryptoKeyStore::AddCScript(redeemScript); }
+    bool LoadCScript(const CScript& redeemScript);
+
+    // Adds a watch-only address to the store, and saves it to disk.
+    bool AddWatchOnly(const CTxDestination &dest);
+    // Adds a watch-only address to the store
+    //    without saving it to disk (used by LoadWallet)
+    bool LoadWatchOnly(const CTxDestination &dest);
+
     bool Lock();
     bool Unlock(const SecureString& strWalletPassphrase, bool lockedOK=false);
     bool ChangeWalletPassphrase(const SecureString& strOldWalletPassphrase, const SecureString& strNewWalletPassphrase);
@@ -294,30 +301,38 @@ public:
     std::set< std::set<CTxDestination> > GetAddressGroupings();
     std::map<CTxDestination, int64_t> GetAddressBalances();
 
-    bool IsMine(const CTxIn& txin) const;
+    isminetype IsMine(const CTxIn& txin) const;
     int64_t GetDebit(const CTxIn& txin) const;
-    bool IsMine(const CTxOut& txout) const
+    isminetype IsMine(const CTxOut& txout) const
     {
         return ::IsMine(*this, txout.scriptPubKey);
     }
     int64_t GetCredit(const CTxOut& txout) const
     {
         if (!MoneyRange(txout.nValue))
+        {
             throw std::runtime_error("CWallet::GetCredit() : value out of range");
-        return (IsMine(txout) ? txout.nValue : 0);
+        }
+        return ((IsMine(txout) != MINE_NO) ? txout.nValue : 0);
     }
     bool IsChange(const CTxOut& txout) const;
     int64_t GetChange(const CTxOut& txout) const
     {
         if (!MoneyRange(txout.nValue))
+        {
             throw std::runtime_error("CWallet::GetChange() : value out of range");
+        }
         return (IsChange(txout) ? txout.nValue : 0);
     }
     bool IsMine(const CTransaction& tx) const
     {
         BOOST_FOREACH(const CTxOut& txout, tx.vout)
-            if (IsMine(txout))
+        {
+            if (IsMine(txout) != MINE_NO)
+            {
                 return true;
+            }
+        }
         return false;
     }
     bool IsFromMe(const CTransaction& tx) const
@@ -795,10 +810,11 @@ public:
     const CWalletTx *tx;
     int i;
     int nDepth;
+    bool fSpendable;
 
-    COutput(const CWalletTx *txIn, int iIn, int nDepthIn)
+    COutput(const CWalletTx *txIn, int iIn, int nDepthIn, bool fSpendableIn)
     {
-        tx = txIn; i = iIn; nDepth = nDepthIn;
+        tx = txIn; i = iIn; nDepth = nDepthIn; fSpendable = fSpendableIn;
     }
 
     std::string ToString() const

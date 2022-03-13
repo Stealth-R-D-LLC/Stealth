@@ -257,8 +257,8 @@ ChainParams::ChainParams()
     FEELESS_HASHLEN = 8;
 
     FEELESS_TCOST = 1;                // 1-pass computation
-    FEELESS_MCOST_MIN = 1<<8;         // 4 mebibytes memory usage
-    RELAY_FEELESS_MCOST_MIN = 1<<8;   // 4 mebibytes memory usage
+    FEELESS_MCOST_MIN = 1<<8;         // 256 kibibytes memory usage
+    RELAY_FEELESS_MCOST_MIN = 1<<8;   // 256 kibibytes memory usage
     // 1 thread makes it more likely that gpus will run out of memory before
     // running out of cores
     FEELESS_PARALLELISM = 1;   // 1 thread

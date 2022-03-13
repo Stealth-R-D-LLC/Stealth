@@ -603,7 +603,11 @@ void WalletModel::UnlockContext::CopyFrom(const UnlockContext& rhs)
          }
  
          CTxDestination address;
-         if(!ExtractDestination(cout.tx->vout[cout.i].scriptPubKey, address)) continue;
+         if(!out.fSpendable ||
+            !ExtractDestination(cout.tx->vout[cout.i].scriptPubKey, address))
+         {
+             continue;
+         }
          mapCoins[CBitcoinAddress(address).ToString().c_str()].push_back(out);
      }
  }

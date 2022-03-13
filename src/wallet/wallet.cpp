@@ -125,6 +125,28 @@ bool CWallet::LoadCScript(const CScript &redeemScript)
     }
     return CCryptoKeyStore::AddCScript(redeemScript);
 }
+
+bool CWallet::AddWatchOnly(const CTxDestination &dest)
+{
+    if (!CCryptoKeyStore::AddWatchOnly(dest))
+    {
+        return false;
+    }
+    // No birthday information for watch-only keys.
+    nTimeFirstKey = 1;
+    if (!fFileBacked)
+    {
+        return true;
+    }
+    return CWalletDB(strWalletFile).WriteWatchOnly(dest);
+}
+
+bool CWallet::LoadWatchOnly(const CTxDestination &dest)
+{
+    printf("Loaded %s!\n", CBitcoinAddress(dest).ToString().c_str());
+    return CCryptoKeyStore::AddWatchOnly(dest);
+}
+
 bool CWallet::Lock()
 {
     if (IsLocked())
@@ -670,7 +692,7 @@ bool CWallet::EraseFromWallet(uint256 hash)
 }
 
 
-bool CWallet::IsMine(const CTxIn &txin) const
+isminetype CWallet::IsMine(const CTxIn &txin) const
 {
     {
         LOCK(cs_wallet);
@@ -679,11 +701,12 @@ bool CWallet::IsMine(const CTxIn &txin) const
         {
             const CWalletTx& prev = (*mi).second;
             if (txin.prevout.n < prev.vout.size())
-                if (IsMine(prev.vout[txin.prevout.n]))
-                    return true;
+            {
+                return IsMine(prev.vout[txin.prevout.n]);
+            }
         }
     }
-    return false;
+    return MINE_NO;
 }
 
 int64_t CWallet::GetDebit(const CTxIn &txin) const
@@ -1247,13 +1270,20 @@ void CWallet::AvailableCoins(vector<COutput>& vCoins, bool fOnlyConfirmed, const
 
             if(pcoin->IsCoinStake() && pcoin->GetBlocksToMaturity() > 0)
                 continue;
+
             int nDepth = pcoin->GetDepthInMainChain();
             if(nDepth < 0)
                 continue;
+
             for (unsigned int i = 0; i < pcoin->vout.size(); i++)
-                if (!(pcoin->IsSpent(i)) && IsMine(pcoin->vout[i]) && pcoin->vout[i].nValue > 0 &&
+            {
+                isminetype mine = IsMine(pcoin->vout[i]);
+                if (!(pcoin->IsSpent(i)) && (mine != MINE_NO) && pcoin->vout[i].nValue > 0 &&
                  (!coinControl || !coinControl->HasSelected() || coinControl->IsSelected((*it).first, i)))
-                    vCoins.push_back(COutput(pcoin, i, nDepth));
+                 {
+                    vCoins.push_back(COutput(pcoin, i, nDepth, mine & MINE_SPENDABLE));
+                 }
+            }
         }
     }
 }
@@ -1340,6 +1370,11 @@ bool CWallet::SelectCoinsMinConf(int64_t nTargetValue, unsigned int nSpendTime, 
 
     BOOST_FOREACH(COutput output, vCoins)
     {
+        if (!output.fSpendable)
+        {
+            continue;
+        }
+
         const CWalletTx *pcoin = output.tx;
 
         if (output.nDepth < (pcoin->IsFromMe() ? nConfMine : nConfTheirs))
@@ -1448,6 +1483,10 @@ bool CWallet::SelectCoins(int64_t nTargetValue, unsigned int nSpendTime, set<pai
     {
         BOOST_FOREACH(const COutput& out, vCoins)
         {
+            if(!out.fSpendable)
+            {
+                continue;
+            }
             nValueRet += out.tx->vout[out.i].nValue;
             setCoinsRet.insert(make_pair(out.tx, out.i));
         }
@@ -1481,8 +1520,13 @@ void CWallet::AvailableCoinsForStaking(vector<COutput>& vCoins, unsigned int nSp
                 continue;
 
             for (unsigned int i = 0; i < pcoin->vout.size(); i++)
-                if (!(pcoin->IsSpent(i)) && IsMine(pcoin->vout[i]) && pcoin->vout[i].nValue >= 0)
-                    vCoins.push_back(COutput(pcoin, i, nDepth));
+            {
+                isminetype mine = IsMine(pcoin->vout[i]);
+                if (!(pcoin->IsSpent(i)) && (mine != MINE_NO) && pcoin->vout[i].nValue >= 0)
+                {
+                    vCoins.push_back(COutput(pcoin, i, nDepth, mine & MINE_SPENDABLE));
+                }
+            }
         }
     }
 }
@@ -1497,6 +1541,11 @@ bool CWallet::SelectCoinsForStaking(int64_t nTargetValue, unsigned int nSpendTim
 
     BOOST_FOREACH(COutput output, vCoins)
     {
+        if (!output.fSpendable)
+        {
+            continue;
+        }
+
         const CWalletTx *pcoin = output.tx;
         int i = output.i;
 
@@ -3341,7 +3390,6 @@ string CWallet::PurchaseStaker(const string &txid,
     if (fIsPurchase4)
     {
         EXTEND(vchPurchase, vchDelegateKey);
-        // asdf this test can be removed after the fork
         // this is a testnet hack to avoid a lot of forking logic
         //    elsewhere just for testnet
         if (GetFork(nBestHeight) >= XST_FORKMISSFIX)
@@ -3365,8 +3413,7 @@ string CWallet::PurchaseStaker(const string &txid,
     unsigned int nSize = 57;  // 57 = 33 + 8 + 16
     if (fIsPurchase4)
     {
-        // asdf this test can be removed later, keep post miss fix
-        //   more testnet hack
+        // more testnet hack
         if (GetFork(nBestHeight) >= XST_FORKMISSFIX)
         {
             // 3 more pubkeys + payout
