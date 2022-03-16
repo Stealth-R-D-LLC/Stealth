@@ -1623,6 +1623,8 @@ class DescribeAddressVisitor : public boost::static_visitor<Object>
 private:
     isminetype mine;
 public:
+    DescribeAddressVisitor(isminetype mineIn) : mine(mineIn) {}
+
     Object operator()(const CNoDestination &dest) const { return Object(); }
 
     Object operator()(const CKeyID &keyID) const {
@@ -1689,7 +1691,7 @@ Value validateaddress(const Array& params, bool fHelp)
         if (mine != MINE_NO)
         {
             ret.push_back(Pair("watchonly", mine == MINE_WATCH_ONLY));
-            Object detail = boost::apply_visitor(DescribeAddressVisitor(), dest);
+            Object detail = boost::apply_visitor(DescribeAddressVisitor(mine), dest);
             ret.insert(ret.end(), detail.begin(), detail.end());
         }
         if (pwalletMain->mapAddressBook.count(dest))
@@ -1727,7 +1729,7 @@ Value validatepubkey(const Array& params, bool fHelp)
         ret.push_back(Pair("iscompressed", isCompressed));
         if (mine != MINE_NO) {
             ret.push_back(Pair("watchonly", mine == MINE_WATCH_ONLY));
-            Object detail = boost::apply_visitor(DescribeAddressVisitor(), dest);
+            Object detail = boost::apply_visitor(DescribeAddressVisitor(mine), dest);
             ret.insert(ret.end(), detail.begin(), detail.end());
         }
         if (pwalletMain->mapAddressBook.count(dest))
