@@ -563,11 +563,11 @@ int64_t GetAccountBalance(CWalletDB& walletdb, const string& strAccount, int nMi
         if (nReceived != 0 && wtx.GetDepthInMainChain() >= nMinDepth)
             nBalance += nReceived;
 
-		if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
-			|| !wtx.IsCoinBaseOrStake())
-		{
-			nBalance += nGeneratedMature - nSent - nFee;
-		}
+        if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
+            || !wtx.IsCoinBaseOrStake())
+        {
+            nBalance += nGeneratedMature - nSent - nFee;
+        }
     }
 
     // Tally internal accounting entries
@@ -622,14 +622,14 @@ Value getbalance(const Array& params, bool fHelp)
                     nBalance += r.second;
             }
 
-			if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
-				|| !wtx.IsCoinBaseOrStake())
-			{
-				BOOST_FOREACH(const PAIRTYPE(CTxDestination,int64_t)& r, listSent)
+            if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
+                || !wtx.IsCoinBaseOrStake())
+            {
+                BOOST_FOREACH(const PAIRTYPE(CTxDestination,int64_t)& r, listSent)
                 nBalance -= r.second;
-				nBalance -= allFee;
-				nBalance += allGeneratedMature;
-			}
+                nBalance -= allFee;
+                nBalance += allGeneratedMature;
+            }
         }
         return  ValueFromAmount(nBalance);
     }
@@ -744,7 +744,7 @@ Value sendmany(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 2 || params.size() > 4)
         throw runtime_error(
-		"sendmany <fromaccount> {address:amount,...} [minconf=1] [comment]\n"
+        "sendmany <fromaccount> {address:amount,...} [minconf=1] [comment]\n"
             "amounts are double-precision floating point numbers"
             + HelpRequiringPassphrase());
 
@@ -755,7 +755,7 @@ Value sendmany(const Array& params, bool fHelp)
         nMinDepth = params[2].get_int();
 
     CWalletTx wtx;
-	
+
     wtx.strFromAccount = strAccount;
     if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
         wtx.mapValue["comment"] = params[3].get_str();
@@ -1211,8 +1211,8 @@ Value listaccounts(const Array& params, bool fHelp)
     {
         const CWalletTx& wtx = (*it).second;
 
-		if(!wtx.IsFinal())
-			continue;
+        if(!wtx.IsFinal())
+            continue;
 
         int64_t nGeneratedImmature, nGeneratedMature, nFee;
         string strSentAccount;
@@ -1228,16 +1228,16 @@ Value listaccounts(const Array& params, bool fHelp)
                     mapAccountBalances[""] += r.second;
         }
 
-		if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
-			|| !wtx.IsCoinBaseOrStake())
-		{
-			mapAccountBalances[strSentAccount] -= nFee;
-			mapAccountBalances[""] += nGeneratedMature;
+        if((wtx.IsCoinBaseOrStake() && wtx.GetDepthInMainChain() >= nMinDepth && wtx.GetBlocksToMaturity() == 0)
+            || !wtx.IsCoinBaseOrStake())
+        {
+            mapAccountBalances[strSentAccount] -= nFee;
+            mapAccountBalances[""] += nGeneratedMature;
 
-			BOOST_FOREACH(const PAIRTYPE(CTxDestination, int64_t)& s, listSent)
-				mapAccountBalances[strSentAccount] -= s.second;
+            BOOST_FOREACH(const PAIRTYPE(CTxDestination, int64_t)& s, listSent)
+                mapAccountBalances[strSentAccount] -= s.second;
 
-		}
+        }
     }
 
     list<CAccountingEntry> acentries;
@@ -1954,7 +1954,7 @@ Value makekeypair(const Array& params, bool fHelp)
     string strPrefix = "";
     if (params.size() > 0)
         strPrefix = params[0].get_str();
- 
+
     CKey key;
     key.MakeNewKey(false);
 

@@ -2164,16 +2164,10 @@ isminetype IsMine(const CKeyStore &keystore, const CScript& scriptPubKey)
             break;
         case TX_CLAIM:
         case TX_PUBKEYHASH:
-            keyID = CKeyID(uint160(vSolutions[0]));
-            if (keystore.HaveKey(keyID))
-            {
-                return MINE_SPENDABLE;
-            }
-            if (keystore.HaveWatchOnly(keyID))
-            {
-                return MINE_WATCH_ONLY;
-            }
-            break;
+        {
+            keyID = CKeyID(uint160(vSolutions.back()));
+            return IsMine(keystore, keyID);
+        }
         case TX_SCRIPTHASH:
         {
             CScriptID scriptID = CScriptID(uint160(vSolutions[0]));

@@ -396,16 +396,22 @@ Value listunspent(const Array& params, bool fHelp)
     BOOST_FOREACH(const COutput& out, vecOutputs)
     {
         if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
+        {
             continue;
+        }
 
         if(setAddress.size())
         {
             CTxDestination address;
             if(!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address))
+            {
                 continue;
+            }
 
             if (!setAddress.count(address))
+            {
                 continue;
+            }
         }
 
         int64_t nValue = out.tx->vout[out.i].nValue;
@@ -718,7 +724,7 @@ string sendtoaddresswithtime(string sAddress, int64_t nAmount, unsigned int nTim
     CWalletTx wtx;
 
     if (!wtx.HasTimestamp())
-	{
+    {
         throw JSONRPCError(RPC_WALLET_ERROR, "Transactions no longer have timestamps.");
     }
 
