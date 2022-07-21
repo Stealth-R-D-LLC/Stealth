@@ -411,7 +411,7 @@ Value getwork(const Array& params, bool fHelp)
             boost::lock_guard<QPRegistry> guardRegistry(*pregistryMain);
 
             return CheckWork(pblock, *pwalletMain, reservekey, pindexBest);
-        {
+        }
     }
 }
 
@@ -511,7 +511,7 @@ Value getblocktemplate(const Array& params, bool fHelp)
         }
 
         // Create new block
-         AUTO_PTR<CBlock> pblockCreate(new CBlock());
+        AUTO_PTR<CBlock> pblockCreate(new CBlock());
         if (!pblockCreate.get())
         {
             throw JSONRPCError(-7, "out of memory for new block");
@@ -601,8 +601,8 @@ Value getblocktemplate(const Array& params, bool fHelp)
     result.push_back(Pair("mintime", (int64_t)pindexPrev->GetMedianTimePast()+1));
     result.push_back(Pair("mutable", aMutable));
     result.push_back(Pair("noncerange", "00000000ffffffff"));
-    result.push_back(Pair("sigoplimit", (int64_t)MAX_BLOCK_SIGOPS));
-    result.push_back(Pair("sizelimit", (int64_t)MAX_BLOCK_SIZE));
+    result.push_back(Pair("sigoplimit", (int64_t)chainParams.MAX_BLOCK_SIGOPS));
+    result.push_back(Pair("sizelimit", (int64_t)chainParams.FEELESS_MAX_BLOCK_SIZE));
     result.push_back(Pair("curtime", (int64_t)pblock->nTime));
     result.push_back(Pair("bits", HexBits(pblock->nBits)));
     result.push_back(Pair("height", (int64_t)(pindexPrev->nHeight+1)));
@@ -637,9 +637,9 @@ Value submitblock(const Array& params, bool fHelp)
 
         bool fProcessOK;
         bool fAccepted = ProcessBlock(NULL, &block, fProcessOK);
+        if (!fAccepted)
+            return "rejected";
     }
-    if (!fAccepted)
-        return "rejected";
 
     return Value::null;
 }
