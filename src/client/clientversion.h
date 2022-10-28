@@ -8,8 +8,8 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    7
-#define CLIENT_VERSION_BUILD       12
+#define CLIENT_VERSION_REVISION    8
+#define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -44,6 +44,7 @@ static const int CLIENT_PROTOCOL_VERSION = 64000;
 // -----   -------   ----------------------------------------------------------
 // 64000 : fork 14 : XST_FORKFEELESS2
 // 64000 : fork 13 : XST_FORKMISSFIX2
+//       : 3.1.8.0 : liststakerauthorities and small fixes for multisigs
 //      : 3.1.7.12 : Fixed typo for max block size
 //      : 3.1.7.11 : Fixed building with miner
 //      : 3.1.7.10 : Fixed ownership of claims

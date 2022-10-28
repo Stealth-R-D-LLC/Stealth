@@ -1506,7 +1506,7 @@ public:
         BLOCK_PROOF_OF_STAKE = (1 << 0), // is proof-of-stake block
         BLOCK_STAKE_ENTROPY  = (1 << 1), // entropy bit for stake modifier
         BLOCK_STAKE_MODIFIER = (1 << 2), // regenerated stake modifier
-        BLOCK_QPOS           = (1 << 3), // is qPoS block
+        BLOCK_QPOS           = (1 << 3)  // is qPoS block
     };
 
     uint64_t nStakeModifier; // hash modifier for proof-of-stake

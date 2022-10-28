@@ -86,6 +86,7 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("newmint",       ValueFromAmount(pwalletMain->GetNewMint())));
     obj.push_back(Pair("stake",         ValueFromAmount(pwalletMain->GetStake())));
     obj.push_back(Pair("blocks",        (int)nBestHeight));
+    obj.push_back(Pair("blockhash",     pindexBest->phashBlock->GetHex()));
     obj.push_back(Pair("moneysupply",   ValueFromAmount(pindexBest->nMoneySupply)));
     obj.push_back(Pair("connections",   (int)vNodes.size()));
     obj.push_back(Pair("proxy",         (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
@@ -873,12 +874,20 @@ Value addmultisigaddress(const Array& params, bool fHelp)
     CScript inner;
     inner.SetMultisig(nRequired, pubkeys);
     CScriptID innerID = inner.GetID();
-    if (!pwalletMain->AddCScript(inner))
-        throw runtime_error("AddCScript() failed");
-
-    pwalletMain->SetAddressBookName(innerID, strAccount);
+    if (!pwalletMain->HaveCScript(innerID))
+    {
+        if (pwalletMain->AddCScript(inner))
+        {
+            pwalletMain->SetAddressBookName(innerID, strAccount);
+        }
+        else
+        {
+            throw runtime_error("AddCScript() failed");
+        }
+    }
     return CBitcoinAddress(innerID).ToString();
 }
+
 Value addredeemscript(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() >2)

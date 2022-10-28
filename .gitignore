@@ -122,6 +122,9 @@ nosetests.xml
 # vim backup files
 *~
 
+# vim swap
+*.swp
+
 # Translations
 *.mo
 

@@ -403,6 +403,26 @@ bool QPRegistry::CanClaim(const CPubKey &key,
     return true;
 }
 
+bool QPRegistry::GetStakerAuthorities(unsigned int nStakerID,
+                                      qpos_authorities &ret) const
+{
+    const QPStaker* pstaker = GetStaker(nStakerID);
+    if (!pstaker)
+    {
+        return error("GetOwnerKey(): no such staker %u", nStakerID);
+    }
+    if (pstaker->IsDisqualified())
+    {
+        return error("GetOwnerKey(): staker is disqualified %u", nStakerID);
+    }
+    ret.owner = pstaker->pubkeyOwner;
+    ret.manager = pstaker->pubkeyManager;
+    ret.delegate = pstaker->pubkeyDelegate;
+    ret.controller = pstaker->pubkeyManager;
+    return true;
+}
+
+
 bool QPRegistry::GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
     const QPStaker* pstaker = GetStaker(nStakerID);
@@ -485,6 +505,11 @@ bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
     unsigned int nSeniority = (nIDCounter + 1) - nStakerID;
     nWeightRet = pstaker->GetWeight(nSeniority);
     return true;
+}
+
+void QPRegistry::GetBalances(const std::map<CPubKey, int64_t> *pRet) const
+{
+    pRet = &mapBalances;
 }
 
 void QPRegistry::AsJSON(Object &objRet) const

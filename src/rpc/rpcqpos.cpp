@@ -2,6 +2,8 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include <boost/assign/list_of.hpp>
+
 #include "main.h"
 #include "wallet.h"
 #include "bitcoinrpc.h"
@@ -12,6 +14,7 @@ extern CWallet* pwalletMain;
 
 using namespace json_spirit;
 using namespace std;
+using namespace boost::assign;
 
 uint32_t PcmFromValue(const Value &value)
 {
@@ -675,41 +678,29 @@ Value getstakerauthorities(const Array& params, bool fHelp)
                             "Staker doesn't exist");
     }
 
-    CPubKey keyOwner, keyManager, keyDelegate, keyController;
-    if (!pregistryMain->GetOwnerKey(nID, keyOwner))
+    qpos_authorities auths;
+    if (!pregistryMain->GetStakerAuthorities(nID, auths))
     {
-        throw runtime_error("TSNH: can't get owner key");
-    }
-    if (!pregistryMain->GetManagerKey(nID, keyManager))
-    {
-        throw runtime_error("TSNH: can't get manager key");
-    }
-    if (!pregistryMain->GetDelegateKey(nID, keyDelegate))
-    {
-        throw runtime_error("TSNH: can't get delegate key");
-    }
-    if (!pregistryMain->GetControllerKey(nID, keyController))
-    {
-        throw runtime_error("TSNH: can't get controller key");
+        throw runtime_error("TSNH: can't get authorities");
     }
 
-    CBitcoinAddress addrOwner(keyOwner.GetID());
-    CBitcoinAddress addrManager(keyManager.GetID());
-    CBitcoinAddress addrDelegate(keyDelegate.GetID());
-    CBitcoinAddress addrController(keyController.GetID());
+    CBitcoinAddress addrOwner(auths.owner.GetID());
+    CBitcoinAddress addrManager(auths.manager.GetID());
+    CBitcoinAddress addrDelegate(auths.delegate.GetID());
+    CBitcoinAddress addrController(auths.controller.GetID());
 
     Object objOwner;
     objOwner.push_back(Pair("address", addrOwner.ToString()));
-    objOwner.push_back(Pair("pubkey", HexStr(keyOwner.Raw())));
+    objOwner.push_back(Pair("pubkey", HexStr(auths.owner.Raw())));
     Object objManager;
     objManager.push_back(Pair("address", addrManager.ToString()));
-    objManager.push_back(Pair("pubkey", HexStr(keyManager.Raw())));
+    objManager.push_back(Pair("pubkey", HexStr(auths.manager.Raw())));
     Object objDelegate;
     objDelegate.push_back(Pair("address", addrDelegate.ToString()));
-    objDelegate.push_back(Pair("pubkey", HexStr(keyDelegate.Raw())));
+    objDelegate.push_back(Pair("pubkey", HexStr(auths.delegate.Raw())));
     Object objController;
     objController.push_back(Pair("address", addrController.ToString()));
-    objController.push_back(Pair("pubkey", HexStr(keyController.Raw())));
+    objController.push_back(Pair("pubkey", HexStr(auths.controller.Raw())));
 
     Object obj;
     obj.push_back(Pair("owner", objOwner));
@@ -718,6 +709,209 @@ Value getstakerauthorities(const Array& params, bool fHelp)
     obj.push_back(Pair("controller", objController));
 
     return obj;
+}
+
+
+Value liststakerunspent(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() < 1 || params.size() > 4)
+        throw runtime_error(
+            "liststakerunspent <alias> [authorities] [minconf=1] [maxconf=999999999]\n"
+            "Returns array of unspent transaction outputs\n"
+            "  with between minconf and maxconf (inclusive) confirmations.\n"
+            "<alias> is a non-case sensitive staker alias.\n"
+            "[authorities] is an optional string of authorities,\n"
+            "  abbreviated as single letters. E.g. \"omdc\" is for all of\n"
+            "  owner, manager, delegate, and controller. Default: \"omdc\".\n"
+            "Results are an array of Objects, each of which has:\n"
+            "{txid, vout, scriptPubKey, amount, confirmations}");
+
+    RPCTypeCheck(params, list_of(str_type)(str_type)(int_type)(int_type));
+
+    string sAlias = params[0].get_str();
+    unsigned int nID;
+    if (!pregistryMain->GetIDForAlias(sAlias, nID))
+    {
+        throw JSONRPCError(RPC_QPOS_STAKER_NONEXISTENT,
+                            "Staker doesn't exist");
+    }
+
+    int fAuths = QPKEY_ANY;
+    if (params.size() > 1)
+    {
+        string strAuths = params[1].get_str();
+        fAuths = QPKEY_NONE;
+        string::const_iterator it;
+        // don't bother checking for redundancy
+        for (it = strAuths.begin(); it != strAuths.end(); ++it)
+        {
+            const unsigned char c = *it;
+            switch(c)
+            {
+            case 'o':
+                fAuths |= QPKEY_OWNER;
+                break;
+            case 'm':
+                fAuths |= QPKEY_MANAGER;
+                break;
+            case 'd':
+                fAuths |= QPKEY_DELEGATE;
+                break;
+            case 'c':
+                fAuths |= QPKEY_CONTROLLER;
+                break;
+            default:
+                throw runtime_error(
+                        strprintf("Found unexpected char: %c", c));
+                break;
+            }
+        }
+    }
+
+    if (fAuths == QPKEY_NONE)
+    {
+        throw runtime_error("Invalid authorities string");
+    }
+
+    qpos_authorities auths;
+    if (!pregistryMain->GetStakerAuthorities(nID, auths))
+    {
+        throw runtime_error("Unable to get authorities");
+    }
+
+    // TODO: move this logic into an authorities class
+    map<CBitcoinAddress, int> mapAuths;
+    if (fAuths & QPKEY_OWNER)
+    {
+        CBitcoinAddress addr(auths.owner.GetID());
+        // yes this first test is not necessary
+        if (mapAuths.count(addr))
+        {
+           mapAuths[addr] |= QPKEY_OWNER;
+        }
+        else
+        {
+           mapAuths[addr] = QPKEY_OWNER;
+        }
+    }
+    if (fAuths & QPKEY_MANAGER)
+    {
+        CBitcoinAddress addr(auths.manager.GetID());
+        if (mapAuths.count(addr))
+        {
+           mapAuths[addr] |= QPKEY_MANAGER;
+        }
+        else
+        {
+           mapAuths[addr] = QPKEY_MANAGER;
+        }
+    }
+    if (fAuths & QPKEY_DELEGATE)
+    {
+        CBitcoinAddress addr(auths.delegate.GetID());
+        if (mapAuths.count(addr))
+        {
+           mapAuths[addr] |= QPKEY_DELEGATE;
+        }
+        else
+        {
+           mapAuths[addr] = QPKEY_DELEGATE;
+        }
+    }
+    if (fAuths & QPKEY_CONTROLLER)
+    {
+        CBitcoinAddress addr(auths.controller.GetID());
+        if (mapAuths.count(addr))
+        {
+           mapAuths[addr] |= QPKEY_CONTROLLER;
+        }
+        else
+        {
+           mapAuths[addr] = QPKEY_CONTROLLER;
+        }
+    }
+
+    int nMinDepth = 1;
+    if (params.size() > 2)
+    {
+        nMinDepth = params[2].get_int();
+    }
+
+    int nMaxDepth = 999999999;
+    if (params.size() > 3)
+    {
+        nMaxDepth = params[3].get_int();
+    }
+
+    Array owner, manager, delegate, controller;
+    vector<COutput> vecOutputs;
+    pwalletMain->AvailableCoins(vecOutputs, false);
+    BOOST_FOREACH(const COutput& out, vecOutputs)
+    {
+        if (out.nDepth < nMinDepth || out.nDepth > nMaxDepth)
+        {
+            continue;
+        }
+
+        CTxDestination address;
+        if(!ExtractDestination(out.tx->vout[out.i].scriptPubKey, address))
+        {
+            continue;
+        }
+
+        if (!mapAuths.count(address))
+        {
+            continue;
+        }
+
+        int64_t nValue = out.tx->vout[out.i].nValue;
+        const CScript& pk = out.tx->vout[out.i].scriptPubKey;
+        Object entry;
+        entry.push_back(Pair("txid", out.tx->GetHash().GetHex()));
+        entry.push_back(Pair("vout", out.i));
+        entry.push_back(Pair("scriptPubKey", HexStr(pk.begin(), pk.end())));
+        entry.push_back(Pair("amount",ValueFromAmount(nValue)));
+        entry.push_back(Pair("confirmations",out.nDepth));
+        entry.push_back(Pair("spendable", out.fSpendable));
+
+        int f = mapAuths[address];
+        if (f & QPKEY_OWNER)
+        {
+          owner.push_back(entry);
+        }
+        if (f & QPKEY_MANAGER)
+        {
+          manager.push_back(entry);
+        }
+        if (f & QPKEY_DELEGATE)
+        {
+          delegate.push_back(entry);
+        }
+        if (f & QPKEY_CONTROLLER)
+        {
+          controller.push_back(entry);
+        }
+    }
+
+    Object results;
+    if (fAuths & QPKEY_OWNER)
+    {
+      results.push_back(Pair("owner", owner));
+    }
+    if (fAuths & QPKEY_MANAGER)
+    {
+      results.push_back(Pair("manager", manager));
+    }
+    if (fAuths & QPKEY_DELEGATE)
+    {
+      results.push_back(Pair("delegate", delegate));
+    }
+    if (fAuths & QPKEY_CONTROLLER)
+    {
+      results.push_back(Pair("controller", controller));
+    }
+
+    return results;
 }
 
 

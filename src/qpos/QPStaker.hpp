@@ -17,6 +17,14 @@
 
 typedef std::bitset<QP_STAKER_RECENT_BLOCKS> QPRecentBlocks;
 
+struct qpos_authorities
+{
+    CPubKey owner;
+    CPubKey manager;
+    CPubKey delegate;
+    CPubKey controller;
+};
+
 class CBlockIndex;
 
 class QPStaker

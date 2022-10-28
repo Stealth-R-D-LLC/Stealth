@@ -396,6 +396,7 @@ static const CRPCCommand vRPCCommands[] =
     { "claimqposbalance",         &claimqposbalance,          false,  true  },
     { "getstakerinfo",            &getstakerinfo,             false,  false },
     { "getstakerauthorities",     &getstakerauthorities,      false,  false },
+    { "liststakerunspent",        &liststakerunspent,         false,  false },
     { "getqposinfo",              &getqposinfo,               false,  false },
     { "getqueuesummary",          &getqueuesummary,           false,  false },
     { "getblockschedule",         &getblockschedule,          false,  false },
@@ -1438,6 +1439,8 @@ Array RPCConvertValues(const std::string &strMethod, const std::vector<std::stri
     if (strMethod == "claimqposbalance"       && n > 1) ConvertTo<boost::int64_t>(params[1]);
     if (strMethod == "claimqposbalance"       && n > 2) ConvertTo<double>(params[2]);
     if (strMethod == "setstakermeta"          && n > 1) ConvertTo<boost::int64_t>(params[1]);
+    if (strMethod == "liststakerunspent"      && n > 2) ConvertTo<boost::int64_t>(params[2]);
+    if (strMethod == "liststakerunspent"      && n > 3) ConvertTo<boost::int64_t>(params[3]);
     if (strMethod == "getqposinfo"            && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getqueuesummary"        && n > 0) ConvertTo<boost::int64_t>(params[0]);
     if (strMethod == "getblockschedule"       && n > 0) ConvertTo<boost::int64_t>(params[0]);

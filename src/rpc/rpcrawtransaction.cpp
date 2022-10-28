@@ -354,14 +354,16 @@ Value getrawtransaction(const Array& params, bool fHelp)
     return result;
 }
 
+
 Value listunspent(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 3)
         throw runtime_error(
-            "listunspent [minconf=1] [maxconf=9999999]  [\"address\",...]\n"
+            "listunspent [minconf=1] [maxconf=9999999] [\"address\",...]\n"
             "Returns array of unspent transaction outputs\n"
             "with between minconf and maxconf (inclusive) confirmations.\n"
-            "Optionally filtered to only include txouts paid to specified addresses.\n"
+            "Optionally filtered to only include txouts paid to "
+               "specified addresses.\n"
             "Results are an array of Objects, each of which has:\n"
             "{txid, vout, scriptPubKey, amount, confirmations}");
 
@@ -383,10 +385,19 @@ Value listunspent(const Array& params, bool fHelp)
         {
             CBitcoinAddress address(input.get_str());
             if (!address.IsValid())
-                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, string("Invalid XST address: ")+input.get_str());
+            {
+                throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                                   string("Invalid XST address: ") +
+                                      input.get_str());
+            }
             if (setAddress.count(address))
-                throw JSONRPCError(RPC_INVALID_PARAMETER, string("Invalid parameter, duplicated address: ")+input.get_str());
-           setAddress.insert(address);
+            {
+                throw JSONRPCError(RPC_INVALID_PARAMETER,
+                                   string("Invalid parameter, "
+                                             "duplicated address: ") +
+                                      input.get_str());
+            }
+            setAddress.insert(address);
         }
     }
 

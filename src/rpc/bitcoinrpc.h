@@ -302,6 +302,7 @@ extern json_spirit::Value claimqposbalance(const json_spirit::Array& params, boo
 extern json_spirit::Value setstakermeta(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakerinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakerauthorities(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value liststakerunspent(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposinfo(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqueuesummary(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getblockschedule(const json_spirit::Array& params, bool fHelp);

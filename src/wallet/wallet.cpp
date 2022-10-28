@@ -99,15 +99,24 @@ bool CWallet::LoadKeyMetadata(const CPubKey &pubkey, const CKeyMetadata &meta)
 }
 bool CWallet::LoadCryptedKey(const CPubKey &vchPubKey, const std::vector<unsigned char> &vchCryptedSecret)
 {
-return CCryptoKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret);
+    return CCryptoKeyStore::AddCryptedKey(vchPubKey, vchCryptedSecret);
+}
+
+bool CWallet::HaveCScript(const CScriptID& hash) const
+{
+    return CCryptoKeyStore::HaveCScript(hash);
 }
 
 bool CWallet::AddCScript(const CScript& redeemScript)
 {
-            if (!CCryptoKeyStore::AddCScript(redeemScript))
+    if (!CCryptoKeyStore::AddCScript(redeemScript))
+    {
         return false;
+    }
     if (!fFileBacked)
+    {
         return true;
+    }
     return CWalletDB(strWalletFile).WriteCScript(Hash160(redeemScript), redeemScript);
 }
 

@@ -72,6 +72,7 @@ private:
     unsigned int GetIDForPrevSlot() const;
     bool GetPrevRecentBlocksMissedMax(unsigned int nID,
                                       uint32_t &nMaxRet) const;
+    void GetBalances(const std::map<CPubKey, int64_t> *pRet) const;
     QPStaker* GetStakerForID(unsigned int nID);
     QPStaker* GetStakerForAlias(const std::string &sAlias);
     bool StakerProducedBlock(const CBlockIndex *pindex,
@@ -162,6 +163,8 @@ public:
     bool CanClaim(const CPubKey &key,
                   int64_t nValue,
                   int64_t nClaimTime=0) const;
+    bool GetStakerAuthorities(unsigned int nStakerID,
+                              qpos_authorities &ret) const;
     bool GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const;
     bool GetManagerKey(unsigned int nStakerID, CPubKey &keyRet) const;
     bool GetDelegateKey(unsigned int nStakerID, CPubKey &keyRet) const;
