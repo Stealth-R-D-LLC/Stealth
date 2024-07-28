@@ -1,3 +1,9 @@
+################################
+# Local build configuration
+################################
+
+local-env-*
+.qmake.stash
 
 ################################
 # Operating System Files
@@ -132,6 +138,7 @@ nosetests.xml
 *.not
 *eraseme*
 erase.*
+erase-*
 cache
 *.bak
 *.lkg

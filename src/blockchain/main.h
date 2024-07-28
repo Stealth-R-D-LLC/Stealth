@@ -1998,7 +1998,7 @@ public:
             if (nStep < 21)
             {
                 // given >2M blocks, it is cheaper to step through pprev
-                //    than search a map until step is around 20
+                //    than search a map until step is around 20 (2**20=1048576)
                 for (int i = 0; pindex && i < nStep; i++)
                 {
                     pindex = pindex->pprev;

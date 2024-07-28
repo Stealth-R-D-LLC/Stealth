@@ -4070,7 +4070,7 @@ bool static Reorganize(CTxDB& txdb,
 
         if (!block.DisconnectBlock(txdb, pindex))
         {
-            return error("Reorganize() : DisconnectBlock %s failed",
+            return error("Reorganize() : DisconnectBlock failed\n  %s",
                          pindex->GetBlockHash().ToString().c_str());
         }
 
@@ -4155,15 +4155,15 @@ bool static Reorganize(CTxDB& txdb,
 
     // Ensure that block previous to the first is itself properly connected
     // before connecting to this.
-    const CBlockIndex* pindexFirst = vConnect.empty() ? NULL : vConnect[0];
-    if (pindexFirst &&
-        pindexFirst->pprev &&
-        pindexFirst->pprev->pprev &&
-        pindexFirst->pprev->pprev->pnext != pindexFirst->pprev)
+    const CBlockIndex* pindexTop = vConnect.empty() ? NULL : vConnect[0];
+    if (pindexTop &&
+        pindexTop->pprev &&
+        pindexTop->pprev->pprev &&
+        pindexTop->pprev->pprev->pnext != pindexTop->pprev)
     {
         return error("SetBestChainInner(): "
                          "previous block is not properly connected\n  %s",
-                     pindexNew->pprev->pprev->phashBlock->ToString().c_str());
+                     pindexTop->pprev->pprev->phashBlock->ToString().c_str());
     }
 
     // Connect longer branch from bottom up
@@ -5473,9 +5473,19 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
     * end of checkpoint specific code
     **************************************************************************/
 
-    // If don't already have its previous block, shunt it off to holding area until we get it
-    if (!mapBlockIndex.count(pblock->hashPrevBlock))
+    if (mapBlockIndex.count(pblock->hashPrevBlock))
     {
+        if (pfrom && IsInitialBlockDownload())
+        {
+            // Node has redeemed itself, remove an orphan from its count
+            pfrom->nOrphans = max((-2 * chainParams.GETBLOCKS_LIMIT),
+                                  (pfrom->nOrphans - 1));
+        }
+    }
+    else
+    {
+        // We don't already have its previous block,
+        //    shunt it off to holding area until we get it
         printf("ProcessBlock: ORPHAN BLOCK, %s\n    prev=%s\n",
                hash.ToString().c_str(),
                pblock->hashPrevBlock.ToString().c_str());
@@ -5994,6 +6004,7 @@ bool LoadBlockIndex(bool fAllowNew)
             return error("LoadBlockIndex() : genesis block not accepted");
 
         mapBlockLookup[0] = mapBlockIndex[block.GetHash()];
+
         // ppcoin: initialize synchronized checkpoint
         if (!Checkpoints::WriteSyncCheckpoint(fTestNet ?
                                        chainParams.hashGenesisBlockTestNet :
@@ -7252,7 +7263,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         if (pfrom->nOrphans > 2 * chainParams.GETBLOCKS_LIMIT)
         {
-            printf("Node has exceeded max init download orphans.\n");
+            printf("Node has exceeded max net init download orphans.\n");
             pfrom->Misbehaving(100);
         }
     }

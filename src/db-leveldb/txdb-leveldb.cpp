@@ -647,6 +647,7 @@ bool CTxDB::LoadBlockIndex()
 
         iterator->Next();
     }
+    printf("Total indices loaded: %d\n", nCount);
     delete iterator;
 
     if (fRequestShutdown)

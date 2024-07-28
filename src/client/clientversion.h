@@ -7,8 +7,8 @@
 
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
-#define CLIENT_VERSION_MINOR       1
-#define CLIENT_VERSION_REVISION    8
+#define CLIENT_VERSION_MINOR       2
+#define CLIENT_VERSION_REVISION    0
 #define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
