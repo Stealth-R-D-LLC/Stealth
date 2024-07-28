@@ -3,23 +3,23 @@
 
 // cryptopp headers
 
-#include "libcryptopp/hex.h"
+#include "cryptopp/hex.h"
 using CryptoPP::HexEncoder;
 
-#include "libcryptopp/base64.h"
+#include "cryptopp/base64.h"
 using CryptoPP::Base64Decoder;
 
-#include "libcryptopp/filters.h"
+#include "cryptopp/filters.h"
 using CryptoPP::Redirector;
 using CryptoPP::StringSink;
 using CryptoPP::StringSource;
 using CryptoPP::AuthenticatedDecryptionFilter;
 
-#include "libcryptopp/sha.h"
+#include "cryptopp/sha.h"
 using CryptoPP::SHA256;
 using CryptoPP::HashFilter;
 
-#include "libcryptopp/gcm.h"
+#include "cryptopp/gcm.h"
 using CryptoPP::GCM;
 
 #include <boost/algorithm/string.hpp>
@@ -27,7 +27,9 @@ using CryptoPP::GCM;
 
 
 // SHA256 Key Derivation
-void SHAKD(std::string twofa, std::string iv_str, byte key[KEY_SIZE]) {
+void SHAKD(std::string twofa,
+           std::string iv_str,
+           CryptoPP::byte key[KEY_SIZE]) {
 
         std::string salt;
         StringSource bar(iv_str, true,
@@ -56,7 +58,7 @@ bool decryptstealthtxt(std::string msg64,
                            new StringSink(decoded))); 
 
         // AES
-        byte myiv[IV_SIZE];
+        CryptoPP::byte myiv[IV_SIZE];
         for (int idx=0; idx<IV_SIZE; idx++) {
             myiv[idx] = decoded[idx];
         }
@@ -65,7 +67,7 @@ bool decryptstealthtxt(std::string msg64,
         std::string iv_str;
         iv_str = decoded.substr(0, IV_SIZE);
 
-	byte mykey[KEY_SIZE];
+	CryptoPP::byte mykey[KEY_SIZE];
         SHAKD(twofa, iv_str, mykey);
 
         std::string ctxt = decoded.substr(IV_SIZE, decoded.size() - IV_SIZE);

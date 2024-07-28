@@ -19,8 +19,6 @@
 
 # Set to 1 to make with miner
 MINER=-
-# Set to 1 to make with StealthText
-STEALTHTEXT=-
 
 INCLUDEPATHS= \
  -I"/usr/local/include" \
@@ -38,7 +36,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/or" \
  -I"$(CURDIR)/tor/trunnel" \
  -I"$(CURDIR)/tor/trunnel/hs" \
- -I"$(CURDIR)/src/libcryptopp" \
  -I"$(CURDIR)/leveldb/include" \
  -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
@@ -71,9 +68,9 @@ ARCH := $(shell uname -m)
 
 DEFS = -DBOOST_SPIRIT_THREADSAFE
 
-incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH))
+incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH) $(CRYPTOPP_INCLUDE_PATH))
 DEFS += $(incDEFS)
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH) /usr/local/lib)
+LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH) $(CRYPTOPP_LIB_PATH) /usr/local/lib)
 
 LIBS += \
    -l boost_system$(BOOST_LIB_SUFFIX) \
@@ -81,6 +78,7 @@ LIBS += \
    -l boost_program_options$(BOOST_LIB_SUFFIX) \
    -l boost_thread$(BOOST_LIB_SUFFIX) \
    -l db_cxx$(BDB_LIB_SUFFIX) \
+   -l cryptopp \
    -l ssl \
    -l crypto
 
@@ -100,11 +98,7 @@ ifeq (${MINER}, 1)
         DEFS += -DWITH_MINER
 endif
 
-ifeq (${STEALTHTEXT}, 1)
-        DEFS += -DWITH_STEALTHTEXT
-endif
-
-LIBS+= \
+LIBS += \
    -l event \
    -l z \
    -l dl \
@@ -374,6 +368,7 @@ OBJS= \
     obj/pbkdf2.o \
     obj/stealthaddress.o \
     obj/txdb-leveldb.o \
+    obj/stealthtext.o \
     obj/uisqrt.o \
     obj/valtype.o \
     obj/vchnum.o \
@@ -413,21 +408,11 @@ OBJS= \
     obj/nfts.o \
     obj/QPNft.o
 
-ifeq (${STEALTHTEXT}, 1)
-    OBJS += obj/stealthtext.o
-endif
-
 all: StealthCoind
 
 LIBS += $(CURDIR)/crypto/argon2/libargon2.a
 crypto/argon2/libargon2.a:
 	@echo "Building argon2 ..."; cd crypto/argon2; make; cd ../..
-
-ifeq (${STEALTHTEXT}, 1)
-  LIBS += $(CURDIR)/libcryptopp/libcryptopp.a
-  libcryptopp/libcryptopp.a:
-	@echo "Building libcryptopp ..."; cd libcryptopp; make libcryptopp.a; cd ..;
-endif
 
 LIBS += $(CURDIR)/leveldb/build/libleveldb.a
 DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
@@ -659,12 +644,6 @@ obj/toradapter.o: tor/adapter/toradapter.cpp
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
-ifeq (${STEALTHTEXT}, 1)
-    LIBCRYPTOPP = libcryptopp/libcryptopp.a
-else
-    LIBCRYPTOPP =
-endif
-
 StealthCoind: leveldb/build/libleveldb.a crypto/argon2/libargon2.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
@@ -686,7 +665,6 @@ clean:
 	-rm -f obj/build.h
 	cd crypto/argon2; make clean
 	cd leveldb; rm -rf build
-	cd libcryptopp; make clean
 
 
 FORCE:

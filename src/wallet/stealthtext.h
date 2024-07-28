@@ -12,9 +12,10 @@ using std::endl;
 #include <vector>
 
 // crypto++ headers
-#include "libcryptopp/cryptlib.h"
+#include "cryptopp/cryptlib.h"
 
-#include "libcryptopp/aes.h"
+#include "cryptopp/aes.h"
+
 using CryptoPP::AES;
 
 
@@ -24,7 +25,9 @@ const int KEY_SIZE = 32;  // SHA256 for key deriv
 const int IV_SIZE = AES::BLOCKSIZE;
 
 
-void SHAKD(std::string twofa, std::string iv_str, byte key[KEY_SIZE]);
+void SHAKD(std::string twofa,
+           std::string iv_str,
+           CryptoPP::byte key[KEY_SIZE]);
 bool decryptstealthtxt(std::string msg64,
                        std::string twofa,
                        std::vector<std::string> &txdescr);
