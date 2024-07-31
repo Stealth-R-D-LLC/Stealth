@@ -224,9 +224,9 @@ public:
     int DEFAULT_BLOCKMAXSIZE;
     int DEFAULT_BLOCKPRIORITYSIZE;
 
-
     float MAX_TXFEE;
 
+    int MAX_FORK_LENGTH;
 
 
     //////////////////////////////////////////////////////////////////////////////

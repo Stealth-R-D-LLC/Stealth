@@ -59,8 +59,12 @@ string GetRegistryAtHeight(int nHeight, QPRegistry* &pRet)
             }
         }
         CTxDB txdb;
+        CBlockIndex* pindexUnused;
         CBlockIndex* pindexCurrent;
-        if (!RewindRegistry(txdb, pindex, pRet, pindexCurrent))
+        if (!RewindRegistry(txdb, pRet, pindex, pindex,
+                            QPRegistry::NO_SNAPS,
+                            pindexUnused,
+                            pindexCurrent))
         {
             return strprintf("TSRH Error rewinding registry to %d.", nHeight);
         }

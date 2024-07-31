@@ -415,7 +415,11 @@ ChainParams::ChainParams()
     // maximum tx fee in XST
     MAX_TXFEE = COIN / 4;
 
-
+    // maximum length of a kown fork  (5760 is 8 hr)
+    // this is the length from the block common to the main chain to the
+    //    highest block of the forked chain
+    // not a consensus parameter
+    MAX_FORK_LENGTH = 5760;
 
     //////////////////////////////////////////////////////////////////////////////
     //

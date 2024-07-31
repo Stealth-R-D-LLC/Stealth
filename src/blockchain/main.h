@@ -180,8 +180,11 @@ void GetRegistrySnapshot(CTxDB &txdb,
                          QPRegistry *pregistryTemp);
 
 bool RewindRegistry(CTxDB &txdb,
-                    CBlockIndex *pindexRewind,
                     QPRegistry *pregistry,
+                    CBlockIndex *pindexRewindTo,
+                    CBlockIndex *pindexReplayTo,
+                    const int nSnapshotType,
+                    CBlockIndex* &pindexForkRet,
                     CBlockIndex* &pindexCurrentRet);
 
 /** Position on disk for a particular transaction. */

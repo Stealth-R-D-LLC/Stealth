@@ -166,7 +166,44 @@ int GetTargetSpacing(const int nHeight)
     return QP_TARGET_SPACING;
 }
 
+//////////////////////////////////////////////////////////////////////////////
+//
+// forks
+//
 
+// A fork is known if a nonsequential block has a known predecessor.
+//    Assuming quick resolution, some tolerance for forks is healthy.
+//    However, allowing a known fork to grow indefinitely poses
+//    problems for resource usage, consensus, and double spending.
+//    So it is necessary to ban nodes broadcasting alternative chains
+//    (long running forks) after they grow to an unreasonable length.
+// Returns true if a fork is too long.
+bool CheckForkTooLong(const CBlockIndex* const pindexFork,
+                      const CBlock* const pblock)
+{
+    bool fTooLong = false;
+    if (pindexFork)
+    {
+        // sanity check
+        if (pindexFork->nHeight > nBestHeight)
+        {
+            // this should never happen: fork is after best block
+           printf("TSNH: fork is higher than best:\n  fork: %s\n  best: %s\n",
+                  pindexFork->GetBlockHash().ToString().c_str(),
+                  hashBestChain.ToString().c_str());
+           throw runtime_error("TSNH: Fork is higher than best.");
+        }
+        int nForkLength = nBestHeight - pindexFork->nHeight;
+        if (nForkLength > chainParams.MAX_FORK_LENGTH)
+        {
+            printf("CheckForkLenghth(): fork too long (%d)\n  %s\n",
+                   nForkLength,
+                   pblock->GetHash().ToString().c_str());
+            fTooLong = true;
+        }
+    }
+    return fTooLong;
+}
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -290,35 +327,55 @@ void GetRegistrySnapshot(CTxDB &txdb, int nReplay, QPRegistry *pregistryTemp)
     }
 }
 
+// This function finds the first snapshot (which is necessarily
+//    in the main chain) earlier than pindexRewindTo.
+//    It then sets the registry state to this snapshot, then
+//    replays the registry to pindexReplayTo. It also sets
+//    pindexForkRet to the highest mainchain block between
+//    the snapshot and pindexRewindTo. It sets pindexCurrentRet
+//    to latest block replayed. Upon return, pindexCurrentRet
+//    should be the same as pindexReplayTo.
 bool RewindRegistry(CTxDB &txdb,
-                    CBlockIndex *pindexRewind,
                     QPRegistry *pregistry,
+                    CBlockIndex *pindexRewindTo,
+                    CBlockIndex *pindexReplayTo,
+                    const int nSnapshotType,
+                    CBlockIndex* &pindexForkRet,
                     CBlockIndex* &pindexCurrentRet)
 {
-    if (GetFork(pindexRewind->nHeight) < XST_FORKPURCHASE)
+    pindexForkRet = NULL;
+
+    if (GetFork(pindexRewindTo->nHeight) < XST_FORKPURCHASE)
     {
         pregistry->SetNull();
         return true;
     }
 
-    if (!pindexRewind->pprev)
+    if (!pindexRewindTo->pprev)
     {
         // this should never happen
         printf("RewindRegistry(): TSNH no prev block to %s\n"
                "    can't replay registry to rewind block\n",
-               pindexRewind->GetBlockHash().ToString().c_str());
+               pindexRewindTo->GetBlockHash().ToString().c_str());
         return false;
     }
 
     // this complicated loop finds the earliest snapshot that is a
-    // predecessor to pindexRewind
-    CBlockIndex *pindexSnap = pindexRewind;
+    // predecessor to pindexRewindTo
+    CBlockIndex *pindexSnap = pindexRewindTo;
     unsigned int nReadSnapCount = 0;
     while (true)
     {
         bool fSnapIsPrepurchase = false;
         while (pindexSnap->pprev)
         {
+            if (!pindexForkRet)
+            {
+                if (pindexSnap->IsInMainChain())
+                {
+                    pindexForkRet = pindexSnap;
+                }
+            }
             pindexSnap = pindexSnap->pprev;
             if (GetFork(pindexSnap->nHeight) < XST_FORKPURCHASE)
             {
@@ -326,7 +383,7 @@ bool RewindRegistry(CTxDB &txdb,
                 break;
             }
             if ((pindexSnap->nHeight % BLOCKS_PER_SNAPSHOT == 0) &&
-                pindexSnap->IsInMainChain())
+                pindexForkRet)
             {
                 break;
             }
@@ -352,7 +409,7 @@ bool RewindRegistry(CTxDB &txdb,
         {
             // 1. we need to actually replay the previous block
             // 2. ensure the registry matches the index we backtracked to
-            if ((pregistry->GetBlockHeight() != pindexRewind->nHeight) &&
+            if ((pregistry->GetBlockHeight() != pindexRewindTo->nHeight) &&
                 (pregistry->GetBlockHash() == pindexSnap->GetBlockHash()))
             {
                 break;
@@ -366,14 +423,14 @@ bool RewindRegistry(CTxDB &txdb,
            "    from %s (%d)\n    to %s (%d)\n",
            hashRegistry.ToString().c_str(),
            nHeightRegistry,
-           pindexRewind->GetBlockHash().ToString().c_str(),
-           pindexRewind->nHeight);
+           pindexReplayTo->GetBlockHash().ToString().c_str(),
+           pindexReplayTo->nHeight);
 
     pindexCurrentRet = mapBlockIndex[hashRegistry];
 
     vector<CBlockIndex*> vreplay;  // organized top to bottom
-    vreplay.push_back(pindexRewind);
-    CBlockIndex *pindexReplay = pindexRewind->pprev;
+    vreplay.push_back(pindexReplayTo);
+    CBlockIndex *pindexReplay = pindexReplayTo->pprev;
     while (pindexReplay->GetBlockHash() != hashRegistry)
     {
         if (GetFork(pindexReplay->nHeight) < XST_FORKPURCHASE)
@@ -405,7 +462,7 @@ bool RewindRegistry(CTxDB &txdb,
     {
         CBlockIndex *pindex = *rit;
         if (!pregistry->UpdateOnNewBlock(pindex,
-                                         QPRegistry::ALL_SNAPS,
+                                         nSnapshotType,
                                          fDebugQPoS))
         {
             // this should rarely happen, if at all
@@ -416,9 +473,9 @@ bool RewindRegistry(CTxDB &txdb,
         pindexCurrentRet = pindex;
     }
 
-    printf("RewindRegistry(): Done\n    from %s\n    to %s\n",
+    printf("RewindRegistry(): Replay done\n    from %s\n    to %s\n",
            hashRegistry.ToString().c_str(),
-           pindexRewind->GetBlockHash().ToString().c_str());
+           pindexReplayTo->GetBlockHash().ToString().c_str());
 
     return true;
 }
@@ -4093,8 +4150,15 @@ bool static Reorganize(CTxDB& txdb,
     {
         return error("Reorganize() : creating temp registry failed");
     }
+    CBlockIndex *pindexFork;
     CBlockIndex *pindexCurrent;
-    RewindRegistry(txdb, pfork, pregistryTemp.get(), pindexCurrent);
+    RewindRegistry(txdb,
+                   pregistryTemp.get(),
+                   pfork,
+                   pfork,
+                   QPRegistry::ALL_SNAPS,
+                   pindexFork,
+                   pindexCurrent);
 
     // Connect longer branch from bottom up
     vector<CTransaction> vDelete;
@@ -5484,6 +5548,9 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
     }
     else
     {
+       /**********************************************************************
+        * It's an ORPHAN
+        **********************************************************************/
         // We don't already have its previous block,
         //    shunt it off to holding area until we get it
         printf("ProcessBlock: ORPHAN BLOCK, %s\n    prev=%s\n",
@@ -5535,7 +5602,7 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
    /**************************************************************************
     * Not an ORPHAN
     **************************************************************************/
-
+    CBlockIndex *pindexDeepestRewind = NULL;
     if (pregistryTemp->GetBlockHash() == pblock->hashPrevBlock)
     {
         if (fDebugQPoS)
@@ -5546,13 +5613,21 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
     }
     else
     {
-        printf("ProcessBlock() rewind registry to accept: %s\n",
+        printf("ProcessBlock(): non-sequential block,\n "
+                  "  rewinding registry to accept:\n  %s\n",
                hash.ToString().c_str());
-        CBlockIndex *pindexRewind = mapBlockIndex[pblock->hashPrevBlock];
+        pindexDeepestRewind = mapBlockIndex[pblock->hashPrevBlock];
         CTxDB txdb("r");
+        CBlockIndex *pindexFork;
         CBlockIndex *pindexCurrent;
         pregistryTemp->SetNull();
-        if (!RewindRegistry(txdb, pindexRewind, pregistryTemp.get(), pindexCurrent))
+        if (!RewindRegistry(txdb,
+                            pregistryTemp.get(),
+                            pindexDeepestRewind,
+                            pindexDeepestRewind,
+                            QPRegistry::NO_SNAPS,
+                            pindexFork,
+                            pindexCurrent))
         {
             fProcessOK = false;
             return error("ProcessBlock() : Could not rewind registry to prev of %s",
@@ -5601,9 +5676,30 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
                 }
                 CBlockIndex *pindexRewind = mapBlockIndex[pblockOrphan->hashPrevBlock];
                 CTxDB txdb("r");
+                CBlockIndex *pindexFork;
                 CBlockIndex *pindexCurrent;
                 pregistryTemp->SetNull();
-                if (!RewindRegistry(txdb, pindexRewind, pregistryTemp.get(), pindexCurrent))
+                if (RewindRegistry(txdb,
+                                   pregistryTemp.get(),
+                                   pindexRewind,
+                                   pindexRewind,
+                                   QPRegistry::NO_SNAPS,
+                                   pindexFork,
+                                   pindexCurrent))
+                {
+                    if (pindexDeepestRewind)
+                    {
+                        if (pindexRewind->nHeight < pindexDeepestRewind->nHeight)
+                        {
+                            pindexDeepestRewind = pindexRewind;
+                        }
+                    }
+                    else
+                    {
+                        pindexDeepestRewind = pindexRewind;
+                    }
+                }
+                else
                 {
                     printf("ProcessBlock() : TSNH could not rewind registry\n");
                     continue;
@@ -5630,12 +5726,56 @@ bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
     // Only update main registry if on best chain
     if (hashBestChain == pregistryTemp->GetBlockHash())
     {
-        // Update main registry with pregistryTemp
-        bool fExitReplay = !pregistryMain->IsInReplayMode();
-        pregistryMain->Copy(pregistryTemp.get());
-        if (fExitReplay)
+        if (pindexDeepestRewind)
         {
-            pregistryMain->ExitReplayMode();
+            // We need to replay registry from deepest rewind to best
+            //    to ensure snapshots are consistent with main chain,
+            //    because no snapshots were created from the temp registries.
+            // Because rewinding is limited elswhere to MAX_FORK_LENGTH (5760),
+            //    this should not write too many snapshots, which are written
+            //    every BLOCKS_PER_SNAPSHOT (240) blocks even in cases of
+            //    long forks (5760/240 = 24 max snapshots).
+
+            // store a copy of the main registry in case this fails
+            bool fExitReplay = !pregistryMain->IsInReplayMode();
+            pregistryTemp->Copy(pregistryMain);
+            pregistryMain->SetNull();
+            CTxDB txdb("r");
+            CBlockIndex *pindexForkUnused;
+            CBlockIndex *pindexCurrent;
+            if (!RewindRegistry(txdb,
+                                pregistryMain,
+                                pindexDeepestRewind,
+                                pindexBest,
+                                QPRegistry::ALL_SNAPS,
+                                pindexForkUnused,
+                                pindexCurrent))
+            {
+                // restore the main registry
+                pregistryMain->Copy(pregistryTemp.get());
+                if (fExitReplay)
+                {
+                    pregistryMain->ExitReplayMode();
+                }
+                return error("ProcessBlock() : Couldn't rewind main registry:\n"
+                                "  rewind to %d\n    %s\n  replay to %d\n    %s\n",
+                             pindexDeepestRewind->nHeight,
+                             pindexDeepestRewind->GetBlockHash().ToString().c_str(),
+                             nBestHeight,
+                             hashBestChain.ToString().c_str());
+            }
+        }
+        else
+        {
+            // Update main registry with pregistryTemp
+            // No need to replay registry for snapshots
+            bool fExitReplay = !pregistryMain->IsInReplayMode();
+            pregistryMain->Copy(pregistryTemp.get());
+            if (fExitReplay)
+            {
+                pregistryMain->ExitReplayMode();
+            }
+            pregistryMain->CheckSynced();
         }
     }
 
@@ -6372,8 +6512,16 @@ bool Rollback()
     {
         return error("Rollback() : creating temp registry failed");
     }
+
+    CBlockIndex *pindexFork;
     CBlockIndex *pindexCurrent;
-    if (!RewindRegistry(txdb, pindexRollback, pregistryTemp.get(), pindexCurrent))
+    if (!RewindRegistry(txdb,
+                        pregistryTemp.get(),
+                        pindexRollback,
+                        pindexRollback,
+                        QPRegistry::ALL_SNAPS,
+                        pindexFork,
+                        pindexCurrent))
     {
         // don't fail, just take best chain possible
         printf("Rollback(): could not rewind registry\n");
@@ -7102,7 +7250,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             if (nEvicted > 0)
                 printf("mapOrphan overflow, removed %u tx\n", nEvicted);
         }
-        if (tx.nDoS) pfrom->Misbehaving(tx.nDoS);
+        if (tx.nDoS)
+        {
+            pfrom->Misbehaving(tx.nDoS);
+        }
     }
 
     else if ((strCommand == "block") &&
@@ -7124,8 +7275,11 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         bool fProcessOK = false;
         bool fCheck = true;
 
+        CBlockIndex* pindexFork = NULL;
+
         if (block.hashPrevBlock == hashBestChain)
         {
+            pindexFork = pindexBest;
             if (fDebug)
             {
                 printf("Processing block fully: %s\n"
@@ -7151,6 +7305,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             CBlockIndex* pindex = pindexPrev;
             while (pindex && (pindex->nHeight > pindexBest->nHeight))
             {
+               if (!pindexFork)
+               {
+                   if (pindex->IsInMainChain())
+                   {
+                       pindexFork = pindex;
+                   }
+               }
                pindex = pindex->pprev;
             }
             if (pindex && (pindex == pindexBest))
@@ -7209,16 +7370,24 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
         if (fCheck)
         {
-            // Check nonsequential blocks as much as possible
-            // to mitigate certain types of spam attacks.
-            // A qPoS block can only fully validate if the registry is synced
-            // with the block's immediate predecessor.
-            // This full validation happens uppon connecting the block.
-            printf("Processing block just check:\n"
-                      "  This: %d  %s\n  Best: %d %s\n",
-                   block.nHeight, block.GetHash().ToString().c_str(),
-                   nBestHeight, hashBestChain.ToString().c_str());
-            ProcessBlock(pfrom, &block, fProcessOK, false, true);
+            // If block belongs to a fork, ensure it is not too long.
+            if (CheckForkTooLong(pindexFork, &block))
+            {
+                block.DoS(100, error("ProcessMessage() : fork too long"));
+            }
+            else
+            {
+                // Check nonsequential/orphan blocks as much as possible
+                // to mitigate certain types of spam attacks.
+                // A qPoS block can only fully validate if the registry is synced
+                // with the block's immediate predecessor.
+                // This full validation happens uppon connecting the block.
+                printf("Processing block just check:\n"
+                          "  This: %d  %s\n  Best: %d %s\n",
+                       block.nHeight, block.GetHash().ToString().c_str(),
+                       nBestHeight, hashBestChain.ToString().c_str());
+                ProcessBlock(pfrom, &block, fProcessOK, false, true);
+            }
         }
 
         // TODO: should this be recursive somehow?
@@ -7230,22 +7399,31 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         {
             if (Rollback())
             {
-                // going to reprocess block so reset its nDoS
-                block.nDoS = 0;
-                if ((GetFork(block.nHeight) < XST_FORKQPOS) ||
-                    (block.nHeight == (nBestHeight + 1)))
+                // If the block belongs to fork, this rollback may have
+                //    changed the length of the fork. Although the length
+                //    wouldn't change by much, the fairest way to continue
+                //    is simply to recheck the fork length.
+                if (CheckForkTooLong(pindexFork, &block))
                 {
-                    printf("Processing block fully (should rollback)\n");
-                    ProcessBlock(pfrom, &block, fProcessOK);
+                    block.DoS(100, error("ProcessMessage() : fork too long"));
                 }
                 else
                 {
-                    printf("Processing block just check (should rollback)\n");
-                    ProcessBlock(pfrom, &block, fProcessOK, false, true);
-                }
-                if (fProcessOK)
-                {
-                    mapAlreadyAskedFor.erase(inv);
+                    if ((GetFork(block.nHeight) < XST_FORKQPOS) ||
+                        (block.nHeight == (nBestHeight + 1)))
+                    {
+                        printf("Processing block fully (rolled back)\n");
+                        ProcessBlock(pfrom, &block, fProcessOK);
+                    }
+                    else
+                    {
+                        printf("Processing block just check (rolled back)\n");
+                        ProcessBlock(pfrom, &block, fProcessOK, false, true);
+                    }
+                    if (fProcessOK)
+                    {
+                        mapAlreadyAskedFor.erase(inv);
+                    }
                 }
             }
             else
