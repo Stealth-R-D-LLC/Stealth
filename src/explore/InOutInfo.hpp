@@ -52,8 +52,6 @@ public:
               const int vtxIn,
               const ExploreOutput& outputIn);
 
-    InOutInfo &operator = (const InOutInfo& other) noexcept;
-
     bool operator < (const InOutInfo& other) const;
     bool operator > (const InOutInfo& other) const;
 

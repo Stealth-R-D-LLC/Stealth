@@ -841,7 +841,8 @@ void ThreadSocketHandler2(void* parg)
                 ((2 * secured - 3 * unsecured) < 0) &&
                 (GetTime() - (nTimeLastDisconnect + REMODELSLEEP)) > 0)
             {
-                random_shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), GetRandInt);
+                CRandGen rg;
+                shuffle(vNodesUnsecure.begin(), vNodesUnsecure.end(), rg);
 
                 CNode *pUnsecure = (CNode *)*vNodesUnsecure.begin();
                 string sAddrName = pUnsecure->addrName;

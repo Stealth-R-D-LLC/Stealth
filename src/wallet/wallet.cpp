@@ -1375,7 +1375,8 @@ bool CWallet::SelectCoinsMinConf(int64_t nTargetValue, unsigned int nSpendTime, 
     vector<pair<int64_t, pair<const CWalletTx*,unsigned int> > > vValue;
     int64_t nTotalLower = 0;
 
-    random_shuffle(vCoins.begin(), vCoins.end(), GetRandInt);
+    CRandGen rg;
+    std::shuffle(vCoins.begin(), vCoins.end(), rg);
 
     BOOST_FOREACH(COutput output, vCoins)
     {
@@ -2228,7 +2229,8 @@ bool CWallet::CreateStealthTransaction(CScript scriptPubKey, int64_t nValue, std
     vecSend.push_back(make_pair(scriptP, 0));
 
     // -- shuffle inputs, change output won't mix enough as it must be not fully random for plantext narrations
-    std::random_shuffle(vecSend.begin(), vecSend.end());
+    CRandGen rg;
+    std::shuffle(vecSend.begin(), vecSend.end(), rg);
 
     int nChangePos;
     bool rv = CreateTransaction(vecSend, wtxNew, reservekey, nFeeRet, nChangePos, coinControl);

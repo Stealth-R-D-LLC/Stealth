@@ -14,7 +14,12 @@
 #undef printf
 #include <boost/asio.hpp>
 #include <boost/asio/ip/v6_only.hpp>
-#include <boost/bind.hpp>
+#if BOOST_VERSION >= 106500
+    #include <boost/bind/bind.hpp>
+#else
+    #include <boost/bind.hpp>
+#endif
+
 #include <boost/filesystem.hpp>
 #include <boost/foreach.hpp>
 #include <boost/iostreams/concepts.hpp>
@@ -31,6 +36,11 @@
 using namespace std;
 using namespace boost;
 using namespace boost::asio;
+
+#if BOOST_VERSION >= 106500
+using namespace boost::placeholders;
+#endif
+
 using namespace json_spirit;
 
 void ThreadRPCServer2(void* parg);
@@ -961,7 +971,11 @@ void ThreadRPCServer2(void* parg)
 
         filesystem::path pathCertFile(GetArg("-rpcsslcertificatechainfile",
                                              "server.cert"));
+#if BOOST_VERSION >= 107900
+        if (!pathCertFile.is_absolute())
+#else
         if (!pathCertFile.is_complete())
+#endif
         {
             pathCertFile = filesystem::path(GetDataDir()) / pathCertFile;
         }
@@ -976,7 +990,11 @@ void ThreadRPCServer2(void* parg)
         }
 
         filesystem::path pathPKFile(GetArg("-rpcsslprivatekeyfile", "server.pem"));
+#if BOOST_VERSION >= 107900
+        if (!pathPKFile.is_absolute())
+#else
         if (!pathPKFile.is_complete())
+#endif
         {
             pathPKFile = filesystem::path(GetDataDir()) / pathPKFile;
         }

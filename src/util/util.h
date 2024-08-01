@@ -257,11 +257,17 @@ void AddTimeData(const CNetAddr& ip, int64_t nTime);
 void runCommand(std::string strCommand);
 
 
+class CRandGen {
+public:
+    using result_type = uint64_t;
 
+    static constexpr result_type min() { return 0; }
+    static constexpr result_type max() { return std::numeric_limits<result_type>::max(); }
 
-
-
-
+    result_type operator()() {
+        return GetRand(max());
+    }
+};
 
 
 inline std::string i64tostr(int64_t n)

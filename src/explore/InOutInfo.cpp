@@ -79,19 +79,6 @@ InOutInfo::InOutInfo(const int heightIn,
     Set(heightIn, vtxIn, outputIn);
 }
 
-InOutInfo& InOutInfo::operator = (const InOutInfo& other) noexcept
-{
-    if (other.IsInput())
-    {
-        Set(other.height, other.vtx, other.inout.input);
-    }
-    else
-    {
-        Set(other.height, other.vtx, other.inout.output);
-    }
-    return *this;
-}
-
 bool InOutInfo::operator < (const InOutInfo& other) const
 {
     if (height != other.height)

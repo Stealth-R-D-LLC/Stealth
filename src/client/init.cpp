@@ -15,7 +15,6 @@
 
 #include <boost/filesystem.hpp>
 #include <boost/filesystem/fstream.hpp>
-#include <boost/filesystem/convenience.hpp>
 #include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <openssl/crypto.h>
@@ -537,8 +536,18 @@ bool AppInit2()
     std::string strWalletFileName = GetArg("-wallet", "wallet.dat");
 
     // strWalletFileName must be a plain filename without a directory
-    if (strWalletFileName != boost::filesystem::basename(strWalletFileName) + boost::filesystem::extension(strWalletFileName))
-        return InitError(strprintf(_("Wallet %s resides outside data directory %s."), strWalletFileName.c_str(), strDataDir.c_str()));
+#if BOOST_VERSION >= 107900
+    boost::filesystem::path p(strWalletFileName);
+    if (strWalletFileName != p.stem().string() + p.extension().string())
+#else
+    if (strWalletFileName != boost::filesystem::basename(strWalletFileName) +
+                             boost::filesystem::extension(strWalletFileName))
+#endif
+    {
+        return InitError(strprintf(_("Wallet %s resides outside data directory %s."),
+               strWalletFileName.c_str(),
+               strDataDir.c_str()));
+    }
 
     // Make sure only a single Bitcoin process is using the data directory.
     boost::filesystem::path pathLockFile = GetDataDir() / ".lock";

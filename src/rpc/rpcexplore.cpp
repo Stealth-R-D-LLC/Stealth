@@ -460,7 +460,6 @@ void GetHDTxs(const uchar_vector& vchExtKey, vector<HDTxInfo>& vHDTxRet)
     vector<Bip32::HDKeychain> vKeychains;
     GetHDKeychains(vchExtKey, vKeychains);
     vector<HDTxInfo> vHDTxTemp;
-    vector<Bip32::HDKeychain>::const_iterator kcit;
     BOOST_FOREACH(const Bip32::HDKeychain& hdParent, vKeychains)
     {
         for (uint32_t nChild = 0; nChild < nMaxHDChildren; ++nChild)

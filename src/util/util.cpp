@@ -202,10 +202,6 @@ uint256 GetRandHash()
 }
 
 
-
-
-
-
 static FILE* fileout = NULL;
 
 inline int OutputDebugStringF(const char* pszFormat, ...)
@@ -1157,7 +1153,11 @@ boost::filesystem::path GetConfigFile()
 {
     boost::filesystem::path pathConfigFile(GetArg("-conf",
                                                   chainParams.DEFAULT_CONF.c_str()));
+#if BOOST_VERSION >= 107900
+    if (!pathConfigFile.is_absolute())
+#else
     if (!pathConfigFile.is_complete())
+#endif
     {
         pathConfigFile = GetDataDir(false) / pathConfigFile;
     }
@@ -1192,7 +1192,14 @@ boost::filesystem::path GetPidFile()
 {
     boost::filesystem::path pathPidFile(GetArg("-pid",
                                                chainParams.DEFAULT_PID));
-    if (!pathPidFile.is_complete()) pathPidFile = GetDataDir() / pathPidFile;
+#if BOOST_VERSION >= 107900
+    if (!pathPidFile.is_absolute())
+#else
+    if (!pathPidFile.is_complete())
+#endif
+    {
+        pathPidFile = GetDataDir() / pathPidFile;
+    }
     return pathPidFile;
 }
 
