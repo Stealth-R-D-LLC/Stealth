@@ -21,8 +21,6 @@
 MINER=-
 
 INCLUDEPATHS= \
- -I"/usr/local/include" \
- -I"$(CURDIR)" \
  -I"$(CURDIR)/obj" \
  -I"$(CURDIR)/tor" \
  -I"$(CURDIR)/tor/adapter" \
@@ -36,8 +34,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/tor/or" \
  -I"$(CURDIR)/tor/trunnel" \
  -I"$(CURDIR)/tor/trunnel/hs" \
- -I"$(CURDIR)/leveldb/include" \
- -I"$(CURDIR)/leveldb/helpers" \
  -I"$(CURDIR)/json" \
  -I"$(CURDIR)/bip32" \
  -I"$(CURDIR)/blockchain" \
@@ -68,19 +64,22 @@ ARCH := $(shell uname -m)
 
 DEFS = -DBOOST_SPIRIT_THREADSAFE
 
-incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(BOOST_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH) $(CRYPTOPP_INCLUDE_PATH))
+incDEFS = $(addprefix -I,$(CURDIR) $(CURDIR)/obj $(LEVELDB_INCLUDE_PATH) $(BDB_INCLUDE_PATH) $(BOOST_INCLUDE_PATH) $(OPENSSL_INCLUDE_PATH) $(EVENT_INCLUDE_PATH) $(CRYPTOPP_INCLUDE_PATH) $(ZLIB_INCLUDE_PATH) /usr/local/include)
 DEFS += $(incDEFS)
-LIBS = $(addprefix -L,$(BOOST_LIB_PATH) $(BDB_LIB_PATH) $(OPENSSL_LIB_PATH) $(CRYPTOPP_LIB_PATH) /usr/local/lib)
+LIBS = $(addprefix -L,$(LEVELDB_LIB_PATH) $(BDB_LIB_PATH) $(BOOST_LIB_PATH) $(OPENSSL_LIB_PATH) $(EVENT_LIB_PATH) $(CRYPTOPP_LIB_PATH) $(ZLIB_LIB_PATH) /usr/local/lib)
 
 LIBS += \
+   -l leveldb \
+   -l db_cxx$(BDB_LIB_SUFFIX) \
    -l boost_system$(BOOST_LIB_SUFFIX) \
    -l boost_filesystem$(BOOST_LIB_SUFFIX) \
    -l boost_program_options$(BOOST_LIB_SUFFIX) \
    -l boost_thread$(BOOST_LIB_SUFFIX) \
-   -l db_cxx$(BDB_LIB_SUFFIX) \
-   -l cryptopp \
    -l ssl \
-   -l crypto
+   -l crypto \
+   -l event \
+   -l cryptopp \
+   -l z
 
 ifndef USE_UPNP
     override USE_UPNP = -
@@ -99,8 +98,6 @@ ifeq (${MINER}, 1)
 endif
 
 LIBS += \
-   -l event \
-   -l z \
    -l dl \
    -l pthread
 
@@ -414,15 +411,6 @@ LIBS += $(CURDIR)/crypto/argon2/libargon2.a
 crypto/argon2/libargon2.a:
 	@echo "Building argon2 ..."; cd crypto/argon2; make; cd ../..
 
-LIBS += $(CURDIR)/leveldb/build/libleveldb.a
-DEFS += $(addprefix -I,$(CURDIR)/leveldb/include)
-DEFS += $(addprefix -I,$(CURDIR)/leveldb/helpers)
-leveldb/build/libleveldb.a:
-	@echo "Building LevelDB ..." && cd leveldb && mkdir -p build && cd build && \
-                cmake -DCMAKE_BUILD_TYPE=Release .. && cmake --build .
-obj/db-leveldb.o: leveldb/build/libleveldb.a
-
-
 # auto-generated dependencies:
 -include obj/*.P
 
@@ -644,7 +632,7 @@ obj/toradapter.o: tor/adapter/toradapter.cpp
             -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	rm -f $(@:%.o=%.d)
 
-StealthCoind: leveldb/build/libleveldb.a crypto/argon2/libargon2.a $(LIBCRYPTOPP) \
+StealthCoind: crypto/argon2/libargon2.a $(LIBCRYPTOPP) \
               $(OBJS:obj/%=obj/%) obj/toradapter.o
 	$(CXX) $(xCXXFLAGS) -o $@ $(LIBPATHS) $^ $(xLDFLAGS) $(LIBS)
 
@@ -664,7 +652,6 @@ clean:
 	-rm -f obj-test/*.P
 	-rm -f obj/build.h
 	cd crypto/argon2; make clean
-	cd leveldb; rm -rf build
 
 
 FORCE:
