@@ -143,6 +143,58 @@ HEADERS += \
     src/tor/ext/timeouts/timeout.h \
     src/tor/ext/trunnel/trunnel-impl.h \
     src/tor/ext/trunnel/trunnel.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-64bit-x86-32bit.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-portable-identify.h \
+    src/tor/ext/ed25519/donna/ed25519-randombytes.h \
+    src/tor/ext/ed25519/donna/modm-donna-64bit.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-basepoint-table.h \
+    src/tor/ext/ed25519/donna/modm-donna-32bit.h \
+    src/tor/ext/ed25519/donna/ed25519-donna.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-64bit-tables.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-64bit-x86.h \
+    src/tor/ext/ed25519/donna/ed25519-hash-custom.h \
+    src/tor/ext/ed25519/donna/ed25519-hash.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-64bit-sse2.h \
+    src/tor/ext/ed25519/donna/curve25519-donna-32bit.h \
+    src/tor/ext/ed25519/donna/curve25519-donna-sse2.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-32bit-sse2.h \
+    src/tor/ext/ed25519/donna/ed25519_donna_tor.h \
+    src/tor/ext/ed25519/donna/curve25519-donna-64bit.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-impl-base.h \
+    src/tor/ext/ed25519/donna/regression.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-portable.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-32bit-tables.h \
+    src/tor/ext/ed25519/donna/test-ticks.h \
+    src/tor/ext/ed25519/donna/ed25519-randombytes-custom.h \
+    src/tor/ext/ed25519/donna/curve25519-donna-helpers.h \
+    src/tor/ext/ed25519/donna/ed25519.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-impl-sse2.h \
+    src/tor/ext/ed25519/donna/ed25519-donna-batchverify.h \
+    src/tor/ext/ed25519/ref10/ed25519_ref10.h \
+    src/tor/ext/ed25519/ref10/sqrtm1.h \
+    src/tor/ext/ed25519/ref10/crypto_uint32.h \
+    src/tor/ext/ed25519/ref10/crypto_hash_sha512.h \
+    src/tor/ext/ed25519/ref10/ge_sub.h \
+    src/tor/ext/ed25519/ref10/pow225521.h \
+    src/tor/ext/ed25519/ref10/ge_add.h \
+    src/tor/ext/ed25519/ref10/randombytes.h \
+    src/tor/ext/ed25519/ref10/crypto_int32.h \
+    src/tor/ext/ed25519/ref10/crypto_sign.h \
+    src/tor/ext/ed25519/ref10/crypto_verify_32.h \
+    src/tor/ext/ed25519/ref10/d2.h \
+    src/tor/ext/ed25519/ref10/api.h \
+    src/tor/ext/ed25519/ref10/crypto_int64.h \
+    src/tor/ext/ed25519/ref10/ge_madd.h \
+    src/tor/ext/ed25519/ref10/ge_msub.h \
+    src/tor/ext/ed25519/ref10/crypto_uint64.h \
+    src/tor/ext/ed25519/ref10/fe.h \
+    src/tor/ext/ed25519/ref10/pow22523.h \
+    src/tor/ext/ed25519/ref10/ge_p2_dbl.h \
+    src/tor/ext/ed25519/ref10/d.h \
+    src/tor/ext/ed25519/ref10/sc.h \
+    src/tor/ext/ed25519/ref10/ge.h \
+    src/tor/ext/ed25519/ref10/base2.h \
+    src/tor/ext/ed25519/ref10/base.h \
     src/tor/trunnel/flow_control_cells.h \
     src/tor/trunnel/trunnel-local.h \
     src/tor/trunnel/congestion_control.h \
@@ -598,6 +650,48 @@ SOURCES += \
     src/tor/ext/equix/src/solver.c \
     src/tor/ext/trunnel/trunnel.c \
     src/tor/ext/curve25519_donna/curve25519-donna.c \
+    src/tor/ext/ed25519/donna/ed25519_tor.c \
+    src/tor/ext/ed25519/ref10/ge_msub.c \
+    src/tor/ext/ed25519/ref10/fe_sq2.c \
+    src/tor/ext/ed25519/ref10/fe_pow22523.c \
+    src/tor/ext/ed25519/ref10/ge_madd.c \
+    src/tor/ext/ed25519/ref10/ge_p3_tobytes.c \
+    src/tor/ext/ed25519/ref10/ge_p3_dbl.c \
+    src/tor/ext/ed25519/ref10/sc_muladd.c \
+    src/tor/ext/ed25519/ref10/fe_sub.c \
+    src/tor/ext/ed25519/ref10/fe_isnonzero.c \
+    src/tor/ext/ed25519/ref10/fe_add.c \
+    src/tor/ext/ed25519/ref10/ge_p1p1_to_p2.c \
+    src/tor/ext/ed25519/ref10/fe_invert.c \
+    src/tor/ext/ed25519/ref10/ge_tobytes.c \
+    src/tor/ext/ed25519/ref10/ge_p2_0.c \
+    src/tor/ext/ed25519/ref10/ge_p3_0.c \
+    src/tor/ext/ed25519/ref10/fe_cmov.c \
+    src/tor/ext/ed25519/ref10/ge_p2_dbl.c \
+    src/tor/ext/ed25519/ref10/fe_1.c \
+    src/tor/ext/ed25519/ref10/fe_copy.c \
+    src/tor/ext/ed25519/ref10/sign.c \
+    src/tor/ext/ed25519/ref10/keyconv.c \
+    src/tor/ext/ed25519/ref10/fe_0.c \
+    src/tor/ext/ed25519/ref10/fe_tobytes.c \
+    src/tor/ext/ed25519/ref10/ge_p3_to_cached.c \
+    src/tor/ext/ed25519/ref10/ge_add.c \
+    src/tor/ext/ed25519/ref10/fe_neg.c \
+    src/tor/ext/ed25519/ref10/ge_sub.c \
+    src/tor/ext/ed25519/ref10/ge_scalarmult_base.c \
+    src/tor/ext/ed25519/ref10/ge_double_scalarmult.c \
+    src/tor/ext/ed25519/ref10/ge_precomp_0.c \
+    src/tor/ext/ed25519/ref10/fe_frombytes.c \
+    src/tor/ext/ed25519/ref10/fe_isnegative.c \
+    src/tor/ext/ed25519/ref10/keypair.c \
+    src/tor/ext/ed25519/ref10/ge_frombytes.c \
+    src/tor/ext/ed25519/ref10/fe_sq.c \
+    src/tor/ext/ed25519/ref10/open.c \
+    src/tor/ext/ed25519/ref10/sc_reduce.c \
+    src/tor/ext/ed25519/ref10/blinding.c \
+    src/tor/ext/ed25519/ref10/ge_p1p1_to_p3.c \
+    src/tor/ext/ed25519/ref10/fe_mul.c \
+    src/tor/ext/ed25519/ref10/ge_p3_to_p2.c \
     src/tor/trunnel/link_handshake.c \
     src/tor/trunnel/ed25519_cert.c \
     src/tor/trunnel/extension.c \

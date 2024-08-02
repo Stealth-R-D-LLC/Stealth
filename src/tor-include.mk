@@ -109,6 +109,48 @@ OBJS += \
   obj/solver.o \
   obj/trunnel.o \
   obj/curve25519-donna.o \
+  obj/ed25519_tor.o \
+  obj/ge_msub.o \
+  obj/fe_sq2.o \
+  obj/fe_pow22523.o \
+  obj/ge_madd.o \
+  obj/ge_p3_tobytes.o \
+  obj/ge_p3_dbl.o \
+  obj/sc_muladd.o \
+  obj/fe_sub.o \
+  obj/fe_isnonzero.o \
+  obj/fe_add.o \
+  obj/ge_p1p1_to_p2.o \
+  obj/fe_invert.o \
+  obj/ge_tobytes.o \
+  obj/ge_p2_0.o \
+  obj/ge_p3_0.o \
+  obj/fe_cmov.o \
+  obj/ge_p2_dbl.o \
+  obj/fe_1.o \
+  obj/fe_copy.o \
+  obj/sign.o \
+  obj/keyconv.o \
+  obj/fe_0.o \
+  obj/fe_tobytes.o \
+  obj/ge_p3_to_cached.o \
+  obj/ge_add.o \
+  obj/fe_neg.o \
+  obj/ge_sub.o \
+  obj/ge_scalarmult_base.o \
+  obj/ge_double_scalarmult.o \
+  obj/ge_precomp_0.o \
+  obj/fe_frombytes.o \
+  obj/fe_isnegative.o \
+  obj/keypair.o \
+  obj/ge_frombytes.o \
+  obj/fe_sq.o \
+  obj/open.o \
+  obj/sc_reduce.o \
+  obj/blinding.o \
+  obj/ge_p1p1_to_p3.o \
+  obj/fe_mul.o \
+  obj/ge_p3_to_p2.o \
   obj/link_handshake.o \
   obj/ed25519_cert.o \
   obj/extension.o \
@@ -449,6 +491,20 @@ obj/%.o: tor/ext/trunnel/%.c
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/curve25519_donna/%.c
+	$(CC) -c $(TOR_DEFS) $(TOR_CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: tor/ext/ed25519/donna/%.c
+	$(CC) -c $(TOR_DEFS) $(TOR_CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: tor/ext/ed25519/ref10/%.c
 	$(CC) -c $(TOR_DEFS) $(TOR_CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
