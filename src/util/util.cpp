@@ -5,7 +5,7 @@
 
 #include "util.h"
 #include "sync.h"
-#include "strlcpy.h"
+#include "bitcoin-strlcpy.h"
 #include "version.h"
 #include "ui_interface.h"
 #include "chainparams.hpp"

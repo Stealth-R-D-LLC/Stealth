@@ -11,7 +11,7 @@
 #include <sys/fcntl.h>
 #endif
 
-#include "strlcpy.h"
+#include "bitcoin-strlcpy.h"
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 
 using namespace std;
