@@ -22,7 +22,7 @@ const char tor_git_revision[] =
 #if defined(_WIN32) || defined(_WIN64)
 #  if defined(_WIN64)
 #    define ARCH_IS_WINDOWS_64 1
-#    include "orconfig_windows.h"
+#    include "orconfig-windows.h"
 #  else
 #    define ARCH_IS_WINDOWS_32 1
 #    error "32 bit Windows is not supported."
@@ -30,16 +30,16 @@ const char tor_git_revision[] =
 #elif defined(__darwin__) || defined(__APPLE__)
 #  if defined(__aarch64__)
 #    define ARCH_IS_APPLE_SILICON 1
-#    include "orconfig_apple_silicon.h"
+#    include "orconfig-apple-silicon.h"
 #  elif defined(__x86_64__)
 #    define ARCH_IS_APPLE_INTEL 1
-#    include "orconfig_apple_intel.h"
+#    include "orconfig-apple-intel.h"
 #  else
 #    define ARCH_IS_APPLE_32 1
 #    error "32 bit Macs are not supported."
 #  endif
 #elif defined(__LP64__) || defined(_LP64)
-#  include "orconfig_linux.h"
+#  include "orconfig-linux.h"
 #else
 #  error "32 bit Linux is not supported."
 #endif
