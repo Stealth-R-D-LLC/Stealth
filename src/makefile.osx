@@ -24,16 +24,6 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/obj" \
  -I"$(CURDIR)/tor" \
  -I"$(CURDIR)/tor/adapter" \
- -I"$(CURDIR)/tor/common" \
- -I"$(CURDIR)/tor/ext" \
- -I"$(CURDIR)/tor/ext/curve25519_donna" \
- -I"$(CURDIR)/tor/ext/ed25519/donna" \
- -I"$(CURDIR)/tor/ext/ed25519/ref10" \
- -I"$(CURDIR)/tor/ext/keccak-tiny" \
- -I"$(CURDIR)/tor/ext/trunnel" \
- -I"$(CURDIR)/tor/or" \
- -I"$(CURDIR)/tor/trunnel" \
- -I"$(CURDIR)/tor/trunnel/hs" \
  -I"$(CURDIR)/json" \
  -I"$(CURDIR)/bip32" \
  -I"$(CURDIR)/blockchain" \
@@ -55,8 +45,8 @@ DEBUGFLAGS = -g
 
 CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
 
-USE_UPNP:=-
-USE_IPV6:=-
+USE_UPNP := -
+USE_IPV6 := -
 
 
 LINK := $(CXX)
@@ -108,41 +98,37 @@ LIBS += \
     # This is a workaround for Ubuntu bug #691722, the default -fstack-protector causes
     # -fstack-protector-all to be ignored unless -fno-stack-protector is used first.
     # see: https://bugs.launchpad.net/ubuntu/+source/gcc-4.5/+bug/691722
-    HARDENING=-fno-stack-protector
+    HARDENING = -fno-stack-protector
 
     # Stack Canaries
     # Put numbers at the beginning of each stack frame and check that they are the same.
     # If a stack buffer if overflowed, it writes over the canary number and then on return
     # when that number is checked, it won't be the same and the program will exit with
     # a "Stack smashing detected" error instead of being exploited.
-    HARDENING+=-fstack-protector-all -Wstack-protector
+    HARDENING += -fstack-protector-all -Wstack-protector
 
     # Build position independent code to take advantage of Address Space Layout Randomization
     # offered by some kernels.
     # see doc/build-unix.txt for more information.
     ifdef PIE
-        HARDENING+=-fPIE
-        LDHARDENING+=-pie
+        HARDENING += -fPIE
+        LDHARDENING += -pie
     endif
 
     # -D_FORTIFY_SOURCE=2 does some checking for potentially exploitable code patterns in
     # the source such overflowing a statically defined buffer.
-    HARDENING+=-D_FORTIFY_SOURCE=2
+    HARDENING += -D_FORTIFY_SOURCE=2
 #
 
 
 ifdef DEBUG
-    OPTIFLAGS=-O0
+    OPTIFLAGS = -O0
 else
-    OPTIFLAGS=-O2
+    OPTIFLAGS = -O2
 endif
 
 
-ifeq ($(ARCH),armv7l)
-    EXT_OPTIONS=
-else
-    EXT_OPTIONS=-msse2
-endif
+EXT_OPTIONS=
 
 
 # CXXFLAGS can be specified on the make command line, so we use xCXXFLAGS that only
@@ -153,7 +139,7 @@ xCXXFLAGS=$(OPTIFLAGS) $(EXT_OPTIONS) -std=c++14 -pthread -Wall -Wextra -Wno-ign
 
 # LDFLAGS can be specified on the make command line, so we use xLDFLAGS that only
 # adds some defaults in front. Unfortunately, LDFLAGS=... $(LDFLAGS) does not work.
-xLDFLAGS=$(LDHARDENING) $(LDFLAGS)
+xLDFLAGS = $(LDHARDENING) $(LDFLAGS)
 
 
 OBJS= \
@@ -161,179 +147,6 @@ OBJS= \
     obj/json_spirit_reader.o \
     obj/json_spirit_value.o \
     obj/json_spirit_writer.o \
-    obj/trunnel.o \
-    obj/address.o \
-    obj/readpassphrase.o \
-    obj/keccak-tiny-unrolled.o \
-    obj/blinding.o \
-    obj/fe_0.o \
-    obj/fe_1.o \
-    obj/fe_add.o \
-    obj/fe_cmov.o \
-    obj/fe_copy.o \
-    obj/fe_frombytes.o \
-    obj/fe_invert.o \
-    obj/fe_isnegative.o \
-    obj/fe_isnonzero.o \
-    obj/fe_mul.o \
-    obj/fe_neg.o \
-    obj/fe_pow22523.o \
-    obj/fe_sq2.o \
-    obj/fe_sq.o \
-    obj/fe_sub.o \
-    obj/fe_tobytes.o \
-    obj/ge_add.o \
-    obj/ge_double_scalarmult.o \
-    obj/ge_frombytes.o \
-    obj/ge_madd.o \
-    obj/ge_msub.o \
-    obj/ge_p1p1_to_p2.o \
-    obj/ge_p1p1_to_p3.o \
-    obj/ge_p2_0.o \
-    obj/ge_p2_dbl.o \
-    obj/ge_p3_0.o \
-    obj/ge_p3_dbl.o \
-    obj/ge_p3_tobytes.o \
-    obj/ge_p3_to_cached.o \
-    obj/ge_p3_to_p2.o \
-    obj/ge_precomp_0.o \
-    obj/ge_scalarmult_base.o \
-    obj/ge_sub.o \
-    obj/ge_tobytes.o \
-    obj/keyconv.o \
-    obj/keypair.o \
-    obj/open.o \
-    obj/sc_muladd.o \
-    obj/sc_reduce.o \
-    obj/sign.o \
-    obj/addressmap.o \
-    obj/aes.o \
-    obj/backtrace.o \
-    obj/buffers.o \
-    obj/channel.o \
-    obj/channeltls.o \
-    obj/circpathbias.o \
-    obj/circuitbuild.o \
-    obj/circuitlist.o \
-    obj/circuitmux.o \
-    obj/circuitmux_ewma.o \
-    obj/circuitstats.o \
-    obj/circuituse.o \
-    obj/command.o \
-    obj/tor_compat.o \
-    obj/compat_libevent.o \
-    obj/compat_pthreads.o \
-    obj/compat_threads.o \
-    obj/compat_time.o \
-    obj/timers.o \
-    obj/compat_winthreads.o \
-    obj/config.o \
-    obj/confparse.o \
-    obj/connection.o \
-    obj/connection_edge.o \
-    obj/connection_or.o \
-    obj/container.o \
-    obj/control.o \
-    obj/cpuworker.o \
-    obj/dircollate.o \
-    obj/crypto.o \
-    obj/csiphash.o \
-    obj/readpassphrase.o \
-    obj/tinytest.o \
-    obj/crypto_curve25519.o \
-    obj/crypto_ed25519.o \
-    obj/crypto_format.o \
-    obj/crypto_pwbox.o \
-    obj/crypto_s2k.o \
-    obj/curve25519-donna.o \
-    obj/crypto_curve25519.o \
-    obj/ed25519_tor.o \
-    obj/di_ops.o \
-    obj/directory.o \
-    obj/dirserv.o \
-    obj/dirvote.o \
-    obj/dns.o \
-    obj/dnsserv.o \
-    obj/entrynodes.o \
-    obj/ext_orport.o \
-    obj/fp_pair.o \
-    obj/geoip.o \
-    obj/hibernate.o \
-    obj/keypin.o \
-    obj/log.o \
-    obj/memarea.o \
-    obj/microdesc.o \
-    obj/networkstatus.o \
-    obj/nodelist.o \
-    obj/onion.o \
-    obj/onion_fast.o \
-    obj/onion_main.o \
-    obj/onion_ntor.o \
-    obj/onion_tap.o \
-    obj/periodic.o \
-    obj/policies.o \
-    obj/procmon.o \
-    obj/reasons.o \
-    obj/relay.o \
-    obj/rendcache.o \
-    obj/rendclient.o \
-    obj/rendcommon.o \
-    obj/rendmid.o \
-    obj/rendservice.o \
-    obj/rephist.o \
-    obj/replaycache.o \
-    obj/router.o \
-    obj/routerkeys.o \
-    obj/routerlist.o \
-    obj/routerparse.o \
-    obj/routerset.o \
-    obj/scheduler.o \
-    obj/sandbox.o \
-    obj/pubsub.o \
-    obj/statefile.o \
-    obj/status.o \
-    obj/torcert.o \
-    obj/tor_util.o \
-    obj/util_bug.o \
-    obj/torgzip.o \
-    obj/tortls.o \
-    obj/tor_main.o \
-    obj/transports.o \
-    obj/hs_descriptor.o \
-    obj/parsecommon.o \
-    obj/hs_common.o \
-    obj/shared_random_state.o \
-    obj/hs_intropoint.o \
-    obj/shared_random.o \
-    obj/protover.o \
-    obj/hs_cache.o \
-    obj/bridges.o \
-    obj/hs_circuitmap.o \
-    obj/hs_service.o \
-    obj/cell_common.o \
-    obj/cell_establish_intro.o \
-    obj/cell_introduce1.o \
-    obj/cell_common.o \
-    obj/ed25519_cert.o \
-    obj/link_handshake.o \
-    obj/pwbox.o \
-    obj/util_format.o \
-    obj/util_process.o \
-    obj/workqueue.o \
-    obj/aes_helper.o \
-    obj/fugue.o \
-    obj/hamsi.o \
-    obj/groestl.o \
-    obj/blake.o \
-    obj/bmw.o \
-    obj/skein.o \
-    obj/keccak.o \
-    obj/shavite.o \
-    obj/jh.o \
-    obj/luffa.o \
-    obj/cubehash.o \
-    obj/echo.o \
-    obj/simd.o \
     obj/alert.o \
     obj/version.o \
     obj/checkpoints.o \
@@ -555,75 +368,6 @@ obj/%.o: json/%.cpp
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
 	  rm -f $(@:%.o=%.d)
 
-obj/%.o: tor/common/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/curve25519_donna/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/ed25519/donna/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/ed25519/ref10/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/keccak-tiny/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/or/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/ext/trunnel/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/trunnel/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
-
-obj/%.o: tor/trunnel/hs/%.c
-	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-            -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	rm -f $(@:%.o=%.d)
 
 obj/toradapter.o: tor/adapter/toradapter.cpp
 	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
