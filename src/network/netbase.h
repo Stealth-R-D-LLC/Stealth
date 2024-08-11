@@ -135,6 +135,9 @@ class CService : public CNetAddr
 
 typedef std::pair<CService, int> proxyType;
 
+int64_t GetAdjustedTime();
+void AddTimeData(const CNetAddr& ip, int64_t nTime);
+
 enum Network ParseNetwork(std::string net);
 void SplitHostPort(std::string in, int &portOut, std::string &hostOut);
 bool SetProxy(enum Network net, CService addrProxy, int nSocksVersion = 5);

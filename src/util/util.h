@@ -6,6 +6,7 @@
 #define BITCOIN_UTIL_H
 
 #include "uint256.h"
+#include "serialize.h"
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -29,7 +30,6 @@ typedef int pid_t; /* define for Windows compatibility */
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
 
-#include "netbase.h" // for AddTimeData
 
 #if __cplusplus >= 201103L
     #define AUTO_PTR std::unique_ptr
@@ -248,20 +248,11 @@ uint64_t GetRand(uint64_t nMax);
 uint256 GetRandHash();
 int64_t GetTime();
 void SetMockTime(int64_t nMockTimeIn);
-int64_t GetAdjustedTime();
 long hex2long(const unsigned char* hexString);
 std::string FormatFullVersion();
 std::string FormatVersionNumbers();
 std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);
-void AddTimeData(const CNetAddr& ip, int64_t nTime);
 void runCommand(std::string strCommand);
-
-
-
-
-
-
-
 
 
 inline std::string i64tostr(int64_t n)
