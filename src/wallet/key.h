@@ -173,7 +173,7 @@ public:
     // Verify a compact signature
     bool VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig);
 
-    bool IsValid();
+    bool IsValid(int* pErrorCode=NULL);
 
     static bool CheckSignatureElement(const unsigned char *vch, int len, bool half);
     bool ECC_InitSanityCheck(void);

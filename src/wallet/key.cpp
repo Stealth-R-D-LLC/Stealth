@@ -345,13 +345,31 @@ bool CKey::SetPubKey(const CPubKey& vchPubKey)
 
 CPubKey CKey::GetPubKey() const
 {
-    int nSize = i2o_ECPublicKey(pkey, NULL);
-    if (!nSize)
-        throw key_error("CKey::GetPubKey() : i2o_ECPublicKey failed");
-    std::vector<unsigned char> vchPubKey(nSize, 0);
-    unsigned char* pbegin = &vchPubKey[0];
-    if (i2o_ECPublicKey(pkey, &pbegin) != nSize)
-        throw key_error("CKey::GetPubKey() : i2o_ECPublicKey returned unexpected size");
+    const EC_POINT* pub_key = EC_KEY_get0_public_key(pkey);
+    if (!pub_key)
+    {
+        throw key_error("CKey::GetPubKey() : EC_KEY_get0_public_key failed");
+    }
+    const EC_GROUP* group = EC_KEY_get0_group(pkey);
+    if (!group)
+    {
+        throw key_error("CKey::GetPubKey() : EC_POINT_get0_group failed");
+    }
+    size_t nSizeKey = fCompressedPubKey ? 33 : 65;
+    std::vector<unsigned char> vchPubKey(nSizeKey);
+    size_t nSizeBuf = EC_POINT_point2oct(group,
+                                         pub_key,
+                                         fCompressedPubKey ?
+                                            POINT_CONVERSION_COMPRESSED :
+                                            POINT_CONVERSION_UNCOMPRESSED,
+                                         vchPubKey.data(),
+                                         nSizeKey,
+                                         nullptr);
+
+    if (nSizeBuf == 0)
+    {
+        throw key_error("CKey::GetPubKey() : EC_POINT_point2oct failed");
+    }
     return CPubKey(vchPubKey);
 }
 
@@ -368,7 +386,7 @@ bool CKey::Sign(uint256 hash, std::vector<unsigned char>& vchSig)
     BIGNUM *halforder = BN_CTX_get(ctx);
     EC_GROUP_get_order(group, order, ctx);
     BN_rshift1(halforder, order);
-    
+
 #if OPENSSL_VERSION_NUMBER > 0x1000ffffL
     const BIGNUM *sig_r, *sig_s;
     ECDSA_SIG_get0(sig, &sig_r, &sig_s);
@@ -656,19 +674,49 @@ bool CKey::VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig)
     return true;
 }
 
-bool CKey::IsValid()
+// using a pointer here so usage is backwards compatible
+bool CKey::IsValid(int* pErrorCode)
 {
     if (!fSet)
+    {
+        if (pErrorCode)
+        {
+            *pErrorCode = -1;
+        }
         return false;
+    }
 
     if (!EC_KEY_check_key(pkey))
+    {
+        if (pErrorCode)
+        {
+            *pErrorCode = -2;
+        }
         return false;
+    }
 
     bool fCompr;
     CSecret secret = GetSecret(fCompr);
     CKey key2;
     key2.SetSecret(secret, fCompr);
-    return GetPubKey() == key2.GetPubKey();
+    bool fUnused;
+    if (secret != key2.GetSecret(fUnused))
+    {
+        if (pErrorCode)
+        {
+            *pErrorCode = -3;
+        }
+        return false;
+    }
+    if (GetPubKey() != key2.GetPubKey())
+    {
+        if (pErrorCode)
+        {
+            *pErrorCode = -4;
+        }
+        return false;
+    }
+    return true;
 }
 
 bool ECC_InitSanityCheck() {
