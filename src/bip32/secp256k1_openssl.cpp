@@ -17,6 +17,7 @@
 
 #include <string>
 #include <cassert>
+#include <stdexcept>
 
 #ifdef TRACE_RFC6979
   #include <iostream>
@@ -377,6 +378,11 @@ bytes_t CoinCrypto::secp256k1_sigToLowS(const bytes_t& signature)
 // Signing function
 bytes_t CoinCrypto::secp256k1_sign(const secp256k1_key& key, const bytes_t& data)
 {
+    if (data.size() != 32) {
+        throw std::invalid_argument("CoinCrypto::secp256k1_sign(): "
+                                    "Input must be a 32-byte SHA256 digest");
+    }
+
     unsigned char signature[1024];
     unsigned int nSize = 0;
     if (!ECDSA_sign(0, (const unsigned char*)&data[0], data.size(), signature, &nSize, key.getKey())) {
@@ -388,6 +394,11 @@ bytes_t CoinCrypto::secp256k1_sign(const secp256k1_key& key, const bytes_t& data
 // Verification function
 bool CoinCrypto::secp256k1_verify(const secp256k1_key& key, const bytes_t& data, const bytes_t& signature, int flags)
 {
+    if (data.size() != 32) {
+        throw std::invalid_argument("CoinCrypto::secp256k1_verify(): "
+                                    "Input must be a 32-byte SHA256 digest");
+    }
+
     if (flags & SIGNATURE_ENFORCE_LOW_S)
     {
         if (signature != secp256k1_sigToLowS(signature)) return false;
