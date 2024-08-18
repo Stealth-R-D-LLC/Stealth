@@ -120,25 +120,29 @@ inline uchar_vector sha3_256(const uchar_vector& data)
         throw std::runtime_error("sha3_256(): Failed to get algorithm");
     }
 
-    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+    if (EVP_DigestInit_ex(ctx, md, NULL) != 1)
+    {
         EVP_MD_CTX_free(ctx);
         throw std::runtime_error("sha3_256(): Failed to initialize");
     }
 
-    if (EVP_DigestUpdate(ctx, data.data(), data.size()) != 1) {
+    if (EVP_DigestUpdate(ctx, data.data(), data.size()) != 1)
+    {
         EVP_MD_CTX_free(ctx);
         throw std::runtime_error("sha3_256(): Failed to update");
     }
 
     unsigned int len;
-    if (EVP_DigestFinal_ex(ctx, reinterpret_cast<unsigned char*>(hash.data()), &len) != 1) {
+    if (EVP_DigestFinal_ex(ctx, reinterpret_cast<unsigned char*>(hash.data()), &len) != 1)
+    {
         EVP_MD_CTX_free(ctx);
         throw std::runtime_error("sha3_256(): Failed to finalize");
     }
 
     EVP_MD_CTX_free(ctx);
 
-    if (len != hash.size()) {
+    if (len != hash.size())
+    {
         throw std::runtime_error("sha3_256(): Unexpected digest length");
     }
 
@@ -157,6 +161,10 @@ inline uchar_vector keccak_256(const uchar_vector& data)
 
 inline uchar_vector scrypt_1024_1_1_256(const uchar_vector& data)
 {
+    if (data.size() != 80)
+    {
+        throw std::runtime_error("scrypt_1024_1_1_256(): data size should be 80");
+    }
     uint256 hash;
     scrypt_1024_1_1_256_((const char*)&data[0], (char*)&hash);
     return uchar_vector((unsigned char*)&hash, (unsigned char*)&hash + 32);
