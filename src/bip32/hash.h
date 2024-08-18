@@ -15,6 +15,8 @@
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
 #include <openssl/hmac.h>
+#include <openssl/evp.h>
+#include <openssl/kdf.h>
 
 #include "uchar_vector.h"
 
@@ -161,13 +163,70 @@ inline uchar_vector keccak_256(const uchar_vector& data)
 
 inline uchar_vector scrypt_1024_1_1_256(const uchar_vector& data)
 {
+#if OPENSSL_VERSION_NUMBER < 0x10101000L
+    uint256 hash;
     if (data.size() != 80)
     {
         throw std::runtime_error("scrypt_1024_1_1_256(): data size should be 80");
     }
-    uint256 hash;
     scrypt_1024_1_1_256_((const char*)&data[0], (char*)&hash);
     return uchar_vector((unsigned char*)&hash, (unsigned char*)&hash + 32);
+#else
+    uchar_vector output(32);
+
+    EVP_PKEY_CTX *pctx = EVP_PKEY_CTX_new_id(EVP_PKEY_SCRYPT, nullptr);
+    if (pctx == nullptr)
+    {
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't create context");
+    }
+
+    if (EVP_PKEY_derive_init(pctx) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't init context");
+    }
+
+    if (EVP_PKEY_CTX_set1_pbe_pass(pctx, data.data(), data.size()) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't set password");
+    }
+
+    if (EVP_PKEY_CTX_set1_scrypt_salt(pctx, data.data(), data.size()) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't set salt");
+    }
+
+    if (EVP_PKEY_CTX_set_scrypt_N(pctx, 1024) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't set cost");
+    }
+
+    if (EVP_PKEY_CTX_set_scrypt_r(pctx, 1) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't set r");
+    }
+
+    if (EVP_PKEY_CTX_set_scrypt_p(pctx, 1) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't set p");
+    }
+
+    size_t outlen = output.size();
+    if (EVP_PKEY_derive(pctx, output.data(), &outlen) <= 0)
+    {
+        EVP_PKEY_CTX_free(pctx);
+        throw std::runtime_error("scrypt_1024_1_1_256(): couldn't derive key");
+    }
+
+    EVP_PKEY_CTX_free(pctx);
+
+    return output;
+#endif
 }
 
-#endif
+#endif  // __HASH_H__
