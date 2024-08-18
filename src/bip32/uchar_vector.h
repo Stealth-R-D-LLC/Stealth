@@ -57,6 +57,8 @@ public:
     uchar_vector(const unsigned char* array, unsigned int size) : std::vector<unsigned char>(array, array + size) { }
     uchar_vector(const std::string& hex) { this->setHex(hex); }
 
+    uchar_vector(std::initializer_list<unsigned char> init) : std::vector<unsigned char>(init) { }
+
     uchar_vector& operator+=(const std::vector<unsigned char>& rhs)
     {
         this->insert(this->end(), rhs.begin(), rhs.end());
