@@ -35,7 +35,7 @@ inline uchar_vector sha256(const uchar_vector& data)
     return rval;
 }
 
-inline uchar_vector sha256_2(const uchar_vector& data)
+inline uchar_vector sha256d(const uchar_vector& data)
 {
     unsigned char hash[SHA256_DIGEST_LENGTH];
     SHA256_CTX sha256;
@@ -47,6 +47,11 @@ inline uchar_vector sha256_2(const uchar_vector& data)
     SHA256_Final(hash, &sha256);
     uchar_vector rval(hash, SHA256_DIGEST_LENGTH);
     return rval;
+}
+
+inline uchar_vector sha256_2(const uchar_vector& data)
+{
+    return sha256d(data);
 }
 
 inline uchar_vector ripemd160(const uchar_vector& data)
@@ -100,6 +105,47 @@ inline uchar_vector hash9(const uchar_vector& data)
 }
 
 inline uchar_vector sha3_256(const uchar_vector& data)
+{
+    uchar_vector hash(32);
+    EVP_MD_CTX* ctx = EVP_MD_CTX_new();
+    if (!ctx)
+    {
+        throw std::runtime_error("sha3_256(): failed to create context");
+    }
+
+    const EVP_MD* md = EVP_sha3_256();
+    if (!md)
+    {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("sha3_256(): Failed to get algorithm");
+    }
+
+    if (EVP_DigestInit_ex(ctx, md, NULL) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("sha3_256(): Failed to initialize");
+    }
+
+    if (EVP_DigestUpdate(ctx, data.data(), data.size()) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("sha3_256(): Failed to update");
+    }
+
+    unsigned int len;
+    if (EVP_DigestFinal_ex(ctx, reinterpret_cast<unsigned char*>(hash.data()), &len) != 1) {
+        EVP_MD_CTX_free(ctx);
+        throw std::runtime_error("sha3_256(): Failed to finalize");
+    }
+
+    EVP_MD_CTX_free(ctx);
+
+    if (len != hash.size()) {
+        throw std::runtime_error("sha3_256(): Unexpected digest length");
+    }
+
+    return hash;
+}
+
+inline uchar_vector keccak_256(const uchar_vector& data)
 {
     uchar_vector hash(32);
     sph_keccak256_context ctx_keccak;
