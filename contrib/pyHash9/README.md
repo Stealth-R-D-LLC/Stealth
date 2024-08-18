@@ -54,7 +54,7 @@ the Python 3.8 was installed):
 Then build:
 
     % cd pyHash9
-    % make$
+    % make
 
 
 ## Installation
