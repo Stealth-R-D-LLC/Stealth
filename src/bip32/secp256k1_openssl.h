@@ -4,6 +4,7 @@
 //
 // Copyright (c) 2013-2014 Eric Lombrozo
 // Copyright (c) 2011-2016 Ciphrex Corp.
+// Copyright (c) 2024 Stealth R&D LLC
 //
 // Some portions taken from bitcoin/bitcoin,
 //      Copyright (c) 2009-2013 Satoshi Nakamoto, the Bitcoin developers
@@ -16,10 +17,9 @@
 
 #include <stdexcept>
 
-#include <openssl/bn.h>
-#include <openssl/ec.h>
-#include <openssl/ecdsa.h>
 #include <openssl/evp.h>
+#include <openssl/ec.h>
+#include <openssl/bn.h>
 
 #include "typedefs.h"
 
@@ -30,20 +30,19 @@ class secp256k1_key
 {
 public:
     secp256k1_key();
-    ~secp256k1_key() { EC_KEY_free(pKey); }
+    ~secp256k1_key() { EVP_PKEY_free(pKey); }
 
-    EC_KEY* getKey() const { return bSet ? pKey : nullptr; }
-    EC_KEY* newKey();
+    EVP_PKEY* getKey() const { return bSet ? pKey : nullptr; }
+    EVP_PKEY* newKey();
     bytes_t getPrivKey() const;
-    EC_KEY* setPrivKey(const bytes_t& privkey);
+    EVP_PKEY* setPrivKey(const bytes_t& privkey);
     bytes_t getPubKey(bool bCompressed = true) const;
-    EC_KEY* setPubKey(const bytes_t& pubkey);
+    EVP_PKEY* setPubKey(const bytes_t& pubkey);
 
 private:
-    EC_KEY* pKey;
+    EVP_PKEY* pKey;
     bool bSet;
 };
-
 
 class secp256k1_point
 {
@@ -61,8 +60,15 @@ public:
     secp256k1_point& operator+=(const secp256k1_point& rhs);
     secp256k1_point& operator*=(const bytes_t& rhs);
 
-    const secp256k1_point operator+(const secp256k1_point& rhs) const   { return secp256k1_point(*this) += rhs; }
-    const secp256k1_point operator*(const bytes_t& rhs) const           { return secp256k1_point(*this) *= rhs; }
+    const secp256k1_point operator+(const secp256k1_point& rhs) const
+    {
+        return secp256k1_point(*this) += rhs;
+    }
+
+    const secp256k1_point operator*(const bytes_t& rhs) const
+    {
+        return secp256k1_point(*this) *= rhs;
+    }
 
     // Computes n*G + K where K is this and G is the group generator
     void generator_mul(const bytes_t& n);
@@ -70,8 +76,15 @@ public:
     // Sets to n*G
     void set_generator_mul(const bytes_t& n);
 
-    bool is_at_infinity() const { return EC_POINT_is_at_infinity(group, point); }
-    void set_to_infinity() { EC_POINT_set_to_infinity(group, point); }
+    bool is_at_infinity() const
+    {
+        return EC_POINT_is_at_infinity(group, point);
+    }
+
+    void set_to_infinity()
+    {
+        EC_POINT_set_to_infinity(group, point);
+    }
 
     const EC_GROUP* getGroup() const { return group; }
     const EC_POINT* getPoint() const { return point; }
@@ -82,8 +95,9 @@ protected:
 private:
     EC_GROUP* group;
     EC_POINT* point;
-    BN_CTX*   ctx;    
+    BN_CTX*   ctx;
 };
+
 
 enum SignatureFlag
 {
@@ -92,11 +106,12 @@ enum SignatureFlag
 
 bytes_t secp256k1_sigToLowS(const bytes_t& signature);
 
-bytes_t secp256k1_sign(const secp256k1_key& key, const bytes_t& data);
-bool secp256k1_verify(const secp256k1_key& key, const bytes_t& data, const bytes_t& signature, int flags = 0);
+bytes_t secp256k1_sign(const secp256k1_key& key,
+                      const bytes_t& sha256_hash);
 
-bytes_t secp256k1_rfc6979_k(const secp256k1_key& key, const bytes_t& data);
-bytes_t secp256k1_sign_rfc6979(const secp256k1_key& key, const bytes_t& data);
+bool secp256k1_verify(const secp256k1_key& key,
+                      const bytes_t& sha256_hash,
+                      const bytes_t& signature,
+                      int flags = 0);
 
-}
-
+}  // CoinCrypto namespace

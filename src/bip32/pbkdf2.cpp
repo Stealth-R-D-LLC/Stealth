@@ -1,7 +1,8 @@
-
-
 #include <string.h>
+
 #include "pbkdf2.h"
+
+
 
 static inline void
 be32enc(void *pp, uint32_t x)
@@ -14,8 +15,6 @@ be32enc(void *pp, uint32_t x)
     p[0] = (x >> 24) & 0xff;
 }
 
-
-
 /* Initialize an HMAC-SHA256 operation with the given key. */
 void
 HMAC_SHA256_Init(HMAC_SHA256_CTX * ctx, const void * _K, size_t Klen)
@@ -27,26 +26,30 @@ HMAC_SHA256_Init(HMAC_SHA256_CTX * ctx, const void * _K, size_t Klen)
 
     /* If Klen > 64, the key is really SHA256(K). */
     if (Klen > 64) {
-        SHA256_Init(&ctx->ictx);
-        SHA256_Update(&ctx->ictx, K, Klen);
-        SHA256_Final(khash, &ctx->ictx);
+        EVP_MD_CTX *mdctx = EVP_MD_CTX_new();
+        EVP_DigestInit_ex(mdctx, EVP_sha256(), NULL);
+        EVP_DigestUpdate(mdctx, K, Klen);
+        EVP_DigestFinal_ex(mdctx, khash, NULL);
+        EVP_MD_CTX_free(mdctx);
         K = khash;
         Klen = 32;
     }
 
     /* Inner SHA256 operation is SHA256(K xor [block of 0x36] || data). */
-    SHA256_Init(&ctx->ictx);
+    ctx->ictx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(ctx->ictx, EVP_sha256(), NULL);
     memset(pad, 0x36, 64);
     for (i = 0; i < Klen; i++)
         pad[i] ^= K[i];
-    SHA256_Update(&ctx->ictx, pad, 64);
+    EVP_DigestUpdate(ctx->ictx, pad, 64);
 
     /* Outer SHA256 operation is SHA256(K xor [block of 0x5c] || hash). */
-    SHA256_Init(&ctx->octx);
+    ctx->octx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(ctx->octx, EVP_sha256(), NULL);
     memset(pad, 0x5c, 64);
     for (i = 0; i < Klen; i++)
         pad[i] ^= K[i];
-    SHA256_Update(&ctx->octx, pad, 64);
+    EVP_DigestUpdate(ctx->octx, pad, 64);
 
     /* Clean the stack. */
     memset(khash, 0, 32);
@@ -56,9 +59,8 @@ HMAC_SHA256_Init(HMAC_SHA256_CTX * ctx, const void * _K, size_t Klen)
 void
 HMAC_SHA256_Update(HMAC_SHA256_CTX * ctx, const void *in, size_t len)
 {
-
     /* Feed data to the inner SHA256 operation. */
-    SHA256_Update(&ctx->ictx, in, len);
+    EVP_DigestUpdate(ctx->ictx, in, len);
 }
 
 /* Finish an HMAC-SHA256 operation. */
@@ -68,16 +70,20 @@ HMAC_SHA256_Final(unsigned char digest[32], HMAC_SHA256_CTX * ctx)
     unsigned char ihash[32];
 
     /* Finish the inner SHA256 operation. */
-    SHA256_Final(ihash, &ctx->ictx);
+    EVP_DigestFinal_ex(ctx->ictx, ihash, NULL);
 
     /* Feed the inner hash to the outer SHA256 operation. */
-    SHA256_Update(&ctx->octx, ihash, 32);
+    EVP_DigestUpdate(ctx->octx, ihash, 32);
 
     /* Finish the outer SHA256 operation. */
-    SHA256_Final(digest, &ctx->octx);
+    EVP_DigestFinal_ex(ctx->octx, digest, NULL);
 
     /* Clean the stack. */
     memset(ihash, 0, 32);
+
+    /* Free the context */
+    EVP_MD_CTX_free(ctx->ictx);
+    EVP_MD_CTX_free(ctx->octx);
 }
 
 /**
@@ -134,6 +140,6 @@ PBKDF2_SHA256(const uint8_t * passwd, size_t passwdlen, const uint8_t * salt,
     }
 
     /* Clean PShctx, since we never called _Final on it. */
-    memset(&PShctx, 0, sizeof(HMAC_SHA256_CTX));
+    EVP_MD_CTX_free(PShctx.ictx);
+    EVP_MD_CTX_free(PShctx.octx);
 }
-

@@ -125,6 +125,9 @@ nosetests.xml
 # Temporary Files
 ################################
 
+# utility
+_*
+
 # vim backup files
 *~
 
@@ -186,3 +189,8 @@ src/crypto/argon2/*.a
 src/crypto/argon2/test*
 src/crypto/argon2/src/*.o
 src/crypto/argon2/src/blake2/*.o
+
+# CMake
+CMakeCache.txt
+CMakeFiles
+cmake_install.cmake

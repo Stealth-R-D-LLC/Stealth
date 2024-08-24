@@ -8,11 +8,13 @@
 #include <stdexcept>
 #include <vector>
 
-#include "allocators.h"
 #include "serialize.h"
 #include "uint256.h"
 #include "util.h"
+#include "valtype.hpp"
 
+
+#include <openssl/evp.h>
 #include <openssl/ec.h> // for EC_KEY definition
 
 // secp160k1
@@ -97,6 +99,11 @@ public:
         return vchPubKey;
     }
 
+    size_t Size() const
+    {
+        return vchPubKey.size();
+    }
+
     bool IsEmpty() const
     {
         return vchPubKey.empty();
@@ -111,35 +118,50 @@ public:
     {
         vchPubKey = vchPubKeyIn;
     }
+
+    const std::vector<unsigned char>* Get() const
+    {
+        return &vchPubKey;
+    }
+
+    const unsigned char* Data() const
+    {
+        return vchPubKey.data();
+    }
 };
 
 
-// secure_allocator is defined in allocators.h
-// CPrivKey is a serialized private key, with all parameters included (279 bytes)
-typedef std::vector<unsigned char, secure_allocator<unsigned char> > CPrivKey;
+// secure_valtype is a valtype with a secure_allocator,
+//    defined in allocators.h
+// CPrivKey is a serialized private key,
+//    with all parameters included (279 bytes)
+typedef secure_valtype CPrivKey;
 // CSecret is a serialization of just the secret parameter (32 bytes)
-typedef std::vector<unsigned char, secure_allocator<unsigned char> > CSecret;
+typedef secure_valtype CSecret;
 
 /** An encapsulated OpenSSL Elliptic Curve key (public and/or private) */
 class CKey
 {
+private:
+    EVP_PKEY* pkey;
+
 protected:
-    EC_KEY* pkey;
     bool fSet;
     bool fCompressedPubKey;
 
 public:
+    int SetPubKeyCompression(bool fCompressed);
     void SetCompressedPubKey();
     void SetUnCompressedPubKey();
 
-    EC_KEY* GetECKey();
+    EVP_PKEY* GetEVPKey();
 
     void Reset();
 
     CKey();
-    CKey(const CKey& b);
+    CKey(const CKey& other);
 
-    CKey& operator=(const CKey& b);
+    CKey& operator=(const CKey& other);
 
     ~CKey();
 
@@ -151,10 +173,11 @@ public:
     bool SetSecret(const CSecret& vchSecret, bool fCompressed = false);
     CSecret GetSecret(bool &fCompressed) const;
     CPrivKey GetPrivKey() const;
-    bool SetPubKey(const CPubKey& vchPubKey);
+    bool SetPubKey(const CPubKey& vchPubKey,
+                   const char* pchGroupName="secp256k1");
     CPubKey GetPubKey() const;
 
-    bool Sign(uint256 hash, std::vector<unsigned char>& vchSig);
+    bool Sign(const uint256& hash, std::vector<unsigned char>& vchSig);
 
     // create a compact signature (65 bytes), which allows reconstructing the used public key
     // The format is one header byte, followed by two times 32 bytes for the serialized r and s values.
@@ -168,12 +191,12 @@ public:
     // (the signature is a valid signature of the given data for that key)
     bool SetCompactSignature(uint256 hash, const std::vector<unsigned char>& vchSig);
 
-    bool Verify(uint256 hash, const std::vector<unsigned char>& vchSigParam);
+    bool Verify(const uint256& hash, const std::vector<unsigned char>& vchSigParam);
 
     // Verify a compact signature
     bool VerifyCompact(uint256 hash, const std::vector<unsigned char>& vchSig);
 
-    bool IsValid();
+    bool IsValid(int* pErrorCode=NULL);
 
     static bool CheckSignatureElement(const unsigned char *vch, int len, bool half);
     bool ECC_InitSanityCheck(void);

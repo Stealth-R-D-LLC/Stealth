@@ -12,21 +12,25 @@
 #ifndef __TYPEDEFS_H___
 #define __TYPEDEFS_H___
 
+#include "valtype.hpp"
+
 #include <vector>
 #include <set>
 #include <string>
 
-typedef std::vector<unsigned char> bytes_t;
-typedef std::vector<unsigned char> secure_bytes_t;
+#define BYTES(x) bytes_t((x).begin(), (x).end())
+#define SECURE_BYTES(x) secure_bytes_t((x).begin(), (x).end())
+
+typedef valtype bytes_t;
+typedef secure_valtype secure_bytes_t;
 
 typedef std::vector<bytes_t> hashvector_t;
 typedef std::set<bytes_t> hashset_t;
 
-typedef std::string secure_string_t;
+// from allocators.h
+typedef SecureString secure_string_t;
 
 typedef std::vector<int> ints_t;
-typedef std::vector<int> secure_ints_t;
-
-// TODO: use custom allocators for secure types
+typedef std::vector<int, secure_allocator<int> > secure_ints_t;
 
 #endif // __TYPEDEFS_H__

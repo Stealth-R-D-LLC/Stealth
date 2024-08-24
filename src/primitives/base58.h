@@ -66,14 +66,16 @@ inline std::string EncodeBase58(const unsigned char* pbegin, const unsigned char
 }
 
 // Encode a byte vector as a base58-encoded string
-inline std::string EncodeBase58(const std::vector<unsigned char>& vch)
+template<typename Vector>
+inline std::string EncodeBase58(const Vector& vch)
 {
     return EncodeBase58(&vch[0], &vch[0] + vch.size());
 }
 
 // Decode a base58-encoded string psz into byte vector vchRet
 // returns true if decoding is successful
-inline bool DecodeBase58(const char* psz, std::vector<unsigned char>& vchRet)
+template<typename Vector>
+inline bool DecodeBase58(const char* psz, Vector& vchRet)
 {
     CAutoBN_CTX pctx;
     vchRet.clear();
@@ -121,7 +123,8 @@ inline bool DecodeBase58(const char* psz, std::vector<unsigned char>& vchRet)
 
 // Decode a base58-encoded string str into byte vector vchRet
 // returns true if decoding is successful
-inline bool DecodeBase58(const std::string& str, std::vector<unsigned char>& vchRet)
+template<typename Vector>
+inline bool DecodeBase58(const std::string& str, Vector& vchRet)
 {
     return DecodeBase58(str.c_str(), vchRet);
 }
@@ -130,7 +133,8 @@ inline bool DecodeBase58(const std::string& str, std::vector<unsigned char>& vch
 
 
 // Encode a byte vector to a base58-encoded string, including checksum
-inline std::string EncodeBase58Check(const std::vector<unsigned char>& vchIn)
+template<typename Vector>
+inline std::string EncodeBase58Check(const Vector& vchIn)
 {
     // add 4-byte hash check to the end
     std::vector<unsigned char> vch(vchIn);
@@ -141,7 +145,8 @@ inline std::string EncodeBase58Check(const std::vector<unsigned char>& vchIn)
 
 // Decode a base58-encoded string psz that includes a checksum, into byte vector vchRet
 // returns true if decoding is successful
-inline bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRet)
+template<typename Vector>
+inline bool DecodeBase58Check(const char* psz, Vector& vchRet)
 {
     if (!DecodeBase58(psz, vchRet))
         return false;
@@ -162,7 +167,8 @@ inline bool DecodeBase58Check(const char* psz, std::vector<unsigned char>& vchRe
 
 // Decode a base58-encoded string str that includes a checksum, into byte vector vchRet
 // returns true if decoding is successful
-inline bool DecodeBase58Check(const std::string& str, std::vector<unsigned char>& vchRet)
+template<typename Vector>
+inline bool DecodeBase58Check(const std::string& str, Vector& vchRet)
 {
     return DecodeBase58Check(str.c_str(), vchRet);
 }
@@ -279,7 +285,7 @@ public:
     enum
     {
         PUBKEY_ADDRESS = 62,  // XST addresses begin with 'S'
-        SCRIPT_ADDRESS = 85, 
+        SCRIPT_ADDRESS = 85,
         PUBKEY_ADDRESS_TEST = 111,
         SCRIPT_ADDRESS_TEST = 196,
     };

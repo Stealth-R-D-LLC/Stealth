@@ -186,10 +186,10 @@ int SecretToPublicKey(const ec_secret& secret, ec_point& out)
     
     EC_POINT_mul(ecgrp, pub, bnIn, NULL, NULL, NULL);
     
-    BIGNUM* bnOut = EC_POINT_point2bn(ecgrp, pub, POINT_CONVERSION_COMPRESSED, BN_new(), NULL);
+    BIGNUM* bnOut = ECPoint2BIGNUM(ecgrp, pub, POINT_CONVERSION_COMPRESSED, BN_new(), NULL);
     if (!bnOut)
     {
-        printf("SecretToPublicKey(): point2bn failed\n");
+        printf("SecretToPublicKey(): ECPoint2BIGNUM failed\n");
         rv = 1;
     } else
     {
@@ -288,9 +288,9 @@ int StealthSecret(ec_secret& secret, ec_point& pubkey, const ec_point& pkSpend, 
         goto End;
     };
     
-    if (!(Q = EC_POINT_bn2point(ecgrp, bnQ, NULL, bnCtx)))
+    if (!(Q = BIGNUM2ECPoint(ecgrp, bnQ, NULL, bnCtx)))
     {
-        printf("StealthSecret(): Q EC_POINT_bn2point failed\n");
+        printf("StealthSecret(): Q BIGNUM2ECPoint failed\n");
         rv = 1;
         goto End;
     };
@@ -305,9 +305,9 @@ int StealthSecret(ec_secret& secret, ec_point& pubkey, const ec_point& pkSpend, 
         goto End;
     };
     
-    if (!(bnOutQ = EC_POINT_point2bn(ecgrp, Q, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
+    if (!(bnOutQ = ECPoint2BIGNUM(ecgrp, Q, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
     {
-        printf("StealthSecret(): Q EC_POINT_bn2point failed\n");
+        printf("StealthSecret(): Q ECPoint2BIGNUM failed\n");
         rv = 1;
         goto End;
     };
@@ -354,9 +354,9 @@ int StealthSecret(ec_secret& secret, ec_point& pubkey, const ec_point& pkSpend, 
     };
     
     
-    if (!(R = EC_POINT_bn2point(ecgrp, bnR, NULL, bnCtx)))
+    if (!(R = BIGNUM2ECPoint(ecgrp, bnR, NULL, bnCtx)))
     {
-        printf("StealthSecret(): R EC_POINT_bn2point failed\n");
+        printf("StealthSecret(): R BIGNUM2ECPoint failed\n");
         rv = 1;
         goto End;
     };
@@ -382,9 +382,9 @@ int StealthSecret(ec_secret& secret, ec_point& pubkey, const ec_point& pkSpend, 
         goto End;
     };
     
-    if (!(bnOutR = EC_POINT_point2bn(ecgrp, Rout, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
+    if (!(bnOutR = ECPoint2BIGNUM(ecgrp, Rout, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
     {
-        printf("StealthSecret(): Rout EC_POINT_bn2point failed\n");
+        printf("StealthSecret(): Rout ECPoint2BIGNUM failed\n");
         rv = 1;
         goto End;
     };
@@ -468,9 +468,9 @@ int StealthSecretSpend(ec_secret& scanSecret, ec_point& ephemPubkey, ec_secret& 
         goto End;
     };
     
-    if (!(P = EC_POINT_bn2point(ecgrp, bnP, NULL, bnCtx)))
+    if (!(P = BIGNUM2ECPoint(ecgrp, bnP, NULL, bnCtx)))
     {
-        printf("StealthSecretSpend(): P EC_POINT_bn2point failed\n");
+        printf("StealthSecretSpend(): P BIGNUM2ECPoint failed\n");
         rv = 1;
         goto End;
     };
@@ -483,9 +483,9 @@ int StealthSecretSpend(ec_secret& scanSecret, ec_point& ephemPubkey, ec_secret& 
         goto End;
     };
     
-    if (!(bnOutP = EC_POINT_point2bn(ecgrp, P, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
+    if (!(bnOutP = ECPoint2BIGNUM(ecgrp, P, POINT_CONVERSION_COMPRESSED, BN_new(), bnCtx)))
     {
-        printf("StealthSecretSpend(): P EC_POINT_bn2point failed\n");
+        printf("StealthSecretSpend(): P ECPoint2BIGNUM failed\n");
         rv = 1;
         goto End;
     };

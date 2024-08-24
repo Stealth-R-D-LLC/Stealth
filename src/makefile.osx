@@ -29,6 +29,7 @@ INCLUDEPATHS= \
  -I"$(CURDIR)/blockchain" \
  -I"$(CURDIR)/client" \
  -I"$(CURDIR)/crypto" \
+ -I"$(CURDIR)/crypto/core-hashes" \
  -I"$(CURDIR)/crypto/argon2/include" \
  -I"$(CURDIR)/primitives" \
  -I"$(CURDIR)/db-bdb" \
@@ -43,7 +44,7 @@ INCLUDEPATHS= \
 
 DEBUGFLAGS = -g
 
-CFLAGS += $(INCLUDEPATHS) -std=gnu99 $(DEBUGFLAGS)
+CFLAGS += $(INCLUDEPATHS) -std=gnu11 $(DEBUGFLAGS)
 
 USE_UPNP := -
 USE_IPV6 := -
@@ -222,6 +223,7 @@ OBJS= \
     obj/hdkeys.o \
     obj/scrypt.o \
     obj/secp256k1_openssl.o \
+    obj/core-hashes.o \
     obj/XORShift1024Star.o \
     obj/FeeworkBuffer.o \
     obj/Feework.o \
@@ -251,6 +253,13 @@ include tor-include.mk
 
 obj/%.o: %.c
 	$(CC) -c $(incDEFS) $(CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: crypto/core-hashes/%.cpp
+	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
 	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
@@ -292,13 +301,6 @@ obj/%.o: blockchain/%.cpp
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: client/%.cpp
-	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
-	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
-	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
-	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
-	  rm -f $(@:%.o=%.d)
-
-obj/%.o: crypto/%.cpp
 	$(CXX) -c $(xCXXFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \

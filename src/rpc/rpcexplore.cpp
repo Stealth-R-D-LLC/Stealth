@@ -37,7 +37,8 @@ class AddrInOutList : public ExploreInOutList
 {
 public:
     string address;
-    AddrInOutList(const string& addressIn, const ExploreInOutList& inoutlistIn)
+    AddrInOutList(const string& addressIn,
+                  const ExploreInOutList& inoutlistIn)
     : ExploreInOutList(inoutlistIn)
     {
         address = addressIn;
@@ -50,17 +51,17 @@ public:
 //
 unsigned int GetMaxHDChildren()
 {
-    return GetArg("-maxhdchildren", chainParams.MAX_HD_CHILDREN); 
+    return GetArg("-maxhdchildren", chainParams.MAX_HD_CHILDREN);
 }
 
 unsigned int GetMaxHDInOuts()
 {
-    return GetArg("-maxhdinouts", chainParams.MAX_HD_INOUTS); 
+    return GetArg("-maxhdinouts", chainParams.MAX_HD_INOUTS);
 }
 
 unsigned int GetMaxHDTxs()
 {
-    return GetArg("-maxhdtxs", chainParams.MAX_HD_TXS); 
+    return GetArg("-maxhdtxs", chainParams.MAX_HD_TXS);
 }
 
 
@@ -398,15 +399,15 @@ string GetHDChildAddress(const Bip32::HDKeychain& hdParent,
                          CPubKey& pubKeyRet)
 {
     Bip32::HDKeychain hdChild(hdParent.getChild(nChild));
-    uchar_vector vchPub = uchar_vector(hdChild.key());
-    pubKeyRet.Set(vchPub);
+    uchar_vector_secure vchPub = uchar_vector_secure(hdChild.key());
+    pubKeyRet.Set(UCHAR_VECTOR(vchPub));
     CKeyID keyID = pubKeyRet.GetID();
     CBitcoinAddress address;
     address.Set(keyID);
     return address.ToString();
 }
 
-void GetHDKeychains(const uchar_vector& vchExtKey,
+void GetHDKeychains(const uchar_vector_secure& vchExtKey,
                     vector<Bip32::HDKeychain>& vRet)
 {
     vRet.clear();
@@ -453,7 +454,7 @@ bool GetAddrInOuts(CTxDB& txdb,
     return true;
 }
 
-void GetHDTxs(const uchar_vector& vchExtKey, vector<HDTxInfo>& vHDTxRet)
+void GetHDTxs(const uchar_vector_secure& vchExtKey, vector<HDTxInfo>& vHDTxRet)
 {
     const unsigned int nMaxHDChildren = GetMaxHDChildren();
     CTxDB txdb;
@@ -923,7 +924,7 @@ Value getchildkey(const Array &params, bool fHelp)
 
     string strExtKey = params[0].get_str();
 
-    uchar_vector vchExtKey;
+    uchar_vector_secure vchExtKey;
     if (!DecodeBase58Check(strExtKey, vchExtKey))
     {
         throw runtime_error("Invalid extended key.");
@@ -953,11 +954,12 @@ Value getchildkey(const Array &params, bool fHelp)
     Bip32::HDKeychain hdkeychain(vchExtKey);
     hdkeychain = hdkeychain.getChild((uint32_t)nChild);
 
-    string strChildExt(EncodeBase58Check(hdkeychain.extkey()));
-    uchar_vector vchChildPub = uchar_vector(hdkeychain.key());
+    uchar_vector_secure vucharExtKey(hdkeychain.extkey());
+    string strChildExt(EncodeBase58Check(BYTES(vucharExtKey)));
+    uchar_vector_secure vchChildPub = uchar_vector_secure(hdkeychain.key());
     string strChildPub = vchChildPub.getHex();
 
-    CPubKey pubKey(vchChildPub);
+    CPubKey pubKey(UCHAR_VECTOR(vchChildPub));
     CKeyID keyID = pubKey.GetID();
     CBitcoinAddress address;
     address.Set(keyID, nNetByte);
@@ -995,7 +997,7 @@ Value gethdaccountpg(const Array &params, bool fHelp)
 
     string strExtKey = params[0].get_str();
 
-    uchar_vector vchExtKey;
+    uchar_vector_secure vchExtKey;
     if (!DecodeBase58Check(strExtKey, vchExtKey))
     {
         throw runtime_error("Invalid extended key.");
@@ -1014,9 +1016,9 @@ Value gethdaccountpg(const Array &params, bool fHelp)
         for (uint32_t n = 0; n < nMaxHDChildren; ++n)
         {
             Bip32::HDKeychain hdChild(hdParent.getChild(n));
-            uchar_vector vchPub = uchar_vector(hdChild.key());
+            uchar_vector_secure vchPub = uchar_vector_secure(hdChild.key());
 
-            CPubKey pubKey(vchPub);
+            CPubKey pubKey(UCHAR_VECTOR(vchPub));
             CKeyID keyID = pubKey.GetID();
             CBitcoinAddress address;
             address.Set(keyID);
@@ -1207,7 +1209,7 @@ Value gethdaccount(const Array &params, bool fHelp)
 
     string strExtKey = params[0].get_str();
 
-    uchar_vector vchExtKey;
+    uchar_vector_secure vchExtKey;
     if (!DecodeBase58Check(strExtKey, vchExtKey))
     {
         throw runtime_error("Invalid extended key.");
@@ -1250,7 +1252,7 @@ Value gethdaddresses(const Array &params, bool fHelp)
     }
 
     string strExtKey = params[0].get_str();
-    uchar_vector vchExtKey;
+    uchar_vector_secure vchExtKey;
     if (!DecodeBase58Check(strExtKey, vchExtKey))
     {
         throw runtime_error("Invalid extended key.");

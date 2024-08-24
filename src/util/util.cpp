@@ -7,7 +7,6 @@
 #include "sync.h"
 #include "bitcoin-strlcpy.h"
 #include "version.h"
-#include "ui_interface.h"
 #include "chainparams.hpp"
 #include <boost/algorithm/string/join.hpp>
 
@@ -83,7 +82,6 @@ bool fTestNet = false;
 bool nTestNet = 0;
 bool fNoListen = false;
 bool fLogTimestamps = false;
-CMedianFilter<int64_t> vTimeOffsets(200,0);
 bool fReopenDebugLog = false;
 
 int nMaxHeight = -1;
@@ -1294,93 +1292,6 @@ void SetMockTime(int64_t nMockTimeIn)
     nMockTime = nMockTimeIn;
 }
 
-static int64_t nTimeOffset = 0;
-
-int64_t GetAdjustedTime()
-{
-    if (GetFork(nBestHeight + 1) >= XST_FORKQPOS)
-    {
-        return GetTime();
-    }
-    else
-    {
-        return GetTime() + nTimeOffset;
-    }
-}
-
-void AddTimeData(const CNetAddr& ip, int64_t nTime)
-{
-    int64_t nOffsetSample = nTime - GetTime();
-
-    // Ignore duplicates
-    static set<CNetAddr> setKnown;
-    if (!setKnown.insert(ip).second)
-        return;
-
-    // Add data
-    vTimeOffsets.input(nOffsetSample);
-    printf("Added time data, samples %d, offset %+" PRId64 " (%+" PRId64 " minutes)\n",
-           vTimeOffsets.size(), nOffsetSample, nOffsetSample/60);
-    if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
-    {
-        int64_t nMedian = vTimeOffsets.median();
-        std::vector<int64_t> vSorted = vTimeOffsets.sorted();
-        // Only let other nodes change our time by so much
-        if (abs64(nMedian) < 70 * 60)
-        {
-            nTimeOffset = nMedian;
-        }
-        else
-        {
-            nTimeOffset = 0;
-
-            static bool fDone;
-            if (!fDone)
-            {
-                // If nobody has a time different than ours but
-                // within 5 minutes of ours, give a warning
-                bool fMatch = false;
-                BOOST_FOREACH(int64_t nOffset, vSorted)
-                    if (nOffset != 0 && abs64(nOffset) < 5 * 60)
-                        fMatch = true;
-
-                if (!fMatch)
-                {
-                    fDone = true;
-                    // Junaeth (qPoS) does not rely on clock offset
-                    //    so the warning is useles.
-                    if (GetFork(nBestHeight + 1) < XST_FORKQPOS)
-                    {
-                        string strMessage = _(
-                              "Warning: Please check that your computer's "
-                              "date and time are correct! If your clock is "
-                              "wrong, Stealth will not work properly.");
-                        strMiscWarning = strMessage;
-                        printf("*** %s\n", strMessage.c_str());
-                        uiInterface.ThreadSafeMessageBox(
-                                      strMessage+" ", string("Stealth"),
-                                      (CClientUIInterface::OK |
-                                       CClientUIInterface::ICON_EXCLAMATION));
-                    }
-                }
-            }
-        }
-        if (fDebug) {
-            BOOST_FOREACH(int64_t n, vSorted)
-                printf("%+" PRId64 "  ", n);
-            printf("|  ");
-        }
-        printf("nTimeOffset = %+" PRId64 "  (%+" PRId64 " minutes)\n", nTimeOffset, nTimeOffset/60);
-    }
-}
-
-
-
-
-
-
-
-
 string FormatVersion(int nVersion)
 {
     if (nVersion%100 == 0)
@@ -1429,11 +1340,124 @@ boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate)
 }
 #endif
 
+
+BIGNUM* ECPoint2BIGNUM(const EC_GROUP* group,
+                       const EC_POINT* point,
+                       point_conversion_form_t form,
+                       BIGNUM* bn,
+                       BN_CTX* ctx)
+{
+    if (!group || !point)
+    {
+        return NULL;
+    }
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    size_t size = EC_POINT_point2oct(group, point, form, NULL, 0, ctx);
+    if (size == 0)
+    {
+        return NULL;
+    }
+
+    unsigned char* buf = (unsigned char*) OPENSSL_malloc(size);
+    if (!buf)
+    {
+        return NULL;
+    }
+
+    if (EC_POINT_point2oct(group, point, form, buf, size, ctx) != size)
+    {
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+
+    BIGNUM* result = bn ? bn : BN_new();
+    if (!result)
+    {
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+
+    if (!BN_bin2bn(buf, size, result))
+    {
+        // if bn, then bn == result and it should be freed by caller
+        if (!bn)
+        {
+            BN_clear_free(result);
+        }
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+
+    OPENSSL_clear_free(buf, size);
+    return result;
+#else
+    return EC_POINT_point2bn(group, point, form, bn, ctx);
+#endif
+}
+
+EC_POINT* BIGNUM2ECPoint(const EC_GROUP* group,
+                         const BIGNUM* bn,
+                         EC_POINT* point,
+                         BN_CTX* ctx)
+{
+    if ((group == NULL) || (bn == NULL))
+    {
+        return NULL;
+    }
+
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+    size_t size = BN_num_bytes(bn);
+    if (size == 0)
+    {
+        return NULL;
+    }
+
+    unsigned char* buf = (unsigned char*) OPENSSL_malloc(size);
+    if (!buf)
+    {
+        return NULL;
+    }
+
+    if (BN_bn2bin(bn, buf) <= 0)
+    {
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+
+    EC_POINT* result = point ? point : EC_POINT_new(group);
+    if (!result)
+    {
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+
+    if (!EC_POINT_oct2point(group, result, buf, size, ctx))
+    {
+        // if point, then point == result and it should be freed by caller
+        if (!point)
+        {
+            EC_POINT_clear_free(result);
+        }
+        OPENSSL_clear_free(buf, size);
+        return NULL;
+    }
+    OPENSSL_clear_free(buf, size);
+    return result;
+#else
+    return EC_POINT_bn2point(group, bn, point, ctx);
+#endif
+}
+
 void runCommand(std::string strCommand)
 {
     int nErr = ::system(strCommand.c_str());
     if (nErr)
-        printf("runCommand error: system(%s) returned %d\n", strCommand.c_str(), nErr);
+    {
+        printf("runCommand error: system(%s) returned %d\n",
+               strCommand.c_str(),
+               nErr);
+    }
 }
 
 void RenameThread(const char* name)

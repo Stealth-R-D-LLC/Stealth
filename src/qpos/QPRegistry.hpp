@@ -13,7 +13,9 @@
 #include "meta.hpp"
 #include "nfts.hpp"
 
-#include <boost/random.hpp>
+#include <boost/random/uniform_int.hpp>
+#include <boost/random/mersenne_twister.hpp>
+#include <boost/random/variate_generator.hpp>
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lockable_adapter.hpp>
 

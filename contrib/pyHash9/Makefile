@@ -1,4 +1,7 @@
-# Copyright (c) 2016-2019 Stealth R&D LLC
+# Copyright (c) 2016-2024 Stealth R&D LLC
+
+# Detect the operating system
+UNAME_S := $(shell uname -s)
 
 # specify PYINCDIR and PYLIBDIR if using non-system python
 PYINCDIR = -I/usr/local/include/python
@@ -34,7 +37,11 @@ OBJS = blake.o bmw.o groestl.o jh.o \
 all: $(PROGS)
 
 ${PROGS}: %: %.o $(OBJS)
+ifeq ($(UNAME_S),Linux)
+	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython-pic
+else
 	${CXX} ${CXXFLAGS} ${LDFLAGS} -o $@.so ${OBJS} -lpython
+endif
 
 clean:
 	rm -f *.so *.o

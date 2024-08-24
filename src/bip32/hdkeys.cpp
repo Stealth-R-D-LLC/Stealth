@@ -34,7 +34,7 @@ const BigInt CURVE_ORDER(CURVE_ORDER_BYTES);
 const uint32_t BITCOIN_HD_PRIVATE_VERSION = 0x0488ade4;
 const uint32_t BITCOIN_HD_PUBLIC_VERSION  = 0x0488b21e;
 
-bytes_t HDSeed::getExtendedKey(bool bPrivate) const
+secure_bytes_t HDSeed::getExtendedKey(bool bPrivate) const
 {
     HDKeychain keychain(master_key_, master_chain_code_);
     if (!bPrivate) { keychain = keychain.getPublic(); }
@@ -42,7 +42,7 @@ bytes_t HDSeed::getExtendedKey(bool bPrivate) const
     return keychain.extkey();
 }
 
-HDKeychain::HDKeychain(const bytes_t& key, const bytes_t& chain_code, uint32_t child_num, uint32_t parent_fp, uint32_t depth)
+HDKeychain::HDKeychain(const secure_bytes_t& key, const secure_bytes_t& chain_code, uint32_t child_num, uint32_t parent_fp, uint32_t depth)
     : depth_(depth), parent_fp_(parent_fp), child_num_(child_num), chain_code_(chain_code), key_(key)
 {
     if (chain_code_.size() != 32) {
@@ -51,12 +51,12 @@ HDKeychain::HDKeychain(const bytes_t& key, const bytes_t& chain_code, uint32_t c
 
    if (key_.size() == 32) {
         // key is private
-        BigInt n(key_);
+        BigInt n(BYTES(key_));
         if (n >= CURVE_ORDER || n.isZero()) {
             throw std::runtime_error("Invalid key.");
         }
 
-        uchar_vector privkey;
+        uchar_vector_secure privkey;
         privkey.push_back(0x00);
         privkey += key_;
         key_ = privkey;
@@ -64,7 +64,7 @@ HDKeychain::HDKeychain(const bytes_t& key, const bytes_t& chain_code, uint32_t c
     else if (key_.size() == 33) {
         // key is public
         try {
-            secp256k1_point K(key_);
+            secp256k1_point K(BYTES(key_));
         }
         catch (...) {
             throw std::runtime_error("Invalid key.");
@@ -80,7 +80,7 @@ HDKeychain::HDKeychain(const bytes_t& key, const bytes_t& chain_code, uint32_t c
     valid_ = true;
 }
 
-HDKeychain::HDKeychain(const bytes_t& extkey)
+HDKeychain::HDKeychain(const secure_bytes_t& extkey)
 {
     if (extkey.size() != 78) {
         throw std::runtime_error("Invalid extended key length.");
@@ -143,9 +143,9 @@ bool HDKeychain::operator!=(const HDKeychain& rhs) const
     return !(*this == rhs);
 }
 
-bytes_t HDKeychain::extkey() const
+secure_bytes_t HDKeychain::extkey() const
 {
-    uchar_vector extkey;
+    uchar_vector_secure extkey;
 
     extkey.push_back((uint32_t)version_ >> 24);
     extkey.push_back(((uint32_t)version_ >> 16) & 0xff);
@@ -170,29 +170,29 @@ bytes_t HDKeychain::extkey() const
     return move(extkey);
 }
 
-bytes_t HDKeychain::privkey() const
+secure_bytes_t HDKeychain::privkey() const
 {
     if (isPrivate()) {
-        return bytes_t(key_.begin() + 1, key_.end());
+        return secure_bytes_t(key_.begin() + 1, key_.end());
     }
     else {
-        return bytes_t();
+        return secure_bytes_t();
     }
 }
 
-bytes_t HDKeychain::uncompressed_pubkey() const
+secure_bytes_t HDKeychain::uncompressed_pubkey() const
 {
     secp256k1_key key;
-    key.setPubKey(pubkey_);
-    return key.getPubKey(false);
+    key.setPubKey(BYTES(pubkey_));
+    return SECURE_BYTES(key.getPubKey(false));
 }
 
-bytes_t HDKeychain::hash() const
+secure_bytes_t HDKeychain::hash() const
 {
-    return ripemd160(sha256(pubkey_));
+    return ripemd160(sha256(UCHAR_VECTOR_SECURE(pubkey_)));
 }
 
-bytes_t HDKeychain::full_hash() const
+secure_bytes_t HDKeychain::full_hash() const
 {
     uchar_vector_secure data(pubkey_);
     data += chain_code_;
@@ -201,7 +201,7 @@ bytes_t HDKeychain::full_hash() const
 
 uint32_t HDKeychain::fp() const
 {
-    bytes_t hash = this->hash();
+    secure_bytes_t hash = this->hash();
     return (uint32_t)hash[0] << 24 | (uint32_t)hash[1] << 16 | (uint32_t)hash[2] << 8 | (uint32_t)hash[3];
 }
 
@@ -232,14 +232,14 @@ HDKeychain HDKeychain::getChild(uint32_t i) const
     HDKeychain child;
     child.valid_ = false;
 
-    uchar_vector data;
-    data += priv_derivation ? key_ : pubkey_;
+    uchar_vector_secure data;
+    data += priv_derivation ? UCHAR_VECTOR_SECURE(key_) : UCHAR_VECTOR_SECURE(pubkey_);
     data.push_back(i >> 24);
     data.push_back((i >> 16) & 0xff);
     data.push_back((i >> 8) & 0xff);
     data.push_back(i & 0xff);
 
-    bytes_t digest = hmac_sha512(chain_code_, data);
+    uchar_vector_secure digest = hmac_sha512(UCHAR_VECTOR_SECURE(chain_code_), data);
     bytes_t left32(digest.begin(), digest.begin() + 32);
     BigInt Il(left32);
     if (Il >= CURVE_ORDER) throw InvalidHDKeychainException();
@@ -248,7 +248,7 @@ HDKeychain HDKeychain::getChild(uint32_t i) const
     // if (rand() % 100 < 10) return child;
 
     if (isPrivate()) {
-        BigInt k(key_);
+        BigInt k(BYTES(key_));
         k += Il;
         k %= CURVE_ORDER;
         if (k.isZero()) throw InvalidHDKeychainException();
@@ -257,19 +257,20 @@ HDKeychain HDKeychain::getChild(uint32_t i) const
         // pad with 0's to make it 33 bytes
         uchar_vector padded_key(33 - child_key.size(), 0);
         padded_key += child_key;
-        child.key_ = padded_key;
+        child.key_ = SECURE_BYTES(padded_key);
         child.updatePubkey();
     }
     else {
         secp256k1_point K;
-        K.bytes(pubkey_);
+        K.bytes(BYTES(pubkey_));
         K.generator_mul(left32);
         if (K.is_at_infinity()) throw InvalidHDKeychainException();
 
-        child.key_ = child.pubkey_ = K.bytes();
+        bytes_t k_bytes(K.bytes());
+        child.key_ = child.pubkey_ = SECURE_BYTES(k_bytes);
     }
 
-    child.version_ = version_; 
+    child.version_ = version_;
     child.depth_ = depth_ + 1;
     child.parent_fp_ = fp();
     child.child_num_ = i;
@@ -334,14 +335,15 @@ HDKeychain HDKeychain::getChild(const std::string& path) const
 
 std::string HDKeychain::toString() const
 {
+    secure_bytes_t hashThis(this->hash());
     std::stringstream ss;
     ss << "version: " << std::hex << version_ << std::endl
        << "depth: " << depth() << std::endl
        << "parent_fp: " << parent_fp_ << std::endl
        << "child_num: " << child_num_ << std::endl
-       << "chain_code: " << uchar_vector(chain_code_).getHex() << std::endl
-       << "key: " << uchar_vector(key_).getHex() << std::endl
-       << "hash: " << uchar_vector(this->hash()).getHex() << std::endl;
+       << "chain_code: " << uchar_vector(BYTES(chain_code_)).getHex() << std::endl
+       << "key: " << uchar_vector(BYTES(key_)).getHex() << std::endl
+       << "hash: " << uchar_vector(BYTES(hashThis)).getHex() << std::endl;
     return ss.str();
 }
 
@@ -349,7 +351,8 @@ void HDKeychain::updatePubkey() {
     if (isPrivate()) {
         secp256k1_key curvekey;
         curvekey.setPrivKey(bytes_t(key_.begin() + 1, key_.end()));
-        pubkey_ = curvekey.getPubKey();
+        bytes_t vchPubKey(curvekey.getPubKey());
+        pubkey_ = SECURE_BYTES(vchPubKey);
     }
     else {
         pubkey_ = key_;

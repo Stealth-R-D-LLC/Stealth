@@ -1183,11 +1183,11 @@ bool EvalScript(vector<vector<unsigned char> >& stack, const CScript& script, co
                     valtype& vch = stacktop(-1);
                     valtype vchHash((opcode == OP_RIPEMD160 || opcode == OP_SHA1 || opcode == OP_HASH160) ? 20 : 32);
                     if (opcode == OP_RIPEMD160)
-                        RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
+                        CoreHashes::RIPEMD160(&vch[0], vch.size(), &vchHash[0]);
                     else if (opcode == OP_SHA1)
-                        SHA1(&vch[0], vch.size(), &vchHash[0]);
+                        CoreHashes::SHA1(&vch[0], vch.size(), &vchHash[0]);
                     else if (opcode == OP_SHA256)
-                        SHA256(&vch[0], vch.size(), &vchHash[0]);
+                        CoreHashes::SHA256(&vch[0], vch.size(), &vchHash[0]);
                     else if (opcode == OP_HASH160)
                     {
                         uint160 hash160 = Hash160(vch);
@@ -1710,7 +1710,7 @@ bool Solver(const CScript& scriptPubKey, txnouttype& typeRet, vector<vector<unsi
         // size = 127 bytes (0x7f)
         //        160 bytes (0xa0)
         // keys = (ownerKey, managerKey/delegateKey, controllerKey) if 127 bytes
-        //      = (ownerKey, managerKey, delegateKey, controllerKey) if 140 
+        //      = (ownerKey, managerKey, delegateKey, controllerKey) if 140
         // pcm = 4 byte unsigned int
         // [OP_PUSHDATA1, size, data(amount, keys, pcm, name), OP_PURCHASE4]
         mTemplates.insert(make_pair(TX_PURCHASE4, CScript() << OP_PUSHDATA1 << OP_PURCHASE4));

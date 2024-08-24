@@ -6,12 +6,15 @@
 #include "netbase.h"
 #include "util.h"
 #include "sync.h"
+#include "ui_interface.h"
 
 #ifndef WIN32
 #include <sys/fcntl.h>
 #endif
 
 #include "bitcoin-strlcpy.h"
+
+#include <boost/foreach.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 
 using namespace std;
@@ -24,6 +27,8 @@ int nConnectTimeout = 5000;
 bool fNameLookup = false;
 
 static const unsigned char pchIPv4[12] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff };
+
+CMedianFilter<int64_t> vTimeOffsets(200,0);
 
 enum Network ParseNetwork(std::string net) {
     boost::to_lower(net);
@@ -53,6 +58,85 @@ void SplitHostPort(std::string in, int &portOut, std::string &hostOut) {
         hostOut = in.substr(1, in.size()-2);
     else
         hostOut = in;
+}
+
+static int64_t nTimeOffset = 0;
+int64_t GetAdjustedTime()
+{
+    if (GetFork(nBestHeight + 1) >= XST_FORKQPOS)
+    {
+        return GetTime();
+    }
+    else
+    {
+        return GetTime() + nTimeOffset;
+    }
+}
+
+void AddTimeData(const CNetAddr& ip, int64_t nTime)
+{
+    int64_t nOffsetSample = nTime - GetTime();
+
+    // Ignore duplicates
+    static set<CNetAddr> setKnown;
+    if (!setKnown.insert(ip).second)
+        return;
+
+    // Add data
+    vTimeOffsets.input(nOffsetSample);
+    printf("Added time data, samples %d, offset %+" PRId64 " (%+" PRId64 " minutes)\n",
+           vTimeOffsets.size(), nOffsetSample, nOffsetSample/60);
+    if (vTimeOffsets.size() >= 5 && vTimeOffsets.size() % 2 == 1)
+    {
+        int64_t nMedian = vTimeOffsets.median();
+        std::vector<int64_t> vSorted = vTimeOffsets.sorted();
+        // Only let other nodes change our time by so much
+        if (abs64(nMedian) < 70 * 60)
+        {
+            nTimeOffset = nMedian;
+        }
+        else
+        {
+            nTimeOffset = 0;
+
+            static bool fDone;
+            if (!fDone)
+            {
+                // If nobody has a time different than ours but
+                // within 5 minutes of ours, give a warning
+                bool fMatch = false;
+                BOOST_FOREACH(int64_t nOffset, vSorted)
+                    if (nOffset != 0 && abs64(nOffset) < 5 * 60)
+                        fMatch = true;
+
+                if (!fMatch)
+                {
+                    fDone = true;
+                    // Junaeth (qPoS) does not rely on clock offset
+                    //    so the warning is useles.
+                    if (GetFork(nBestHeight + 1) < XST_FORKQPOS)
+                    {
+                        string strMessage = _(
+                              "Warning: Please check that your computer's "
+                              "date and time are correct! If your clock is "
+                              "wrong, Stealth will not work properly.");
+                        strMiscWarning = strMessage;
+                        printf("*** %s\n", strMessage.c_str());
+                        uiInterface.ThreadSafeMessageBox(
+                                      strMessage+" ", string("Stealth"),
+                                      (CClientUIInterface::OK |
+                                       CClientUIInterface::ICON_EXCLAMATION));
+                    }
+                }
+            }
+        }
+        if (fDebug) {
+            BOOST_FOREACH(int64_t n, vSorted)
+                printf("%+" PRId64 "  ", n);
+            printf("|  ");
+        }
+        printf("nTimeOffset = %+" PRId64 "  (%+" PRId64 " minutes)\n", nTimeOffset, nTimeOffset/60);
+    }
 }
 
 bool static LookupIntern(const char *pszName, std::vector<CNetAddr>& vIP, unsigned int nMaxSolutions, bool fAllowLookup)

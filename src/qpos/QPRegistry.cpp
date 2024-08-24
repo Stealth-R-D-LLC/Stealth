@@ -4,10 +4,6 @@
 
 #include <iterator>
 
-#include <boost/random/mersenne_twister.hpp>
-#include <boost/random/uniform_int.hpp>
-#include <boost/random/variate_generator.hpp>
-
 #include "QPRegistry.hpp"
 
 #include "txdb-leveldb.h"
@@ -1810,14 +1806,14 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
                                const CBlockIndex* pindex)
 {
-     
+
     if (deet.keys.empty())
     {
         return error("ApplyPurchase(): no keys");
     }
 
     QPStaker staker(deet);
- 
+
     unsigned int nKeys = deet.keys.size();
 
     if (deet.t == TX_PURCHASE1)
@@ -1943,7 +1939,7 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
     // for purposes of counting references, it's necessary to activate
     // the delegate even if it isn't getting a payout
     ActivatePubKey(staker.pubkeyDelegate, pindex);
-   
+
     mapAliases[sKey] = make_pair(nID, deet.alias);
     return true;
 }
@@ -1987,7 +1983,7 @@ bool QPRegistry::ApplySetKey(const QPTxDetails &deet,
                 }
             }
             pstaker->pubkeyOwner = keyNew;
-        }    
+        }
         break;
       }
     case TX_SETMANAGER:

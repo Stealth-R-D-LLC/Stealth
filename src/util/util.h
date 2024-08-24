@@ -6,6 +6,8 @@
 #define BITCOIN_UTIL_H
 
 #include "uint256.h"
+#include "serialize.h"
+#include "core-hashes.hpp"
 
 #ifndef WIN32
 #include <sys/types.h>
@@ -29,7 +31,10 @@ typedef int pid_t; /* define for Windows compatibility */
 #include <openssl/sha.h>
 #include <openssl/ripemd.h>
 
-#include "netbase.h" // for AddTimeData
+#include <openssl/ec.h>
+#include <openssl/bn.h>
+#include <openssl/evp.h>
+#include <openssl/opensslv.h>
 
 #if __cplusplus >= 201103L
     #define AUTO_PTR std::unique_ptr
@@ -131,15 +136,19 @@ T* alignup(T* p)
 #define MAX_PATH            1024
 inline void MilliSleep(uint64_t n)
 {
-    /*Boost has a year 2038 problem— if the request sleep time is past epoch+2^31 seconds the sleep returns instantly.
-      So we clamp our sleeps here to 10 years and hope that boost is fixed by 2028.*/
-    boost::thread::sleep(boost::get_system_time() + boost::posix_time::milliseconds(n>315576000000LL?315576000000LL:n));
+    /*Boost has a year 2038 problem— if the request sleep time is past
+      epoch+2^31 seconds the sleep returns instantly. So we clamp our sleeps
+      here to 10 years and hope that boost is fixed by 2028.*/
+    boost::thread::sleep(boost::get_system_time() +
+                         boost::posix_time::milliseconds(
+                             n > 315576000000LL ? 315576000000LL : n));
 }
 #endif
 
-/* This GNU C extension enables the compiler to check the format string against the parameters provided.
- * X is the number of the "format string" parameter, and Y is the number of the first variadic parameter.
- * Parameters count from 1.
+/* This GNU C extension enables the compiler to check the format string against
+ * the parameters provided. X is the number of the "format string" parameter,
+ * and Y is the number of the first variadic parameter. Parameters count
+ * from 1.
  */
 #ifdef __GNUC__
 #define ATTR_WARN_PRINTF(X,Y) __attribute__((format(printf,X,Y)))
@@ -183,14 +192,17 @@ int ATTR_WARN_PRINTF(1,2) OutputDebugStringF(const char* pszFormat, ...);
 /*
   Rationale for the real_strprintf / strprintf construction:
     It is not allowed to use va_start with a pass-by-reference argument.
-    (C++ standard, 18.7, paragraph 3). Use a dummy argument to work around this, and use a
-    macro to keep similar semantics.
+    (C++ standard, 18.7, paragraph 3). Use a dummy argument to work around
+  this, and use a macro to keep similar semantics.
 */
 
-/** Overload strprintf for char*, so that GCC format type warnings can be given */
-std::string ATTR_WARN_PRINTF(1,3) real_strprintf(const char *format, int dummy, ...);
-/** Overload strprintf for std::string, to be able to use it with _ (translation).
- * This will not support GCC format type warnings (-Wformat) so be careful.
+/** Overload strprintf for char*, so that GCC format type warnings can be given
+ */
+std::string ATTR_WARN_PRINTF(1, 3)
+    real_strprintf(const char* format, int dummy, ...);
+/** Overload strprintf for std::string, to be able to use it with _
+ * (translation). This will not support GCC format type warnings (-Wformat) so
+ * be careful.
  */
 std::string real_strprintf(const std::string &format, int dummy, ...);
 #define strprintf(format, ...) real_strprintf(format, 0, __VA_ARGS__)
@@ -202,9 +214,12 @@ bool ATTR_WARN_PRINTF(1,2) warning(const char *format, ...);
 
 /* Redefine printf so that it directs output to debug.log
  *
- * Do this *after* defining the other printf-like functions, because otherwise the
- * __attribute__((format(printf,X,Y))) gets expanded to __attribute__((format(OutputDebugStringF,X,Y)))
- * which confuses gcc.
+ * Do this *after* defining the other printf-like functions,
+ *    because otherwise the
+ *         __attribute__((format(printf,X,Y)))
+ *    gets expanded to
+ *         __attribute__((format(OutputDebugStringF,X,Y)))
+ *    which confuses gcc.
  */
 #define printf OutputDebugStringF
 
@@ -238,7 +253,9 @@ const boost::filesystem::path &GetDataDir(bool fNetSpecific = true);
 boost::filesystem::path GetConfigFile();
 boost::filesystem::path GetPidFile();
 void CreatePidFile(const boost::filesystem::path &path, pid_t pid);
-void ReadConfigFile(std::map<std::string, std::string>& mapSettingsRet, std::map<std::string, std::vector<std::string> >& mapMultiSettingsRet);
+void ReadConfigFile(
+    std::map<std::string, std::string>& mapSettingsRet,
+    std::map<std::string, std::vector<std::string>>& mapMultiSettingsRet);
 #ifdef WIN32
 boost::filesystem::path GetSpecialFolderPath(int nFolder, bool fCreate = true);
 #endif
@@ -248,12 +265,21 @@ uint64_t GetRand(uint64_t nMax);
 uint256 GetRandHash();
 int64_t GetTime();
 void SetMockTime(int64_t nMockTimeIn);
-int64_t GetAdjustedTime();
 long hex2long(const unsigned char* hexString);
 std::string FormatFullVersion();
 std::string FormatVersionNumbers();
-std::string FormatSubVersion(const std::string& name, int nClientVersion, const std::vector<std::string>& comments);
-void AddTimeData(const CNetAddr& ip, int64_t nTime);
+std::string FormatSubVersion(const std::string& name,
+                             int nClientVersion,
+                             const std::vector<std::string>& comments);
+BIGNUM* ECPoint2BIGNUM(const EC_GROUP* group,
+                       const EC_POINT* point,
+                       point_conversion_form_t form,
+                       BIGNUM* bn,
+                       BN_CTX* ctx);
+EC_POINT* BIGNUM2ECPoint(const EC_GROUP* group,
+                         const BIGNUM* bn,
+                         EC_POINT* point,
+                         BN_CTX* ctx);
 void runCommand(std::string strCommand);
 
 
@@ -261,10 +287,17 @@ class CRandGen {
 public:
     using result_type = uint64_t;
 
-    static constexpr result_type min() { return 0; }
-    static constexpr result_type max() { return std::numeric_limits<result_type>::max(); }
+    static constexpr result_type min()
+    {
+        return 0;
+    }
+    static constexpr result_type max()
+    {
+        return std::numeric_limits<result_type>::max();
+    }
 
-    result_type operator()() {
+    result_type operator()()
+    {
         return GetRand(max());
     }
 };
@@ -322,33 +355,41 @@ template<typename T>
 std::string HexStr(const T itbegin, const T itend, bool fSpaces=false)
 {
     std::string rv;
-    static const char hexmap[16] = { '0', '1', '2', '3', '4', '5', '6', '7',
-                                     '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
+    static const char hexmap[16] = {
+                         '0', '1', '2', '3', '4', '5', '6', '7',
+                         '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
     rv.reserve((itend-itbegin)*3);
     for(T it = itbegin; it < itend; ++it)
     {
         unsigned char val = (unsigned char)(*it);
-        if(fSpaces && it != itbegin)
+        if (fSpaces && it != itbegin)
+        {
             rv.push_back(' ');
+        }
         rv.push_back(hexmap[val>>4]);
         rv.push_back(hexmap[val&15]);
     }
-
     return rv;
 }
 
-inline std::string HexStr(const std::vector<unsigned char>& vch, bool fSpaces=false)
+inline std::string HexStr(const std::vector<unsigned char>& vch,
+                          bool fSpaces = false)
 {
     return HexStr(vch.begin(), vch.end(), fSpaces);
 }
 
 template<typename T>
-void PrintHex(const T pbegin, const T pend, const char* pszFormat="%s", bool fSpaces=true)
+void PrintHex(const T pbegin,
+              const T pend,
+              const char* pszFormat = "%s",
+              bool fSpaces = true)
 {
     printf(pszFormat, HexStr(pbegin, pend, fSpaces).c_str());
 }
 
-inline void PrintHex(const std::vector<unsigned char>& vch, const char* pszFormat="%s", bool fSpaces=true)
+inline void PrintHex(const std::vector<unsigned char>& vch,
+                     const char* pszFormat = "%s",
+                     bool fSpaces = true)
 {
     printf(pszFormat, HexStr(vch, fSpaces).c_str());
 }
@@ -403,8 +444,10 @@ inline int64_t GetPerformanceCounter()
 
 inline int64_t GetTimeMillis()
 {
-    return (boost::posix_time::ptime(boost::posix_time::microsec_clock::universal_time()) -
-            boost::posix_time::ptime(boost::gregorian::date(1970,1,1))).total_milliseconds();
+    return (boost::posix_time::ptime(
+                boost::posix_time::microsec_clock::universal_time()) -
+            boost::posix_time::ptime(boost::gregorian::date(1970, 1, 1)))
+        .total_milliseconds();
 }
 
 inline std::string DateTimeStrFormat(const char* pszFormat, int64_t nTime)
@@ -495,7 +538,9 @@ inline uint256 ProofHash(const T1 pbegin, const T1 pend)
 {
     static unsigned char pblank[1];
     uint256 hash1;
-    SHA256((pbegin == pend ? pblank : (unsigned char*)&pbegin[0]), (pend - pbegin) * sizeof(pbegin[0]), (unsigned char*)&hash1);
+    SHA256((pbegin == pend ? pblank : (unsigned char*) &pbegin[0]),
+           (pend - pbegin) * sizeof(pbegin[0]),
+           (unsigned char*) &hash1);
     uint256 hash2;
     SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
     return hash2;
@@ -507,7 +552,9 @@ inline uint256 Hash(const T1 pbegin, const T1 pend)
 {
     static unsigned char pblank[1];
     uint256 hash1;
-    SHA256((pbegin == pend ? pblank : (unsigned char*)&pbegin[0]), (pend - pbegin) * sizeof(pbegin[0]), (unsigned char*)&hash1);
+    SHA256((pbegin == pend ? pblank : (unsigned char*) &pbegin[0]),
+           (pend - pbegin) * sizeof(pbegin[0]),
+           (unsigned char*) &hash1);
     uint256 hash2;
     SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
     return hash2;
@@ -516,31 +563,68 @@ inline uint256 Hash(const T1 pbegin, const T1 pend)
 class CHashWriter
 {
 private:
-    SHA256_CTX ctx;
+    EVP_MD_CTX *ctx;
+    const EVP_MD *md;
 
 public:
     int nType;
     int nVersion;
 
     void Init() {
-        SHA256_Init(&ctx);
+
+
+// sha256
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+        if (ctx) {
+            EVP_MD_CTX_cleanup(ctx);
+        } else {
+            ctx = EVP_MD_CTX_create();
+        }
+#else
+        if (ctx) {
+            EVP_MD_CTX_reset(ctx);
+        } else {
+            ctx = EVP_MD_CTX_new();
+        }
+#endif
+        md = EVP_sha256();
+        EVP_DigestInit_ex(ctx, md, NULL);
     }
 
-    CHashWriter(int nTypeIn, int nVersionIn) : nType(nTypeIn), nVersion(nVersionIn) {
+    CHashWriter(int nTypeIn, int nVersionIn)
+        : ctx(NULL), nType(nTypeIn), nVersion(nVersionIn)
+    {
         Init();
     }
 
+    ~CHashWriter() {
+        if (ctx) {
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+            EVP_MD_CTX_destroy(ctx);
+#else
+            EVP_MD_CTX_free(ctx);
+#endif
+        }
+    }
+
     CHashWriter& write(const char *pch, size_t size) {
-        SHA256_Update(&ctx, pch, size);
+        EVP_DigestUpdate(ctx, pch, size);
         return (*this);
     }
 
     // invalidates the object
     uint256 GetHash() {
         uint256 hash1;
-        SHA256_Final((unsigned char*)&hash1, &ctx);
+        unsigned int len;
+        EVP_DigestFinal_ex(ctx, (unsigned char*)&hash1, &len);
+
         uint256 hash2;
-        SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
+        EVP_MD_CTX *ctx2 = EVP_MD_CTX_create();
+        EVP_DigestInit_ex(ctx2, md, NULL);
+        EVP_DigestUpdate(ctx2, (unsigned char*)&hash1, sizeof(hash1));
+        EVP_DigestFinal_ex(ctx2, (unsigned char*)&hash2, &len);
+        EVP_MD_CTX_destroy(ctx2);
+
         return hash2;
     }
 
@@ -552,20 +636,34 @@ public:
     }
 };
 
-
 template<typename T1, typename T2>
 inline uint256 Hash(const T1 p1begin, const T1 p1end,
                     const T2 p2begin, const T2 p2end)
 {
     static unsigned char pblank[1];
     uint256 hash1;
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, (p1begin == p1end ? pblank : (unsigned char*)&p1begin[0]), (p1end - p1begin) * sizeof(p1begin[0]));
-    SHA256_Update(&ctx, (p2begin == p2end ? pblank : (unsigned char*)&p2begin[0]), (p2end - p2begin) * sizeof(p2begin[0]));
-    SHA256_Final((unsigned char*)&hash1, &ctx);
+    EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+    const EVP_MD *md = EVP_sha256();
+    EVP_DigestInit_ex(ctx, md, NULL);
+    EVP_DigestUpdate(ctx,
+                     (p1begin == p1end ? pblank
+                                       : (unsigned char*) &p1begin[0]),
+                     (p1end - p1begin) * sizeof(p1begin[0]));
+    EVP_DigestUpdate(ctx,
+                     (p2begin == p2end ? pblank
+                                       : (unsigned char*) &p2begin[0]),
+                     (p2end - p2begin) * sizeof(p2begin[0]));
+    unsigned int len;
+    EVP_DigestFinal_ex(ctx, (unsigned char*)&hash1, &len);
+    EVP_MD_CTX_destroy(ctx);
+
     uint256 hash2;
-    SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
+    ctx = EVP_MD_CTX_create();
+    EVP_DigestInit_ex(ctx, md, NULL);
+    EVP_DigestUpdate(ctx, (unsigned char*)&hash1, sizeof(hash1));
+    EVP_DigestFinal_ex(ctx, (unsigned char*)&hash2, &len);
+    EVP_MD_CTX_destroy(ctx);
+
     return hash2;
 }
 
@@ -576,19 +674,39 @@ inline uint256 Hash(const T1 p1begin, const T1 p1end,
 {
     static unsigned char pblank[1];
     uint256 hash1;
-    SHA256_CTX ctx;
-    SHA256_Init(&ctx);
-    SHA256_Update(&ctx, (p1begin == p1end ? pblank : (unsigned char*)&p1begin[0]), (p1end - p1begin) * sizeof(p1begin[0]));
-    SHA256_Update(&ctx, (p2begin == p2end ? pblank : (unsigned char*)&p2begin[0]), (p2end - p2begin) * sizeof(p2begin[0]));
-    SHA256_Update(&ctx, (p3begin == p3end ? pblank : (unsigned char*)&p3begin[0]), (p3end - p3begin) * sizeof(p3begin[0]));
-    SHA256_Final((unsigned char*)&hash1, &ctx);
+    EVP_MD_CTX *ctx = EVP_MD_CTX_create();
+    const EVP_MD *md = EVP_sha256();
+    EVP_DigestInit_ex(ctx, md, NULL);
+    EVP_DigestUpdate(ctx,
+                     (p1begin == p1end ? pblank
+                                       : (unsigned char*) &p1begin[0]),
+                     (p1end - p1begin) * sizeof(p1begin[0]));
+    EVP_DigestUpdate(ctx,
+                     (p2begin == p2end ? pblank
+                                       : (unsigned char*) &p2begin[0]),
+                     (p2end - p2begin) * sizeof(p2begin[0]));
+    EVP_DigestUpdate(ctx,
+                     (p3begin == p3end ? pblank
+                                       : (unsigned char*) &p3begin[0]),
+                     (p3end - p3begin) * sizeof(p3begin[0]));
+    unsigned int len;
+    EVP_DigestFinal_ex(ctx, (unsigned char*)&hash1, &len);
+    EVP_MD_CTX_destroy(ctx);
+
     uint256 hash2;
-    SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
+    ctx = EVP_MD_CTX_create();
+    EVP_DigestInit_ex(ctx, md, NULL);
+    EVP_DigestUpdate(ctx, (unsigned char*)&hash1, sizeof(hash1));
+    EVP_DigestFinal_ex(ctx, (unsigned char*)&hash2, &len);
+    EVP_MD_CTX_destroy(ctx);
+
     return hash2;
 }
 
 template<typename T>
-uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL_VERSION)
+uint256 SerializeHash(const T& obj,
+                      int nType = SER_GETHASH,
+                      int nVersion = PROTOCOL_VERSION)
 {
     CHashWriter ss(nType, nVersion);
     ss << obj;
@@ -598,12 +716,15 @@ uint256 SerializeHash(const T& obj, int nType=SER_GETHASH, int nVersion=PROTOCOL
 inline uint160 Hash160(const std::vector<unsigned char>& vch)
 {
     uint256 hash1;
-    SHA256(&vch[0], vch.size(), (unsigned char*)&hash1);
+    CoreHashes::SHA256(vch.data(),
+                       vch.size(),
+                       (unsigned char*)&hash1);
     uint160 hash2;
-    RIPEMD160((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
+    CoreHashes::RIPEMD160((unsigned char*) &hash1,
+                          sizeof(hash1),
+                          (unsigned char*) &hash2);
     return hash2;
 }
-
 
 /** Median filter over a stream of values.
  * Returns the median of the last N numbers

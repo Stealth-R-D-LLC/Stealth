@@ -1,14 +1,18 @@
-
-
 #ifndef PBKDF2_H
 #define PBKDF2_H
 
-#include <openssl/sha.h>
+#include <openssl/evp.h>
+#include <openssl/opensslv.h>
 #include <stdint.h>
 
-typedef struct HMAC_SHA256Context {
-    SHA256_CTX ictx;
-    SHA256_CTX octx;
+#if OPENSSL_VERSION_NUMBER < 0x10100000L
+#define EVP_MD_CTX_new EVP_MD_CTX_create
+#define EVP_MD_CTX_free EVP_MD_CTX_destroy
+#endif
+
+typedef struct {
+    EVP_MD_CTX *ictx;
+    EVP_MD_CTX *octx;
 } HMAC_SHA256_CTX;
 
 void
@@ -24,4 +28,4 @@ void
 PBKDF2_SHA256(const uint8_t * passwd, size_t passwdlen, const uint8_t * salt,
     size_t saltlen, uint64_t c, uint8_t * buf, size_t dkLen);
 
-#endif // PBKDF2_H
+#endif  // PBKDF2_H

@@ -19,3 +19,19 @@ bool IncrementN(const valtype &v,
    }
    return true;
 }
+
+bool IncrementN(const secure_valtype &v,
+                secure_valtype::const_iterator &i,
+                unsigned int n)
+{
+   secure_valtype::const_iterator v_end = v.end();
+   for (unsigned int j = 0; j < n; ++j)
+   {
+       if (i == v_end)
+       {
+           return false;
+       }
+       ++i;
+   }
+   return true;
+}
