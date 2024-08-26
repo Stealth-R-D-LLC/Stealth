@@ -369,4 +369,4 @@ ed25519_donna_scalarmult_with_group_order(unsigned char *out,
   return 0;
 }
 
-#include "ext/ed25519/donna/test-internals.c"
+#include "ext/ed25519/donna/test-internals.i"
