@@ -64,7 +64,7 @@ enum
         const bool fRead = false;               \
         unsigned int nSerSize = 0;              \
         ser_streamplaceholder s;                \
-        assert(fGetSize||fWrite||fRead); /* suppress warning */ \
+        (void)(fGetSize && fWrite && fRead); /* suppress warning */ \
         s.nType = nType;                        \
         s.nVersion = nVersion;                  \
         {statements}                            \
@@ -78,7 +78,7 @@ enum
         const bool fWrite = true;               \
         const bool fRead = false;               \
         unsigned int nSerSize = 0;              \
-        assert(fGetSize||fWrite||fRead); /* suppress warning */ \
+        (void)(fGetSize && fWrite && fRead); /* suppress warning */ \
         {statements}                            \
     }                                           \
     template<typename Stream>                   \
@@ -89,7 +89,7 @@ enum
         const bool fWrite = false;              \
         const bool fRead = true;                \
         unsigned int nSerSize = 0;              \
-        assert(fGetSize||fWrite||fRead); /* suppress warning */ \
+        (void)(fGetSize && fWrite && fRead); /* suppress warning */ \
         {statements}                            \
     }
 

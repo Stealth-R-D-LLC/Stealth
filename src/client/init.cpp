@@ -828,7 +828,6 @@ bool AppInit2()
         uiInterface.InitMessage(_("Tor Initialized."));
     }
 
-
     if (mapArgs.count("-externalip"))
     {
         BOOST_FOREACH(string strAddr, mapMultiArgs["-externalip"]) {
