@@ -14,14 +14,14 @@ extern void (*scrypt_1024_1_1_256_sp)(const char *input, char *output, char *scr
 #endif
 
 
-static inline uint32_t le32dec(const void *pp)
+static inline uint32_t bip32_le32dec(const void *pp)
 {
         const uint8_t *p = (uint8_t const *)pp;
         return ((uint32_t)(p[0]) + ((uint32_t)(p[1]) << 8) +
             ((uint32_t)(p[2]) << 16) + ((uint32_t)(p[3]) << 24));
 }
 
-static inline void le32enc(void *pp, uint32_t x)
+static inline void bip32_le32enc(void *pp, uint32_t x)
 {
         uint8_t *p = (uint8_t *)pp;
         p[0] = x & 0xff;

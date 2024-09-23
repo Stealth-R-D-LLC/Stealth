@@ -5,7 +5,7 @@
 
 
 static inline void
-be32enc(void *pp, uint32_t x)
+bip32_be32enc(void *pp, uint32_t x)
 {
     uint8_t * p = (uint8_t *)pp;
 
@@ -111,7 +111,7 @@ PBKDF2_SHA256(const uint8_t * passwd, size_t passwdlen, const uint8_t * salt,
     /* Iterate through the blocks. */
     for (i = 0; i * 32 < dkLen; i++) {
         /* Generate INT(i + 1). */
-        be32enc(ivec, (uint32_t)(i + 1));
+        bip32_be32enc(ivec, (uint32_t)(i + 1));
 
         /* Compute U_1 = PRF(P, S || INT(i)). */
         memcpy(&hctx, &PShctx, sizeof(HMAC_SHA256_CTX));

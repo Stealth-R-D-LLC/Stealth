@@ -167,7 +167,7 @@ secure_bytes_t HDKeychain::extkey() const
     extkey += chain_code_;
     extkey += key_;
 
-    return move(extkey);
+    return extkey;
 }
 
 secure_bytes_t HDKeychain::privkey() const

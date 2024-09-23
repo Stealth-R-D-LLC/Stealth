@@ -18,11 +18,13 @@
 #include <openssl/evp.h>
 #include <openssl/kdf.h>
 
+#include "core-hashes.hpp" // for RIPEMD160
+#include "hashblock.h" // for Hash9
+
 #include "uchar_vector.h"
 
 #include "scrypt.h" // for scrypt_1024_1_1_256
 
-#include "hashblock/hashblock.h" // for Hash9
 
 // All inputs and outputs are big endian
 
@@ -90,38 +92,15 @@ template<typename Allocator = std::allocator<unsigned char> >
 inline basic_uchar_vector<Allocator> ripemd160(const basic_uchar_vector<Allocator>& data)
 {
     unsigned char hash[RIPEMD160_DIGEST_LENGTH];
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX ctx;
-    EVP_MD_CTX_init(&ctx);
-#else
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-#endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD *md = EVP_MD_fetch(NULL, "RIPEMD160", NULL);
-    if (md == NULL) {
-        throw std::runtime_error("RIPEMD160 not available. Ensure OpenSSL is configured with RIPEMD160 enabled.");
+    try {
+        CoreHashes::RIPEMD160(&data[0], data.size(), hash);
     }
-    EVP_DigestInit_ex(ctx, md, NULL);
-#else
-    EVP_DigestInit_ex(ctx, EVP_ripemd160(), NULL);
-#endif
+    catch (const std::runtime_error& e) {
+        throw std::runtime_error("RIPEMD160 failed: " + std::string(e.what()));
+    }
 
-    EVP_DigestUpdate(ctx, &data[0], data.size());
-    unsigned int len;
-    EVP_DigestFinal_ex(ctx, hash, &len);
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX_cleanup(&ctx);
-#else
-    EVP_MD_CTX_free(ctx);
-#endif
-
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD_free(md);
-#endif
-
-    return basic_uchar_vector<Allocator>(hash, RIPEMD160_DIGEST_LENGTH);
+    return basic_uchar_vector<Allocator>(hash, hash + RIPEMD160_DIGEST_LENGTH);
 }
 
 template<typename Allocator = std::allocator<unsigned char> >

@@ -19,15 +19,15 @@
 
 namespace Bip32 {
 
-const uchar_vector_secure BITCOIN_SEED("426974636f696e2073656564");
+const uchar_vector BITCOIN_SEED("426974636f696e2073656564");
 
 class HDSeed
 {
 public:
     HDSeed(const secure_bytes_t& seed,
-           const uchar_vector_secure& coin_seed = BITCOIN_SEED)
+           const uchar_vector& coin_seed = BITCOIN_SEED)
     {
-        uchar_vector_secure hmac = hmac_sha512(coin_seed,
+        uchar_vector_secure hmac = hmac_sha512(UCHAR_VECTOR_SECURE(coin_seed),
                                                UCHAR_VECTOR_SECURE(seed));
         master_key_.assign(hmac.begin(), hmac.begin() + 32);
         master_chain_code_.assign(hmac.begin() + 32, hmac.end());
