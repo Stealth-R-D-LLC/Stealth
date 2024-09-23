@@ -111,11 +111,6 @@ public:
             ppmutexOpenSSL[i] = new CCriticalSection();
         CRYPTO_set_locking_callback(locking_callback);
 
-#ifdef WIN32
-        // Seed random number generator with screen scrape and other hardware sources
-        RAND_screen();
-#endif
-
         // Seed random number generator with performance counter
         RandAddSeed();
     }
@@ -587,7 +582,7 @@ void ParseParameters(int argc, const char* const argv[])
     for (int i = 1; i < argc; i++)
     {
         char psz[10000];
-        strlcpy(psz, argv[i], sizeof(psz));
+        bitcoin_strlcpy(psz, argv[i], sizeof(psz));
         char* pszValue = (char*)"";
         if (strchr(psz, '='))
         {
@@ -644,8 +639,19 @@ bool GetBoolArg(const std::string& strArg, bool fDefault)
     if (mapArgs.count(strArg))
     {
         if (mapArgs[strArg].empty())
+        {
             return true;
-        return (atoi(mapArgs[strArg]) != 0);
+        }
+        string a = mapArgs[strArg];
+        if (a == "false")
+        {
+            return false;
+        }
+        if (a == "true")
+        {
+            return true;
+        }
+        return (atoi(a) != 0);
     }
     return fDefault;
 }
@@ -1232,12 +1238,14 @@ void FileCommit(FILE *fileout)
 #endif
 }
 
-int GetFilesize(FILE* file)
+long int GetFilesize(FILE* file)
 {
-    int nSavePos = ftell(file);
-    int nFilesize = -1;
+    long int nSavePos = ftell(file);
+    long int nFilesize = -1;
     if (fseek(file, 0, SEEK_END) == 0)
+    {
         nFilesize = ftell(file);
+    }
     fseek(file, nSavePos, SEEK_SET);
     return nFilesize;
 }

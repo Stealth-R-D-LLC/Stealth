@@ -13,8 +13,6 @@
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/resource.h>
-#else
-typedef int pid_t; /* define for Windows compatibility */
 #endif
 #include <map>
 #include <vector>
@@ -35,6 +33,11 @@ typedef int pid_t; /* define for Windows compatibility */
 #include <openssl/bn.h>
 #include <openssl/evp.h>
 #include <openssl/opensslv.h>
+
+// ensure functions like fseek() can handle large files
+#if LONG_MAX < 9223372036854775807LL
+    #error "long int is less than 64 bits on this system"
+#endif
 
 #if __cplusplus >= 201103L
     #define AUTO_PTR std::unique_ptr
@@ -134,6 +137,8 @@ T* alignup(T* p)
 #endif
 #endif
 #define MAX_PATH            1024
+#endif
+
 inline void MilliSleep(uint64_t n)
 {
     /*Boost has a year 2038 problem— if the request sleep time is past
@@ -143,7 +148,6 @@ inline void MilliSleep(uint64_t n)
                          boost::posix_time::milliseconds(
                              n > 315576000000LL ? 315576000000LL : n));
 }
-#endif
 
 /* This GNU C extension enables the compiler to check the format string against
  * the parameters provided. X is the number of the "format string" parameter,
@@ -246,7 +250,7 @@ void ParseParameters(int argc, const char*const argv[]);
 bool WildcardMatch(const char* psz, const char* mask);
 bool WildcardMatch(const std::string& str, const std::string& mask);
 void FileCommit(FILE *fileout);
-int GetFilesize(FILE* file);
+long int GetFilesize(FILE* file);
 bool RenameOver(boost::filesystem::path src, boost::filesystem::path dest);
 boost::filesystem::path GetDefaultDataDir();
 const boost::filesystem::path &GetDataDir(bool fNetSpecific = true);
@@ -422,7 +426,7 @@ std::string BitsetAsHex(const T& b)
                 byte |= 1;
             }
         }
-        sprintf(psz, "%02x", byte);
+        snprintf(psz, 3, "%02x", byte);
         strResult += std::string(psz, psz + 2);
     }
     return strResult;

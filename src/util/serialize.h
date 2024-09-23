@@ -24,6 +24,12 @@
 #include "allocators.h"
 #include "version.h"
 
+// for berkeley-db
+typedef uint32_t u_int32_t;
+typedef uint16_t u_int16_t;
+typedef uint8_t u_int8_t;
+
+
 class CScript;
 class CDataStream;
 class CAutoFile;
