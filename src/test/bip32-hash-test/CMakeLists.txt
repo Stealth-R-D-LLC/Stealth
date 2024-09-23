@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.0)
 
 project(bip32-hash-test C CXX)
+
+set(target test-bip32-hash)
+add_executable(${target})
 
 include(${CMAKE_SOURCE_DIR}/../CMakeCommon.cmake)
 
@@ -22,32 +25,52 @@ set(C_SOURCES
     ${STEALTH}/crypto/hashblock/skein.c
 )
 
-add_executable(test-bip32-hash)
-
-target_sources(test-bip32-hash PRIVATE
-    bip32-hash-test.cpp
+set(CPP_SOURCES
     ${STEALTH}/bip32/scrypt.cpp
     ${STEALTH}/bip32/pbkdf2.cpp
-    ${C_SOURCES}
-    ${COMMON_CPP_SOURCES}
 )
 
-if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
-    target_compile_options(test-bip32-hash PRIVATE
-        $<$<COMPILE_LANGUAGE:C>:-std=c11>
+set(INCLUDE_DIRS
+    ${STEALTH}/bip32
+    ${STEALTH}/crypto/hashblock
 )
+
+if(DEFINED ENV{LEGACY_CORE_HASHES})
+    message(STATUS "Testing with legacy hashes")
+    add_compile_definitions(LEGACY_CORE_HASHES=1)
+else()
+    set(C_SOURCES
+        ${C_SOURCES}
+        ${STEALTH}/crypto/core-hashes/memzero.c
+        ${STEALTH}/crypto/core-hashes/ripemd160.c
+        ${STEALTH}/crypto/core-hashes/sha2.c
+    )
+    set(CPP_SOURCES
+        ${CPP_SOURCES}
+        ${STEALTH}/crypto/core-hashes/core-hashes.cpp
+    )
+    set(INCLUDE_DIRS
+        ${INCLUDE_DIRS}
+        ${STEALTH}/crypto/core-hashes
+    )
 endif()
 
 set_source_files_properties(${C_SOURCES} PROPERTIES
     LANGUAGE C
 )
 
-target_include_directories(test-bip32-hash PRIVATE
+target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${STEALTH}/bip32
-    ${STEALTH}/crypto
+    ${INCLUDE_DIRS}
 )
 
-target_link_libraries(test-bip32-hash
+target_sources(${target} PRIVATE
+    bip32-hash-test.cpp
+    ${C_SOURCES}
+    ${CPP_SOURCES}
+    ${COMMON_CPP_SOURCES}
+)
+
+target_link_libraries(${target}
     ${COMMON_LINK_LIBRARIES}
 )

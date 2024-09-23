@@ -1,10 +1,21 @@
 # common-cmake-configuration.cmake
 
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.0)
+
+if(POLICY CMP0167)
+    cmake_policy(SET CMP0167 NEW)
+endif()
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 11)
 set(CMAKE_VERBOSE_MAKEFILE ON)
+
+if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(${target} PRIVATE
+        $<$<COMPILE_LANGUAGE:C>:-std=c11>
+)
+endif()
+
 
 set(COMMON_DIR "${CMAKE_SOURCE_DIR}/..")
 
@@ -89,7 +100,7 @@ if(DEFINED BOOST_ROOT)
     set(BOOST_LIBRARYDIR "${BOOST_ROOT}/lib")
     set(Boost_DIR "${BOOST_ROOT}/lib/cmake")
 endif()
-find_package(Boost REQUIRED system filesystem program_options thread atomic)
+find_package(Boost REQUIRED system filesystem program_options thread chrono atomic)
 if(Boost_FOUND)
     message(STATUS "Boost found successfully")
     message(STATUS "Boost version: ${Boost_VERSION}")
@@ -119,12 +130,12 @@ set(COMMON_LINK_LIBRARIES
     ${OPENSSL_SSL_LIBRARY}
     GTest::gtest
     GTest::gtest_main
-    ${BOOST_ROOT}/lib/libboost_atomic.a
-    ${BOOST_ROOT}/lib/libboost_chrono.a
-    ${BOOST_ROOT}/lib/libboost_filesystem.a
-    ${BOOST_ROOT}/lib/libboost_system.a
-    ${BOOST_ROOT}/lib/libboost_thread.a
-    ${BOOST_ROOT}/lib/libboost_program_options.a
+    Boost::atomic
+    Boost::chrono
+    Boost::system
+    Boost::filesystem
+    Boost::program_options
+    Boost::thread
 )
 
 set(COMMON_CPP_SOURCES

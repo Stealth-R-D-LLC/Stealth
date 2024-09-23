@@ -16,6 +16,21 @@ make
 test-secp256k1_openssl
 ```
 
+## Legacy Core Hashes
+
+To ensure the testing suite tests properly, it is possible
+to run the tests assuming the legacy definitions of core hashes
+sha1 and ripemd160, which use OpenSSL. This flag allows testing
+of Stealth versions preceeding 3.2 as an external code base.
+
+```bash
+LEGACY_CORE_HASHES=1 cmake -DSTEALTH_SRC=$STEALTH_HOME/src ./
+```
+
+Notice that if assuming legacy hashes, it would be necessary to
+point `cmake` to a source tree implementing it using the `-DSTEALTH_SRC`
+command line option.
+
 ### RFC6979
 
 RFC6979 was part of the original implementation by Ciphrex,

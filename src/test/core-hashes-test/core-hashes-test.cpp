@@ -46,7 +46,7 @@ TEST_F(CoreHashesTest, SHA256)
 
     PrintTestingData("SHA256", "Test Message", vchMessage);
 
-    valtype vchDigest(SHA256_SIZE);
+    valtype vchDigest(SHA256_DIGEST_LENGTH_);
 
     print_info("Testing hash calculation.");
     ASSERT_NO_THROW(CoreHashes::SHA256(vchMessage.data(),
@@ -77,7 +77,7 @@ TEST_F(CoreHashesTest, SHA1)
 
     PrintTestingData("SHA1", "Test Message", vchMessage);
 
-    valtype vchDigest(SHA1_SIZE);
+    valtype vchDigest(SHA1_DIGEST_LENGTH_);
 
     print_info("Testing hash calculation.");
     ASSERT_NO_THROW(CoreHashes::SHA1(vchMessage.data(),
@@ -97,7 +97,7 @@ TEST_F(CoreHashesTest, SHA1)
 }
 
 
-TEST_F(CoreHashesTest, SIPEMD160)
+TEST_F(CoreHashesTest, RIPEMD160)
 {
     // Generate random private key
     // valtype vchMessage = RandomMessage();
@@ -108,7 +108,7 @@ TEST_F(CoreHashesTest, SIPEMD160)
 
     PrintTestingData("RIPEMD160", "Test Message", vchMessage);
 
-    valtype vchDigest(RIPEMD160_SIZE);
+    valtype vchDigest(RIPEMD160_DIGEST_LENGTH_);
 
     print_info("Testing hash calculation.");
     ASSERT_NO_THROW(CoreHashes::RIPEMD160(vchMessage.data(),

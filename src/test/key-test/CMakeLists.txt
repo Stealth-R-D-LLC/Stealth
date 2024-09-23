@@ -1,6 +1,9 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.0)
 
 project(key-test)
+
+set(target test-key)
+add_executable(${target})
 
 include(${CMAKE_SOURCE_DIR}/../CMakeCommon.cmake)
 
@@ -9,9 +12,7 @@ if(DEFINED ENV{LEGACY_PKEY})
    add_compile_definitions(LEGACY_PKEY=1)
 endif()
 
-add_executable(test-key)
-
-target_sources(test-key PRIVATE
+target_sources(${target} PRIVATE
     key-test.cpp
     ${STEALTH}/wallet/key.cpp
     ${STEALTH}/client/version.cpp
@@ -22,7 +23,7 @@ target_sources(test-key PRIVATE
     ${COMMON_CPP_SOURCES}
 )
 
-target_include_directories(test-key PRIVATE
+target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${STEALTH}/wallet
     ${STEALTH}/network
@@ -32,14 +33,27 @@ target_include_directories(test-key PRIVATE
 )
 
 if(NOT DEFINED ENV{LEGACY_PKEY})
-    target_sources(test-key PRIVATE
+    set(C_SOURCES
+        ${STEALTH}/crypto/core-hashes/memzero.c
+        ${STEALTH}/crypto/core-hashes/ripemd160.c
+        ${STEALTH}/crypto/core-hashes/sha2.c
+    )
+    target_sources(${target} PRIVATE
+        ${C_SOURCES}
         ${STEALTH}/crypto/core-hashes/core-hashes.cpp
     )
-    target_include_directories(test-key PRIVATE
+    target_include_directories(${target} PRIVATE
         ${STEALTH}/crypto/core-hashes
+    )
+    set_source_files_properties(${C_SOURCES} PROPERTIES
+        LANGUAGE C
     )
 endif()
 
-target_link_libraries(test-key
+if(CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+  target_link_options(${target} PRIVATE -lexecinfo)
+endif()
+
+target_link_libraries(${target}
     ${COMMON_LINK_LIBRARIES}
 )
