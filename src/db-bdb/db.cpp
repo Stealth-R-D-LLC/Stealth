@@ -79,11 +79,11 @@ bool CDBEnv::Open(boost::filesystem::path pathEnv_)
     }
 
     pathEnv = pathEnv_;
-    filesystem::path pathDataDir = pathEnv;
+    boost::filesystem::path pathDataDir = pathEnv;
     strPath = pathDataDir.string();
-    filesystem::path pathLogDir = pathDataDir / "database";
-    filesystem::create_directory(pathLogDir);
-    filesystem::path pathErrorFile = pathDataDir / "db.log";
+    boost::filesystem::path pathLogDir = pathDataDir / "database";
+    boost::filesystem::create_directory(pathLogDir);
+    boost::filesystem::path pathErrorFile = pathDataDir / "db.log";
     printf("dbenv.open LogDir=%s ErrorFile=%s\n",
            pathLogDir.string().c_str(),
            pathErrorFile.string().c_str());
@@ -101,7 +101,9 @@ bool CDBEnv::Open(boost::filesystem::path pathEnv_)
     dbenv.set_lg_max(10485760);
     dbenv.set_lk_max_locks(10000);
     dbenv.set_lk_max_objects(10000);
-    dbenv.set_errfile(fopen(pathErrorFile.string().c_str(), "a"));  /// debug
+#ifdef BUILD_WITH_DEBUG
+    dbenv.set_errfile(fopen(pathErrorFile.string().c_str(), "a"));
+#endif
     dbenv.set_flags(DB_AUTO_COMMIT, 1);
     dbenv.set_flags(DB_TXN_WRITE_NOSYNC, 1);
     //    dbenv.log_set_config(DB_LOG_AUTO_REMOVE, 1);
