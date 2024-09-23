@@ -4,11 +4,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
+#include "net.h"
 #include "irc.h"
 #include "db.h"
-#include "net.h"
 #include "init.h"
-#include "bitcoin-strlcpy.h"
 #include "addrman.h"
 #include "ui_interface.h"
 #include "onionseed.h"
@@ -129,20 +128,30 @@ void CNode::PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd)
 }
 
 // find 'best' local address for a particular peer
-bool GetLocal(CService& addr, const CNetAddr *paddrPeer)
+bool GetLocal(CService& addr, const CNetAddr* paddrPeer)
 {
     if (fNoListen)
+    {
+        if (fDebugNet)
+        {
+            printf("GetLocal(): not listening: null addr\n");
+        }
         return false;
+    }
 
     int nBestScore = -1;
     int nBestReachability = -1;
     {
         LOCK(cs_mapLocalHost);
-        for (map<CNetAddr, LocalServiceInfo>::iterator it = mapLocalHost.begin(); it != mapLocalHost.end(); it++)
+        for (map<CNetAddr, LocalServiceInfo>::iterator it =
+                 mapLocalHost.begin();
+             it != mapLocalHost.end();
+             it++)
         {
             int nScore = (*it).second.nScore;
             int nReachability = (*it).first.GetReachabilityFrom(paddrPeer);
-            if (nReachability > nBestReachability || (nReachability == nBestReachability && nScore > nBestScore))
+            if (nReachability > nBestReachability ||
+                (nReachability == nBestReachability && nScore > nBestScore))
             {
                 addr = CService((*it).first, (*it).second.nPort);
                 nBestReachability = nReachability;
@@ -447,7 +456,7 @@ bool GetMyExternalIP(CNetAddr& ipRet)
 void ThreadGetMyExternalIP(void* parg)
 {
     // Make this thread recognisable as the external IP detection thread
-    RenameThread("bitcoin-ext-ip");
+    RenameThread("stealth-extip");
 
     CNetAddr addrLocalHost;
     if (GetMyExternalIP(addrLocalHost))
@@ -522,8 +531,8 @@ CNode* ConnectNode(CAddress addrConnect, const char *pszDest, int64_t nTimeout)
         }
     }
 
-    if (fDebug) {
-         printf("ConnectNode(): pszDest: %s\n", pszDest);
+    if (fDebugNet) {
+        printf("ConnectNode(): pszDest: %s\n", pszDest ? pszDest : "NULL");
     }
 
 
@@ -597,42 +606,74 @@ void CNode::PushVersion()
     /// when NTP implemented, change to just nTime = GetAdjustedTime()
     int64_t nTime = (fInbound ? GetAdjustedTime() : GetTime());
     uint64_t verification_token = 0;
-    if (
-        !fInbound
-    ) {
-        if (!addrman.GetReconnectToken(addr, verification_token)) {
-            RAND_bytes((unsigned char*)&verification_token, sizeof(verification_token));
-            addrman.SetVerificationToken(
-                addr,
-                verification_token
-            );
+    if (!fInbound)
+    {
+        if (!addrman.GetReconnectToken(addr, verification_token))
+        {
+            RAND_bytes((unsigned char*) &verification_token,
+                       sizeof(verification_token));
+            addrman.SetVerificationToken(addr, verification_token);
+        }
+    }
+    static int nTimesSent = 0;
+    // limit version ping-pong to 2 cycles
+    if (nTimesSent > 1)
+    {
+        return;
+    }
+
+    if (fDebugNet)
+    {
+        if (addr.IsRoutable())
+        {
+            printf("PushVersion(): Address %s is routable (good)\n",
+                   addr.ToString().c_str());
+        }
+        else
+        {
+            printf("PushVersion(): Address %s not routable (bad)\n",
+                   addr.ToString().c_str());
+        }
+
+        if (IsProxy(addr))
+        {
+            printf("PushVersion(): Address %s is proxy (bad)\n",
+                   addr.ToString().c_str());
+        }
+        else
+        {
+            printf("PushVersion(): Address %s not proxy (good)\n",
+                   addr.ToString().c_str());
         }
     }
 
-    if (fDebug) {
-      if (addr.IsRoutable()) {
-         printf("PushVersion(): Address is routable (good)\n");
-      } else {
-         printf("PushVersion(): Address not routable (bad)\n");
-      }
-
-      if (IsProxy(addr)) {
-         printf("PushVersion(): Address is proxy (bad)\n");
-      } else {
-         printf("PushVersion(): Address not proxy (good)\n");
-      }
-    }
-
-    CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr) ? addr : CAddress(CService("0.0.0.0",0)));
+    CAddress addrYou = (addr.IsRoutable() && !IsProxy(addr)
+                            ? addr
+                            : CAddress(CService("0.0.0.0", 0)));
     CAddress addrMe = GetLocalAddress(&addr);
-    RAND_bytes((unsigned char*)&nLocalHostNonce, sizeof(nLocalHostNonce));
-    printf("send version message: version %d, blocks=%d, us=%s, them=%s, peer=%s, verification=%" PRId64 "\n", PROTOCOL_VERSION, nBestHeight, addrMe.ToString().c_str(), addrYou.ToString().c_str(), addr.ToString().c_str(), verification_token);
-    PushMessage("version", PROTOCOL_VERSION, nLocalServices, nTime, addrYou, addrMe,
-                verification_token, nLocalHostNonce, FormatSubVersion(CLIENT_NAME, CLIENT_VERSION, std::vector<string>()), nBestHeight);
+    RAND_bytes((unsigned char*) &nLocalHostNonce, sizeof(nLocalHostNonce));
+    printf("send version message: version %d, blocks=%d, us=%s, them=%s, "
+           "peer=%s, verification=%" PRId64 "\n",
+           PROTOCOL_VERSION,
+           nBestHeight,
+           addrMe.ToString().c_str(),
+           addrYou.ToString().c_str(),
+           addr.ToString().c_str(),
+           verification_token);
+    PushMessage("version",
+                PROTOCOL_VERSION,
+                nLocalServices,
+                nTime,
+                addrYou,
+                addrMe,
+                verification_token,
+                nLocalHostNonce,
+                FormatSubVersion(CLIENT_NAME,
+                                 CLIENT_VERSION,
+                                 std::vector<string>()),
+                nBestHeight);
+    nTimesSent += 1;
 }
-
-
-
 
 
 std::map<CNetAddr, int64_t> CNode::setBanned;
@@ -690,6 +731,11 @@ bool CNode::Misbehaving(int howmuch)
     return false;
 }
 
+int CNode::GetMisbehavior() const
+{
+    return nMisbehavior;
+}
+
 #undef X
 #define X(name) stats.name = name
 void CNode::copyStats(CNodeStats &stats)
@@ -709,11 +755,10 @@ void CNode::copyStats(CNodeStats &stats)
 #undef X
 
 
-
 void ThreadSocketHandler(void* parg)
 {
     // Make this thread recognisable as the networking thread
-    RenameThread("bitcoin-net");
+    RenameThread("stealth-net");
 
     try
     {
@@ -838,7 +883,7 @@ void ThreadSocketHandler2(void* parg)
             // rate limit disconnects to once per REMODELSLEEP seconds
             if ((secured > 0) &&
                 (secured + unsecured > MINCONNREMODEL) &&
-                ((2 * secured - 3 * unsecured) < 0) &&
+                (2 * secured < 3 * unsecured) &&
                 (GetTime() - (nTimeLastDisconnect + REMODELSLEEP)) > 0)
             {
                 CRandGen rg;
@@ -1136,7 +1181,7 @@ void ThreadSocketHandler2(void* parg)
 void ThreadMapPort(void* parg)
 {
     // Make this thread recognisable as the UPnP thread
-    RenameThread("bitcoin-UPnP");
+    RenameThread("stealth-upnp");
 
     printf("ThreadMapPort started\n");
 
@@ -1281,7 +1326,7 @@ void ThreadOnionSeed(void* parg)
 {
 
     // Make this thread recognisable as the tor thread
-    RenameThread("Stealth-onionseed");
+    RenameThread("stealth-onionsd");
 
     printf("ThreadOnionSeed started\n");
 
@@ -1314,7 +1359,7 @@ void ThreadOnionSeed(void* parg)
 void ThreadDNSAddressSeed(void* parg)
 {
     // Make this thread recognisable as the DNS seeding thread
-    RenameThread("Stealth-dnsseed");
+    RenameThread("stealth-dnsseed");
 
     try
     {
@@ -1407,7 +1452,7 @@ void ThreadDumpAddress2(void* parg)
 void ThreadDumpAddress(void* parg)
 {
     // Make this thread recognisable as the address dumping thread
-    RenameThread("bitcoin-adrdump");
+    RenameThread("stealth-adrdump");
 
     try
     {
@@ -1422,7 +1467,7 @@ void ThreadDumpAddress(void* parg)
 void ThreadOpenConnections(void* parg)
 {
     // Make this thread recognisable as the connection opening thread
-    RenameThread("bitcoin-opencon");
+    RenameThread("stealth-opencon");
 
     try
     {
@@ -1480,30 +1525,50 @@ void static ThreadStakeMinter(void* parg)
                                   vnThreadsRunning[THREAD_STAKEMINTER]);
 }
 
-void ThreadOpenConnections2(void* parg)
+bool OpenTrustedConnections(const string strSetting)
 {
-    printf("ThreadOpenConnections started\n");
-
+    bool fResult = false;
     // Connect to specific addresses
-    if (mapArgs.count("-connect") && mapMultiArgs["-connect"].size() > 0)
+    if (mapArgs.count(strSetting) && mapMultiArgs[strSetting].size() > 0)
     {
+        fResult = true;
         for (int64_t nLoop = 0;; nLoop++)
         {
             ProcessOneShot();
-            BOOST_FOREACH(string strAddr, mapMultiArgs["-connect"])
+            BOOST_FOREACH (string strAddr, mapMultiArgs[strSetting])
             {
+                if (fDebugNet)
+                {
+                    printf("Opening trusted connection %s from \"%s\"\n",
+                           strAddr.c_str(),
+                           strSetting.c_str());
+                }
                 CAddress addr;
                 OpenNetworkConnection(addr, NULL, strAddr.c_str());
                 for (int i = 0; i < 10 && i < nLoop; i++)
                 {
                     MilliSleep(500);
                     if (fShutdown)
-                        return;
+                    {
+                        return fResult;
+                    }
                 }
             }
             MilliSleep(500);
         }
     }
+    return fResult;
+}
+
+void ThreadOpenConnections2(void* parg)
+{
+    printf("ThreadOpenConnections started\n");
+
+    // The difference between "-connect" and "-addnode" is
+    //    that only the "-connect" trusted peers can connect,
+    //    and then only outbound. In other words, the client will not
+    //    listen if "-connect" is set for one or more peers.
+    OpenTrustedConnections("-connect");
 
     // Initiate network connections
     int64_t nStart = GetTime();
@@ -1605,7 +1670,7 @@ void ThreadOpenConnections2(void* parg)
 void ThreadOpenAddedConnections(void* parg)
 {
     // Make this thread recognisable as the connection opening thread
-    RenameThread("bitcoin-opencon");
+    RenameThread("stealth-openadd");
 
     printf("ThreadOpenAddedConnections started\n");
 
@@ -1724,9 +1789,14 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
             FindNode((CNetAddr)addrConnect) || CNode::IsBanned(addrConnect) ||
             FindNode(addrConnect.ToStringIPPort().c_str()))
             return false;
+    if (fDebugNet)
+    {
+        printf("opening destination:\n  %s\n  address: %s\n",
+               strDest,
+               addrConnect.ToString().c_str());
+    }
     if (strDest && FindNode(strDest))
         return false;
-
     vnThreadsRunning[THREAD_OPENCONNECTIONS]--;
     CNode* pnode = ConnectNode(addrConnect, strDest);
     vnThreadsRunning[THREAD_OPENCONNECTIONS]++;
@@ -1739,7 +1809,6 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
     pnode->fNetworkNode = true;
     if (fOneShot)
         pnode->fOneShot = true;
-
     return true;
 }
 
@@ -1753,7 +1822,7 @@ bool OpenNetworkConnection(const CAddress& addrConnect, CSemaphoreGrant *grantOu
 void ThreadMessageHandler(void* parg)
 {
     // Make this thread recognisable as the message handling thread
-    RenameThread("bitcoin-msghand");
+    RenameThread("stealth-msghand");
 
     printf("ThreadMessageHandler started\n");
 
@@ -2085,7 +2154,7 @@ static void run_tor() {
 void StartTor(void* parg)
 {
     // Make this thread recognisable as the tor thread
-    RenameThread("onion");
+    RenameThread("stealth-onion");
 
     try
     {
@@ -2102,7 +2171,7 @@ void StartTor(void* parg)
 void StartNode(void* parg)
 {
     // Make this thread recognisable as the startup thread
-    RenameThread("bitcoin-start");
+    RenameThread("stealth-start");
 
     if (semOutbound == NULL) {
         // initialize semaphore

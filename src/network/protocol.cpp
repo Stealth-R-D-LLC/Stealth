@@ -27,27 +27,56 @@ CMessageHeader::CMessageHeader()
     nChecksum = 0;
 }
 
-CMessageHeader::CMessageHeader(const char* pszCommand, unsigned int nMessageSizeIn)
+CMessageHeader::CMessageHeader(const char* pszCommand,
+                               unsigned int nMessageSizeIn)
 {
     memcpy(pchMessageStart, ::pchMessageStart, sizeof(pchMessageStart));
-    strncpy(pchCommand, pszCommand, COMMAND_SIZE);
+
+    if (pszCommand != nullptr)
+    {
+        for (size_t i = 0; i < COMMAND_SIZE; ++i)
+        {
+            if (pszCommand[i] == '\0')
+            {
+                memcpy(pchCommand, pszCommand, i);
+                memset(pchCommand + i, 0, COMMAND_SIZE - i);
+                break;
+            }
+            if (i == COMMAND_SIZE - 1)
+            {
+                memcpy(pchCommand, pszCommand, COMMAND_SIZE);
+            }
+        }
+    }
+    else
+    {
+        memset(pchCommand, 0, COMMAND_SIZE);
+    }
+
     nMessageSize = nMessageSizeIn;
     nChecksum = 0;
 }
 
 std::string CMessageHeader::GetCommand() const
 {
-    if (pchCommand[COMMAND_SIZE-1] == 0)
+    if (pchCommand[COMMAND_SIZE - 1] == 0)
+    {
         return std::string(pchCommand, pchCommand + strlen(pchCommand));
+    }
     else
+    {
         return std::string(pchCommand, pchCommand + COMMAND_SIZE);
+    }
 }
 
 bool CMessageHeader::IsValid() const
 {
     // Check start string
-    if (memcmp(pchMessageStart, ::pchMessageStart, sizeof(pchMessageStart)) != 0)
+    if (memcmp(pchMessageStart, ::pchMessageStart, sizeof(pchMessageStart)) !=
+        0)
+    {
         return false;
+    }
 
     // Check the command string for errors
     for (const char* p1 = pchCommand; p1 < pchCommand + COMMAND_SIZE; p1++)
@@ -56,17 +85,26 @@ bool CMessageHeader::IsValid() const
         {
             // Must be all zeros after the first zero
             for (; p1 < pchCommand + COMMAND_SIZE; p1++)
+            {
                 if (*p1 != 0)
+                {
                     return false;
+                }
+            }
         }
         else if (*p1 < ' ' || *p1 > 0x7E)
+        {
             return false;
+        }
     }
 
     // Message size
     if (nMessageSize > MAX_SIZE)
     {
-        printf("CMessageHeader::IsValid() : (%s, %u bytes) nMessageSize > MAX_SIZE\n", GetCommand().c_str(), nMessageSize);
+        printf(("CMessageHeader::IsValid() : "
+                "(%s, %u bytes) nMessageSize > MAX_SIZE\n"),
+               GetCommand().c_str(),
+               nMessageSize);
         return false;
     }
 
@@ -74,13 +112,13 @@ bool CMessageHeader::IsValid() const
 }
 
 
-
 CAddress::CAddress() : CService()
 {
     Init();
 }
 
-CAddress::CAddress(CService ipIn, uint64_t nServicesIn) : CService(ipIn)
+CAddress::CAddress(CService ipIn, uint64_t nServicesIn)
+: CService(ipIn)
 {
     Init();
     nServices = nServicesIn;
@@ -117,7 +155,11 @@ CInv::CInv(const std::string& strType, const uint256& hashIn)
         }
     }
     if (i == ARRAYLEN(ppszTypeName))
-        throw std::out_of_range(strprintf("CInv::CInv(string, uint256) : unknown type '%s'", strType.c_str()));
+    {
+        throw std::out_of_range(
+            strprintf("CInv::CInv(string, uint256) : unknown type '%s'",
+                      strType.c_str()));
+    }
     hash = hashIn;
 }
 
@@ -128,13 +170,16 @@ bool operator<(const CInv& a, const CInv& b)
 
 bool CInv::IsKnownType() const
 {
-    return (type >= 1 && type < (int)ARRAYLEN(ppszTypeName));
+    return (type >= 1 && type < (int) ARRAYLEN(ppszTypeName));
 }
 
 const char* CInv::GetCommand() const
 {
     if (!IsKnownType())
-        throw std::out_of_range(strprintf("CInv::GetCommand() : type=%d unknown type", type));
+    {
+        throw std::out_of_range(
+            strprintf("CInv::GetCommand() : type=%d unknown type", type));
+    }
     return ppszTypeName[type];
 }
 

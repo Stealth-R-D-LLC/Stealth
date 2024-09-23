@@ -28,6 +28,7 @@ enum Network
     NET_MAX,
 };
 
+
 extern int nConnectTimeout;
 extern bool fNameLookup;
 
@@ -35,7 +36,7 @@ extern bool fNameLookup;
 class CNetAddr
 {
     protected:
-        unsigned char ip[16]; // in network byte order
+        unsigned char ip[64]; // in network byte order
 
     public:
         CNetAddr();
@@ -84,7 +85,26 @@ class CNetAddr
 
         IMPLEMENT_SERIALIZE
             (
-             READWRITE(FLATDATA(ip));
+             if (fRead && (nVersion < CADDR_IP64_VERSION))
+             {
+                 unsigned char ip_16[16];
+                 READWRITE(FLATDATA(ip_16));
+                 for (int i = 0; i < 64; ++i)
+                 {
+                     if (i < 16)
+                     {
+                         const_cast<unsigned char*>(this->ip)[i] = ip_16[i];
+                     }
+                     else
+                     {
+                         const_cast<unsigned char*>(this->ip)[i] = 0;
+                     }
+                 }
+             }
+             else
+             {
+                 READWRITE(FLATDATA(ip));
+             }
             )
 };
 
@@ -125,11 +145,32 @@ class CService : public CNetAddr
         IMPLEMENT_SERIALIZE
             (
              CService* pthis = const_cast<CService*>(this);
-             READWRITE(FLATDATA(ip));
+             if (fRead && (nVersion < CADDR_IP64_VERSION))
+             {
+                 unsigned char ip_16[16];
+                 READWRITE(FLATDATA(ip_16));
+                 for (int i = 0; i < 64; ++i)
+                 {
+                     if (i < 16)
+                     {
+                         const_cast<unsigned char*>(this->ip)[i] = ip_16[i];
+                     }
+                     else
+                     {
+                         const_cast<unsigned char*>(this->ip)[i] = 0;
+                     }
+                 }
+             }
+             else
+             {
+                 READWRITE(FLATDATA(ip));
+             }
              unsigned short portN = htons(port);
              READWRITE(portN);
              if (fRead)
+             {
                  pthis->port = ntohs(portN);
+             }
             )
 };
 
@@ -138,6 +179,7 @@ typedef std::pair<CService, int> proxyType;
 int64_t GetAdjustedTime();
 void AddTimeData(const CNetAddr& ip, int64_t nTime);
 
+const char* GetNetworkType(Network n);
 enum Network ParseNetwork(std::string net);
 void SplitHostPort(std::string in, int &portOut, std::string &hostOut);
 bool SetProxy(enum Network net, CService addrProxy, int nSocksVersion = 5);
