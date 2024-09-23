@@ -9,8 +9,9 @@
 
 /******************************************************************************
  * The intent of core-hashes is to provide a standard interface for hashes
- *    sha256, sha1, and ripemd160, to mitigate breakage resulting from
- *    OpenSSL's ever-changing lower-level APIs.
+ *    sha256, sha1, and ripemd160, requiring no external dependencies.
+ * The goal is to avoid breakage resulting from OpenSSL's ever-changing
+ *    lower-level APIs.
  *
  * Parameters:
  *    `pdata` : pointer to data
@@ -23,12 +24,13 @@
 
 #pragma once
 
-#include <stddef.h>
+extern "C"
+{
+#include "ripemd160.h"
+#include "sha2.h"
+}
 
-// sizes in bytes
-#define SHA256_SIZE 32
-#define SHA1_SIZE 20
-#define RIPEMD160_SIZE 20
+#include <stddef.h>
 
 namespace CoreHashes
 {

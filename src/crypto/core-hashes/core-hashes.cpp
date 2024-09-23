@@ -9,10 +9,8 @@
 
 #include "core-hashes.hpp"
 
-#include <openssl/evp.h>
-#include <openssl/opensslv.h>
-
 #include <stdexcept>
+#include <cstring>
 
 using namespace std;
 
@@ -20,110 +18,55 @@ unsigned int CoreHashes::SHA256(const unsigned char* pdata,
                                 unsigned int nbytes,
                                 unsigned char* pdigest)
 {
-    if (pdigest == NULL)
+    if (pdigest == nullptr)
     {
         throw runtime_error(
-                   "StealthCrypto::SHA256(): "
+                   "CoreHashes::SHA256(): "
                    "Pointer to 32 byte digest array is NULL.");
     }
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX ctx;
-    EVP_MD_CTX_init(&ctx);
-#else
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-#endif
 
-    EVP_DigestInit_ex(ctx, EVP_sha256(), NULL);
-    EVP_DigestUpdate(ctx, pdata, nbytes);
-    unsigned int len;
-    EVP_DigestFinal_ex(ctx, pdigest, &len);
+    CORE_SHA256_CTX ctx;
+    sha256_Init(&ctx);
+    sha256_Update(&ctx, pdata, nbytes);
+    sha256_Final(&ctx, pdigest);
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX_cleanup(&ctx);
-#else
-    EVP_MD_CTX_free(ctx);
-#endif
-
-    return len;
-}  // SHA256
-
+    return SHA256_DIGEST_LENGTH_;
+}
 
 unsigned int CoreHashes::SHA1(const unsigned char* pdata,
                               unsigned int nbytes,
                               unsigned char* pdigest)
 {
-    if (pdigest == NULL)
+    if (pdigest == nullptr)
     {
         throw runtime_error(
-                   "StealthCrypto::SHA1(): "
+                   "CoreHashes::SHA1(): "
                    "Pointer to 20 byte digest array is NULL.");
     }
 
-    unsigned int len;
+    CORE_SHA1_CTX ctx;
+    sha1_Init(&ctx);
+    sha1_Update(&ctx, pdata, nbytes);
+    sha1_Final(&ctx, pdigest);
 
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX ctx;
-    EVP_MD_CTX_init(&ctx);
-    EVP_DigestInit_ex(&ctx, EVP_sha1(), NULL);
-    EVP_DigestUpdate(&ctx, pdata, nbytes);
-    EVP_DigestFinal_ex(&ctx, hash, &len);
-    EVP_MD_CTX_cleanup(&ctx);
-#else
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-    EVP_DigestInit_ex(ctx, EVP_sha1(), NULL);
-    EVP_DigestUpdate(ctx, pdata, nbytes);
-    EVP_DigestFinal_ex(ctx, pdigest, &len);
-    EVP_MD_CTX_free(ctx);
-#endif
-
-    return len;
-}  // SHA1
-
+    return SHA1_DIGEST_LENGTH_;
+}
 
 unsigned int CoreHashes::RIPEMD160(const unsigned char* pdata,
                                    unsigned int nbytes,
                                    unsigned char* pdigest)
 {
-    if (pdigest == NULL)
+    if (pdigest == nullptr)
     {
         throw runtime_error(
-                   "StealthCrypto::RIPEMD160(): "
+                   "CoreHashes::RIPEMD160(): "
                    "Pointer to 20 byte digest array is NULL.");
     }
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX ctx;
-    EVP_MD_CTX_init(&ctx);
-#else
-    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
-#endif
 
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD *md = EVP_MD_fetch(NULL, "RIPEMD160", NULL);
-    if (md == NULL)
-    {
-        throw runtime_error(
-                "StealthCrypto::RIPEMD160(): "
-                "OpenSSL RIPEMD160 isn't available. "
-                "Ensure OpenSSL has RIPEMD160 enabled.");
-    }
-    EVP_DigestInit_ex(ctx, md, NULL);
-#else
-    EVP_DigestInit_ex(ctx, EVP_ripemd160(), NULL);
-#endif
+    CORE_RIPEMD160_CTX ctx;
+    ripemd160_Init(&ctx);
+    ripemd160_Update(&ctx, pdata, nbytes);
+    ripemd160_Final(&ctx, pdigest);
 
-    EVP_DigestUpdate(ctx, pdata, nbytes);
-    unsigned int len;
-    EVP_DigestFinal_ex(ctx, pdigest, &len);
-
-#if OPENSSL_VERSION_NUMBER < 0x10100000L
-    EVP_MD_CTX_cleanup(&ctx);
-#else
-    EVP_MD_CTX_free(ctx);
-#endif
-
-#if OPENSSL_VERSION_NUMBER >= 0x30000000L
-    EVP_MD_free(md);
-#endif
-
-    return len;
-}  // RIPEMD160
+    return RIPEMD160_DIGEST_LENGTH_;
+}
