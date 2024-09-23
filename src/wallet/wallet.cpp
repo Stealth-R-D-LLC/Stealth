@@ -12,7 +12,7 @@
 #include "base58.h"
 #include "kernel.h"
 #include "coincontrol.h"
-#include "xorshift1024/XORShift1024Star.hpp"
+#include "XORShift1024Star.hpp"
 
 #include <boost/algorithm/string.hpp>
 #include <boost/algorithm/string/replace.hpp>
@@ -1697,7 +1697,6 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                 wtxNew.fFromMe = true;
 
                 int64_t nTotalValue = nValue + nFeeRet;
-                double dPriority = 0;
                 // vouts to the payees
                 BOOST_FOREACH (const PAIRTYPE(CScript, int64_t)& s, vecSend)
                 {
@@ -1712,11 +1711,6 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                 {
                     printf("CreateTransaction(): could not select coins\n");
                     return false;
-                }
-                BOOST_FOREACH(PAIRTYPE(const CWalletTx*, unsigned int) pcoin, setCoins)
-                {
-                    int64_t nCredit = pcoin.first->vout[pcoin.second].nValue;
-                    dPriority += (double)nCredit * pcoin.first->GetDepthInMainChain();
                 }
 
                 int64_t nChange = nValueIn - nValue - nFeeRet;
@@ -1846,7 +1840,6 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     printf("CreateTransaction(): too many bytes\n");
                     return false;
                 }
-                dPriority /= nBytes;
 
                 if (fFeeless)
                 {
@@ -2429,29 +2422,27 @@ bool CWallet::FindStealthTransactions(const CTransaction& tx, mapValue_t& mapNar
                     && vchENarr.size() > 0)
                 {
                     std::string sNarr = std::string(vchENarr.begin(), vchENarr.end());
-
-                    snprintf(cbuf, sizeof(cbuf), "n_%d", nOutputIdOuter-1); // plaintext narration always matches preceding value output
+                     // plaintext narration always matches preceding value output
+                    snprintf(cbuf, sizeof(cbuf), "n_%d", nOutputIdOuter-1);
                     mapNarr[cbuf] = sNarr;
                 } else
                 {
-                    printf("Warning: FindStealthTransactions() tx: %s, Could not extract plaintext narration.\n", tx.GetHash().GetHex().c_str());
+                    printf(("Warning: FindStealthTransactions() tx: %s, "
+                            "Could not extract plaintext narration.\n"),
+                           tx.GetHash().GetHex().c_str());
                 };
             }
 
             continue;
         }
 
-        int32_t nOutputId = -1;
         nStealth++;
         BOOST_FOREACH(const CTxOut& txoutB, tx.vout)
         {
-            nOutputId++;
-
             if (&txoutB == &txout)
                 continue;
 
             bool txnMatch = false; // only 1 txn will match an ephem pk
-            //printf("txoutB scriptPubKey %s\n",  txoutB.scriptPubKey.ToString().c_str());
 
             CTxDestination address;
             if (!ExtractDestination(txoutB.scriptPubKey, address))
@@ -2469,9 +2460,10 @@ bool CWallet::FindStealthTransactions(const CTransaction& tx, mapValue_t& mapNar
             for (it = stealthAddresses.begin(); it != stealthAddresses.end(); ++it)
             {
                 if (it->scan_secret.size() != ec_secret_size)
-                    continue; // TimeVortex Address is not owned
+                {
+                    continue;
+                }
 
-                //printf("it->Encodeded() %s\n",  it->Encoded().c_str());
                 memcpy(&sScan.e[0], &it->scan_secret[0], ec_secret_size);
 
                 if (StealthSecret(sScan, vchEphemPK, it->spend_pubkey, sShared, pkExtracted) != 0)
@@ -2479,7 +2471,6 @@ bool CWallet::FindStealthTransactions(const CTransaction& tx, mapValue_t& mapNar
                     printf("StealthSecret failed.\n");
                     continue;
                 };
-                //printf("pkExtracted %" PRIszu ": %s\n", pkExtracted.size(), HexStr(pkExtracted).c_str());
 
                 CPubKey cpkE(pkExtracted);
 
@@ -2577,25 +2568,6 @@ bool CWallet::FindStealthTransactions(const CTransaction& tx, mapValue_t& mapNar
                     std::string sLabel = it->Encoded();
                     SetAddressBookName(keyID, sLabel);
                     nFoundStealth++;
-                };
-
-                if (txout.scriptPubKey.GetOp(itTxA, opCode, vchENarr)
-                    && opCode == OP_RETURN
-                    && txout.scriptPubKey.GetOp(itTxA, opCode, vchENarr)
-                    && vchENarr.size() > 0)
-                {
-                    //SecMsgCrypter crypter;
-                    //crypter.SetKey(&sShared.e[0], &vchEphemPK[0]);
-                    //std::vector<uint8_t> vchNarr;
-                    //if (!crypter.Decrypt(&vchENarr[0], vchENarr.size(), vchNarr))
-                    //{
-                    //    printf("Decrypt narration failed.\n");
-                    //    continue;
-                    //};
-                    //std::string sNarr = std::string(vchNarr.begin(), vchNarr.end());
-
-                    //snprintf(cbuf, sizeof(cbuf), "n_%d", nOutputId);
-                    //mapNarr[cbuf] = sNarr;
                 };
 
                 txnMatch = true;
@@ -2743,9 +2715,11 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                                      nCoinStakeTime - n,  // re timestamps, see above
                                      hashProofOfStake))
             {
-               // Found a kernel
+                // Found a kernel
                 if (fDebug && GetBoolArg("-printcoinstake"))
+                {
                     printf("CreateCoinStake : kernel found\n");
+                }
                 vector<valtype> vSolutions;
                 txnouttype whichType;
                 CScript scriptPubKeyOut;
@@ -2753,15 +2727,21 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                 if (!Solver(scriptPubKeyKernel, whichType, vSolutions))
                 {
                     if (fDebug && GetBoolArg("-printcoinstake"))
+                    {
                         printf("CreateCoinStake : failed to parse kernel\n");
+                    }
                     break;
                 }
                 if (fDebug && GetBoolArg("-printcoinstake"))
+                {
                     printf("CreateCoinStake : parsed kernel type=%d\n", whichType);
+                }
                 if (whichType != TX_PUBKEY && whichType != TX_PUBKEYHASH)
                 {
                     if (fDebug && GetBoolArg("-printcoinstake"))
+                    {
                         printf("CreateCoinStake : no support for kernel type=%d\n", whichType);
+                    }
                     break;  // only support pay to public key and pay to address
                 }
                 CKey key;
@@ -2771,7 +2751,9 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                     if (!keystore.GetKey(uint160(vSolutions[0]), key))
                     {
                         if (fDebug && GetBoolArg("-printcoinstake"))
+                        {
                             printf("CreateCoinStake : failed to get key for kernel type=%d\n", whichType);
+                        }
                         break;  // unable to find corresponding public key
                     }
                     scriptPubKeyOut << key.GetPubKey() << OP_CHECKSIG;
@@ -2782,17 +2764,19 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                     if (!keystore.GetKey(Hash160(vchPubKey), key))
                     {
                         if (fDebug && GetBoolArg("-printcoinstake"))
+                        {
                             printf("CreateCoinStake : failed to get key for kernel type=%d\n", whichType);
+                        }
                         break;  // unable to find corresponding public key
                     }
-
-                if (key.GetPubKey() != vchPubKey)
-                {
-                    if (fDebug && GetBoolArg("-printcoinstake"))
-                        printf("CreateCoinStake : invalid key for kernel type=%d\n", whichType);
+                    if (key.GetPubKey() != vchPubKey)
+                    {
+                        if (fDebug && GetBoolArg("-printcoinstake"))
+                        {
+                            printf("CreateCoinStake : invalid key for kernel type=%d\n", whichType);
+                        }
                         break; // keys mismatch
                     }
-
                     scriptPubKeyOut = scriptPubKeyKernel;
                 }
 
@@ -2804,19 +2788,24 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
                 txNew.vin.push_back(CTxIn(pcoin.first->GetHash(), pcoin.second));
                 nCredit += pcoin.first->vout[pcoin.second].nValue;
 
-                // printf(">> Wallet: CreateCoinStake: nCredit = %" PRI64d "\n", nCredit);
-
                 vwtxPrev.push_back(pcoin.first);
                 txNew.vout.push_back(CTxOut(0, scriptPubKeyOut));
 
                 // upon XST_FORK006, CTransactions do not have dependable timestamps,
                 // however for the data structure timestamp can be used temporarily
                 // for now CTransaction timestamp inits as the adjusted time
-                if (GetWeight(block.GetBlockTime(), (int64_t)nCoinStakeTime) < nStakeSplitAge)
-                    txNew.vout.push_back(CTxOut(0, scriptPubKeyOut)); //split stake
+                if (GetWeight(block.GetBlockTime(), (int64_t) nCoinStakeTime) <
+                    nStakeSplitAge)
+                {
+                    txNew.vout.push_back(
+                        CTxOut(0, scriptPubKeyOut));  // split stake
+                }
 
                 if (fDebug && GetBoolArg("-printcoinstake"))
-                    printf("CreateCoinStake : added kernel type=%d\n", whichType);
+                {
+                    printf("CreateCoinStake : added kernel type=%d\n",
+                           whichType);
+                }
                 fKernelFound = true;
                 break;
             }
