@@ -503,9 +503,9 @@ bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
     return true;
 }
 
-void QPRegistry::GetBalances(const std::map<CPubKey, int64_t> *pRet) const
+const std::map<CPubKey, int64_t>* QPRegistry::GetBalances() const
 {
-    pRet = &mapBalances;
+    return &mapBalances;
 }
 
 void QPRegistry::AsJSON(Object &objRet) const

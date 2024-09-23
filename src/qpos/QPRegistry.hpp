@@ -74,7 +74,7 @@ private:
     unsigned int GetIDForPrevSlot() const;
     bool GetPrevRecentBlocksMissedMax(unsigned int nID,
                                       uint32_t &nMaxRet) const;
-    void GetBalances(const std::map<CPubKey, int64_t> *pRet) const;
+    const std::map<CPubKey, int64_t>* GetBalances() const;
     QPStaker* GetStakerForID(unsigned int nID);
     QPStaker* GetStakerForAlias(const std::string &sAlias);
     bool StakerProducedBlock(const CBlockIndex *pindex,
