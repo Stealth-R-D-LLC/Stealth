@@ -318,6 +318,7 @@ ChainParams::ChainParams()
         (      347000, uint256("0x4aaa94b5b7018607a19301e7ba63d40cc3024f091c1bcffaf2b64ef0e1ac5bcb"))
         (      769000, uint256("0x7424eff7b5800cfc59e1420c4c32611bceaebb34959a1df93ca678bb5c614582"))
         (     2107000, uint256("0x3e1be0deee5db79f2de34ccdea3b3891cfb158902b1f8f8215c69c616d719eb1"))
+        (    23945000, uint256("0x1d792a3fa57481605c9840ba24dfd4a5898ec480eb7eb0dd96da42e53dbee883"))
            );
 
     // Hard checkpoints of stake modifiers to ensure they are deterministic
@@ -332,13 +333,7 @@ ChainParams::ChainParams()
     // e.g.: openssl ecparam -name secp256k1 -genkey -noout -out private-key.pem
     //       openssl ec -in private-key.pem -pubout -text -out ecpubkey.txt
     // hex is the "pub:" section in ecpubkey.txt with colons removed
-    strCheckpointMasterPubKey =
-                                    "0484f4bcfce3238a1ebcbf0d4ac99c"
-                                    "d3e8f75e96e73325783c807f9068c1"
-                                    "e9191b210f7f875fd8e63551989dac"
-                                    "fa22f1d9b365a13f2f5a135c87d001"
-                                    "0e46d6a576";
-
+    strCheckpointMasterPubKey = "";
 
 
     //////////////////////////////////////////////////////////////////////////////

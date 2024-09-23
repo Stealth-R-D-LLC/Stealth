@@ -4,13 +4,29 @@
 #ifndef BITCOIN_CHECKPOINT_H
 #define  BITCOIN_CHECKPOINT_H
 
-#include <map>
 #include "net.h"
 #include "util.h"
+
+#include <map>
 
 class uint256;
 class CBlockIndex;
 class CSyncCheckpoint;
+
+struct user_checkpoint {
+    std::string strUserCheckpoint;
+    bool fSuccess;
+    std::string strErrMsg;
+    uint256 hash;
+    int height;
+    int expiration;
+};
+
+// Specified with -usercheckpoint=HASH,HEIGHT,EXPIRATION
+// EXPIRATION should be greather than HEIGHT, allowing the
+//    user checkpoint to be ignored in case the user sets
+//    and forgets it, saving potentially years of wasted CPU cycles.
+user_checkpoint ParseUserCheckpoint(std::string strUserCheckpoint);
 
 /** Block-chain checkpoints are compiled-in sanity checks.
  * They are updated every release or three.
@@ -35,7 +51,9 @@ namespace Checkpoints
     bool WriteSyncCheckpoint(const uint256& hashCheckpoint);
     bool AcceptPendingSyncCheckpoint();
     uint256 AutoSelectSyncCheckpoint();
-    bool CheckSync(const uint256& hashBlock, const CBlockIndex* pindexPrev);
+    bool CheckSync(const uint256& hashBlock,
+                   const CBlockIndex* pindexPrev,
+                   const user_checkpoint* const pUserCheckpoint = NULL);
     bool WantedByPendingSyncCheckpoint(uint256 hashBlock);
     bool ResetSyncCheckpoint();
     void AskForPendingSyncCheckpoint(CNode* pfrom);

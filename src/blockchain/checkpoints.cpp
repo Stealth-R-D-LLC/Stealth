@@ -2,13 +2,84 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include <boost/assign/list_of.hpp> // for 'map_list_of()'
-#include <boost/foreach.hpp>
-
 #include "checkpoints.h"
 #include "main.h"
 #include "uint256.h"
 #include "txdb-leveldb.h"
+
+#include <boost/assign/list_of.hpp> // for 'map_list_of()'
+#include <boost/foreach.hpp>
+
+#include <sstream>
+#include <iomanip>
+#include <algorithm>
+
+
+user_checkpoint ParseUserCheckpoint(std::string strUserCheckpoint)
+{
+    user_checkpoint result;
+    result.strUserCheckpoint = strUserCheckpoint;
+    result.fSuccess = false;
+    result.strErrMsg = "";
+    result.hash = 0;
+    result.height = -1;
+    result.expiration = -1;
+
+    std::istringstream iss(strUserCheckpoint);
+    std::string strHash;
+    int height, expiration;
+
+    if (std::getline(iss, strHash, ',') &&
+        (iss >> height) &&
+        (iss.get() == ',') &&
+        (iss >> expiration))
+    {
+        if (strHash.length() != 64 ||
+            !std::all_of(strHash.begin(),
+                         strHash.end(),
+                         [](char c) {
+                             return (c >= '0' && c <= '9') ||
+                                    (c >= 'a' && c <= 'f');
+                         }))
+        {
+            result.strErrMsg = "Invalid hash: must be 64 lowercase "
+                               "hexadecimal characters";
+            return result;
+        }
+
+        uint256 hash(strHash);
+
+        if (height <= 0)
+        {
+            result.strErrMsg = "Invalid height: must be a positive integer";
+            return result;
+        }
+        if (expiration <= 0)
+        {
+            result.strErrMsg = "Invalid expiration: "
+                               "must be a positive integer";
+            return result;
+        }
+        if (expiration <= height)
+        {
+            result.strErrMsg = "Invalid expiration: "
+                               "must be greater than height";
+            return result;
+        }
+
+        result.fSuccess = true;
+        result.strErrMsg = "";
+        result.hash = hash;
+        result.height = height;
+        result.expiration = expiration;
+    }
+    else
+    {
+        result.strErrMsg = "Invalid format: expected 'HASH,HEIGHT,EXPIRATION'";
+    }
+
+    return result;
+}
 
 namespace Checkpoints
 {
@@ -183,13 +254,13 @@ namespace Checkpoints
         return false;
     }
 
-    // Automatically select a suitable sync-checkpoint 
+    // Automatically select a suitable sync-checkpoint
     uint256 AutoSelectSyncCheckpoint()
     {
         static const int nMaxSpan = chainParams.CHECKPOINT_MAX_SPAN;
         static const int nMinMaturity = std::min(6, nCoinbaseMaturity - 20);
         // Proof-of-work blocks are immediately checkpointed
-        // to defend against 51% attack which rejects other miners block 
+        // to defend against 51% attack which rejects other miners block
 
         // Select the last proof-of-work block
         const CBlockIndex *pindex = GetLastBlockIndex(pindexBest, false);
@@ -204,30 +275,71 @@ namespace Checkpoints
     }
 
     // Check against synchronized checkpoint
-    bool CheckSync(const uint256& hashBlock, const CBlockIndex* pindexPrev)
+    bool CheckSync(const uint256& hashBlock,
+                   const CBlockIndex* pindexPrev,
+                   const user_checkpoint* const pUserCheckpoint)
     {
-        if (fTestNet) return true; // Testnet has no checkpoints
+        uint256 hashCheckpoint = hashSyncCheckpoint;
+        if (pUserCheckpoint)
+        {
+            if (mapBlockIndex.count(pUserCheckpoint->hash))
+            {
+                hashCheckpoint = pUserCheckpoint->hash;
+            }
+            else
+            {
+                printf(("CheckSync(): REJECTING: -usercheckpoint at height %d "
+                        "is not in this blockchain:\n  %s\n"),
+                        pUserCheckpoint->height,
+                        pUserCheckpoint->hash.ToString().c_str());
+                return false;
+            }
+        }
+
+        // Testnet has no checkpoints
+        if (fTestNet)
+        {
+            return true;
+        }
+
         int nHeight = pindexPrev->nHeight + 1;
 
         LOCK(cs_hashSyncCheckpoint);
         // sync-checkpoint should always be accepted block
-        assert(mapBlockIndex.count(hashSyncCheckpoint));
-        const CBlockIndex* pindexSync = mapBlockIndex[hashSyncCheckpoint];
+        assert(mapBlockIndex.count(hashCheckpoint));
+        const CBlockIndex* pindexSync = mapBlockIndex[hashCheckpoint];
 
         if (nHeight > pindexSync->nHeight)
         {
             // trace back to same height as sync-checkpoint
             const CBlockIndex* pindex = pindexPrev;
             while (pindex->nHeight > pindexSync->nHeight)
+            {
                 if (!(pindex = pindex->pprev))
-                    return error("CheckSync: pprev null - block index structure failure");
-            if (pindex->nHeight < pindexSync->nHeight || pindex->GetBlockHash() != hashSyncCheckpoint)
-                return false; // only descendant of sync-checkpoint can pass check
+                {
+                    return error("CheckSync: pprev null - block index "
+                                 "structure failure");
+                }
+            }
+            if ((pindex->nHeight < pindexSync->nHeight) ||
+                (pindex->GetBlockHash() != hashCheckpoint))
+            {
+                // only descendant of sync-checkpoint can pass check
+                return false;
+            }
         }
-        if (nHeight == pindexSync->nHeight && hashBlock != hashSyncCheckpoint)
-            return false; // same height with sync-checkpoint
-        if (nHeight < pindexSync->nHeight && !mapBlockIndex.count(hashBlock))
-            return false; // lower height than sync-checkpoint
+        if ((nHeight == pindexSync->nHeight) &&
+            (hashBlock != hashCheckpoint))
+        {
+            // same height with sync-checkpoint
+            return false;
+        }
+        if ((nHeight < pindexSync->nHeight) &&
+            !mapBlockIndex.count(hashBlock))
+        {
+            // lower height than sync-checkpoint
+            return false;
+        }
         return true;
     }
 
@@ -238,7 +350,7 @@ namespace Checkpoints
             return false;
         if (hashBlock == hashPendingCheckpoint)
             return true;
-        if (mapOrphanBlocks.count(hashPendingCheckpoint) 
+        if (mapOrphanBlocks.count(hashPendingCheckpoint)
             && hashBlock == WantedByOrphan(mapOrphanBlocks[hashPendingCheckpoint]))
             return true;
         return false;

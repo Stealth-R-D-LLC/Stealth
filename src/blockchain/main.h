@@ -11,13 +11,14 @@
 #include "script.h"
 #include "toradapter.h"
 
-#include "hashblock/hashblock.h"
+#include "hashblock.h"
 
 #include "QPRegistry.hpp"
 
 #include "feeless.hpp"
 
 #include <list>
+
 
 class CWallet;
 class CBlock;
@@ -136,7 +137,7 @@ void SyncWithWallets(const CTransaction& tx, const CBlock* pblock = NULL, bool f
 bool ProcessBlock(CNode* pfrom, CBlock* pblock, bool& fProcessOK,
                   bool fIsBootstrap=false, bool fJustCheck=false, bool fIsMine=false);
 bool CheckDiskSpace(uint64_t nAdditionalBytes=0);
-FILE* OpenBlockFile(unsigned int nFile, unsigned int nBlockPos, const char* pszMode="rb");
+FILE* OpenBlockFile(unsigned int nFile, long int nBlockPos, const char* pszMode="rb");
 FILE* AppendBlockFile(unsigned int& nFileRet);
 bool LoadBlockIndex(bool fAllowNew=true);
 void PrintBlockTree();
@@ -1363,7 +1364,7 @@ public:
     }
 
 
-    bool WriteToDisk(unsigned int& nFileRet, unsigned int& nBlockPosRet)
+    bool WriteToDisk(unsigned int& nFileRet, long int& nBlockPosRet)
     {
         // Open history file to append
         CAutoFile fileout = CAutoFile(AppendBlockFile(nFileRet), SER_DISK, CLIENT_VERSION);
@@ -1375,7 +1376,7 @@ public:
         fileout << FLATDATA(pchMessageStart) << nSize;
 
         // Write block
-        long fileOutPos = ftell(fileout);
+        long int fileOutPos = ftell(fileout);
         if (fileOutPos < 0)
             return error("CBlock::WriteToDisk() : ftell failed");
         nBlockPosRet = fileOutPos;
@@ -1389,7 +1390,7 @@ public:
         return true;
     }
 
-    bool ReadFromDisk(unsigned int nFile, unsigned int nBlockPos, bool fReadTransactions=true)
+    bool ReadFromDisk(unsigned int nFile, long int nBlockPos, bool fReadTransactions=true)
     {
         SetNull();
 
@@ -1631,6 +1632,15 @@ public:
            tx.GetQPTxDetails(hashBlock, vDeetsTx);
            vDeets.insert(vDeets.end(), vDeetsTx.begin(), vDeetsTx.end());
         }
+    }
+
+    bool IsNull() const
+    {
+        return (phashBlock == NULL) &&
+               (pprev == NULL) &&
+               (pnext == NULL) &&
+               (nFile == 0) &&
+               (nBlockPos == 0);
     }
 
     CBlock GetBlockHeader() const
