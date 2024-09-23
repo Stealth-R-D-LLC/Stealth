@@ -1,0 +1,192 @@
+= Stealth Coding Style
+
+Please be consistent with the existing coding style.
+
+See `contrib/clang-format/Stealth-clang-format` for the precise specification.
+
+== Block Style
+
+[source,cpp]
+----
+// Group the pointer ("*") or reference ("&") character
+//    as part of the type.
+bool Function(char* psz, int n)
+{
+    // Comment summarising what this section of code does
+    for (int i = 0; i < n; ++i)
+    {
+        // When something fails, return early.
+        // Also, enclose even single-line blocks.
+        if (!Something())
+        {
+            return false;
+        }
+        ...
+    }
+
+    // Success return is usually at the end
+    return true;
+}
+----
+
+In summary, these guidelines are roughly:
+
+* ANSI/Allman block style (opening and closing braces on their own lines).
+* Single-line code blocks should be enclosed in braces.
+* 4 space indenting, no tabs.
+* No extra spaces inside parenthesis; please don't do ( this )
+* No space after function names, one space after if, for and while
+* Group the pointer or reference character with the type, not the name.
+* Try to wrap code and comments to 79 characters.
+* The second and later lines in comment paragraphs in comments are indented
+  three spaces.
+
+
+== Variable Names
+
+Variable names begin with the type in lowercase, like "`nSomeVariable"`.
+Please don't put the first word of the variable name in lowercase
+like "`someVariable`".
+
+=== Common Types
+
+* `n`    :  integer number: `short`, `unsigned short`, `int`, `unsigned int`,
+             `int64_t`, `uint64_t`, sometimes `char` or `unsigned char` if
+               used as a number
+* `d`    :  `double`, `float`
+* `f`    :  flag: `bool`, `int`, `unsinged int`, or `enum` if used as a
+               flag or set of bitwise flags
+* `p`    :  pointer or array, one `p` for each level of indirection
+* `b`    :  `std::bitset`
+* `v`    :  `std::vector` or similar list objects
+* `str`  :  `std::string` object
+* `map`  :  `std::map` or `std::multimap`
+* `set`  :  `std::set` or `std::multiset`
+* `bn`   :  `CBigNum` or OpenSSL `BIGNUM`
+* `hash` :  `uint256`
+* `psz`  :  pointer to null-terminated `string`
+* `pch`  :  pointer to a `char` or `unsigned char` array
+* `vch`  :  vector of `char` or `unsigned char`
+
+
+== Locking/Mutex Usage Notes
+
+The code is multi-threaded, and uses mutexes and the `CRITICAL_BLOCK` and `TRY_CRITICAL_BLOCK` macros to protect data structures.
+
+Deadlocks due to inconsistent lock ordering.
+For example, Thread 1 locks `cs_main` followed by `cs_wallet`, while Thread 2 locks them in the opposite order.
+The result is a deadlock, as each waits for the other to release its lock.
+The `debug.log` file reports lock order inconsistencies when the client is compiled with `-DDEBUG_LOCKORDER`.
+
+A goal is to redesign the core code to have better-defined interfaces between components, where components perform the locks.
+See the self-contained `CKeyStore` class and its `cs_KeyStore` lock as an example.
+
+=== Threads
+
+==== stealth-start
+* Description: Starts other threads.
+* Function: `StartNode`
+* Source: `src/network/net.cpp`
+
+==== stealth-extip
+* Description: Determines outside-the-firewall IP address and
+            sends `addr` message to connected peers when determined.
+* Function: `ThreadGetMyExternalIP`
+* Source: `src/network/net.cpp`
+
+==== stealth-ircseed
+* Description: Joins the IRC bootstrapping channel, watching for new
+            peers and advertising this node's IP address. 
+* Function: `ThreadIRCSeed`
+* Source: `src/network/irc.cpp`
+
+==== stealth-net
+* Description: Sends/Receives data from peers on port 4437 (4438 testnet).
+* Function: `ThreadSocketHandler`
+* Source: `src/network/net.cpp`
+
+==== stealth-msghand
+* Description: Higher-level message handling (sending and receiving) and stake minting.
+* Function: `ThreadMessageHandler`
+* Source: `src/network/net.cpp`
+
+==== stealth-opencon
+* Description: Initiates new connections to peers specified with `-connect`.
+* Function: `ThreadOpenConnections`
+* Source: `src/network/net.cpp`
+
+==== stealth-openadd
+* Description: Initiates new connections to peers specified with `-addnode`.
+* Function: `ThreadOpenAddedConnections`
+* Source: `src/network/net.cpp`
+
+==== stealth-onionsd
+* Description: Initiates connections to Tor seed nodes.
+* Function: `ThreadOnionSeed`
+* Source: `src/network/net.cpp`
+
+==== stealth-onion
+* Description: Starts the built-in Tor onion router.
+* Function: `StartTor`
+* Source: `src/network/net.cpp`
+
+==== stealth-key-top
+* Description: Replenishes the keystore's keypool.
+* Function: `ThreadTopUpKeyPool`
+* Source: `src/rpc/rpcwallet.cpp`
+
+==== stealth-lock-wa
+* Description: Re-locks an encrypted wallet after user has unlocked it for a period of time.
+* Function: `ThreadCleanWalletPassphrase`
+* Source: `src/rpc/rpcwallet.cpp`
+
+==== stealth-flushwa
+* Description: Close the `wallet.dat` file if it hasn't been used in 500ms.
+* Function: `ThreadFlushWalletDB`
+* Source: `db-bdb/walletdb.cpp`
+
+==== stealth-rpclist
+* Description: Remote procedure call handler, listens on port 46502
+            (46503 testnet) for connections and services them.
+* Function: `ThreadRPCServer`
+* Source: `rpc/bitcoinrpc.cpp`
+
+==== stealth-pow
+* Description: Generates XST via proof-of-work.
+* Function: ThreadStealthMinter
+* Source: `src/blockchain/main.cpp`
+
+==== stealth-pos
+* Description: Generates XST via proof-of-stake.
+* Function: ThreadStealthMinter
+* Source: `src/blockchain/main.cpp`
+
+==== stealth-upnp
+* Description: Universal plug-and-play startup/shutdown.
+* Function: `ThreadMapPort`
+* Source: `src/network/net.cpp`
+
+==== stealth-shutdwn
+* Description: Does an orderly shutdown of everything.
+* Function: `Shutdown`
+* Source: `src/client/init.cpp`
+
+==== stealth-exitto
+* Description : Windows-only, sleeps 5 seconds then exits application.
+* Function: `ExitTimeout`
+* Source: `src/client/init.cpp`
+
+==== stealth-dnsseed
+* Description: Loads addresses from DNS seeds.
+* Function: `ThreadDNSAddressSeed`
+* Source: `src/network/net.cpp`
+
+==== stealth-adrdump
+* Description: Dump addresses from the address manager to `peers.dat`.
+* Function: `ThreadDumpAddress`
+* Source: `src/network/net.cpp`
+
+==== stealth-gui-ipc
+* Description: Inter-process communication. Qt only.
+* Function: `ipcThread`
+* Source: `src/qt/qtipcserver.cpp`

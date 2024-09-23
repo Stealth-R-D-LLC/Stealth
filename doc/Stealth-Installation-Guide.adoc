@@ -1,0 +1,499 @@
+= Stealth Daemon Installation Guide
+
+The newest version of this document is at <https://github.com/StealthSend/Stealth/wiki/Stealth-Installation-Guide>.
+
+
+== Overview
+
+The recommended way to build the Stealth daemon, called **StealthCoind**, is in a directory called "build" created at the root of the source tree.
+
+=== Summary
+
+In short, the steps to install  are:
+
+1. Upgrade your operating system and package manager to the latest version.
+2. Ensure that external dependencies are installed.
+3. Download the Stealth source bundle.
+4. Within a new directory called "build" at the top of the source tree, run
+   "`cmake ..`", then "`make`":
++
+[source, bash]
+----
+# from the top of the downloaded source code
+mkdir build
+cd build
+cmake ..
+make
+----
+
+=== Commands
+
+All shell commands in this document are for https://www.gnu.org/software/bash/[Bash] except when otherwise noted.
+
+=== Dependencies
+
+Fortunately, all the packages mentioned below (and many more) are easily installed using package managers available to all common operating systems.
+Typically, the command to install every package is a single line that can be copy-pasted in one shot.
+
+==== Core Dependencies
+
+The daemon has six external dependencies that should either be installed from a package manager, supplied by the system, or built manually.
+
+* Berkeley DB 4.8+: https://www.oracle.com/database/technologies/related/berkeleydb.html
+* Boost 1.72+: http://www.boost.org/
+* LibEvent 2: http://libevent.org/
+* OpenSSL 3.0+: https://www.openssl.org/
+* ZLib 1.29+: http://www.zlib.net/
+* CryptoPP 8.0+: https://github.com/weidai11/cryptopp/
+
+For most users, it is recommended and simplest to install these dependencies using a package manager.
+
+System-specific instructions are given below.
+
+==== Required Building Tools
+
+https://git-scm.com/[Git] is the recommended way to download the source, straight from https://github.com/Stealth-R-D-LLC/Stealth/[GitHub].
+Additionally, the build system relies on https://gcc.gnu.org/[GCC] and https://cmake.org/[CMake].
+
+==== Other Essential Tools
+
+Other tools that are useful for setting up the Stealth daemon are https://www.gnu.org/software/wget/[Wget], https://www.7-zip.org/[7-Zip], and https://curl.se/[curl].
+
+* **Wget** is used to download source code and the Stealth blockchain as a https://fastercapital.com/topics/what-is-blockchain-bootstrapping.html[bootstrap].
+* **7-Zip** is used to decompress the blockchain bootstrap.
++
+7-Zip is not used in building the daemon, but it is essential to bring up a funcitonal Stealth network node.
+The bootstrap uses 7-Zip compression because it creates much smaller archives than most other alternatives.
+
+* **Curl** is used in some tool chains to send commands to **StealthCoind** as well as to download source code and blockchain data.
+
+==== Testing: GoogleTest
+
+The testing system (optional) also requires https://github.com/google/googletest[GoogleTest].
+
+
+== Installing the Dependencies
+
+Because Stealth uses the CMake unified build system, the only build steps that should differ between systems are the installation of the dependencies, which is typically a single command.
+
+Instructions for Linux (Ubuntu, Fedora, & CentOS), macOS (using https://brew.sh/[Homebrew]), and FreeBSD follow.
+
+Building has been tested successfully on newer versions of each (as of September 2024).
+
+* Ubuntu 22.04 LTS, a.k.a "Jammy Jellyfish"
+* Fedora 40
+* CentOS 9, a.k.a "Stream"
+* MacOS 14.6.1, a.k.a "Sonoma" (on both Intel and Apple Silicon)
+* FreeBSD 13.3
+
+Other systems may vary from the examples below.
+Fortunately, the six core dependencies are offered in the _de facto_ package managers for the common operating systems, with the one notable exception being CryptoPP on CentOS/RedHat Linux.
+So determining the package names for operating systems not mentioned here should be straightforward.
+
+
+=== Ubuntu (Debian)
+
+https://www.google.com/search?q=most+googled+linux+distributions+randked[According to Google], Ubuntu is the most popular Linux distribution as of writing (September 2024).
+
+Ubuntu installations prior to 22.04 LTS default to OpenSSL versions that are no longer supported by the Stealth codebase.
+To upgrade Ubuntu from the command line, use "`do-release-upgrade`", until the Ubuntu version is at least 22.04 LTS.
+The Ubuntu version can be determined with the command "`lsb_release -a`".
+
+Package names in the following command may differ for Debian variants other than Ubuntu.
+
+[source,bash]
+----
+sudo apt install wget git cmake autoconf build-essential \
+         openssl libssl-dev pkg-config p7zip-full \
+         libcurl4-openssl-dev unzip curl python3-dev \
+         libboost-all-dev libdb++-dev zlib1g zlib1g-dev \
+         libevent-dev libcrypto++-dev
+----
+
+
+=== Fedora (RedHat)
+
+Fedora is the second most popular desktop Linux distribution, https://www.google.com/search?q=most+googled+linux+distributions+randked[according to Google].
+ 
+Fedora has https://packages.fedoraproject.org/[extensive package support] through it's version of the https://docs.fedoraproject.org/en-US/fedora/latest/system-administrators-guide/package-management/DNF/[DNF] (`dnf`) package manager.
+
+This support makes installing the required dependencies and tools easy:
+
+[source,bash]
+----
+sudo dnf clean all
+sudo dnf update
+sudo dnf install git curl gcc gcc-c++ make cmake openssl-devel \
+                 libdb-cxx-devel libevent-devel \
+                 boost boost-devel cryptopp-devel zlib-devel p7zip
+----
+
+Fedora 40 provides `git`, `wget`, `curl`, `unzip` with its default install.
+
+
+=== CentOS Stream (RedHat)
+
+According to the https://www.centos.org/[CentOS website], CentOS lies "_midstream between Fedora Linux and RHEL [Red Hat Enterprise Linux]_".
+This positioning makes CentOS a good proxy for all three, and for other variants of RedHat.
+
+More closely aligned with RHEL than Fedora, CentOS does lack a couple of dependencies in its package manager support: CryptoPP and 7-Zip.
+Fortunately, installing these two dependencies amounts to a handful of commands that can be copy-pasted at once.
+
+Because of this slight addeded complexity, building the daemon on CentOS is provided here as an example for other RedHat-based distributions that may also have less extensive package manager support.
+
+The following instructions are for CentOS Stream 9.
+
+==== Core Dependencies and Tools
+
+CentOS and other RedHat derivatives use the https://docs.fedoraproject.org/en-US/fedora/latest/system-administrators-guide/package-management/DNF/[DNF] package manager, invoked with "`dnf`".
+
+[source,bash]
+----
+sudo dnf clean all
+sudo dnf update
+sudo dnf --enablerepo=crb install git gcc gcc-c++ glibc \
+                          openssl-devel bzip2-devel libffi-devel \
+                          zlib-devel make cmake boost-devel \
+                          libdb-cxx-devel libevent-devel
+----
+
+==== CryptoPP
+
+CryptoPP is not available through the CentOS 9 package manager.
+
+Fortunately, the commands to download, build, and install it are simple and can be copy-pasted in one shot:
+
+[source,bash]
+----
+mkdir -p ${HOME}/Deps/cryptopp/cryptopp-v8.9
+cd ${HOME}/Deps/cryptopp/cryptopp-v8.9
+wget https://github.com/weidai11/cryptopp/releases/download/CRYPTOPP_8_9_0/cryptopp890.zip
+unzip cryptopp890.zip
+NCORES=$(( $(grep -c processor /proc/cpuinfo) - 1 ))
+make -j${NCORES}
+sudo make install
+----
+
+==== 7-Zip
+
+The following commands:
+
+* Download and extract the appropriate 7-Zip in a directory called "`Deps/7zip`" in the user's home directory.
+* A set of if..then..else statements determine the correct 7-Zip download, depending on whether the CPU architecture is AMD64 (`x86_64`) or Arm64 (`aarch64`).
+* These commands then install the `7zz` executable to "`/usr/local/bin`".
+* Finally, `7z` is soft-linked to `7zz` because `7z` is the more typical command to invoke 7-Zip.
+
+Despite the apparent complexity of the following commands, they can all be copy-pasted in one shot:
+
+[source,bash]
+----
+mkdir -p "${HOME}/Deps/7zip/7zip-v24.08"
+cd "${HOME}/Deps/7zip/7zip-v24.08"
+arch=$(uname -m)
+base_7zip_url="https://7-zip.org/a"
+_7zip_archive_prefix="7z2408-linux"
+if [[ "$arch" == "x86_64" ]]; then
+    base_7zip_archive="${_7zip_archive_prefix}-x64"
+elif [[ "$arch" == "aarch64" ]]; then
+    base_7zip_archive="${_7zip_archive_prefix}-amd64"
+else
+    base_7zip_archive=""
+    echo "Unsupported architecture: $arch"
+fi
+if [ "${base_7zip_archive}" != "" ]; then
+  _7zip_archive="${base_7zip_archive}.tar.xz"
+  echo "Downloading 7-Zip (${_7zip_archive}) for ${arch} with:"
+  file_url="${base_7zip_url}/${_7zip_archive}"
+  echo '   wget '"${file_url} ..."
+  wget "${file_url}"
+  tar xvf "${_7zip_archive}"
+  sudo cp 7zz /usr/local/bin
+  cd /usr/local/bin
+  sudo ln -s 7zz 7z
+fi
+----
+
+
+=== MacOS
+
+These instructions have been tested on macOS Sonoma 14.6, running on both Intel and Apple Silicon processors.
+
+==== Package Manager
+
+To build the Stealth daemon, the recommended macOS package manager is https://brew.sh/[Homebrew].
+
+The installation instructions for Homebrew are at its https://brew.sh/[home page].
+
+==== Libraries
+
+For Homebrew, the package names of the core dependencies are:
+
+* `berkeley-db@18`
+* `boost`
+* `libevent`
+* `openssl@3`
+* `cryptopp`
+
+Note that ZLib is already provided by the OS X system as of OS X Catalina
+(version 10.15.3).
+
+==== Compiler
+
+Fortunately, macOS provides C and C++ compilers with https://developer.apple.com/xcode/[Xcode], which should be installed with the following command:
+
+[source,bash]
+----
+xcode-select --install
+----
+
+[IMPORTANT]
+====
+When running the "`cmake`" step to build the daemon, you might get an error that contains the following:
+
+----
+The C compiler
+
+  "/usr/bin/cc"
+
+is not able to compile a simple test program.
+----
+
+More than likely, you simply need to accept the XCode license agreement with:
+
+[source,bash]
+----
+sudo xcodebuild -license
+----
+
+Then try again.
+
+====
+
+
+==== Other Tools
+
+MacOS also provides the curl and Git utilities, leaving only Wget (`wget`) and 7-Zip (`sevenzip`) for installation with Homebrew.
+
+==== Homebrew Command
+
+The Homebrew command to install the necessary dependencies and tools on macOS is:
+
+[source,bash]
+----
+brew install cmake wget berkeley-db@18 boost libevent openssl@3 \
+             cryptopp sevenzip
+----
+
+
+=== FreeBSD
+
+https://www.freebsd.org/[FreeBSD] is considered the most popular version of BSD, and is typically used for servers.
+
+==== Fixing FreeBSD's `make` Command
+
+FreeBSD has a few differences from Linux-based operating systems.
+Among those, one is relevant to building the Stealth daemon: the use of https://man.freebsd.org/cgi/man.cgi?make(1)[BSD `make`], which offers only a subset of features supported by the more common https://www.gnu.org/software/make/[GNU Make] (`gmake`).
+
+To remedy this deficiency, it is necessary to:
+
+1. Install `gmake` with `pkg`, the BSD package manager.
+2. Re-order the `$PATH` environment variable.
+3. Create a soft-link for `gmake` called "`make`" that is found earlier in `$PATH` than BSD `make`.
+
+The following commands accomplish all three:
+
+[source,bash]
+----
+pkg install gmake
+# set PATH for current shell
+export PATH="${HOME}/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"
+# set PATH for future shells
+echo 'export PATH="${HOME}/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"' >> "${HOME}/.profile"
+mkdir "${HOME}/bin"
+cd "${HOME}/bin"
+ln -s /usr/local/bin/gmake make
+----
+
+==== Core Dependencies and Tools
+
+The FreeBSD package manager, https://github.com/freebsd/pkg[`pkg`], has excellent coverage of tools and libraries, making their installation a single command:
+
+[source,bash]
+----
+pkg install lang/gcc autoconf automake bash cmake gmake libtool \
+            pkgconf openssl boost-all db18 cryptopp libevent git
+----
+
+Note that ZLib and OpenSSL are installed with the FreeBSD operating system.
+
+
+=== Windows
+
+The daemon can build under https://sourceforge.net/projects/mingw/[MinGW], but Windows is not supported at the moment.
+
+To host **StealthCoind** on Windows, users are encouraged to use https://www.docker.com/[Docker] with the "`Dockerfile`" in the "`contrib/docker`" directory.
+
+
+== Download the Stealth Source for Building
+
+The Stealth source is hosted on GitHub at https://github.com/Stealth-R-D-LLC/Stealth/.
+The default branch therein is "`master`" and will contain the latest stable Stealth codebase.
+
+[source,bash]
+----
+mkdir -p ${HOME}/Code
+cd ${HOME}/Code
+# creates the directory called "Stealth" that contains the source code
+git clone https://github.com/Stealth-R-D-LLC/Stealth.git
+----
+
+
+== Making the Stealth Daemon
+
+The recommended way to build the Stealth daemon is from a directory called "`build`", created at the top of the source bundle obtained from "`git clone`".
+In the following commands, the number of cores is set to the maximum for the system minus 1, speeding up the build concomitant with the number of cores.
+
+[source,bash]
+----
+NCORES=$(( $(grep -c processor /proc/cpuinfo) - 1 ))
+# Stealth directory created by "git clone"
+cd Stealth
+mkdir build
+cd build
+cmake ..
+make -j${NCORES}
+----
+
+
+== Testing
+
+Building and running the tests are optional, and typically used by developers.
+The following discussion is therefore aimed at advanced users.
+
+Presently, the new testing framework is split into functional parts, divided by the code units tested. In the future, it will be possible to run all the tests in a unified fashion.
+
+=== Build GoogleTest
+
+Because each project should have its own GoogleTest environment configured specifically for the needs of that project, it is usually necessary to manually build and install GoogleTest to a custom location, unique to the project.
+
+In the following commands, the GoogleTest installation we use will reside in a folder identified by the variable named "`$STEALTH_GTEST`".
+
+You may want want to modify these commands to your needs:
+
+[source,bash]
+----
+mkdir -p "${HOME}/Code/googletest"
+cd "${HOME}/Code/googletest"
+git clone https://github.com/google/googletest.git
+cd googletest
+mkdir build
+cd build
+cmake -DBUILD_GMOCK=OFF ..
+NCORES=$(( $(grep -c processor /proc/cpuinfo) - 1 ))
+make -j${NCORES}
+cd ..
+STEALTH_GTEST="${HOME}/Code/googletest/stealth-gtest"
+mkdir -p "${STEALTH_GTEST}"
+rm -rf "${STEALTH_GTEST}/*"
+cp -a googletest/include/ "${STEALTH_GTEST}/include"
+cp -a build/lib "${STEALTH_GTEST}/lib"
+----
+
+[IMPORTANT]
+.GoogleTest Installation
+====
+The "`make install`" command is purposefully **not** called.
+
+Instead the headers and libraries are manually put in place to ensure an installation path that works on all platforms.
+====
+
+=== Building and Running the Tests
+
+Tests are located in "`src/test`".
+
+Currently, viable tests exist in the following directories, each testing a specific unit of code:
+
+* `bip32-hash-test`
+* `core-hashes-test`
+* `key-test`
+* `secp256k1_openssl-test`
+* `util-test`
+
+[NOTE]
+====
+These tests all have in common that they test the core cryptographic functionality of the Stealth protocol.
+====
+
+
+You may also notice a "`boost-tests`" directory.
+These are legacy tests that are in the process of being converted to the new GoogleTest framework.
+
+Assuming GoogleTest was built according to the commands above, instructions to build and test the "`bip32-hash-test`" suite are:
+
+[source,bash]
+----
+cd "${HOME}/Code/Stealth/src/test/bip32-hash-test"
+mkdir build
+cd build
+cmake -DGTEST_ROOT="${STEALTH_GTEST}" ..
+NCORES=$(( $(grep -c processor /proc/cpuinfo) - 1 ))
+make -j${NCORES}
+----
+
+Building the test produces an executable that starts "`test-`".
+In the present example, this executable is "`test-bip32-hash`":
+
+[source,bash]
+----
+./test-bip32-hash
+----
+
+=== Debugging the Tests
+
+Each test supports a "`-d`" debugging flag:
+
+[source,bash]
+----
+./test-bip32-hash -d
+----
+
+The debugging flag prints helpful output about the data used and produced in the tests.
+
+For example, the first few lines of output from the above "`./test-bip32-hash -d`" command is:
+
+----
+[==========] Running 13 tests from 1 test suite.
+[----------] Global test environment set-up.
+[----------] 13 tests from HashTest
+[ RUN      ] HashTest.SHA256Test
+======================
+Test of SHA256 - Input
+======================
+        0x73, 0xe0, 0x66, 0x77, 0xa8, 0xf2, 0x1e, 0xa1, 0x6f, 0x50, 0x23, 0x0b,
+        0xf4, 0x5f, 0x2b, 0x3e, 0x20, 0x7d, 0xea, 0x66, 0xf1, 0x55, 0x54, 0xbb,
+        0xbb, 0x09, 0xcb, 0x15, 0xae, 0x49, 0xc4, 0x71, 0x17, 0x56, 0xf3, 0x36,
+        0xf4, 0xf8, 0x33, 0x62, 0x3a, 0xa6, 0x08, 0xcc, 0xf7, 0xf4, 0xd2, 0x47,
+        0xc4, 0x2e, 0xb9, 0xae, 0x0a, 0x5a, 0x99, 0xf5, 0x33, 0x89, 0x29, 0xb6,
+        0x2c, 0x2a, 0xbb, 0xa6
+
+=======================
+Test of SHA256 - Output
+=======================
+        0x21, 0x7d, 0x44, 0xae, 0x39, 0xb5, 0x3e, 0x33, 0xc6, 0x97, 0x1d, 0xcf,
+        0x7f, 0x95, 0xdc, 0x1f, 0x40, 0x32, 0x0e, 0x1b, 0xb6, 0x93, 0x1a, 0x53,
+        0x86, 0x6b, 0x12, 0x8a, 0x0c, 0x8a, 0xfb, 0x86
+
+================================
+Test of SHA256 - Expected Output
+================================
+        0x21, 0x7d, 0x44, 0xae, 0x39, 0xb5, 0x3e, 0x33, 0xc6, 0x97, 0x1d, 0xcf,
+        0x7f, 0x95, 0xdc, 0x1f, 0x40, 0x32, 0x0e, 0x1b, 0xb6, 0x93, 0x1a, 0x53,
+        0x86, 0x6b, 0x12, 0x8a, 0x0c, 0x8a, 0xfb, 0x86
+
+[       OK ] HashTest.SHA256Test (1 ms)
+[ RUN      ] HashTest.SHA256_2Test
+----
+
+=== Other Testing Options
+
+Please see the readme files ("`README.md`" or "`README.adoc`") within the unit testing folders and in their parent folder "`src/test`" for further options when building the tests.
