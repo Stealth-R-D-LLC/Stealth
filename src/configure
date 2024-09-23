@@ -1,0 +1,329 @@
+#! /usr/bin/env python3
+
+import os
+import platform
+import subprocess
+import sys
+import glob
+import shutil
+import re
+
+from pathlib import Path
+from io import StringIO
+from collections import namedtuple
+
+MAKEFILE_IN = "Makefile.src"
+MAKEFILE_OUT = "Makefile"
+LOCAL_ENV = "local-env.mk"
+
+LIB_RGX_FMT = r"%s([0-9.-].*)?\.(tbd|a|so|dylib|dll)"
+LIB_VERSION_RGX = re.compile(r"(?:\d+\.)*\d+")
+
+WHITE = "ffffff"
+GREEN = "77ff77"
+YELLOW = "ffff00"
+RED = "ff7777"
+CYAN = "00dddd"
+ORANGE = "ff9933"
+MAGENTA = "ff00ff"
+BLUE = "9999ff"
+
+Dep = namedtuple("Dep", ["name", "inc", "libs", "exts"])
+Candidate = namedtuple("Candidate", ["version", "lib_path", "groups"])
+
+def print_color(text, rgb, end="\n"):
+  # Convert RGB hex string to decimal values
+  r, g, b = int(rgb[:2], 16), int(rgb[2:4], 16), int(rgb[4:], 16)
+
+  # ANSI escape code for setting RGB color
+  color_start = f"\033[38;2;{r};{g};{b}m"
+
+  # ANSI escape code for resetting color
+  color_end = "\033[0m"
+
+  # Print the colored text
+  print(f"{color_start}{text}{color_end}", end=end)
+
+
+def mingw_to_windows_path(unix_path):
+  # Use the 'cygpath' utility to convert the path
+  try:
+    result = subprocess.run(['cygpath', '-w', unix_path], capture_output=True,
+                                                          text=True,
+                                                          check=True)
+    windows_path = result.stdout.strip()
+    return windows_path
+  except subprocess.CalledProcessError:
+    # If 'cygpath' is not available, attempt a manual conversion
+    if unix_path.startswith('/'):
+      # Assume MSYS2 is installed in C:\msys64
+      return os.path.join('C:\\msys64', unix_path.lstrip('/'))
+  return unix_path
+
+def my_walk(top, topdown=True, onerror=None, followlinks=False):
+  if PLATFORM == "Windows":
+    top = mingw_to_windows_path(top)
+  for dirpath, dirnames, filenames in os.walk(top,
+                                              topdown,
+                                              onerror,
+                                              followlinks):
+    yield dirpath, dirnames, filenames
+
+
+def find_file_rgx(rgx, search_paths):
+  for path in search_paths:
+    for root, dirNames, fileNames in my_walk(path):
+      # dirNames.sort()
+      fileNames.sort()
+      matches = []
+      for name in fileNames:
+        p = os.path.join(root, name)
+        m = rgx.search(p)
+        if m:
+          matches.append(m)
+      if matches:
+        return Path(matches[0].string)
+  return None
+
+def find_file(pattern, search_paths):
+  for path in search_paths:
+    for root, _, _ in my_walk(path):
+      matches = glob.glob(os.path.join(root, pattern))
+      if matches:
+        return Path(matches[0])
+  return None
+
+def get_m_version(m):
+  n = LIB_VERSION_RGX.search(m.string)
+  if n is None:
+    return (-1,)
+  try:
+    return tuple(int(v) for v in n.group(0).split("."))
+  except:
+    return (-1,)
+
+
+NULL_CANDIDATE = Candidate((-sys.maxsize,), None, None)
+def find_lib_candidates(rgx, search_paths, max_depth=4):
+  candidates = []
+  depth = 0
+  for path in search_paths:
+    print_color(f"  Searching \"{path}\"", BLUE)
+    seps = path.count(os.sep)
+    for root, dirNames, fileNames in my_walk(path):
+      # dirNames.sort()
+      fileNames.sort()
+      if "lib" not in root.split(os.path.sep):
+        continue
+      depth = root.count(os.sep) - seps
+      if depth > max_depth:
+        continue
+      matches = []
+      for name in fileNames:
+        p = os.path.join(root, name)
+        m = rgx.search(name)
+        if m:
+          lib_path = Path(p)
+          version = get_m_version(m)
+          matches.append((version, lib_path, m))
+      if matches:
+        candidate = NULL_CANDIDATE
+        for version, lib_path, m in matches:
+          if version > candidate.version:
+            candidate = Candidate(version, lib_path, m.groups())
+        candidates.append(candidate)
+  candidates.sort(reverse=True)
+  return candidates
+
+def find_dir(name, search_paths):
+  for path in search_paths:
+    for root, dirs, _ in my_walk(path):
+      if name in dirs:
+        return Path(root) / name
+  return None
+
+def find_lib_and_include(dep, name, include_pattern, lib_patterns, suffices):
+  lib_pattern = lib_patterns[0]
+  print(f"Finding {name} dependency with pattern \"{lib_pattern}\".")
+  for suffix in suffices:
+    lib_rgx = re.compile(LIB_RGX_FMT % (lib_pattern + suffix))
+    if suffix == "":
+      print("  Searching without suffix.")
+    else:
+      print(f"  Searching with suffix \"{suffix}\".")
+    lib_path_candidates = find_lib_candidates(lib_rgx, LIB_SEARCH_PATHS[dep])
+    if len(lib_path_candidates) > 0:
+      break
+  if not lib_path_candidates:
+    print_color(f"Error: {name} library not found.", RED)
+    msg = "Please install {name} or set the {dep}_ROOT environment variable."
+    print_color(msg, YELLOW)
+    sys.exit(1)
+
+  for version, lib_path, g in lib_path_candidates:
+    lib_dir = lib_path.parent
+    current_path = lib_path.parent
+    while current_path.parent != current_path:
+      include_dir = current_path / 'include'
+      if include_dir.exists():
+        if os.path.isdir(include_pattern):
+          include_path = find_dir(include_pattern, [include_dir])
+        else:
+          include_path = find_file(include_pattern, [include_dir])
+        # take first match because LIB_SEARCH_PATHS is ordered by customization
+        if include_path:
+          msg = f"Found {name} dependency at \"{include_path.parent.parent}\""
+          print_color(msg, CYAN)
+          print_color(f"   lib: \"{lib_path}\"", CYAN)
+          print_color(f"   headers: \"{include_path.parent}\"", CYAN)
+          return lib_path, include_path.parent
+      current_path = current_path.parent
+
+  print_color(f"Error: {name} include directory not found.", RED)
+  msg = f"Please install {name} or set the {dep}_ROOT environment variable."
+  print_color(msg, YELLOW)
+  sys.exit(1)
+
+def get_library_suffix(lib_path, lib_name):
+  rgx = re.compile(f"{lib_name}(.*)(\\.(?:tbd|a|so|dylib|dll))")
+  m = rgx.search(str(lib_path))
+  if m is not None:
+    suffix = m.group(1)
+    if suffix != "":
+      print_color(f"   With suffix: \"{suffix}\"", ORANGE)
+    return suffix
+  return ""
+
+def get_compiler_info():
+  try:
+    result = subprocess.run(['gcc', '-v'], stderr=subprocess.PIPE, text=True)
+    for line in result.stderr.split('\n'):
+      if " version " in line:
+        parts = [v.strip() for v in line.split("version")]
+        compiler_name = parts[0]
+        compiler_parts = compiler_name.split()
+        if len(compiler_parts) == 1:
+          vendor = "GNU"
+        else:
+          vendor = compiler_parts[0]
+        compiler = compiler_parts[-1]
+        version = parts[1].split()[0]
+        return compiler, vendor, version
+  except:
+    pass
+  return "Unknown", "Unknown", "Unknown"
+
+PLATFORM = platform.system()
+if PLATFORM == "Darwin":
+  PLATFORM = "macOS"
+elif PLATFORM.startswith(("CYGWIN", "MINGW")):
+  PLATFORM = "Windows"
+
+print_color(f"Platform: \"{PLATFORM}\"", ORANGE)
+
+CPU_ARCH = platform.machine()
+
+config = [ None,
+           ("PLATFORM", PLATFORM),
+           ("CPU_ARCH", CPU_ARCH) ]
+
+COMMON_LIB_SEARCH_PATHS = [ str(Path.home() / "local"),
+                            "/opt/homebrew/opt",
+                            "/usr/local/opt",
+                            "/opt/homebrew",
+                            "/opt/local",
+                            "/usr/local",
+                            "/usr/lib/x86_64-linux-gnu",
+                            "/usr",
+                            "/ucrt64",
+                            "/mingw64" ]
+
+ISYS_ROOT = None
+if PLATFORM == "macOS":
+  ISYS_ROOT = subprocess.run(["xcrun", "--show-sdk-path"],
+                             capture_output=True,
+                             text=True).stdout.strip()
+  COMMON_LIB_SEARCH_PATHS.append(os.path.join(ISYS_ROOT, "usr"))
+
+  config.append(None)
+  config.append(("ISYS_ROOT", ISYS_ROOT))
+  config.append(None)
+  for flag in ["CFLAGS", "CCFLAGS", "CXXFLAGS", "CPPFLAGS"]:
+    config.append((flag, "-isysroot $(ISYS_ROOT)"))
+
+if PLATFORM == "Windows":
+  config.append(None)
+  config.append(("LEVELDB_TARGET", "OS_WINDOWS_CROSSCOMPILE"))
+
+LIB_SEARCH_PATHS = {}
+for dep in ["BDB", "BOOST", "OPENSSL", "EVENT", "CRYPTOPP", "ZLIB"]:
+  LIB_SEARCH_PATHS[dep] = COMMON_LIB_SEARCH_PATHS[:]
+  var = f"{dep}_ROOT"
+  if var in os.environ:
+    p = os.environ[var]
+    print_color(f"  Using \"{p}\" for {var}", ORANGE)
+    LIB_SEARCH_PATHS[dep] = [p]
+
+deps = { "BDB": Dep("Berkeley DB", "db_cxx.h", ("libdb_cxx",), [""]),
+         "BOOST": Dep("Boost", "boost/", ("libboost_thread",), ["-mt", ""]),
+         "OPENSSL": Dep("OpenSSL", "openssl/", ("libssl", "libcrypto"), [""]),
+         "EVENT": Dep("Libevent", "event2/", ("libevent",), [""]),
+         "CRYPTOPP": Dep("Crypto++", "cryptopp/", ("libcryptopp",), [""]),
+         "ZLIB": Dep("zlib", "zlib.h", ("libz",), [""]) }
+
+for dep, (name, include_pattern, lib_patterns, suffices) in deps.items():
+  lib_path, include_path = find_lib_and_include(dep,
+                                                name,
+                                                include_pattern,
+                                                lib_patterns,
+                                                suffices)
+  config.append(None)
+  config.append(name)
+  config.append((f"{dep}_LIB_PATH", str(lib_path.parent)))
+  config.append((f"{dep}_INCLUDE_PATH", str(include_path)))
+
+  if dep == "BDB":
+    config.append(("BDB_LIB_SUFFIX",
+                   get_library_suffix(lib_path, deps['BDB'].libs[0])))
+  elif dep == "BOOST":
+    config.append(("BOOST_LIB_SUFFIX",
+                   get_library_suffix(lib_path, deps['BOOST'].libs[0])))
+
+compiler, vendor, version = get_compiler_info()
+
+s = StringIO()
+
+s.write("# Include makefile, generated by configure\n")
+
+for t in config:
+  if t is None:
+    s.write("\n")
+  elif len(t) == 0:
+    s.write("\n")
+  elif isinstance(t, str):
+    s.write(f"# {t}\n")
+  else:
+    key, value = t
+    s.write(f"{key} = {value}\n")
+
+s.write("\n")
+s.write("# Definitions for Tor\n")
+for flag in ["rxCFLAGS", "xCCFLAGS", "xCXXFLAGS", "xCPPFLAGS"]:
+  s.write(f"{flag} = $({flag[1:] if flag.startswith('x') else flag[2:]}) \\\n")
+  s.write(f'    -DCOMPILER="\\"{compiler}\\"" \\\n')
+  s.write(f'    -DCOMPILER_VENDOR="\\"{vendor}\\"" \\\n')
+  s.write(f'    -DCOMPILER_VERSION="\\"{version}\\""\n')
+
+local_env = s.getvalue()
+s.close()
+
+with open(LOCAL_ENV, "w") as f:
+ f.write(local_env)
+
+print(f"Local build configuration written to \"{LOCAL_ENV}\".")
+
+shutil.copyfile(MAKEFILE_IN, MAKEFILE_OUT)
+
+print("Makefile created.")
+
+print_color("Success.", GREEN)
