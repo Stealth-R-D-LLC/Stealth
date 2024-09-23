@@ -278,13 +278,19 @@ public:
     }
 
 
-
     std::string GetHex() const
     {
-        char psz[sizeof(pn)*2 + 1];
-        for (unsigned int i = 0; i < sizeof(pn); i++)
-            sprintf(psz + i*2, "%02x", ((unsigned char*)pn)[sizeof(pn) - i - 1]);
-        return std::string(psz, psz + sizeof(pn)*2);
+        size_t pn_size = sizeof(pn);
+        size_t hex_length = pn_size * 2;
+        std::string result(hex_length, '0');
+
+        for (size_t i = 0; i < pn_size; i++)
+        {
+            unsigned char byte = ((unsigned char*)pn)[pn_size - i - 1];
+            snprintf(&result[i * 2], 3, "%02x", byte);
+        }
+
+        return result;
     }
 
     void SetHex(const char* psz)
