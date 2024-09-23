@@ -42,6 +42,8 @@ unsigned int nDerivationMethodIndex;
 
 void ExitTimeout(void* parg)
 {
+    // Make this thread recognisable as the tor thread
+    RenameThread("stealth-exitto");
 #ifdef WIN32
     MilliSleep(5000);
     ExitProcess(0);
@@ -65,7 +67,7 @@ void Shutdown(void* parg)
     static bool fTaken;
 
     // Make this thread recognisable as the shutdown thread
-    RenameThread("bitcoin-shutoff");
+    RenameThread("stealth-shutdwn");
 
     bool fFirstThread = false;
     {
@@ -108,8 +110,9 @@ void Shutdown(void* parg)
     }
 }
 
-void HandleSIGTERM(int)
+void HandleSIGTERM(int signum)
 {
+    fprintf(stderr, "Interrupt signal %d received.\n", signum);
     fRequestShutdown = true;
 }
 
@@ -268,6 +271,7 @@ std::string HelpMessage()
         "  -onlynet=<net>         " + _("Only connect to nodes in network <net> (IPv4, IPv6 or Tor)") + "\n" +
         "  -onionseed             " + _("Find peers using .onion seeds (default: 1 unless -connect)") + "\n" +
         "  -nosynccheckpoints     " + _("Disable sync checkpoints (default: 1)") + "\n" +
+        "  -usercheckpoint        " + _("User checkpoint of the form HASH,HEIGHT,EXPIRATION (default: \"\")") + "\n" +
         "  -discover              " + _("Discover own IP address (default: 1 when listening and no -externalip)") + "\n" +
         "  -irc                   " + _("Find peers using internet relay chat (default: 0)") + "\n" +
         "  -listen                " + _("Accept connections from outside (default: 1 if no -proxy or -connect)") + "\n" +
@@ -401,15 +405,23 @@ bool AppInit2()
     sa.sa_handler = HandleSIGTERM;
     sigemptyset(&sa.sa_mask);
     sa.sa_flags = 0;
-    sigaction(SIGTERM, &sa, NULL);
-    sigaction(SIGINT, &sa, NULL);
-
+    if (sigaction(SIGTERM, &sa, NULL) == -1)
+    {
+        fprintf(stderr, "Failed to set SIGNTERM.\n");
+    }
+    if (sigaction(SIGINT, &sa, NULL) == -1)
+    {
+        fprintf(stderr, "Failed to set SIGINT.\n");
+    }
     // Reopen debug.log on SIGHUP
     struct sigaction sa_hup;
     sa_hup.sa_handler = HandleSIGHUP;
     sigemptyset(&sa_hup.sa_mask);
     sa_hup.sa_flags = 0;
-    sigaction(SIGHUP, &sa_hup, NULL);
+    if (sigaction(SIGHUP, &sa_hup, NULL) == -1)
+    {
+        fprintf(stderr, "Failed to set SIGHUP.\n");
+    }
 #endif
 
     // ********************************************************* Step 2: parameter interactions
@@ -593,6 +605,19 @@ bool AppInit2()
     if (fDaemon)
         fprintf(stdout, "Stealth server starting\n");
 
+    if (fDebug)
+    {
+        printf("Running with full debugging output.\n");
+    }
+    else
+    {
+        printf(("Running with debugging for:\n"
+                "   Net=%d, QPoS=%d, Explore=%d, "
+                "Feeless=%d, BlockCreation=%d\n"),
+               fDebugNet, fDebugQPoS, fDebugExplore, fDebugFeeless,
+               fDebugBlockCreation);
+    }
+
     int64_t nStart;
 
     // ********************************************************* Step 5: verify database integrity
@@ -614,7 +639,7 @@ bool AppInit2()
             return false;
     }
 
-    if (filesystem::exists(GetDataDir() / strWalletFileName))
+    if (boost::filesystem::exists(GetDataDir() / strWalletFileName))
     {
         CDBEnv::VerifyResult r = bitdb.Verify(strWalletFileName, CWalletDB::Recover);
         if (r == CDBEnv::RECOVER_OK)
@@ -830,20 +855,26 @@ bool AppInit2()
 
     if (mapArgs.count("-externalip"))
     {
-        BOOST_FOREACH(string strAddr, mapMultiArgs["-externalip"]) {
+        BOOST_FOREACH (string strAddr, mapMultiArgs["-externalip"])
+        {
             CService addrLocal(strAddr, GetListenPort(), fNameLookup);
             if (!addrLocal.IsValid())
-                return InitError(strprintf(_("Cannot resolve -externalip address: '%s'"), strAddr.c_str()));
-            AddLocal(CService(strAddr, GetListenPort(), fNameLookup), LOCAL_MANUAL);
+            {
+                return InitError(
+                    strprintf(_("Cannot resolve -externalip address: '%s'"),
+                              strAddr.c_str()));
+            }
+            AddLocal(CService(strAddr, GetListenPort(), fNameLookup),
+                     LOCAL_MANUAL);
         }
     }
     else if (fBuiltinTor)
     {
         string automatic_onion;
-        filesystem::path const hostname_path = GetDataDir(
+        boost::filesystem::path const hostname_path = GetDataDir(
         ) / "onion" / "hostname";
         if (
-            !filesystem::exists(
+            !boost::filesystem::exists(
                 hostname_path
             )
         ) {
@@ -855,11 +886,14 @@ bool AppInit2()
             )
         );
         file >> automatic_onion;
-        AddLocal(CService(automatic_onion, GetListenPort(), fNameLookup), LOCAL_MANUAL);
+        CService localService(automatic_onion, GetListenPort(), fNameLookup);
+        AddLocal(localService, LOCAL_MANUAL);
     }
 
-    BOOST_FOREACH(string strDest, mapMultiArgs["-seednode"])
+    BOOST_FOREACH (string strDest, mapMultiArgs["-seednode"])
+    {
         AddOneShot(strDest);
+    }
 
 
     if (mapArgs.count("-reservebalance")) // ppcoin: reserve balance amount
@@ -884,6 +918,7 @@ bool AppInit2()
     // AddOneShot(string(""));
 
     // ********************************************************* Step 7: load blockchain
+
 
     nMaxHeight = GetArg("-maxheight", -1);
 
@@ -1087,18 +1122,23 @@ bool AppInit2()
         }
     }
 
-    filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
-    if (filesystem::exists(pathBootstrap))
+    boost::filesystem::path pathBootstrap = GetDataDir() / "bootstrap.dat";
+    if (boost::filesystem::exists(pathBootstrap))
     {
         uiInterface.InitMessage(_("Importing bootstrap blockchain data file."));
 
         FILE *file = fopen(pathBootstrap.string().c_str(), "rb");
         if (file)
         {
-            filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
+            boost::filesystem::path pathBootstrapOld = GetDataDir() / "bootstrap.dat.old";
             LoadExternalBlockFile(file);
             RenameOver(pathBootstrap, pathBootstrapOld);
             fReindexExplore = false;
+            const CBlockLocator locator(pindexBest);
+            BOOST_FOREACH(CWallet* pwallet, setpwalletRegistered)
+            {
+                pwallet->SetBestChain(locator);
+            }
         }
     }
 

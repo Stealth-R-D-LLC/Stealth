@@ -38,10 +38,11 @@ enum ForkNumbers
 //
 // network protocol versioning
 //
-static const int CLIENT_PROTOCOL_VERSION = 64000;
+static const int CLIENT_PROTOCOL_VERSION = 65000;
 
 // proto   version   notes
 // -----   -------   ----------------------------------------------------------
+// 65000 : 3.2.0.0 : IP Addresses up to 64 bytes for Tor v3
 // 64000 : fork 14 : XST_FORKFEELESS2
 // 64000 : fork 13 : XST_FORKMISSFIX2
 //       : 3.1.8.0 : liststakerauthorities and small fixes for multisigs
