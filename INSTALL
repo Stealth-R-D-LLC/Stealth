@@ -1,9 +1,16 @@
-Building Stealth
+= Building Stealth
 
-See doc/readme-qt.rst for instructions on building Stealth QT,
-the intended-for-end-users, nice-graphical-interface, reference
-implementation of Stealth.
+== The Daemon
 
-See doc/build-*.txt for instructions on building Stealth,
-the intended-for-services, no-graphical-interface, reference
-implementation of Stealth.
+See `doc/Stealth-Installation-Guide.adoc` for instructions on building
+the Stealth daemon, the reference implementation.
+
+== GUI
+
+Stealth has both mobile and desktop wallet options for several platforms.
+See https://stealth.org/apps/ for downloads.
+
+== Qt
+
+The historical Qt-based GUI is no longer supported, although its out of date code remains in the repository in `src/qt`.
+

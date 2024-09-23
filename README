@@ -1,0 +1,48 @@
+= Stealth [XST]
+
+Stealth is a fast, feelesss, private, and scalable blockchain built on the Junaeth cryptocurrency protocol.
+Stealth consensus is achieved through a novel protocol wherein validators, called "StealthNodes", are permanently bonded.
+In other words, creating a StealthNode requires a one-way burn of XST, the functional currency of the Stealth blockchain.
+Because StealthNodes are permanently bonded with irrevocable blockchain rights, StealthNode owners are beholden to no one, acting entirely independently and fully in the interests of their StealthNode assets.
+StealthNodes are transferrable, and their value is tied objectively to their performance.
+
+Because of Stealth's unique and efficient consensus protocol, it can offer feeless transactions, global scalability, and unparalleled spam resistance, without expensive proof-of-work (PoW) or any subservience to privileged stakeholders, like founders and other insiders.
+
+Stealth also has a number of other unique technological advancements, including a distributed network clock that promotes regular blocktimes and therefore regular, 5 second feeless transaction confirmations.
+Another advancement is temporally-bound memory-hard work for feeless transactions.
+Temporal binding allows feeless transactions to expire, making sustained denial-of-service (DoS) prohibitively expensive.
+Transaction expiration also allows for a quick (2 minute), no-fee resolution in the exceedingly rare event that a feeless transaction becomes stuck without confirmation.
+No other cryptocurrency offers quick, feeless resolution to stuck transactions, which happen with every payment system.
+
+== Money supply
+
+* Algorithm: X13
+* Premine: 1% (232,740 XST), max value less than $10,000 (2014)
+* First 10 Blocks: Premine 23,274 XST Each
+* Next 250 Blocks: 16.0 XST each (4 hr low reward for fair launch)
+* Block 261 Award: 8,000 XST
+* Halving every 1440 blocks (about 1 day)
+* Last PoW block: 20,420
+* Total PoW Money: 23,273,860 XST
+* Yearly Inflation: 1.01%
+
+== Ports
+
+* P2P: `4437`
+* Testnet P2P: `4438`
+* RPC: `46502`
+* Testnet RPC: `46503`
+
+== Application
+
+* Daemon Name: `StealthCoind`
+* Conf File (Case Sensitive): `StealthCoin.conf`
+* Addresses: Usually start with "S"
+* Testnet Addresses: Usually start with "m"
+
+== Application Directories
+
+* Windows < Vista: `C:\Documents and Settings\Username\Application Data\StealthCoin`
+* Windows >= Vista: `C:\Users\Username\AppData\Roaming\StealthCoin`
+* Mac: `~/Library/Application Support/StealthCoin`, `~/.StealthCoin`
+* Unix: `~/.StealthCoin`

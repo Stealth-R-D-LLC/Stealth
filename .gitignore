@@ -2,7 +2,7 @@
 # Local build configuration
 ################################
 
-local-env-*
+local-env*
 .qmake.stash
 
 ################################
@@ -147,6 +147,9 @@ cache
 *.lkg
 *.working
 
+# asciidoctor
+*.html
+
 
 ################################
 # IDEs
@@ -184,13 +187,10 @@ src/libcryptopp/adhoc.cpp
 src/libcryptopp/cryptest.exe
 src/libcryptopp/libcryptopp.a
 
-# argon2
-src/crypto/argon2/*.a
-src/crypto/argon2/test*
-src/crypto/argon2/src/*.o
-src/crypto/argon2/src/blake2/*.o
-
 # CMake
+Makefile
 CMakeCache.txt
 CMakeFiles
+CMakeScripts
 cmake_install.cmake
+cmake
