@@ -330,12 +330,12 @@ if __name__ == '__main__':
     f = open(sys.argv[1])
     for line in f:
         # skip comment lines
-        m = re.search('^\s*#', line)
+        m = re.search(r'^\s*#', line)
         if m:
             continue
 
         # parse key=value lines
-        m = re.search('^(\w+)\s*=\s*(\S.*)$', line)
+        m = re.search(r'^(\w+)\s*=\s*(\S.*)$', line)
         if m is None:
             continue
         settings[m.group(1)] = m.group(2)
@@ -359,7 +359,7 @@ if __name__ == '__main__':
     if 'split_timestamp' not in settings:
         settings['split_timestamp'] = 0
     if 'max_out_sz' not in settings:
-        settings['max_out_sz'] = 1000 * 1000 * 1000
+        settings['max_out_sz'] = 10 * 1000 * 1000 * 1000
     if 'verbose' in settings:
         settings['verbose'] = getTF(settings['verbose'])
         if settings['verbose'] is None:

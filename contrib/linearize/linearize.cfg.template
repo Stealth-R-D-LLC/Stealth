@@ -14,7 +14,7 @@ min_height=0
 
 # bootstrap.dat hashlist settings (linearize-hashes)
 # just use the highest block of your chain
-max_height=23942500
+max_height=850000
 
 
 # bootstrap.dat input/output settings (linearize-data)
@@ -25,11 +25,11 @@ netmagic=70352205
 
 # mainnet: 1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a
 # testnet: 3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634
-hash_genesis=1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a
-input=/Volumes/Crucial-4TB-01/James/Bootstraps/XST/mainnet/bootstrap-23942500/blockdata-0-23942500
+hash_genesis=3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634
+input=/path/to/.StealthCoin
 
 output_file=bootstrap.dat
-hashlist=/Volumes/Crucial-4TB-01/James/Bootstraps/XST/mainnet/bootstrap-23942500/hashlist-0-23942500/hashlist.txt
+hashlist=hashlist.txt
 
 # 1 new blk####.dat every 4 years
 split_year=4
