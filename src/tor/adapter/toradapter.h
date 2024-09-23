@@ -14,7 +14,8 @@ extern unsigned short onion_port;
 extern unsigned short p2p_port;
 
 #ifdef __cplusplus
-extern "C" {
+extern "C"
+{
 #endif
 
     char const* coin_tor_data_directory();

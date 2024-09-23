@@ -38,10 +38,14 @@ const char tor_git_revision[] =
 #    define ARCH_IS_APPLE_32 1
 #    error "32 bit Macs are not supported."
 #  endif
-#elif defined(__LP64__) || defined(_LP64)
-#  include "orconfig-linux.h"
-#else
-#  error "32 bit Linux is not supported."
+#elif defined(__linux__)
+#  if defined(__LP64__) || defined(_LP64)
+#    include "orconfig-linux.h"
+#  else
+#    error "32 bit Linux is not supported."
+#  endif
+#elif defined(__FreeBSD__)
+#  include "orconfig-freebsd.h"
 #endif
 
 

@@ -10,6 +10,9 @@
 #include <boost/filesystem.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/thread/mutex.hpp>
+#include <boost/thread/lock_types.hpp>
+#include <boost/thread/condition_variable.hpp>
+
 #include <string>
 #include <cstring>
 
@@ -24,7 +27,6 @@ char const* coin_tor_data_directory()
     return retrieved.c_str();
 }
 
-
 char const* coin_service_directory()
 {
     static std::string const retrieved = (GetDataDir() / "onion").string();
@@ -36,19 +38,41 @@ int check_interrupted()
     return boost::this_thread::interruption_requested() ? 1 : 0;
 }
 
-static boost::mutex initializing;
+class InitializationManager {
+public:
+    static InitializationManager& getInstance() {
+        static InitializationManager instance;
+        return instance;
+    }
 
-static AUTO_PTR<boost::unique_lock<boost::mutex> > uninitialized(
-                        new boost::unique_lock<boost::mutex>(initializing));
+    void setInitialized() {
+        boost::lock_guard<boost::mutex> lock(mutex_);
+        isInitialized_ = true;
+        cv_.notify_all();
+    }
 
-void set_initialized()
-{
-    uninitialized.reset();
+    void waitInitialized() {
+        boost::unique_lock<boost::mutex> lock(mutex_);
+        cv_.wait(lock, [this] { return isInitialized_; });
+    }
+
+private:
+    InitializationManager() : isInitialized_(false) {}
+
+    boost::mutex mutex_;
+    boost::condition_variable cv_;
+    bool isInitialized_;
+
+    InitializationManager(const InitializationManager&) = delete;
+    InitializationManager& operator=(const InitializationManager&) = delete;
+};
+
+void set_initialized() {
+    InitializationManager::getInstance().setInitialized();
 }
 
-void wait_initialized()
-{
-    boost::unique_lock<boost::mutex> checking(initializing);
+void wait_initialized() {
+    InitializationManager::getInstance().waitInitialized();
 }
 
 void shutdown_tor()

@@ -12,16 +12,16 @@
 #define APPROX_RELEASE_DATE "2024-06-06"
 
 /* tor's build directory */
-#define BUILDDIR "."
+#define BUILDDIR ""
 
 /* Compiler name */
-#define COMPILER "GCC"
+#define COMPILER /**/
 
 /* Compiler vendor */
-#define COMPILER_VENDOR "gnu"
+#define COMPILER_VENDOR "clang"
 
 /* Compiler version */
-#define COMPILER_VERSION "11.4.0"
+#define COMPILER_VERSION "15.0.0"
 
 /* tor's configuration directory */
 #define CONFDIR "."
@@ -88,7 +88,7 @@
 #define HASHX_STATIC 1
 
 /* Define to 1 if you have the `accept4' function. */
-#define HAVE_ACCEPT4 1
+/* #undef HAVE_ACCEPT4 */
 
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
@@ -106,10 +106,10 @@
 /* #undef HAVE_CAP_SET_PROC */
 
 /* True if we have -Wnull-dereference */
-#define HAVE_CFLAG_WNULL_DEREFERENCE 1
+/* #undef HAVE_CFLAG_WNULL_DEREFERENCE */
 
 /* True if we have -Woverlength-strings */
-#define HAVE_CFLAG_WOVERLENGTH_STRINGS 1
+/* #undef HAVE_CFLAG_WOVERLENGTH_STRINGS */
 
 /* True if we have -Wunused-const-variable */
 /* #undef HAVE_CFLAG_WUNUSED_CONST_VARIABLE */
@@ -118,7 +118,7 @@
 #define HAVE_CLOCK_GETTIME 1
 
 /* Define to 1 if you have the <crt_externs.h> header file. */
-/* #undef HAVE_CRT_EXTERNS_H */
+#define HAVE_CRT_EXTERNS_H 1
 
 /* Define to 1 if you have the <crypto_scalarmult_curve25519.h> header file.
    */
@@ -158,26 +158,26 @@
 #define HAVE_EVENT2_EVENT_H 1
 
 /* Define to 1 if you have the `eventfd' function. */
-#define HAVE_EVENTFD 1
+/* #undef HAVE_EVENTFD */
 
 /* Define to 1 if you have the `EVP_PBE_scrypt' function. */
 #define HAVE_EVP_PBE_SCRYPT 1
 
 /* Define to 1 if you have the `evutil_secure_rng_add_bytes' function. */
-/* #undef HAVE_EVUTIL_SECURE_RNG_ADD_BYTES 1 */
+#define HAVE_EVUTIL_SECURE_RNG_ADD_BYTES 1
 
 /* Define to 1 if you have the `evutil_secure_rng_set_urandom_device_file'
    function. */
-/* #undef HAVE_EVUTIL_SECURE_RNG_SET_URANDOM_DEVICE_FILE */
+#define HAVE_EVUTIL_SECURE_RNG_SET_URANDOM_DEVICE_FILE 1
 
 /* Define to 1 if you have the <execinfo.h> header file. */
 #define HAVE_EXECINFO_H 1
 
 /* Define to 1 if you have the `explicit_bzero' function. */
-#define HAVE_EXPLICIT_BZERO 1
+/* #undef HAVE_EXPLICIT_BZERO */
 
 /* Defined if we have extern char **environ already declared */
-#define HAVE_EXTERN_ENVIRON_DECLARED 1
+/* #undef HAVE_EXTERN_ENVIRON_DECLARED */
 
 /* Define to 1 if you have the <fcntl.h> header file. */
 #define HAVE_FCNTL_H 1
@@ -201,7 +201,7 @@
 #define HAVE_GETENTROPY 1
 
 /* Define this if you have any gethostbyname_r() */
-#define HAVE_GETHOSTBYNAME_R 1
+/* #undef HAVE_GETHOSTBYNAME_R */
 
 /* Define this if gethostbyname_r takes 3 arguments */
 /* #undef HAVE_GETHOSTBYNAME_R_3_ARG */
@@ -210,7 +210,7 @@
 /* #undef HAVE_GETHOSTBYNAME_R_5_ARG */
 
 /* Define this if gethostbyname_r takes 6 arguments */
-#define HAVE_GETHOSTBYNAME_R_6_ARG 1
+/* #undef HAVE_GETHOSTBYNAME_R_6_ARG */
 
 /* Define to 1 if you have the `getifaddrs' function. */
 #define HAVE_GETIFADDRS 1
@@ -219,10 +219,10 @@
 #define HAVE_GETLINE 1
 
 /* Define to 1 if you have the `getresgid' function. */
-#define HAVE_GETRESGID 1
+/* #undef HAVE_GETRESGID */
 
 /* Define to 1 if you have the `getresuid' function. */
-#define HAVE_GETRESUID 1
+/* #undef HAVE_GETRESUID */
 
 /* Define to 1 if you have the `getrlimit' function. */
 #define HAVE_GETRLIMIT 1
@@ -231,7 +231,7 @@
 #define HAVE_GETTIMEOFDAY 1
 
 /* Define to 1 if you have the `get_current_dir_name' function. */
-#define HAVE_GET_CURRENT_DIR_NAME 1
+/* #undef HAVE_GET_CURRENT_DIR_NAME */
 
 /* Define to 1 if you have the `glob' function. */
 #define HAVE_GLOB 1
@@ -243,10 +243,10 @@
 #define HAVE_GMTIME_R 1
 
 /* Define to 1 if you have the `gnu_get_libc_version' function. */
-#define HAVE_GNU_GET_LIBC_VERSION 1
+/* #undef HAVE_GNU_GET_LIBC_VERSION */
 
 /* Define to 1 if you have the <gnu/libc-version.h> header file. */
-#define HAVE_GNU_LIBC_VERSION_H 1
+/* #undef HAVE_GNU_LIBC_VERSION_H */
 
 /* Define to 1 if you have the <grp.h> header file. */
 #define HAVE_GRP_H 1
@@ -264,10 +264,10 @@
 #define HAVE_IOCTL 1
 
 /* Define to 1 if you have the `issetugid' function. */
-/* #undef HAVE_ISSETUGID */
+#define HAVE_ISSETUGID 1
 
 /* Defined if KIST scheduler is supported on this system */
-#define HAVE_KIST_SUPPORT 1
+/* #undef HAVE_KIST_SUPPORT */
 
 /* Define to 1 if you have the `cap' library (-lcap). */
 /* #undef HAVE_LIBCAP */
@@ -282,26 +282,26 @@
 #define HAVE_LIMITS_H 1
 
 /* Define to 1 if you have the <linux/if.h> header file. */
-#define HAVE_LINUX_IF_H 1
+/* #undef HAVE_LINUX_IF_H */
 
 /* Define to 1 if you have the <linux/netfilter_ipv4.h> header file. */
-#define HAVE_LINUX_NETFILTER_IPV4_H 1
+/* #undef HAVE_LINUX_NETFILTER_IPV4_H */
 
 /* Define to 1 if you have the <linux/netfilter_ipv6/ip6_tables.h> header
    file. */
-#define HAVE_LINUX_NETFILTER_IPV6_IP6_TABLES_H 1
+/* #undef HAVE_LINUX_NETFILTER_IPV6_IP6_TABLES_H */
 
 /* Define to 1 if you have the <linux/types.h> header file. */
-#define HAVE_LINUX_TYPES_H 1
+/* #undef HAVE_LINUX_TYPES_H */
 
 /* Define to 1 if you have the `llround' function. */
-/* #undef HAVE_LLROUND */
+#define HAVE_LLROUND 1
 
 /* Define to 1 if you have the `localtime_r' function. */
 #define HAVE_LOCALTIME_R 1
 
 /* Define to 1 if you have the `lround' function. */
-/* #undef HAVE_LROUND */
+#define HAVE_LROUND 1
 
 /* Define to 1 if you have the <lttng/tracepoint.h> header file. */
 /* #undef HAVE_LTTNG_TRACEPOINT_H */
@@ -310,13 +310,13 @@
 /* #undef HAVE_LZMA */
 
 /* Define to 1 if you have the <machine/limits.h> header file. */
-/* #undef HAVE_MACHINE_LIMITS_H */
+#define HAVE_MACHINE_LIMITS_H 1
 
 /* Define to 1 if you have the `mach_approximate_time' function. */
-/* #undef HAVE_MACH_APPROXIMATE_TIME */
+#define HAVE_MACH_APPROXIMATE_TIME 1
 
 /* Define to 1 if you have the <mach/vm_inherit.h> header file. */
-/* #undef HAVE_MACH_VM_INHERIT_H */
+#define HAVE_MACH_VM_INHERIT_H 1
 
 /* Defined if the compiler supports __FUNCTION__ */
 #define HAVE_MACRO__FUNCTION__ 1
@@ -331,7 +331,7 @@
 #define HAVE_MADVISE 1
 
 /* Define to 1 if you have the <malloc.h> header file. */
-#define HAVE_MALLOC_H 1
+/* #undef HAVE_MALLOC_H */
 
 /* Define to 1 if you have the `memmem' function. */
 #define HAVE_MEMMEM 1
@@ -340,10 +340,10 @@
 #define HAVE_MEMORY_H 1
 
 /* Define to 1 if you have the `memset_s' function. */
-/* #undef HAVE_MEMSET_S */
+#define HAVE_MEMSET_S 1
 
 /* Define to 1 if you have the `minherit' function. */
-/* #undef HAVE_MINHERIT */
+#define HAVE_MINHERIT 1
 
 /* Define to 1 if you have the `mlockall' function. */
 #define HAVE_MLOCKALL 1
@@ -386,13 +386,13 @@
 #define HAVE_PIPE 1
 
 /* Define to 1 if you have the `pipe2' function. */
-#define HAVE_PIPE2 1
+/* #undef HAVE_PIPE2 */
 
 /* Define to 1 if you have the `prctl' function. */
-#define HAVE_PRCTL 1
+/* #undef HAVE_PRCTL */
 
 /* Define to 1 if you have the `pthread_condattr_setclock' function. */
-#define HAVE_PTHREAD_CONDATTR_SETCLOCK 1
+/* #undef HAVE_PTHREAD_CONDATTR_SETCLOCK */
 
 /* Define to 1 if you have the `pthread_create' function. */
 #define HAVE_PTHREAD_CREATE 1
@@ -404,13 +404,13 @@
 #define HAVE_PWD_H 1
 
 /* Define to 1 if you have the `readpassphrase' function. */
-/* #undef HAVE_READPASSPHRASE */
+#define HAVE_READPASSPHRASE 1
 
 /* Define to 1 if you have the <readpassphrase.h> header file. */
-/* #undef HAVE_READPASSPHRASE_H */
+#define HAVE_READPASSPHRASE_H 1
 
 /* Define to 1 if you have the `rint' function. */
-/* #undef HAVE_RINT */
+#define HAVE_RINT 1
 
 /* Define to 1 if the system has the type `rlim_t'. */
 #define HAVE_RLIM_T 1
@@ -488,10 +488,10 @@
 #define HAVE_STRING_H 1
 
 /* Define to 1 if you have the `strlcat' function. */
-/* #undef HAVE_STRLCAT */
+#define HAVE_STRLCAT 1
 
 /* Define to 1 if you have the `strlcpy' function. */
-/* #undef HAVE_STRLCPY */
+#define HAVE_STRLCPY 1
 
 /* Define to 1 if you have the `strncasecmp' function. */
 #define HAVE_STRNCASECMP 1
@@ -512,29 +512,29 @@
 #define HAVE_STRUCT_IN6_ADDR 1
 
 /* Define to 1 if `s6_addr16' is a member of `struct in6_addr'. */
-#define HAVE_STRUCT_IN6_ADDR_S6_ADDR16 1
+/* #undef HAVE_STRUCT_IN6_ADDR_S6_ADDR16 */
 
 /* Define to 1 if `s6_addr32' is a member of `struct in6_addr'. */
-#define HAVE_STRUCT_IN6_ADDR_S6_ADDR32 1
+/* #undef HAVE_STRUCT_IN6_ADDR_S6_ADDR32 */
 
 /* Define to 1 if the system has the type `struct sockaddr_in6'. */
 #define HAVE_STRUCT_SOCKADDR_IN6 1
 
 /* Define to 1 if `sin6_len' is a member of `struct sockaddr_in6'. */
-/* #undef HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN */
+#define HAVE_STRUCT_SOCKADDR_IN6_SIN6_LEN 1
 
 /* Define to 1 if `sin_len' is a member of `struct sockaddr_in'. */
-/* #undef HAVE_STRUCT_SOCKADDR_IN_SIN_LEN */
+#define HAVE_STRUCT_SOCKADDR_IN_SIN_LEN 1
 
 /* Define to 1 if `get_cipher_by_char' is a member of `struct ssl_method_st'.
    */
 /* #undef HAVE_STRUCT_SSL_METHOD_ST_GET_CIPHER_BY_CHAR */
 
 /* Define to 1 if `tcpi_snd_mss' is a member of `struct tcp_info'. */
-#define HAVE_STRUCT_TCP_INFO_TCPI_SND_MSS 1
+/* #undef HAVE_STRUCT_TCP_INFO_TCPI_SND_MSS */
 
 /* Define to 1 if `tcpi_unacked' is a member of `struct tcp_info'. */
-#define HAVE_STRUCT_TCP_INFO_TCPI_UNACKED 1
+/* #undef HAVE_STRUCT_TCP_INFO_TCPI_UNACKED */
 
 /* Define to 1 if `tv_sec' is a member of `struct timeval'. */
 #define HAVE_STRUCT_TIMEVAL_TV_SEC 1
@@ -543,7 +543,7 @@
 #define HAVE_SYSCONF 1
 
 /* Define to 1 if you have the `sysctl' function. */
-/* #undef HAVE_SYSCTL */
+#define HAVE_SYSCTL 1
 
 /* Define to 1 if you have the <syslog.h> header file. */
 #define HAVE_SYSLOG_H 1
@@ -558,7 +558,7 @@
 /* #undef HAVE_SYS_CAPABILITY_H */
 
 /* Define to 1 if you have the <sys/eventfd.h> header file. */
-#define HAVE_SYS_EVENTFD_H 1
+/* #undef HAVE_SYS_EVENTFD_H */
 
 /* Define to 1 if you have the <sys/fcntl.h> header file. */
 #define HAVE_SYS_FCNTL_H 1
@@ -579,7 +579,7 @@
 #define HAVE_SYS_PARAM_H 1
 
 /* Define to 1 if you have the <sys/prctl.h> header file. */
-#define HAVE_SYS_PRCTL_H 1
+/* #undef HAVE_SYS_PRCTL_H */
 
 /* Define to 1 if you have the <sys/random.h> header file. */
 #define HAVE_SYS_RANDOM_H 1
@@ -606,7 +606,7 @@
 #define HAVE_SYS_SYSCALL_H 1
 
 /* Define to 1 if you have the <sys/sysctl.h> header file. */
-/* #undef HAVE_SYS_SYSCTL_H */
+#define HAVE_SYS_SYSCTL_H 1
 
 /* Define to 1 if you have the <sys/time.h> header file. */
 #define HAVE_SYS_TIME_H 1
@@ -645,7 +645,7 @@
 #define HAVE_TRUNCATE 1
 
 /* Define to 1 if you have the <ucontext.h> header file. */
-#define HAVE_UCONTEXT_H 1
+/* #undef HAVE_UCONTEXT_H */
 
 /* Define to 1 if the system has the type `uint'. */
 #define HAVE_UINT 1
@@ -681,7 +681,7 @@
 /* #undef HAVE_ZSTD_ESTIMATEDCTXSIZE */
 
 /* Define to 1 if you have the `_NSGetEnviron' function. */
-/* #undef HAVE__NSGETENVIRON */
+#define HAVE__NSGETENVIRON 1
 
 /* Define to 1 if you have the `_vscprintf' function. */
 /* #undef HAVE__VSCPRINTF */
@@ -720,7 +720,7 @@
 #define PACKAGE_VERSION "0.4.8.12"
 
 /* How to access the PC from a struct ucontext */
-#define PC_FROM_UCONTEXT uc_mcontext.gregs[REG_RIP]
+/* #undef PC_FROM_UCONTEXT */
 
 /* Define to 1 iff right-shifting a negative value performs sign-extension */
 #define RSHIFT_DOES_SIGN_EXTEND 1
@@ -818,7 +818,7 @@
 /* #undef USE_TRACING_INSTRUMENTATION_USDT */
 
 /* "Define to enable transparent proxy support" */
-#define USE_TRANSPARENT 1
+/* #undef USE_TRANSPARENT */
 
 /* Define to 1 iff we represent negative integers with two's complement */
 #define USING_TWOS_COMPLEMENT 1
