@@ -42,7 +42,7 @@ static bool ipcScanCmd(int argc, char *argv[], bool fRelay)
     bool fSent = false;
     for (int i = 1; i < argc; i++)
     {
-        if (boost::algorithm::istarts_with(argv[i], "bitcoin:"))
+        if (boost::algorithm::istarts_with(argv[i], "stealth:"))
         {
             const char *strURI = argv[i];
             try {
@@ -75,7 +75,7 @@ void ipcScanRelay(int argc, char *argv[])
 static void ipcThread(void* pArg)
 {
     // Make this thread recognisable as the GUI-IPC thread
-    RenameThread("bitcoin-gui-ipc");
+    RenameThread("stealth-gui-ipc");
 	
     try
     {
@@ -127,7 +127,7 @@ void ipcInit(int argc, char *argv[])
     try {
         mq = new message_queue(open_or_create, BITCOINURI_QUEUE_NAME, 2, MAX_URI_LENGTH);
 
-        // Make sure we don't lose any bitcoin: URIs
+        // Make sure we don't lose any stealth: URIs
         for (int i = 0; i < 2; i++)
         {
             ptime d = boost::posix_time::microsec_clock::universal_time() + millisec(1);
@@ -139,7 +139,7 @@ void ipcInit(int argc, char *argv[])
                 break;
         }
 
-        // Make sure only one bitcoin instance is listening
+        // Make sure only one stealth instance is listening
         message_queue::remove(BITCOINURI_QUEUE_NAME);
         delete mq;
 
