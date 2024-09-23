@@ -1,3 +1,7 @@
+# Building Libs.
+build_config.mk
+out-static
+
 # Editors.
 *.sw*
 .vscode
@@ -6,3 +10,9 @@
 # Build directory.
 build/
 out/
+
+# CMake.
+Makefile
+
+# leveldb
+!benchmark.html
