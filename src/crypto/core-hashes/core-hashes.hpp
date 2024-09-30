@@ -26,15 +26,20 @@
 
 extern "C"
 {
-#include "ripemd160.h"
+#include "sha3.h"
 #include "sha2.h"
+#include "ripemd160.h"
 }
 
 #include <stddef.h>
 
+
 namespace CoreHashes
 {
 
+unsigned int SHA3_256(const unsigned char* pdata,
+                      unsigned int nbytes,
+                      unsigned char* pdigest);
 
 unsigned int SHA256(const unsigned char* pdata,
                     unsigned int nbytes,

@@ -261,6 +261,7 @@ OBJS= \
     obj/memzero.o \
     obj/ripemd160.o \
     obj/sha2.o \
+    obj/sha3.o \
     obj/XORShift1024Star.o \
     obj/argon2.o \
     obj/core.o \

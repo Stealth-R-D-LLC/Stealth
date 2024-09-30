@@ -35,6 +35,37 @@ valtype RandomMessage(size_t length=32)
 }
 
 
+TEST_F(CoreHashesTest, SHA3_256)
+{
+    // Generate random private key
+    // valtype vchMessage = RandomMessage();
+    valtype vchMessage = {
+        0x59, 0xd9, 0x08, 0xac, 0xc5, 0xa4, 0x91, 0x4a, 0x56, 0xe0, 0x83, 0x99,
+        0x6c, 0xa2, 0xba, 0x5a, 0xe9, 0xea, 0xcd, 0xd0, 0x64, 0x54, 0x9c, 0x98,
+        0xe0, 0xe7, 0xa1, 0xba, 0xc4, 0x7a, 0x94, 0x8f };
+
+    PrintTestingData("SHA3_256", "Test Message", vchMessage);
+
+    valtype vchDigest(SHA3_256_DIGEST_LENGTH_);
+
+    print_info("Testing hash calculation.");
+    ASSERT_NO_THROW(CoreHashes::SHA3_256(vchMessage.data(),
+                                         vchMessage.size(),
+                                         vchDigest.data()));
+
+    PrintTestingData("SHA3_256", "Calculated Hash", vchDigest);
+
+    valtype vchExpected = {
+        0x1e, 0x4d, 0x09, 0x0e, 0x78, 0x13, 0x53, 0x23, 0xb1, 0xec, 0x29, 0x97,
+        0x46, 0xa0, 0xa2, 0x9d, 0xf1, 0x4f, 0x7c, 0xe5, 0x29, 0x81, 0x57, 0xab,
+        0x0d, 0x93, 0x33, 0xaf, 0x1d, 0xfc, 0xca, 0xbe };
+
+    PrintTestingData("SHA3_256", "Expected Hash", vchExpected);
+
+    print_info("Testing identity of calculated hash.");
+    ASSERT_EQ(vchDigest, vchExpected);
+}
+
 TEST_F(CoreHashesTest, SHA256)
 {
     // Generate random private key

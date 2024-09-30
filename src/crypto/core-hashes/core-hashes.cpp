@@ -14,6 +14,28 @@
 
 using namespace std;
 
+unsigned int CoreHashes::SHA3_256(const unsigned char* pdata,
+                                  unsigned int nbytes,
+                                  unsigned char* pdigest)
+{
+    if (pdigest == nullptr)
+    {
+        throw runtime_error(
+                   "CoreHashes::SHA3_256(): "
+                   "Pointer to 32 byte digest array is NULL.");
+    }
+
+    sha3_context ctx;
+    sha3_Init256(&ctx);
+    sha3_Update(&ctx, pdata, nbytes);
+    // no need to worry about destroying, it is a pointer to ctx.sb
+    const void* hash = sha3_Finalize(&ctx);
+
+    memcpy(pdigest, hash, SHA3_256_DIGEST_LENGTH_);
+    
+    return SHA3_256_DIGEST_LENGTH_;
+}
+
 unsigned int CoreHashes::SHA256(const unsigned char* pdata,
                                 unsigned int nbytes,
                                 unsigned char* pdigest)
