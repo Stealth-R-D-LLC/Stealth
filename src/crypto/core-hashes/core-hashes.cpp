@@ -32,7 +32,7 @@ unsigned int CoreHashes::SHA3_256(const unsigned char* pdata,
     const void* hash = sha3_Finalize(&ctx);
 
     memcpy(pdigest, hash, SHA3_256_DIGEST_LENGTH_);
-    
+
     return SHA3_256_DIGEST_LENGTH_;
 }
 
