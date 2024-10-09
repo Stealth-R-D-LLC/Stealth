@@ -518,6 +518,7 @@ void CKey::Reset()
     if (pkey != NULL)
     {
         EVP_PKEY_free(pkey);
+        pkey = NULL;
     }
 
     EVP_PKEY_CTX *ctx = EVP_PKEY_CTX_new_id(EVP_PKEY_EC, NULL);
@@ -584,12 +585,20 @@ CKey& CKey::operator=(const CKey& other)
 
 CKey::~CKey()
 {
-    EVP_PKEY_free(pkey);
+    if (pkey != NULL) {
+        EVP_PKEY_free(pkey);
+        pkey = NULL;
+    }
 }
 
 bool CKey::IsNull() const
 {
     return !fSet;
+}
+
+bool CKey::IsSet() const
+{
+    return fSet;
 }
 
 bool CKey::IsCompressed() const
@@ -689,6 +698,7 @@ void CKey::MakeNewKey(bool fCompressed)
     }
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
 
     if (fCompressed)
     {
@@ -726,9 +736,11 @@ bool CKey::SetPrivKey(const CPrivKey& vchPrivKey)
                 return true;
             }
             EVP_PKEY_CTX_free(ctx);
+            ctx = NULL;
         }
 
         EVP_PKEY_free(new_pkey);
+        new_pkey = NULL;
     }
 
     // If we've reached here, something went wrong
@@ -767,6 +779,8 @@ bool CKey::SetSecret(const CSecret& vchSecret, bool fCompressed)
     }
 
     BN_clear_free(bn);
+    bn = NULL;
+
     fSet = true;
 
     if (fCompressed || fCompressedPubKey)
@@ -797,6 +811,7 @@ CSecret CKey::GetSecret(bool &fCompressed) const
 
     int n = BN_bn2binpad(bn, vchRet.data(), 32);
     BN_free(bn);
+    bn = NULL;
 
     if (n != 32)
     {
@@ -825,6 +840,7 @@ CPrivKey CKey::GetPrivKey() const
 
     CPrivKey vchPrivKey(buffer, buffer + size);
     OPENSSL_free(buffer);
+    buffer = NULL;
 
     return vchPrivKey;
 }
@@ -878,8 +894,11 @@ bool CKey::SetPubKey(const CPubKey& vchPubKey,
     }
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
     OSSL_PARAM_free(params);
+    params = NULL;
     OSSL_PARAM_BLD_free(param_bld);
+    param_bld = NULL;
 
     fSet = true;
     if (vchPubKey.Size() == 33)
@@ -993,6 +1012,7 @@ bool CKey::Sign(const uint256& hash, std::vector<unsigned char>& vchSig)
     }
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
 
     const unsigned char* sigdata = vchSig.data();
     ECDSA_SIG* sig = d2i_ECDSA_SIG(nullptr, &sigdata, vchSig.size());
@@ -1061,9 +1081,13 @@ bool CKey::Sign(const uint256& hash, std::vector<unsigned char>& vchSig)
     int nSize = i2d_ECDSA_SIG(sig, &pos);
 
     ECDSA_SIG_free(sig);
+    sig = NULL;
     BN_free(order);
+    order = NULL;
     BN_free(halforder);
+    halforder = NULL;
     EC_GROUP_free(group);
+    group = NULL;
 
     if (nSize <= 0)
     {
@@ -1126,6 +1150,7 @@ bool CKey::SignCompact(uint256 hash, std::vector<unsigned char>& vchSig)
     }
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
 
     const unsigned char* p = signature.data();
     ECDSA_SIG* sig = d2i_ECDSA_SIG(NULL, &p, siglen);
@@ -1242,6 +1267,7 @@ bool CKey::SetCompactSignature(uint256 hash,
     }
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
 
     if (nV >= 31)
     {
@@ -1503,6 +1529,7 @@ bool CKey::IsValid(int* pErrorCodeRet)
     int result = EVP_PKEY_check(ctx);
 
     EVP_PKEY_CTX_free(ctx);
+    ctx = NULL;
 
     if (result != 1)
     {

@@ -244,8 +244,10 @@ std::string EncodeBase64(const unsigned char* pch, size_t len);
 std::string EncodeBase64(const std::string& str);
 std::vector<unsigned char> DecodeBase32(const char* p, bool* pfInvalid = NULL);
 std::string DecodeBase32(const std::string& str);
-std::string EncodeBase32(const unsigned char* pch, size_t len);
-std::string EncodeBase32(const std::string& str);
+std::string EncodeBase32(const unsigned char* pch,
+                         size_t len,
+                         bool pad = true);
+std::string EncodeBase32(const std::string& str, bool pad = true);
 void ParseParameters(int argc, const char*const argv[]);
 bool WildcardMatch(const char* psz, const char* mask);
 bool WildcardMatch(const std::string& str, const std::string& mask);
@@ -381,6 +383,11 @@ inline std::string HexStr(const std::vector<unsigned char>& vch,
 {
     return HexStr(vch.begin(), vch.end(), fSpaces);
 }
+
+std::string ChunkHex(const std::string& strHex,
+                     size_t nChunk = 8,
+                     const std::string& strIndent = "",
+                     bool add0xPrefix = false);
 
 template<typename T>
 void PrintHex(const T pbegin,

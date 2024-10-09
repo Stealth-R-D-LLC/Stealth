@@ -1,23 +1,55 @@
-= Stealth Daemon Installation Guide
+== Stealth Daemon Installation Guide
 
 The newest version of this document is at <https://github.com/StealthSend/Stealth/wiki/Stealth-Installation-Guide>.
 
 
-== Overview
+=== BEFORE YOU START
 
-The recommended way to build the Stealth daemon, called **StealthCoind**, is in a directory called "build" created at the root of the source tree.
+**Backup your `wallet.dat`!**
+
+For example:
+
+[source,bash]
+----
+StealthCoind backupwallet "${HOME}/wallet.dat.$(date +%s)"
+----
+
+If `StealthCoind` is not running, it suffices to simply make a copy:
+
+[source,bash]
+----
+cp "${HOME}/.StealthCoin/wallet.dat" "${HOME}/wallet.dat.$(date +%s)"
+----
+
+The database used for the wallet (Berkeley DB) has poor forwards-compatibility.
+In most cases, this incompatibility shouldn't be a problem, but be safe and create a backup before you do anything.
+
+If you have problems, you may have to determine the version of Berkeley DB used to build your current instance of `StealthCoind` and build against a custom installation.
+
+Also, if you previously built with a custom installation of Berkeley DB, you may have to scrape it from your system.
+Typically, the commands are:
+
+[source,bash]
+----
+sudo rm /usr/local/lib/libdb*
+sudo rm /usr/local/lib/db.*h
+----
+
+It is likely worthwhile to run these commands if you are upgrading `StealthCoind`.
+
 
 === Summary
 
 In short, the steps to install  are:
 
-1. Upgrade your operating system and package manager to the latest version.
-2. Ensure that external dependencies are installed.
-3. Download the Stealth source bundle.
-4. Within a new directory called "build" at the top of the source tree, run
+1. Backup your `wallet.dat`! See above.
+2. Upgrade your operating system and package manager to the latest version.
+3. Ensure that external dependencies are installed.
+4. Download the Stealth source bundle.
+5. Within a new directory called "build" at the top of the source tree, run
    "`cmake ..`", then "`make`":
 +
-[source, bash]
+[source,bash]
 ----
 # from the top of the downloaded source code
 mkdir build

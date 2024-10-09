@@ -45,6 +45,32 @@ int main(int argc, char **argv)
 }
 
 
+#ifdef LEGACY_PKEY
+#else  // LEGACY_PKEY
+TEST_F(KeyTest, Reset)
+{
+    CKey SUBJECT;
+
+    EXPECT_NO_THROW(SUBJECT.Reset());
+
+    EXPECT_NE(SUBJECT.GetEVPKey(), nullptr);
+
+    EVP_PKEY* pkeyOld = EVP_PKEY_dup(SUBJECT.GetEVPKey());
+    SUBJECT.Reset();
+    EVP_PKEY* pkeyNew = SUBJECT.GetEVPKey();
+    ASSERT_FALSE(EVP_PKEY_eq(pkeyOld, pkeyNew));
+    EVP_PKEY_free(pkeyOld);
+    pkeyOld = NULL;
+
+    EXPECT_EQ(EVP_PKEY_id(pkeyNew), EVP_PKEY_EC);
+
+    for (int i = 0; i < 128; ++i)
+    {
+        EXPECT_NO_THROW(SUBJECT.Reset());
+        EXPECT_NE(SUBJECT.GetEVPKey(), nullptr);
+    }
+}
+#endif  // LEGACY_PKEY
 
 #ifdef LEGACY_PKEY
 TEST_F(KeyTest, ECKeyRegenerateKey)

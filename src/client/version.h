@@ -33,7 +33,10 @@ extern const std::string CLIENT_DATE;
 static const int PROTOCOL_VERSION = CLIENT_PROTOCOL_VERSION;
 
 // ip member of CNetAddr (base class of CAddress) lengthened to 64 bytes
-static const int CADDR_IP64_VERSION = 65000;
+static const int CADDR_IP64_VERSION = 64200;
+
+// last version with a legacy 16 byte CNetAddr
+static const int CADDR_IP16_VERSION = 64000;
 
 // intial proto version, to be increased after version/verack negotiation
 static const int INIT_PROTO_VERSION = 61300;

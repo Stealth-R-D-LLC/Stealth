@@ -4,6 +4,12 @@
 
 #include "addrman.h"
 
+#include <random>
+#include <chrono>
+
+
+extern bool fShutdown;
+
 using namespace std;
 
 int CAddrInfo::GetTriedBucket(const std::vector<unsigned char> &nKey) const
@@ -70,10 +76,28 @@ double CAddrInfo::GetChance(int64_t nNow) const
     if (nSinceLastTry < 60*10)
         fChance *= 0.01;
 
-    // deprioritize 50% after each failed attempt
-    for (int n=0; n<nAttempts; n++)
-        fChance /= 1.5;
-
+    // Deprioritize 50% after each failed attempt.
+    // It makes no computational sense for nAttempts to ever be
+    //    larger than 27 ($log_{1.5}(2^{16}) = 27.35$).
+    // fChance will never be bigger than 1, and there are
+    //    max 15 bits in the fractional part of a double.
+    int nCycles = min(nAttempts, 27);
+    if (nCycles == 27)
+    {
+        fChance = 0;
+    }
+    else
+    {
+        for (int n=0; n < nCycles; n++)
+        {
+            fChance /= 1.5;
+            // close enough to 0: $1/(2^{15}) ~ 0.000031$
+            if (fChance < 0.000031)
+            {
+               break;
+            }
+        }
+    }
     return fChance;
 }
 
@@ -383,30 +407,49 @@ void CAddrMan::Attempt_(const CService &addr, int64_t nTime)
 
     // update info
     info.nLastTry = nTime;
-    info.nAttempts++;
+    // It makes no computational sense for nAttempts to ever be
+    //    larger than 27 ($log_{1.5}(2^{16}) = 27.35$).
+    info.nAttempts = min(info.nAttempts + 1, 27);
 }
 
 CAddress CAddrMan::Select_(int nUnkBias)
 {
+    static const int RANDMAX = 1<<30;
+
+    // using prng here because it is much more efficient than
+    //    getting cryptographically secure random data and
+    //    secure randomness is not needed to select addresses
+    static mt19937_64 rng(
+        chrono::steady_clock::now().time_since_epoch().count());
+    uniform_int_distribution<uint64_t> dist(0, RANDMAX);
+
     if (size() == 0)
+    {
         return CAddress();
+    }
 
     double nCorTried = sqrt(nTried) * (100.0 - nUnkBias);
     double nCorNew = sqrt(nNew) * nUnkBias;
-    if ((nCorTried + nCorNew)*GetRandInt(1<<30)/(1<<30) < nCorTried)
+    if ((nCorTried + nCorNew) * dist(rng) / RANDMAX < nCorTried)
     {
         // use a tried node
         double fChanceFactor = 1.0;
         while(1)
         {
+            if (fShutdown)
+            {
+                return CAddress();
+            }
             int nKBucket = GetRandInt(vvTried.size());
             std::vector<int> &vTried = vvTried[nKBucket];
             if (vTried.size() == 0) continue;
             int nPos = GetRandInt(vTried.size());
             assert(mapInfo.count(vTried[nPos]) == 1);
             CAddrInfo &info = mapInfo[vTried[nPos]];
-            if (GetRandInt(1<<30) < fChanceFactor*info.GetChance()*(1<<30))
+            if (dist(rng) < (fChanceFactor * info.GetChance() * RANDMAX))
+            {
                 return info;
+            }
             fChanceFactor *= 1.2;
         }
     } else {
@@ -416,15 +459,27 @@ CAddress CAddrMan::Select_(int nUnkBias)
         {
             int nUBucket = GetRandInt(vvNew.size());
             std::set<int> &vNew = vvNew[nUBucket];
-            if (vNew.size() == 0) continue;
+            if (vNew.size() == 0)
+            {
+                continue;
+            }
             int nPos = GetRandInt(vNew.size());
             std::set<int>::iterator it = vNew.begin();
-            while (nPos--)
-                it++;
+            while (nPos)
+            {
+                if (fShutdown)
+                {
+                    return CAddress();
+                }
+                --nPos;
+                ++it;
+            }
             assert(mapInfo.count(*it) == 1);
             CAddrInfo &info = mapInfo[*it];
-            if (GetRandInt(1<<30) < fChanceFactor*info.GetChance()*(1<<30))
+            if (dist(rng) < fChanceFactor * info.GetChance() * RANDMAX)
+            {
                 return info;
+            }
             fChanceFactor *= 1.2;
         }
     }

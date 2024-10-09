@@ -13,11 +13,33 @@
 #endif
 
 #include "bitcoin-strlcpy.h"
+#include "core-hashes.hpp"
 
 #include <boost/foreach.hpp>
 #include <boost/algorithm/string/case_conv.hpp> // for to_lower()
 
+
+#define NFILL IP64_MARKER_START
+
+
 using namespace std;
+
+bool fNetworks = NO_NETWORK;
+
+const char PSZ_NULL_IP[] = "0.0.0.0";
+const CService CSERVICE_NULL = CService(string(PSZ_NULL_IP), 0);
+
+const size_t ONION_V2_PUBKEY = 10;
+const size_t ONION_V3_PUBKEY = 32;
+const size_t GARLIC_PUBKEY = 10;
+
+// Random bytes that versions >=64200 put at the end of 64 byte
+//    addresses serialization.
+const unsigned char PCH_IP64_MARKER[IP64_MARKER_SIZE] = {
+                                      0x28, 0x5c, 0x59, 0xde, 0x91,
+                                      0x18, 0x9e, 0xca, 0xc2, 0x81,
+                                      0x47, 0x8a, 0xf7, 0x96, 0x7f,
+                                      0x1b, 0xe5, 0x8a, 0xee, 0xf9 };
 
 
 //////////////////////////////////////////////////////////////////////////////
@@ -25,26 +47,29 @@ using namespace std;
 //////////////////////////////////////////////////////////////////////////////
 // Leader bytes that are only used within CNetAddr as markers,
 //    although apparently they may get their values from some standard
-static const unsigned char pchOnionCat[] = {0xFD,0x87,0xD8,0x7E,0xEB,0x43};
-static const unsigned char pchGarlicCat[] = {0xFD,0x60,0xDB,0x4D,0xDD,0xB5};
+static const unsigned char pchOnionCat[] = { 0xFD, 0x87, 0xD8,
+                                             0x7E, 0xEB, 0x43 };
+static const unsigned char pchGarlicCat[] = { 0xFD, 0x60, 0xDB,
+                                              0x4D, 0xDD, 0xB5 };
+
 // pre-compute a bunch of terms that are used a lot
 // tor constants
 static const size_t TOR_ADDRESS_VERSION = 3;
 static const size_t ONION_CAT_BYTES = sizeof(pchOnionCat);
-static const size_t ONION_V2_BYTES = 10 + ONION_CAT_BYTES;
-static const size_t ONION_V3_BYTES = 35 + ONION_CAT_BYTES;
-static const size_t ONION_BYTES = TOR_ADDRESS_VERSION == 3 ? ONION_V3_BYTES
-                                                           : ONION_V2_BYTES;
+static const size_t ONION_V2_BYTES = ONION_CAT_BYTES + ONION_V2_PUBKEY;
+static const size_t ONION_V3_BYTES = ONION_CAT_BYTES + ONION_V3_PUBKEY + 3;
+static const size_t ONION_BYTES = (TOR_ADDRESS_VERSION == 3) ?
+                                           ONION_V3_BYTES : ONION_V2_BYTES;
 static const size_t ONION_ADDRESS = ONION_BYTES - ONION_CAT_BYTES;
-
 static const string STR_ONION_SUFFIX(".onion");
 static const size_t ONION_SUFFIX = STR_ONION_SUFFIX.size();
+
 // i2p constants
 static const size_t GARLIC_CAT_BYTES = sizeof(pchGarlicCat);
-static const size_t GARLIC_BYTES = 10 + GARLIC_CAT_BYTES;
+static const size_t GARLIC_BYTES = GARLIC_PUBKEY + GARLIC_CAT_BYTES;
+static const size_t GARLIC_ADDRESS = GARLIC_BYTES - GARLIC_CAT_BYTES;
 static const string STR_GARLIC_SUFFIX(".oc.b32.i2p");
 static const size_t GARLIC_SUFFIX = STR_GARLIC_SUFFIX.size();
-static const size_t GARLIC_ADDRESS = GARLIC_BYTES - GARLIC_CAT_BYTES;
 //////////////////////////////////////////////////////////////////////////////
 
 
@@ -225,6 +250,72 @@ void AddTimeData(const CNetAddr& ip, int64_t nTime)
                nTimeOffset,
                nTimeOffset / 60);
     }
+}
+
+size_t GetTorV3Checksum(
+                const unsigned char* pchPubkey,
+                unsigned char (&pchHash)[SHA3_256_DIGEST_LENGTH_])
+{
+    const char* pszLeader = ".onion checksum";
+    const size_t nLeaderSize = strlen(pszLeader);
+
+    const unsigned char nVersion = '\x03';
+
+    // Leader (15 byte string) + Pubkey (32 bytes) + Version (1 byte)
+    const size_t nOnionDataSize = nLeaderSize + ONION_V3_PUBKEY + 1;
+    vector<unsigned char> vchOnionData(nOnionDataSize);
+
+    memcpy(vchOnionData.data(), pszLeader, nLeaderSize);
+    memcpy(vchOnionData.data() + nLeaderSize, pchPubkey, ONION_V3_PUBKEY);
+    vchOnionData[nOnionDataSize - 1] = nVersion;
+
+    return CoreHashes::SHA3_256(vchOnionData.data(), nOnionDataSize, pchHash);
+}
+
+
+bool IPIsTorV3(const unsigned char* pchIP)
+{
+    if (memcmp(pchIP, pchOnionCat, ONION_CAT_BYTES) != 0)
+    {
+        return false;
+    }
+
+    if (pchIP[ONION_CAT_BYTES + ONION_V3_PUBKEY + 2] != 0x03)
+    {
+        return false;
+    }
+
+    unsigned char pchDigest[SHA3_256_DIGEST_LENGTH_];
+    if (GetTorV3Checksum(pchIP + ONION_CAT_BYTES, pchDigest) !=
+        SHA3_256_DIGEST_LENGTH_)
+    {
+        printf("IPIsTorV3(): TSNH: couldn't SHA3-256 hash pubkey\n");
+        return false;
+    }
+
+    if ((pchIP[ONION_CAT_BYTES + ONION_V3_PUBKEY] != pchDigest[0]) ||
+        (pchIP[ONION_CAT_BYTES + ONION_V3_PUBKEY + 1] != pchDigest[1]))
+    {
+        return false;
+    }
+
+    return true;
+}
+
+string MakeTorV3Address(const unsigned char (&pchPubkey)[TOR_V3_PUBKEY_SIZE])
+{
+    unsigned char pchHash[SHA3_256_DIGEST_LENGTH_];
+    GetTorV3Checksum(pchPubkey, pchHash);
+
+    const unsigned char nVersion = '\x03';
+
+    vector<unsigned char> vchAddr(ONION_V3_PUBKEY + 3);
+    memcpy(vchAddr.data(), pchPubkey, ONION_V3_PUBKEY);
+    memcpy(vchAddr.data() + ONION_V3_PUBKEY, pchHash, 2);
+    vchAddr[ONION_V3_PUBKEY + 2] = nVersion;
+
+    return EncodeBase32(vchAddr.data(), vchAddr.size(), false) +
+              STR_ONION_SUFFIX;
 }
 
 bool static LookupIntern(const char* pszName,
@@ -718,6 +809,10 @@ bool GetProxy(enum Network net, proxyType& proxyInfoOut)
     LOCK(cs_proxyInfos);
     if (!proxyInfo[net].second)
     {
+        if (fDebugNet)
+        {
+            printf("GetProxy(): no proxy for %s\n", GetNetworkType(net));
+        }
         return false;
     }
     proxyInfoOut = proxyInfo[net];
@@ -771,6 +866,11 @@ bool IsProxy(const CNetAddr& addr)
 
 bool ConnectSocket(const CService& addrDest, SOCKET& hSocketRet, int nTimeout)
 {
+    if (fDebugNet)
+    {
+        printf("ConnectSocket(): attempting %s\n",
+               addrDest.ToString().c_str());
+    }
     proxyType proxy;
 
     // no proxy needed
@@ -850,6 +950,10 @@ bool ConnectSocketByName(CService& addr,
                          int portDefault,
                          int nTimeout)
 {
+    if (fDebugNet)
+    {
+        printf("ConnectSocketByName(): attempting \"%s\"\n", pszDest);
+    }
     string strDest;
     int port = portDefault;
     SplitHostPort(string(pszDest), port, strDest);
@@ -863,6 +967,14 @@ bool ConnectSocketByName(CService& addr,
                                    fNameLookup && !nameproxy.second),
                           port);
 
+    if (fDebugNet)
+    {
+        printf("ConnectSocketByName(): Resolved \"%s\"   from %s\n%s\n",
+               addrResolved.ToString().c_str(),
+               strDest.c_str(),
+               addrResolved.GetHex(16, "      ").c_str());
+    }
+
     if (addrResolved.IsValid())
     {
         addr = addrResolved;
@@ -874,7 +986,7 @@ bool ConnectSocketByName(CService& addr,
     {
         printf("ConnectSocketByName(): destination not resolved: %s\n", pszDest);
     }
-    addr = CService("0.0.0.0:0");
+    addr = CSERVICE_NULL;
     if (!nameproxy.second)
     {
         return false;
@@ -905,29 +1017,53 @@ bool ConnectSocketByName(CService& addr,
     return true;
 }
 
-void CNetAddr::Init()
+void CNetAddr::InitIP()
 {
-    memset(ip, 0, sizeof(ip));
+    assert (NFILL >= 16);
+    memset(ip, 0, NFILL);
+    memcpy(ip + NFILL, PCH_IP64_MARKER, IP64_MARKER_SIZE);
 }
 
 void CNetAddr::SetIP(const CNetAddr& ipIn)
 {
-    memcpy(ip, ipIn.ip, sizeof(ip));
+    // don't pave over the ip64 marker
+    memcpy(ip, ipIn.ip, NFILL);
+}
+
+void CNetAddr::SetIPv4Null()
+{
+    InitIP();
+    memcpy(ip, pchIPv4, 12);
+}
+
+void CNetAddr::SetTorV3Placeholder()
+{
+    memcpy(ip, pchOnionCat, ONION_CAT_BYTES);
+    memset(ip + ONION_CAT_BYTES, 0, 7);
+    // If we have a checksum, it will be in the 33rd and 34th bytes.
+    // Copy those to the 13th and 14th bytes.
+    memcpy(ip + 13, ip + 32, 2);
+    // Set version byte for placeholder explicitly.
+    ip[15] = 3;
+}
+
+void CNetAddr::MarkIP64()
+{
+    memcpy(ip + NFILL, PCH_IP64_MARKER, IP64_MARKER_SIZE);
 }
 
 bool CNetAddr::SetSpecial(const string &strName)
 {
 
+    // tor addresses: remove suffix, prepend onion cat, store to ip
     int nSuffixStart;
 
-    // tor addresses
     nSuffixStart = strName.size() - ONION_SUFFIX;
-    if ((strName.size() > ONION_SUFFIX) &&
+    if ((nSuffixStart > 0) &&
         (strName.substr(nSuffixStart, ONION_SUFFIX) == STR_ONION_SUFFIX))
     {
-        string strAddr = strName.substr(0, strName.size() - ONION_SUFFIX);
-        vector<unsigned char> vchAddr;
-        vchAddr = DecodeBase32(strAddr.c_str());
+        string strAddr = strName.substr(0, nSuffixStart);
+        vector<unsigned char> vchAddr = DecodeBase32(strAddr.c_str());
         if (vchAddr.size() != ONION_ADDRESS)
         {
             return false;
@@ -940,14 +1076,13 @@ bool CNetAddr::SetSpecial(const string &strName)
         return true;
     }
 
-    // i2p addresses
+    // i2p addresses: remove suffix, prepend onion cat, store to ip
     nSuffixStart = strName.size() - GARLIC_SUFFIX;
-    if ((strName.size() > GARLIC_SUFFIX) &&
+    if ((nSuffixStart > 0) &&
         (strName.substr(nSuffixStart, GARLIC_SUFFIX) == STR_GARLIC_SUFFIX))
     {
-        string strAddr = strName.substr(0, strName.size() - GARLIC_SUFFIX);
-        vector<unsigned char> vchAddr;
-        vchAddr = DecodeBase32(strAddr.c_str());
+        string strAddr = strName.substr(0, nSuffixStart);
+        vector<unsigned char> vchAddr = DecodeBase32(strAddr.c_str());
         if (vchAddr.size() != GARLIC_ADDRESS)
         {
             return false;
@@ -964,11 +1099,12 @@ bool CNetAddr::SetSpecial(const string &strName)
 
 CNetAddr::CNetAddr()
 {
-    Init();
+    InitIP();
 }
 
 CNetAddr::CNetAddr(const struct in_addr& ipv4Addr)
 {
+    InitIP();
     memcpy(ip,    pchIPv4, 12);
     memcpy(ip+12, &ipv4Addr, 4);
 }
@@ -976,13 +1112,13 @@ CNetAddr::CNetAddr(const struct in_addr& ipv4Addr)
 #ifdef USE_IPV6
 CNetAddr::CNetAddr(const struct in6_addr& ipv6Addr)
 {
+    InitIP();
     memcpy(ip, &ipv6Addr, 16);
 }
 #endif
 
-CNetAddr::CNetAddr(const char* pszIp, bool fAllowLookup)
+void CNetAddr::Set(const char* pszIp, bool fAllowLookup)
 {
-    Init();
     vector<CNetAddr> vIP;
     if (LookupHost(pszIp, vIP, 1, fAllowLookup))
     {
@@ -990,14 +1126,14 @@ CNetAddr::CNetAddr(const char* pszIp, bool fAllowLookup)
     }
 }
 
+CNetAddr::CNetAddr(const char* pszIp, bool fAllowLookup)
+{
+    Set(pszIp, fAllowLookup);
+}
+
 CNetAddr::CNetAddr(const string& strIp, bool fAllowLookup)
 {
-    Init();
-    vector<CNetAddr> vIP;
-    if (LookupHost(strIp.c_str(), vIP, 1, fAllowLookup))
-    {
-        *this = vIP[0];
-    }
+    Set(strIp.c_str(), fAllowLookup);
 }
 
 unsigned int CNetAddr::GetByte(int n) const
@@ -1078,13 +1214,46 @@ bool CNetAddr::IsRFC4843() const
 
 bool CNetAddr::IsTor() const
 {
-    return (memcmp(ip, pchOnionCat, sizeof(pchOnionCat)) == 0);
+    return (memcmp(ip, pchOnionCat, ONION_CAT_BYTES) == 0);
+}
+
+bool CNetAddr::IsTorV3() const
+{
+    if (sizeof(ip) < ONION_V3_BYTES)
+    {
+        return false;
+    }
+    return IPIsTorV3(ip);
+}
+
+bool CNetAddr::IsTorV3Placeholder() const
+{
+    if (memcmp(ip, pchOnionCat, ONION_CAT_BYTES) != 0)
+    {
+        return false;
+    }
+    for (size_t i = ONION_CAT_BYTES; i < ONION_CAT_BYTES + 7; ++i)
+    {
+        if (ip[i] != 0)
+        {
+            return false;
+        }
+    }
+    return ip[15] == 3;
 }
 
 bool CNetAddr::IsI2P() const
 {
     return (memcmp(ip, pchGarlicCat, sizeof(pchGarlicCat)) == 0);
 }
+
+bool CNetAddr::IsMarkedIP64() const
+{
+   return memcmp(ip + IP64_MARKER_START,
+                 PCH_IP64_MARKER,
+                 IP64_MARKER_SIZE) == 0;
+}
+
 
 bool CNetAddr::IsLocal() const
 {
@@ -1110,8 +1279,38 @@ bool CNetAddr::IsMulticast() const
     return (IsIPv4() && (GetByte(3) & 0xF0) == 0xE0) || (GetByte(15) == 0xFF);
 }
 
-bool CNetAddr::IsValid() const
+bool CNetAddr::IsValid(int nVersionCheck) const
 {
+    if (fDebugNet)
+    {
+        printf("Checking address: %s\n%s\n",
+               this->ToString().c_str(),
+               this->GetHex(16, "    ").c_str());
+    }
+
+    // valid Tor addresses require 64 byte ip
+    if (IsTor())
+    {
+        if (nVersionCheck < CADDR_IP64_VERSION)
+        {
+            return false;
+        }
+        else
+        {
+            return true;
+        }
+    }
+
+    // Since it's not Tor, make sure it's zero-ed out between
+    // byte 16 and 45, exclusively
+    for (int i = 16; i < IP64_MARKER_START; ++i)
+    {
+        if (ip[i] != 0)
+        {
+            return false;
+        }
+    }
+
     // Cleanup 3-byte shifted addresses caused by garbage in size field
     // of addr messages from versions before 0.2.9 checksum.
     // Two consecutive addr messages look like this:
@@ -1149,6 +1348,7 @@ bool CNetAddr::IsValid() const
         ipNone = 0;
         if (memcmp(ip + 12, &ipNone, 4) == 0)
         {
+
             return false;
         }
     }
@@ -1159,7 +1359,7 @@ bool CNetAddr::IsValid() const
 bool CNetAddr::IsRoutable() const
 {
     return IsValid() && !(IsRFC1918() || IsRFC3927() || IsRFC4862() ||
-                          (IsRFC4193() && !IsTor() && !IsI2P()) ||
+                          (IsRFC4193() && !IsTorV3() && !IsI2P()) ||
                           IsRFC4843() || IsLocal());
 }
 
@@ -1167,6 +1367,7 @@ enum Network CNetAddr::GetNetwork() const
 {
     if (!IsRoutable())
     {
+        // catches Tor <v3
         return NET_UNROUTABLE;
     }
 
@@ -1175,7 +1376,7 @@ enum Network CNetAddr::GetNetwork() const
         return NET_IPV4;
     }
 
-    if (IsTor())
+    if (IsTorV3())
     {
         return NET_TOR;
     }
@@ -1190,7 +1391,7 @@ enum Network CNetAddr::GetNetwork() const
 
 string CNetAddr::ToStringIP() const
 {
-    if (IsTor())
+    if (IsTorV3())
     {
         return EncodeBase32(&ip[ONION_CAT_BYTES], ONION_ADDRESS) +
                STR_ONION_SUFFIX;
@@ -1247,6 +1448,17 @@ string CNetAddr::ToString() const
 {
     return ToStringIP();
 }
+
+string CNetAddr::GetHex(size_t nChunk, const string& strIndent) const
+{
+    string strHex = HexStr(ip, ip + 64, true);
+    if ((nChunk > 0) || (strIndent != ""))
+    {
+        return ChunkHex(strHex, nChunk, strIndent);
+    }
+    return strHex;
+}
+
 
 bool operator==(const CNetAddr& a, const CNetAddr& b)
 {
@@ -1324,7 +1536,7 @@ vector<unsigned char> CNetAddr::GetGroup() const
         vchRet.push_back(GetByte(2) ^ 0xFF);
         return vchRet;
     }
-    else if (IsTor())
+    else if (IsTorV3())
     {
         nClass = NET_TOR;
         nStartByte = ONION_CAT_BYTES;
@@ -1414,6 +1626,19 @@ int CNetAddr::GetReachabilityFrom(const CNetAddr* paddrPartner) const
 
     int ourNet = GetExtNetwork(this);
     int theirNet = GetExtNetwork(paddrPartner);
+
+    if (fDebugNet)
+    {
+        printf("ourNet: %s\n", GetNetworkType((Network)ourNet));
+        printf("    us: %s\n%s\n",
+               this->ToString().c_str(),
+               this->GetHex(16, "    ").c_str());
+        printf("theirNet: %s\n", GetNetworkType((Network)theirNet));
+        printf("    them: %s\n%s\n",
+               paddrPartner->ToString().c_str(),
+               paddrPartner->GetHex(16, "    ").c_str());
+    }
+
     bool fTunnel = IsRFC3964() || IsRFC6052() || IsRFC6145();
 
     switch (theirNet)
@@ -1436,10 +1661,10 @@ int CNetAddr::GetReachabilityFrom(const CNetAddr* paddrPartner) const
                 case NET_IPV4:
                     return REACH_IPV4;
                 case NET_IPV6:
+                    // only prefer giving our IPv6 address
+                    //    if it isn't tunnelled
                     return fTunnel ? REACH_IPV6_WEAK
-                                   : REACH_IPV6_STRONG;  // only prefer giving
-                                                         // our IPv6 address if
-                                                         // it's not tunnelled
+                                   : REACH_IPV6_STRONG;
             }
         case NET_TOR:
             switch (ourNet)
@@ -1447,8 +1672,8 @@ int CNetAddr::GetReachabilityFrom(const CNetAddr* paddrPartner) const
                 default:
                     return REACH_DEFAULT;
                 case NET_IPV4:
-                    return REACH_IPV4;  // Tor users can connect to IPv4 as
-                                        // well
+                    // Tor users can connect to IPv4 as well
+                    return REACH_IPV4;
                 case NET_TOR:
                     return REACH_PRIVATE;
             }
@@ -1486,11 +1711,11 @@ int CNetAddr::GetReachabilityFrom(const CNetAddr* paddrPartner) const
                 case NET_IPV4:
                     return REACH_IPV4;
                 case NET_I2P:
-                    return REACH_PRIVATE;  // assume connections from
-                                           // unroutable addresses are
+                    // assume connections from unroutable addresses are I2P
+                    return REACH_PRIVATE;
                 case NET_TOR:
-                    return REACH_PRIVATE;  // either from Tor/I2P, or don't
-                                           // care about our address
+                    // either from Tor/I2P or don't care about our address
+                    return REACH_PRIVATE;
             }
     }
 }
@@ -1498,6 +1723,7 @@ int CNetAddr::GetReachabilityFrom(const CNetAddr* paddrPartner) const
 void CService::Init()
 {
     port = 0;
+    InitIP();
 }
 
 CService::CService()
@@ -1672,7 +1898,7 @@ string CService::ToStringPort() const
 
 string CService::ToStringIPPort() const
 {
-    if (IsIPv4() || IsTor() || IsI2P())
+    if (IsIPv4() || IsTorV3() || IsI2P())
     {
         return ToStringIP() + ":" + ToStringPort();
     }

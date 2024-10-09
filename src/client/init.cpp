@@ -676,6 +676,7 @@ bool AppInit2()
             {
                 setNets.insert(NET_TOR);
                 fExternalTor = true;
+                fNetworks |= TOR_NETWORK;
             }
             else
             {
@@ -685,10 +686,34 @@ bool AppInit2()
                     return InitError(strprintf(_("Unknown network specified in -onlynet: '%s'"), snet.c_str()));
                 }
                 setNets.insert(net);
-                if (net == NET_TOR)
-                {
-                    fBuiltinTor = true;
+                switch (net) {
+                    case NET_IPV4:
+                        fNetworks |= IPV4_NETWORK;
+                        break;
+                    case NET_IPV6:
+                        fNetworks |= IPV6_NETWORK;
+                        break;
+                    case NET_TOR:
+                        fBuiltinTor = true;
+                        fNetworks |= TOR_NETWORK;
+                        break;
+                    case NET_I2P:
+                        fNetworks |= I2P_NETWORK;
+                        break;
+                    default:
+                        break;
                 }
+            }
+        }
+        if ((fNetworks & TOR_NETWORK) && (fNetworks & IP_NETWORK))
+        {
+            if (fNetworks & IPV4_NETWORK)
+            {
+                printf("Bridging Tor and IPV4 network\n");
+            }
+            if (fNetworks & IPV6_NETWORK)
+            {
+                printf("Bridging Tor and IPV6 network\n");
             }
         }
     }
@@ -697,6 +722,7 @@ bool AppInit2()
         setNets.insert(
             NET_TOR
         );
+        fNetworks |= TOR_NETWORK;
         fBuiltinTor = true;
     }
     for (int n = 0; n < NET_MAX; n++)
@@ -715,6 +741,7 @@ bool AppInit2()
         if (*it == NET_IPV6)
         {
             setNets.erase(it);
+            fNetworks &= ~IPV6_NETWORK;
         }
     }
     SetLimited(NET_IPV6);
@@ -744,6 +771,10 @@ bool AppInit2()
     // this test means that internal and external tor are exclusive
     if (fBuiltinTor)
     {
+        if (fDebugNet)
+        {
+            printf("Using built-in Tor\n");
+        }
         CService addrOnion;
         p2p_port = GetDefaultPort();
         onion_port = (unsigned short)GetArg("-torport", chainParams.DEFAULT_TORPORT);

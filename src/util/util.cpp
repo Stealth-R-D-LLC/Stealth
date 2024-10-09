@@ -813,7 +813,7 @@ string DecodeBase64(const string& str)
     return string((const char*)&vchRet[0], vchRet.size());
 }
 
-string EncodeBase32(const unsigned char* pch, size_t len)
+string EncodeBase32(const unsigned char* pch, size_t len, bool pad)
 {
     static const char *pbase32 = "abcdefghijklmnopqrstuvwxyz234567";
 
@@ -862,7 +862,7 @@ string EncodeBase32(const unsigned char* pch, size_t len)
     }
 
     static const int nPadding[5] = {0, 6, 4, 3, 1};
-    if (mode)
+    if (mode && pad)
     {
         strRet += pbase32[left];
         for (int n=0; n<nPadding[mode]; n++)
@@ -872,9 +872,9 @@ string EncodeBase32(const unsigned char* pch, size_t len)
     return strRet;
 }
 
-string EncodeBase32(const string& str)
+string EncodeBase32(const string& str, bool pad)
 {
-    return EncodeBase32((const unsigned char*)str.c_str(), str.size());
+    return EncodeBase32((const unsigned char*)str.c_str(), str.size(), pad);
 }
 
 vector<unsigned char> DecodeBase32(const char* p, bool* pfInvalid)
@@ -998,6 +998,44 @@ string DecodeBase32(const string& str)
 {
     vector<unsigned char> vchRet = DecodeBase32(str.c_str());
     return string((const char*)&vchRet[0], vchRet.size());
+}
+
+string ChunkHex(const string& strHex,
+                size_t nChunk,
+                const string& strIndent,
+                bool add0xPrefix)
+{
+    vector<string> vBytes;
+    istringstream iss(strHex);
+    string strByte;
+
+    while (iss >> strByte)
+    {
+        if (add0xPrefix && strByte.substr(0, 2) != "0x")
+        {
+            vBytes.push_back("0x" + strByte);
+        }
+        else
+        {
+            vBytes.push_back(strByte);
+        }
+    }
+
+    ostringstream ossResult;
+    for (size_t i = 0; i < vBytes.size(); ++i)
+    {
+        if (i % nChunk == 0)
+        {
+            if (i > 0)
+            {
+                ossResult << '\n';
+            }
+            ossResult << strIndent;
+        }
+        ossResult << vBytes[i] << ' ';
+    }
+
+    return ossResult.str();
 }
 
 

@@ -10,12 +10,14 @@
 #include "serialize.h"
 #include "compat.h"
 
-extern int nConnectTimeout;
 
 #ifdef WIN32
 // In MSVC, this is defined as a macro, undefine it to prevent a compile and link error
 #undef SetPort
 #endif
+
+#define TOR_V3_PUBKEY_SIZE 32
+#define IP64_MARKER_SIZE 20
 
 enum Network
 {
@@ -25,26 +27,55 @@ enum Network
     NET_TOR,
     NET_I2P,
 
-    NET_MAX,
+    NET_MAX
 };
 
+enum _Networks
+{
+    NO_NETWORK          =      0,
+    UNROUTABLE_NETWORK  = 1 << 0,
+    IPV4_NETWORK        = 1 << 1,
+    IPV6_NETWORK        = 1 << 2,
+    IP_NETWORK          = IPV4_NETWORK | IPV6_NETWORK,
+    TOR_NETWORK         = 1 << 3,
+    I2P_NETWORK         = 1 << 4
+};
+
+class CNetAddr;
+class CService;
+
+extern const char PSZ_NULL_IP[];
+extern const CService CSERVICE_NULL;
+
+extern const unsigned char PCH_IP64_MARKER[IP64_MARKER_SIZE];
+
+extern bool fNetworks;
 
 extern int nConnectTimeout;
 extern bool fNameLookup;
+
+// This should be 64 or greater. Change with extreme care.
+#define CNETADDR_IP_SIZE 64
+#define IP64_MARKER_START (CNETADDR_IP_SIZE - IP64_MARKER_SIZE)
 
 /** IP address (IPv6, or IPv4 using mapped IPv6 range (::FFFF:0:0/96)) */
 class CNetAddr
 {
     protected:
-        unsigned char ip[64]; // in network byte order
+        unsigned char ip[CNETADDR_IP_SIZE]; // in network byte order
 
     public:
         CNetAddr();
         CNetAddr(const struct in_addr& ipv4Addr);
+        void Set(const char *pszIp, bool fAllowLookup = false);
+        const unsigned char* Get() const { return ip; };
         explicit CNetAddr(const char *pszIp, bool fAllowLookup = false);
         explicit CNetAddr(const std::string &strIp, bool fAllowLookup = false);
-        void Init();
+        void InitIP();
         void SetIP(const CNetAddr& ip);
+        void SetIPv4Null();
+        void SetTorV3Placeholder();
+        void MarkIP64();
         bool SetSpecial(const std::string &strName); // for Tor and I2P addresses
         bool IsIPv4() const;    // IPv4 mapped address (::FFFF:0:0/96, 0.0.0.0/0)
         bool IsIPv6() const;    // IPv6 address (not mapped IPv4, not Tor/I2P)
@@ -59,14 +90,20 @@ class CNetAddr
         bool IsRFC6052() const; // IPv6 well-known prefix (64:FF9B::/96)
         bool IsRFC6145() const; // IPv6 IPv4-translated address (::FFFF:0:0:0/96)
         bool IsTor() const;
+        bool IsTorV3() const;
+        bool IsTorV3Placeholder() const;
         bool IsI2P() const;
+        bool IsMarkedIP64() const;
         bool IsLocal() const;
         bool IsRoutable() const;
-        bool IsValid() const;
+        bool IsValid(int nVersionCheck =
+                              std::numeric_limits<int>::max()) const;
         bool IsMulticast() const;
         enum Network GetNetwork() const;
         std::string ToString() const;
         std::string ToStringIP() const;
+        std::string GetHex(size_t nChunk = 0,
+                           const std::string& strIndent = "") const;
         unsigned int GetByte(int n) const;
         uint64_t GetHash() const;
         bool GetInAddr(struct in_addr* pipv4Addr) const;
@@ -85,20 +122,33 @@ class CNetAddr
 
         IMPLEMENT_SERIALIZE
             (
-             if (fRead && (nVersion < CADDR_IP64_VERSION))
+             unsigned char* pip = const_cast<unsigned char*>(this->ip);
+             if (nVersion < CADDR_IP64_VERSION)
              {
                  unsigned char ip_16[16];
-                 READWRITE(FLATDATA(ip_16));
-                 for (int i = 0; i < 64; ++i)
+                 if (fRead)
                  {
-                     if (i < 16)
+                     READWRITE(FLATDATA(ip_16));
+                     for (int i = 0; i < 64; ++i)
                      {
-                         const_cast<unsigned char*>(this->ip)[i] = ip_16[i];
+                         if (i < 16)
+                         {
+                             pip[i] = ip_16[i];
+                         }
+                         else if (i < IP64_MARKER_START)
+                         {
+                             pip[i] = 0;
+                         }
+                         else if (i < (IP64_MARKER_START + IP64_MARKER_SIZE))
+                         {
+                             pip[i] = PCH_IP64_MARKER[i - IP64_MARKER_START];
+                         }
                      }
-                     else
-                     {
-                         const_cast<unsigned char*>(this->ip)[i] = 0;
-                     }
+                 }
+                 else
+                 {
+                     memcpy(ip_16, ip, 16);
+                     READWRITE(FLATDATA(ip_16));
                  }
              }
              else
@@ -145,20 +195,32 @@ class CService : public CNetAddr
         IMPLEMENT_SERIALIZE
             (
              CService* pthis = const_cast<CService*>(this);
-             if (fRead && (nVersion < CADDR_IP64_VERSION))
+             if (nVersion < CADDR_IP64_VERSION)
              {
                  unsigned char ip_16[16];
-                 READWRITE(FLATDATA(ip_16));
-                 for (int i = 0; i < 64; ++i)
+                 if (fRead)
                  {
-                     if (i < 16)
+                     READWRITE(FLATDATA(ip_16));
+                     for (int i = 0; i < 64; ++i)
                      {
-                         const_cast<unsigned char*>(this->ip)[i] = ip_16[i];
+                         if (i < 16)
+                         {
+                             pthis->ip[i] = ip_16[i];
+                         }
+                         else if (i < IP64_MARKER_START)
+                         {
+                             pthis->ip[i] = 0;
+                         }
+                         else if (i < (IP64_MARKER_START + IP64_MARKER_SIZE))
+                         {
+                             pthis->ip[i] = PCH_IP64_MARKER[i - IP64_MARKER_START];
+                         }
                      }
-                     else
-                     {
-                         const_cast<unsigned char*>(this->ip)[i] = 0;
-                     }
+                 }
+                 else
+                 {
+                     memcpy(ip_16, ip, 16);
+                     READWRITE(FLATDATA(ip_16));
                  }
              }
              else
@@ -194,5 +256,7 @@ bool Lookup(const char *pszName, std::vector<CService>& vAddr, int portDefault =
 bool LookupNumeric(const char *pszName, CService& addr, int portDefault = 0);
 bool ConnectSocket(const CService &addr, SOCKET& hSocketRet, int nTimeout = nConnectTimeout);
 bool ConnectSocketByName(CService &addr, SOCKET& hSocketRet, const char *pszDest, int portDefault = 0, int nTimeout = nConnectTimeout);
+
+std::string MakeTorV3Address(const unsigned char (&pchPubkey)[TOR_V3_PUBKEY_SIZE]);
 
 #endif

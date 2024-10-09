@@ -839,7 +839,9 @@ public:
     const_iterator end() const                       { return vch.end(); }
     iterator end()                                   { return vch.end(); }
     size_type size() const                           { return vch.size() - nReadPos; }
+    int in_avail() const                             { return size(); }
     size_type sizeall() const                        { return vch.size(); }
+    size_type at() const                             { return nReadPos; }
     bool empty() const                               { return vch.size() == nReadPos; }
     void resize(size_type n, value_type c=0)         { vch.resize(n + nReadPos, c); }
     void reserve(size_type n)                        { vch.reserve(n + nReadPos); }
@@ -937,7 +939,6 @@ public:
         return true;
     }
 
-
     //
     // Stream subset
     //
@@ -955,7 +956,6 @@ public:
     short exceptions()           { return exceptmask; }
     short exceptions(short mask) { short prev = exceptmask; exceptmask = mask; setstate(0, "CDataStream"); return prev; }
     CDataStream* rdbuf()         { return this; }
-    int in_avail()               { return size(); }
 
     void SetType(int n)          { nType = n; }
     int GetType()                { return nType; }

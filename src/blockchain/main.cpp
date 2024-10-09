@@ -6663,6 +6663,54 @@ bool Rollback()
     return true;
 }
 
+// For tricky interactions between nodes that store address data
+//    as 16 bytes and those that store as 64 bytes.
+// It attempts to read a 64 byte address from a CDataStream.
+// If it can't, a 16 byte address is read (if possible).
+// In both cases, the data stream is set to the read position
+//    immediately following the 16 or 64 byte address.
+// The nVersion parameter is meant to come from context, such as
+//    a CNode version.
+// Returns 0 on fail, and the appropriate protocol version on success,
+//    setting the address to this protocol in the process.
+int ReadAddrOfUnknownSize(CDataStream& stream,
+                          CAddress& addrRet,
+                          const int nVersion)
+{
+    int nStreamVersion = stream.nVersion;
+    stream.nVersion = CADDR_IP16_VERSION;
+    unsigned int nIP16Size = stream.GetSerializeSize(addrRet);
+    if (stream.size() < nIP16Size)
+    {
+        // fail if stream isn't big enough for an IP16 address
+        stream.nVersion = nStreamVersion;
+        return 0;
+    }
+
+    int nResult = min(CADDR_IP16_VERSION, nVersion);
+
+    stream.nVersion = CADDR_IP64_VERSION;
+    unsigned int nIP64Size = stream.GetSerializeSize(addrRet);
+
+    // check version to avoid pointless deserialization
+    if ((nVersion >= CADDR_IP64_VERSION) && (stream.size() >= nIP64Size))
+    {
+        // if a stream is consumed, it's data is erased, so work with a copy
+        CDataStream streamTemp = stream;
+        CAddress addrTemp;
+        streamTemp >> addrTemp;
+        if (addrTemp.IsMarkedIP64())
+        {
+            nResult = max(CADDR_IP64_VERSION, nVersion);
+        }
+    }
+    stream.nVersion = nResult;
+    stream >> addrRet;
+    stream.nVersion = nStreamVersion;
+    return nResult;
+}
+
+
 // Messages:
 //   version
 //   verack
@@ -6680,8 +6728,6 @@ bool Rollback()
 //   reply
 //   ping
 //   alert
-//   version
-//   ping
 bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 {
     static int64_t nTimeLastPushGetBlocks = GetTime();
@@ -6692,8 +6738,15 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
     static map<CService, CPubKey> mapReuseKey;
     RandAddSeedPerfmon();
-    if (fDebugNet)
-        printf("received: %s (%" PRIszu " bytes)\n", strCommand.c_str(), vRecv.size());
+    if (fDebugNet && (strCommand != "block") &&
+        (strCommand != "getblocks") && (strCommand != "inv"))
+    {
+        string strHex = HexStr(vRecv.begin(), vRecv.end(), true);
+        printf("received: %s (%" PRIszu " bytes)\n%s\n",
+               strCommand.c_str(),
+               vRecv.size(),
+               ChunkHex(strHex, 16, "    ").c_str());
+    }
     if (mapArgs.count("-dropmessagestest") && GetRand(atoi(mapArgs["-dropmessagestest"])) == 0)
     {
         printf("dropmessagestest DROPPING RECV MESSAGE\n");
@@ -6736,28 +6789,88 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
 
         int64_t nTime;
+
         CAddress addrMe;
         CAddress addrFrom;
+
         uint64_t nNonce = 1;
         uint64_t verification_token = 0;
-        vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime >> addrMe;
+
+        vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime;
+
+        if (fDebugNet)
+        {
+            printf("   Partner version: %d\n", pfrom->nVersion);
+        }
+
+        int nProtocol = vRecv.nVersion;
+
+        // Be ready for future versions that serialize
+        //    addresses to 64 bytes exclusively.
+        if (pfrom->nVersion > CADDR_IP64_VERSION)
+        {
+            vRecv >> addrMe;
+        }
+        else
+        {
+            nProtocol = ReadAddrOfUnknownSize(vRecv,
+                                              addrMe,
+                                              pfrom->nVersion);
+            if (nProtocol == 0)
+            {
+                printf("partner %s sent malformed version message\n",
+                       pfrom->addrName.c_str());
+                pfrom->Misbehaving(25);
+                return false;
+            }
+            if (fDebugNet)
+            {
+               printf("   Me: %s\n%s\n",
+                      addrMe.ToString().c_str(),
+                      addrMe.GetHex(16, "       ").c_str());
+            }
+        }
+
         if (pfrom->nVersion < GetMinPeerProtoVersion(nBestHeight))
         {
             // disconnect from peers older than this proto version
             printf("partner %s using obsolete version %i; disconnecting\n",
-                                 pfrom->addrName.c_str(), pfrom->nVersion);
+                   pfrom->addrName.c_str(), pfrom->nVersion);
             pfrom->fDisconnect = true;
             return false;
         }
 
         if (!vRecv.empty())
-            vRecv >> addrFrom >> verification_token >> nNonce;
-        if (!vRecv.empty()) {
+        {
+            vRecv.nVersion = nProtocol;
+            vRecv >> addrFrom;
+            vRecv.nVersion = pfrom->nVersion;
+            if (fDebugNet)
+            {
+                printf("   From: %s\n%s\n",
+                       addrFrom.ToString().c_str(),
+                       addrFrom.GetHex(16, "       ").c_str());
+            }
+            vRecv >> verification_token >> nNonce;
+        }
+        if (!vRecv.empty())
+        {
             vRecv >> pfrom->strSubVer;
+            if (fDebugNet)
+            {
+                printf("  Sub-Version: \"%s\"\n", pfrom->strSubVer.c_str());
+            }
+
             pfrom->cleanSubVer = SanitizeString(pfrom->strSubVer);
         }
         if (!vRecv.empty())
+        {
             vRecv >> pfrom->nStartingHeight;
+            if (fDebugNet)
+            {
+                printf("  Starting Height: %d\n", pfrom->nStartingHeight);
+            }
+        }
 
         if (pfrom->fInbound && addrMe.IsRoutable())
         {
@@ -6768,29 +6881,32 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Disconnect if we connected to ourself
         if (nNonce == nLocalHostNonce && nNonce > 1)
         {
-            printf("connected to self at %s, disconnecting\n", pfrom->addrName.c_str());
+            printf("connected to self at %s, disconnecting\n",
+                   pfrom->addrName.c_str());
             pfrom->fDisconnect = true;
             return true;
         }
 
         // ppcoin: record my external IP reported by peer
         if (addrFrom.IsRoutable() && addrMe.IsRoutable())
+        {
             addrSeenByPeer = addrMe;
+        }
 
         // Be shy and don't send version until we hear
-        if (fDebug) {
+        if (fDebugNet) {
               printf("ProcessMessage(): %s\n", pfrom->addrName.c_str());
         }
-        if (pfrom->fInbound)
-            pfrom->PushVersion();
+
+        pfrom->PushVersion();
 
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
 
         AddTimeData(pfrom->addr, nTime);
 
         // Change version
-        pfrom->PushMessage("verack");
         pfrom->vSend.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
+        pfrom->PushMessage("verack");
 
         if (!pfrom->fInbound)
         {
@@ -6799,7 +6915,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             {
                 CAddress addr = GetLocalAddress(&pfrom->addr);
                 if (addr.IsRoutable())
+                {
                     pfrom->PushAddress(addr);
+                }
             }
 
             // Get recent addresses
@@ -6867,6 +6985,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             Checkpoints::AskForPendingSyncCheckpoint(pfrom);
     }
 
+
+    else if (strCommand == "verack")
+    {
+        pfrom->vRecv.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
+    }
+
     else if (pfrom->nVersion == 0)
     {
         // Must have a version message before anything else
@@ -6877,24 +7001,40 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                   strCommand.c_str());
         }
         pfrom->Misbehaving(1);
-        return false;
-    }
-
-
-    else if (strCommand == "verack")
-    {
-        pfrom->vRecv.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
     }
 
 
     else if (strCommand == "addr")
     {
         vector<CAddress> vAddr;
-        vRecv >> vAddr;
+
+        // Be ready for future versions that serialize
+        //    addresses to 64 bytes exclusively.
+        if (pfrom->nVersion > CADDR_IP64_VERSION)
+        {
+            vRecv >> vAddr;
+        }
+        else
+        {
+            CAddress addr;
+            while (vRecv.size() >= vRecv.GetSerializeSize(addr))
+            {
+                if (ReadAddrOfUnknownSize(vRecv, addr, pfrom->nVersion) == 0)
+                {
+                    printf("partner %s sent malformed addr message\n",
+                           pfrom->addrName.c_str());
+                    pfrom->Misbehaving(25);
+                    return false;
+                }
+                vAddr.push_back(addr);
+            }
+        }
 
         // Don't want addr from older versions unless seeding
         if (pfrom->nVersion < CADDR_TIME_VERSION && addrman.size() > 1000)
+        {
             return true;
+        }
         if (vAddr.size() > 1000)
         {
             pfrom->Misbehaving(20);
@@ -7711,7 +7851,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         // Ignore unknown commands for extensibility
     }
 
-
     // Update the last seen time for this node's address
     if (pfrom->fNetworkNode)
     {
@@ -7720,6 +7859,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
             strCommand == "ping")
         {
             AddressCurrentlyConnected(pfrom->addr);
+        }
+        if (strCommand != "getblocks" && strCommand != "getheaders" &&
+            strCommand != "getdata" && strCommand != "block")
+        {
             // Get blocks at a polite rate if it seems we are falling behind.
             int64_t nTimeNow = GetTime();
             if (((pfrom->nVersion < NOBLKS_VERSION_START) ||
@@ -7771,6 +7914,8 @@ bool ProcessMessages(CNode* pfrom)
     ////////////////////////
     LOOP
     {
+        vRecv.nVersion = pfrom->nVersion;
+
         // Don't bother if send buffer is too full to respond anyway
         if (pfrom->vSend.size() >= SendBufferSize())
         {
@@ -7889,7 +8034,7 @@ bool ProcessMessages(CNode* pfrom)
                 // Allow exceptions from under-length message on vRecv
                 printf("ProcessMessages(%s, %u bytes) : Exception '%s' "
                        "caught, normally caused by a message being shorter "
-                       "than its stated length\n",
+                       "than its inferred length\n",
                        strCommand.c_str(),
                        nMessageSize,
                        e.what());
@@ -7945,6 +8090,8 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             return true;
         }
 
+        pto->vSend.nVersion = pto->nVersion;
+
         // Keep-alive ping. We send a nonce of zero because we don't use it anywhere
         // right now.
         if (pto->nLastSend && GetTime() - pto->nLastSend > 30 * 60 && pto->vSend.empty()) {
@@ -7989,7 +8136,7 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
         {
             vector<CAddress> vAddr;
             vAddr.reserve(pto->vAddrToSend.size());
-            BOOST_FOREACH(const CAddress& addr, pto->vAddrToSend)
+            BOOST_FOREACH (const CAddress& addr, pto->vAddrToSend)
             {
                 // returns true if wasn't already contained in the set
                 if (pto->setAddrKnown.insert(addr).second)
@@ -8005,7 +8152,9 @@ bool SendMessages(CNode* pto, bool fSendTrickle)
             }
             pto->vAddrToSend.clear();
             if (!vAddr.empty())
+            {
                 pto->PushMessage("addr", vAddr);
+            }
         }
 
 

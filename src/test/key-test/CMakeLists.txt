@@ -37,6 +37,7 @@ if(NOT DEFINED ENV{LEGACY_PKEY})
         ${STEALTH}/crypto/core-hashes/memzero.c
         ${STEALTH}/crypto/core-hashes/ripemd160.c
         ${STEALTH}/crypto/core-hashes/sha2.c
+        ${STEALTH}/crypto/core-hashes/sha3.c
     )
     target_sources(${target} PRIVATE
         ${C_SOURCES}

@@ -51,6 +51,26 @@ public:
         READWRITE(source);
         READWRITE(nLastSuccess);
         READWRITE(nAttempts);
+        // This shouldn't be necessary, but peers.dat seems to sometimes
+        //    get corrupted, which can play havoc with CPU usage when
+        //    nAttempts is deserialized to an absurd value.
+        // Because of how it is used, it makes no computational
+        //    sense for nAttempts to ever be larger than 27:
+        //        log_{1.5}(2^{16}) = 27.35
+        int& mutnAttempts = const_cast<int&>(this->nAttempts);
+        if (mutnAttempts < 0)
+        {
+            mutnAttempts = 0;
+        }
+        else if (mutnAttempts > 27)
+        {
+            if (mutnAttempts > 256)
+            {
+                printf("WARNING: peers.dat may be corrupted\n");
+                printf("   consider: stop - delete peers.dat - restart\n");
+            }
+            mutnAttempts = 27;
+        }
     )
 
     void Init()
@@ -438,8 +458,12 @@ public:
         {
             LOCK(cs);
             Check();
-            for (std::vector<CAddress>::const_iterator it = vAddr.begin(); it != vAddr.end(); it++)
+            for (std::vector<CAddress>::const_iterator it = vAddr.begin();
+                 it != vAddr.end();
+                 it++)
+            {
                 nAdd += Add_(*it, source, nTimePenalty) ? 1 : 0;
+            }
             Check();
         }
         if (nAdd)

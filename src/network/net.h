@@ -23,6 +23,9 @@
 class CRequestTracker;
 class CNode;
 class CBlockIndex;
+
+extern const CAddress CADDR_NULL;
+
 extern int nBestHeight;
 
 extern int GetTargetSpacing(const int nHeight);
@@ -180,6 +183,7 @@ public:
     CAddress addr;
     std::string addrName;
     CService addrLocal;
+    // protocol version
     int nVersion;
     // strSubVer is whatever byte array we read from the wire. However, this
     // field is intended to be printed out, displayed to humans in
@@ -197,6 +201,8 @@ public:
     bool fDisconnect;
     int nOrphans;
     CSemaphoreGrant grantOutbound;
+private:
+    int nTimesVersionSent;
 protected:
     int nRefCount;
 
@@ -251,6 +257,7 @@ public:
         fSuccessfullyConnected = false;
         fDisconnect = false;
         nOrphans = 0;
+        nTimesVersionSent = 0;
         nRefCount = 0;
         nReleaseTime = 0;
         hashContinue = 0;
@@ -290,7 +297,7 @@ public:
         return std::max(nRefCount, 0) + (GetTime() < nReleaseTime ? 1 : 0);
     }
 
-    CNode* AddRef(int64_t nTimeout=0)
+    CNode* AddRef(int64_t nTimeout = 0)
     {
         if (nTimeout != 0)
             nReleaseTime = std::max(nReleaseTime, GetTime() + nTimeout);
@@ -316,8 +323,10 @@ public:
         // Known checking here is only to save space from duplicates.
         // SendMessages will filter it again for knowns that were added
         // after addresses were pushed.
-        if (addr.IsValid() && !setAddrKnown.count(addr))
+        if (addr.IsValid(nVersion) && !setAddrKnown.count(addr))
+        {
             vAddrToSend.push_back(addr);
+        }
     }
 
 

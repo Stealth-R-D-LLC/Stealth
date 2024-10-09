@@ -166,6 +166,7 @@ public:
     ~CKey();
 
     bool IsNull() const;
+    bool IsSet() const;
     bool IsCompressed() const;
 
     void MakeNewKey(bool fCompressed);

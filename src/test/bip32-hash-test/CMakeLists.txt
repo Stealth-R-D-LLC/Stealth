@@ -44,6 +44,7 @@ else()
         ${STEALTH}/crypto/core-hashes/memzero.c
         ${STEALTH}/crypto/core-hashes/ripemd160.c
         ${STEALTH}/crypto/core-hashes/sha2.c
+        ${STEALTH}/crypto/core-hashes/sha3.c
     )
     set(CPP_SOURCES
         ${CPP_SOURCES}

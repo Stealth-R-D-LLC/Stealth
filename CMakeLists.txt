@@ -515,4 +515,39 @@ target_link_libraries(StealthCoind
 
 add_dependencies(StealthCoind generate_build_h)
 
+
+##############################################################################
+## download-stealth-bootstrap
+##############################################################################
+
+set(SCRIPT_SOURCE ${CMAKE_SOURCE_DIR}/scripts/download-stealth-bootstrap)
+
+set(SCRIPT_DESTINATION ${CMAKE_BINARY_DIR}/download-stealth-bootstrap)
+
+add_custom_command(
+  OUTPUT ${SCRIPT_DESTINATION}
+  COMMAND ${CMAKE_COMMAND} -E copy ${SCRIPT_SOURCE} ${SCRIPT_DESTINATION}
+  DEPENDS ${SCRIPT_SOURCE}
+)
+
+add_custom_target(copy_bootstrap_script ALL DEPENDS ${SCRIPT_DESTINATION})
+
+add_dependencies(copy_bootstrap_script StealthCoind)
+
+
+##############################################################################
+## install
+##############################################################################
+
 install(TARGETS StealthCoind DESTINATION bin)
+
+install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-bootstrap
+  DESTINATION bin
+  RENAME download-stealth-bootstrap)
+
+set(SCRIPT_INSTALL_DIR "" CACHE PATH "Custom installation directory for utility scripts")
+if(SCRIPT_INSTALL_DIR)
+  install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-bootstrap
+    DESTINATION ${SCRIPT_INSTALL_DIR}
+    RENAME download-stealth-bootstrap)
+endif()
