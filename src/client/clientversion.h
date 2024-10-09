@@ -9,7 +9,7 @@
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       1
 #define CLIENT_VERSION_REVISION    8
-#define CLIENT_VERSION_BUILD       0
+#define CLIENT_VERSION_BUILD       1
 
 // cloners: add your new forks higher than highest here
 //          keep existing
