@@ -27,7 +27,6 @@
 #include <boost/date_time/posix_time/posix_time_types.hpp>
 
 #include <openssl/sha.h>
-#include <openssl/ripemd.h>
 
 #include <openssl/ec.h>
 #include <openssl/bn.h>
@@ -37,12 +36,6 @@
 // ensure functions like fseek() can handle large files
 #if LONG_MAX < 9223372036854775807LL
     #error "long int is less than 64 bits on this system"
-#endif
-
-#if __cplusplus >= 201103L
-    #define AUTO_PTR std::unique_ptr
-#else
-    #define AUTO_PTR std::auto_ptr
 #endif
 
 
@@ -272,6 +265,7 @@ uint256 GetRandHash();
 int64_t GetTime();
 void SetMockTime(int64_t nMockTimeIn);
 long hex2long(const unsigned char* hexString);
+std::string FormatClientVersion();
 std::string FormatFullVersion();
 std::string FormatVersionNumbers();
 std::string FormatSubVersion(const std::string& name,
@@ -357,37 +351,6 @@ inline int64_t abs64(int64_t n)
     return (n >= 0 ? n : -n);
 }
 
-template<typename T>
-std::string HexStr(const T itbegin, const T itend, bool fSpaces=false)
-{
-    std::string rv;
-    static const char hexmap[16] = {
-                         '0', '1', '2', '3', '4', '5', '6', '7',
-                         '8', '9', 'a', 'b', 'c', 'd', 'e', 'f' };
-    rv.reserve((itend-itbegin)*3);
-    for(T it = itbegin; it < itend; ++it)
-    {
-        unsigned char val = (unsigned char)(*it);
-        if (fSpaces && it != itbegin)
-        {
-            rv.push_back(' ');
-        }
-        rv.push_back(hexmap[val>>4]);
-        rv.push_back(hexmap[val&15]);
-    }
-    return rv;
-}
-
-inline std::string HexStr(const std::vector<unsigned char>& vch,
-                          bool fSpaces = false)
-{
-    return HexStr(vch.begin(), vch.end(), fSpaces);
-}
-
-std::string ChunkHex(const std::string& strHex,
-                     size_t nChunk = 8,
-                     const std::string& strIndent = "",
-                     bool add0xPrefix = false);
 
 template<typename T>
 void PrintHex(const T pbegin,
@@ -539,38 +502,6 @@ bool SoftSetArg(const std::string& strArg, const std::string& strValue);
 bool SoftSetBoolArg(const std::string& strArg, bool fValue);
 
 
-
-
-
-
-
-template<typename T1>
-inline uint256 ProofHash(const T1 pbegin, const T1 pend)
-{
-    static unsigned char pblank[1];
-    uint256 hash1;
-    SHA256((pbegin == pend ? pblank : (unsigned char*) &pbegin[0]),
-           (pend - pbegin) * sizeof(pbegin[0]),
-           (unsigned char*) &hash1);
-    uint256 hash2;
-    SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
-    return hash2;
-}
-
-
-template<typename T1>
-inline uint256 Hash(const T1 pbegin, const T1 pend)
-{
-    static unsigned char pblank[1];
-    uint256 hash1;
-    SHA256((pbegin == pend ? pblank : (unsigned char*) &pbegin[0]),
-           (pend - pbegin) * sizeof(pbegin[0]),
-           (unsigned char*) &hash1);
-    uint256 hash2;
-    SHA256((unsigned char*)&hash1, sizeof(hash1), (unsigned char*)&hash2);
-    return hash2;
-}
-
 class CHashWriter
 {
 private:
@@ -582,8 +513,6 @@ public:
     int nVersion;
 
     void Init() {
-
-
 // sha256
 #if OPENSSL_VERSION_NUMBER < 0x10100000L
         if (ctx) {

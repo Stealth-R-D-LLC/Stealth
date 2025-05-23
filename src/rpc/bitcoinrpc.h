@@ -310,6 +310,7 @@ extern json_spirit::Value getstakersbyid(const json_spirit::Array& params, bool 
 extern json_spirit::Value getstakersbyweight(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakersummary(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getstakerpriceinfo(const json_spirit::Array& params, bool fHelp);
+extern json_spirit::Value getcertifiednodes(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getrecentqueue(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getqposbalance(const json_spirit::Array& params, bool fHelp);
 extern json_spirit::Value getcharacterspg(const json_spirit::Array& params, bool fHelp);

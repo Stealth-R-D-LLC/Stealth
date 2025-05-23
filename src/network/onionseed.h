@@ -13,6 +13,8 @@ static const char *strMainNetOnionSeed[][1] = {
     {"32zhu4f2bnzndaumjtnfp4bt3imquvsqcqzfg4743jsfpfoijlh6koqd.onion"},
     {"tqdxmu4ao2gbmmhr4w25pcu6pzk5ynmduxksgdyil3nl5htrcvbc6ayd.onion"},
     {"sgjsmoup66wsk3kc2s5y36v2vegxlh6zvqch77oid4ay6dmsl5tfhoid.onion"},
+    {"gzmc2khgmjnvom7nwarrdwtkaoej3jvahcutanc7bjiewglpdo7fdhqd.onion"},
+    {"rtl2tfatd4flmsemvof4skje5ayt35o74ukexe36a3knopzn3trwc5qd.onion"},
     {NULL}
 };
 

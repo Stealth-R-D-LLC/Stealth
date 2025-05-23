@@ -92,12 +92,18 @@ class CAddress : public CService
              CAddress* pthis = const_cast<CAddress*>(this);
              CService* pip = (CService*)pthis;
              if (fRead)
+             {
                  pthis->Init();
+             }
              if (nType & SER_DISK)
-                 READWRITE(nVersion);
+             {
+                 READWRITE(nSerVersion);
+             }
              if ((nType & SER_DISK) ||
-                 (nVersion >= CADDR_TIME_VERSION && !(nType & SER_GETHASH)))
+                 (nSerVersion >= CADDR_TIME_VERSION && !(nType & SER_GETHASH)))
+             {
                  READWRITE(nTime);
+             }
              READWRITE(nServices);
              READWRITE(*pip);
             )

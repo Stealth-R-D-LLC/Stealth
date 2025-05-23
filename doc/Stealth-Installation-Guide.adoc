@@ -31,8 +31,8 @@ Typically, the commands are:
 
 [source,bash]
 ----
-sudo rm /usr/local/lib/libdb*
-sudo rm /usr/local/lib/db.*h
+sudo rm /usr/local/lib/libdb* /usr/local/lib/db.*h
+sudo rm /usr/local/include/db.h /usr/local/include/db_cxx.h
 ----
 
 It is likely worthwhile to run these commands if you are upgrading `StealthCoind`.
@@ -110,9 +110,10 @@ Because Stealth uses the CMake unified build system, the only build steps that s
 
 Instructions for Linux (Ubuntu, Fedora, & CentOS), macOS (using https://brew.sh/[Homebrew]), and FreeBSD follow.
 
-Building has been tested successfully on newer versions of each (as of September 2024).
+Building has been tested successfully on newer versions of each (as of May 2025).
 
 * Ubuntu 22.04 LTS, a.k.a "Jammy Jellyfish"
+* Ubuntu 24.04.2 LTS, a.k.a "Noble Numbat"
 * Fedora 40
 * CentOS 9, a.k.a "Stream"
 * MacOS 14.6.1, a.k.a "Sonoma" (on both Intel and Apple Silicon)

@@ -31,6 +31,8 @@ extern "C"
 #include "ripemd160.h"
 }
 
+#include "uint256.h"
+
 #include <stddef.h>
 
 
@@ -45,6 +47,10 @@ unsigned int SHA256(const unsigned char* pdata,
                     unsigned int nbytes,
                     unsigned char* pdigest);
 
+unsigned int SHA256D(const unsigned char* pdata,
+                     unsigned int nbytes,
+                     unsigned char* pdigest);
+
 unsigned int SHA1(const unsigned char* pdata,
                   unsigned int nbytes,
                   unsigned char* pdigest);
@@ -54,4 +60,29 @@ unsigned int RIPEMD160(const unsigned char* pdata,
                        unsigned char* pdigest);
 
 }  // namespace CoreHashes
+
+
+template<typename T1>
+inline uint256 Hash(const T1 pbegin, const T1 pend)
+{
+    static unsigned char pblank[1];
+    uint256 hash;
+    CoreHashes::SHA256D((pbegin == pend ? pblank :
+                                          (unsigned char*) &pbegin[0]),
+            (pend - pbegin) * sizeof(pbegin[0]),
+            (unsigned char*) &hash);
+    return hash;
+}
+
+template<typename T1>
+inline uint256 ProofHash(const T1 pbegin, const T1 pend)
+{
+    static unsigned char pblank[1];
+    uint256 hash;
+    CoreHashes::SHA256D((pbegin == pend ? pblank :
+                                          (unsigned char*) &pbegin[0]),
+            (pend - pbegin) * sizeof(pbegin[0]),
+            (unsigned char*) &hash);
+    return hash;
+}
 

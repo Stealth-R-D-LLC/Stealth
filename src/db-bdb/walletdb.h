@@ -44,7 +44,7 @@ public:
     IMPLEMENT_SERIALIZE
     (
         READWRITE(this->nVersion);
-        nVersion = this->nVersion;
+        nSerVersion = this->nVersion;
         READWRITE(nCreateTime);
     )
 

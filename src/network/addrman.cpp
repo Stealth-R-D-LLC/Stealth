@@ -74,25 +74,30 @@ double CAddrInfo::GetChance(int64_t nNow) const
 
     // deprioritize very recent attempts away
     if (nSinceLastTry < 60*10)
+    {
         fChance *= 0.01;
+    }
 
     // Deprioritize 50% after each failed attempt.
-    // It makes no computational sense for nAttempts to ever be
-    //    larger than 27 ($log_{1.5}(2^{16}) = 27.35$).
-    // fChance will never be bigger than 1, and there are
-    //    max 15 bits in the fractional part of a double.
-    int nCycles = min(nAttempts, 27);
-    if (nCycles == 27)
+    // It makes no practical sense for nAttempts to ever be
+    //    larger than about 22 ($\log_{1.5}(10000) ~ 22.72$).
+    // fChance will never be bigger than 1, and we will check
+    //    on a missing peer no more than 1 time for every ~7500
+    //    that we draw ts address.
+    int nCycles = min(nAttempts, 22);
+    if (nCycles == 22)
     {
-        fChance = 0;
+        // It could be out there, so check with minimal expectations.
+        //    $1/(1.5^{22}) ~ 0.00133657$
+        fChance = 0.000133657;
     }
     else
     {
         for (int n=0; n < nCycles; n++)
         {
             fChance /= 1.5;
-            // close enough to 0: $1/(2^{15}) ~ 0.000031$
-            if (fChance < 0.000031)
+            // $~1/(1.5^{22})$
+            if (fChance <= 0.000133657)
             {
                break;
             }
@@ -407,6 +412,9 @@ void CAddrMan::Attempt_(const CService &addr, int64_t nTime)
 
     // update info
     info.nLastTry = nTime;
+    // It makes no computational sense for nAttempts to ever be negative, which
+    //    could happen from corrupt peers file.
+    info.nAttempts = max(0, info.nAttempts);
     // It makes no computational sense for nAttempts to ever be
     //    larger than 27 ($log_{1.5}(2^{16}) = 27.35$).
     info.nAttempts = min(info.nAttempts + 1, 27);
@@ -543,7 +551,7 @@ int CAddrMan::Check_()
 
     return 0;
 }
-#endif
+#endif  // DEBUG_ADDRMAN
 
 void CAddrMan::GetAddr_(std::vector<CAddress> &vAddr)
 {

@@ -414,6 +414,7 @@ static const CRPCCommand vRPCCommands[] =
     { "getstakersbyweight",       &getstakersbyweight,        false,  false },
     { "getstakersummary",         &getstakersummary,          false,  false },
     { "getstakerpriceinfo",       &getstakerpriceinfo,        false,  false },
+    { "getcertifiednodes",        &getcertifiednodes,         false,  false },
     { "getrecentqueue",           &getrecentqueue,            false,  false },
     { "getqposbalance",           &getqposbalance,            false,  false },
     { "getcharacterspg",          &getcharacterspg,           false,  false },

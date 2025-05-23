@@ -62,7 +62,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         READWRITE(nTime);
         READWRITE(vchPubKey);
     )
@@ -548,8 +550,11 @@ public:
     IMPLEMENT_SERIALIZE
     (
         CWalletTx* pthis = const_cast<CWalletTx*>(this);
+
         if (fRead)
+        {
             pthis->Init(NULL);
+        }
         char fSpent = false;
 
         if (!fRead)
@@ -561,17 +566,21 @@ public:
             {
                 str += (f ? '1' : '0');
                 if (f)
+                {
                     fSpent = true;
+                }
             }
             pthis->mapValue["spent"] = str;
 
             WriteOrderPos(pthis->nOrderPos, pthis->mapValue);
 
             if (nTimeSmart)
+            {
                 pthis->mapValue["timesmart"] = strprintf("%u", nTimeSmart);
+            }
         }
 
-        nSerSize += SerReadWrite(s, *(CMerkleTx*)this, nType, nVersion,ser_action);
+        nSerSize += SerReadWrite(s, *(CMerkleTx*)this, nType, nSerVersion, ser_action);
         READWRITE(vtxPrev);
         READWRITE(mapValue);
         READWRITE(vOrderForm);
@@ -585,14 +594,23 @@ public:
             pthis->strFromAccount = pthis->mapValue["fromaccount"];
 
             if (mapValue.count("spent"))
+            {
                 BOOST_FOREACH(char c, pthis->mapValue["spent"])
+                {
                     pthis->vfSpent.push_back(c != '0');
+                }
+            }
             else
+            {
                 pthis->vfSpent.assign(vout.size(), fSpent);
+            }
 
             ReadOrderPos(pthis->nOrderPos, pthis->mapValue);
 
-            pthis->nTimeSmart = mapValue.count("timesmart") ? (unsigned int)atoi64(pthis->mapValue["timesmart"]) : 0;
+            pthis->nTimeSmart = mapValue.count("timesmart")
+                                    ? (unsigned int) atoi64(
+                                          pthis->mapValue["timesmart"])
+                                    : 0;
         }
 
         pthis->mapValue.erase("fromaccount");
@@ -852,7 +870,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         READWRITE(vchPrivKey);
         READWRITE(nTimeCreated);
         READWRITE(nTimeExpires);
@@ -886,7 +906,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         READWRITE(vchPubKey);
     )
 };
@@ -927,7 +949,9 @@ public:
     (
         CAccountingEntry& me = *const_cast<CAccountingEntry*>(this);
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         // Note: strAccount is serialized as part of the key, not here.
         READWRITE(nCreditDebit);
         READWRITE(nTime);
@@ -939,7 +963,7 @@ public:
 
             if (!(mapValue.empty() && _ssExtra.empty()))
             {
-                CDataStream ss(nType, nVersion);
+                CDataStream ss(nType, nSerVersion);
                 ss.insert(ss.begin(), '\0');
                 ss << mapValue;
                 ss.insert(ss.end(), _ssExtra.begin(), _ssExtra.end());
@@ -955,7 +979,10 @@ public:
             me.mapValue.clear();
             if (std::string::npos != nSepPos)
             {
-                CDataStream ss(std::vector<char>(strComment.begin() + nSepPos + 1, strComment.end()), nType, nVersion);
+                CDataStream ss(std::vector<char>(strComment.begin() + nSepPos + 1,
+                                                 strComment.end()),
+                               nType,
+                               nSerVersion);
                 ss >> me.mapValue;
                 me._ssExtra = std::vector<char>(ss.begin(), ss.end());
             }

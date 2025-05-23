@@ -313,7 +313,7 @@ void GetRegistrySnapshot(CTxDB &txdb, int nReplay, QPRegistry *pregistryTemp)
     bool fReadSnapshot = false;
     while (nSnap >= GetPurchaseStart())
     {
-        if (txdb.ReadRegistrySnapshot(nSnap, *pregistryTemp))
+        if (pregistryTemp->ReadSnapshot(txdb, nSnap))
         {
             fReadSnapshot = true;
             break;
@@ -409,7 +409,7 @@ bool RewindRegistry(CTxDB &txdb,
         }
 
         nReadSnapCount += 1;
-        if (txdb.ReadRegistrySnapshot(pindexSnap->nHeight, *pregistry))
+        if (pregistry->ReadSnapshot(txdb, pindexSnap->nHeight))
         {
             // 1. we need to actually replay the previous block
             // 2. ensure the registry matches the index we backtracked to
@@ -6675,11 +6675,23 @@ bool Rollback()
 //    setting the address to this protocol in the process.
 int ReadAddrOfUnknownSize(CDataStream& stream,
                           CAddress& addrRet,
-                          const int nVersion)
+                          const int nSerVersion)
 {
     int nStreamVersion = stream.nVersion;
+
+    if (fDebugNet)
+    {
+        printf("starting stream.nVersion = %d\n", stream.nVersion);
+    }
+
     stream.nVersion = CADDR_IP16_VERSION;
     unsigned int nIP16Size = stream.GetSerializeSize(addrRet);
+
+    if (fDebugNet)
+    {
+        printf("nIP16Size = %u\n", nIP16Size);
+    }
+
     if (stream.size() < nIP16Size)
     {
         // fail if stream isn't big enough for an IP16 address
@@ -6687,21 +6699,60 @@ int ReadAddrOfUnknownSize(CDataStream& stream,
         return 0;
     }
 
-    int nResult = min(CADDR_IP16_VERSION, nVersion);
+    if (fDebugNet)
+    {
+        printf("min(CADDR_IP16_VERS, nSerVersion) = min(%d, %d)\n",
+               CADDR_IP16_VERSION,
+               nSerVersion);
+    }
+
+    int nResult = min(CADDR_IP16_VERSION, nSerVersion);
+
+    if (fDebugNet)
+    {
+        printf("CADDR_IP64_VERSION = %d\n", CADDR_IP64_VERSION);
+    }
 
     stream.nVersion = CADDR_IP64_VERSION;
     unsigned int nIP64Size = stream.GetSerializeSize(addrRet);
 
+    if (fDebugNet)
+    {
+        printf("nIP64Size = %u\n", nIP64Size);
+    }
+
     // check version to avoid pointless deserialization
-    if ((nVersion >= CADDR_IP64_VERSION) && (stream.size() >= nIP64Size))
+    if ((nSerVersion >= CADDR_IP64_VERSION) && (stream.size() >= nIP64Size))
     {
         // if a stream is consumed, it's data is erased, so work with a copy
         CDataStream streamTemp = stream;
+        if (fDebugNet)
+        {
+            printf("streamTemp.nVersion = %d, hex:\n%s\n",
+                   streamTemp.nVersion,
+                   streamTemp.hex(16, "      ").c_str());
+        }
         CAddress addrTemp;
         streamTemp >> addrTemp;
         if (addrTemp.IsMarkedIP64())
         {
-            nResult = max(CADDR_IP64_VERSION, nVersion);
+            nResult = max(CADDR_IP64_VERSION, nSerVersion);
+            if (fDebugNet)
+            {
+                printf("min(CADDR_IP64_VERS, nSerVersion) = min(%d, %d)\n",
+                       CADDR_IP64_VERSION,
+                       nSerVersion);
+                printf("    IP64 addrTemp = %s\n%s\n",
+                       addrTemp.ToString().c_str(),
+                       addrTemp.GetHex(16, "       ").c_str());
+            }
+        }
+        else if (fDebugNet)
+        {
+            printf("addrTemp is not marked IP64!\n");
+            printf("    unmarked addrTemp = %s\n%s\n",
+                   addrTemp.ToString().c_str(),
+                   addrTemp.GetHex(16, "       ").c_str());
         }
     }
     stream.nVersion = nResult;
@@ -6738,14 +6789,18 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
     }
     static map<CService, CPubKey> mapReuseKey;
     RandAddSeedPerfmon();
-    if (fDebugNet && (strCommand != "block") &&
-        (strCommand != "getblocks") && (strCommand != "inv"))
+    if (fDebugNet)
     {
-        string strHex = HexStr(vRecv.begin(), vRecv.end(), true);
-        printf("received: %s (%" PRIszu " bytes)\n%s\n",
+        printf("received: %s (%" PRIszu " bytes)\n",
                strCommand.c_str(),
-               vRecv.size(),
-               ChunkHex(strHex, 16, "    ").c_str());
+               vRecv.size());
+        if ((strCommand != "block") &&
+            (strCommand != "getblocks") &&
+            (strCommand != "inv"))
+        {
+            string strHex = HexStr(vRecv.begin(), vRecv.end(), true);
+            printf("%s\n", ChunkHex(strHex, 16, "    ").c_str());
+        }
     }
     if (mapArgs.count("-dropmessagestest") && GetRand(atoi(mapArgs["-dropmessagestest"])) == 0)
     {
@@ -6797,13 +6852,13 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         uint64_t verification_token = 0;
 
         vRecv >> pfrom->nVersion >> pfrom->nServices >> nTime;
+        int nProtocol = vRecv.nVersion;
 
         if (fDebugNet)
         {
-            printf("   Partner version: %d\n", pfrom->nVersion);
+            printf("nProtocol = vRecv.nVersion (Partner Version) = %d\n",
+                   nProtocol);
         }
-
-        int nProtocol = vRecv.nVersion;
 
         // Be ready for future versions that serialize
         //    addresses to 64 bytes exclusively.
@@ -6894,10 +6949,12 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
 
         // Be shy and don't send version until we hear
-        if (fDebugNet) {
-              printf("ProcessMessage(): %s\n", pfrom->addrName.c_str());
+        if (fDebugNet)
+        {
+            printf("ProcessMessage(): %s\n", pfrom->addrName.c_str());
         }
 
+        pfrom->vSend.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
         pfrom->PushVersion();
 
         pfrom->fClient = !(pfrom->nServices & NODE_NETWORK);
@@ -6905,7 +6962,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         AddTimeData(pfrom->addr, nTime);
 
         // Change version
-        pfrom->vSend.SetVersion(min(pfrom->nVersion, PROTOCOL_VERSION));
         pfrom->PushMessage("verack");
 
         if (!pfrom->fInbound)
@@ -6927,7 +6983,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 pfrom->fGetAddr = true;
             }
             addrman.Good(pfrom->addr);
-        } else {
+        }
+        else
+        {
             addrFrom.SetPort(GetDefaultPort());
             pfrom->addr = addrFrom;
             if (CNode::IsBanned(addrFrom))
@@ -6944,7 +7002,6 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 printf("couldn't verify %s\n", addrFrom.ToString().c_str());
                 addrman.SetReconnectToken(addrFrom, verification_token);
             }
-
         }
 
         // Ask the first connected node for block updates
@@ -6976,13 +7033,23 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         pfrom->fSuccessfullyConnected = true;
 
-        printf("receive version message: %s: version %d, blocks=%d, us=%s, them=%s, peer=%s, verification=%" PRId64 "\n", pfrom->cleanSubVer.c_str(), pfrom->nVersion, pfrom->nStartingHeight, addrMe.ToString().c_str(), addrFrom.ToString().c_str(), pfrom->addrName.c_str(), verification_token);
+        printf(("receive version message: %s: version %d, blocks=%d, us=%s, "
+                "them=%s, peer=%s, verification=%" PRId64 "\n"),
+               pfrom->cleanSubVer.c_str(),
+               pfrom->nVersion,
+               pfrom->nStartingHeight,
+               addrMe.ToString().c_str(),
+               addrFrom.ToString().c_str(),
+               pfrom->addrName.c_str(),
+               verification_token);
 
         cPeerBlockCounts.input(pfrom->nStartingHeight);
 
         // ppcoin: ask for pending sync-checkpoint if any
         if (!IsInitialBlockDownload())
+        {
             Checkpoints::AskForPendingSyncCheckpoint(pfrom);
+        }
     }
 
 
@@ -7006,6 +7073,7 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
     else if (strCommand == "addr")
     {
+        vector<int> vSerVersions;
         vector<CAddress> vAddr;
 
         // Be ready for future versions that serialize
@@ -7016,17 +7084,41 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
         }
         else
         {
+            size_t nAddrs = ReadCompactSize(vRecv);
             CAddress addr;
             while (vRecv.size() >= vRecv.GetSerializeSize(addr))
             {
-                if (ReadAddrOfUnknownSize(vRecv, addr, pfrom->nVersion) == 0)
+                int nSerVersion = ReadAddrOfUnknownSize(vRecv, addr, pfrom->nVersion);
+                if (nSerVersion == 0)
                 {
                     printf("partner %s sent malformed addr message\n",
                            pfrom->addrName.c_str());
                     pfrom->Misbehaving(25);
                     return false;
                 }
+                vSerVersions.push_back(nSerVersion);
                 vAddr.push_back(addr);
+            }
+            if (vAddr.size() != nAddrs)
+            {
+                printf("TSNH: expected %zu addresses, got %zu\n",
+                       vAddr.size(),
+                       nAddrs);
+            }
+        }
+        if (fDebugNet)
+        {
+            printf("received %zu addresses from %s (%d)\n",
+                    vAddr.size(),
+                    pfrom->addrName.c_str(),
+                    pfrom->nVersion);
+            unsigned int i = 0;
+            for (const auto& addr : vAddr)
+            {
+                printf("    addr: %s (v%d)\n",
+                       addr.ToString().c_str(),
+                       vSerVersions.size() > i ? vSerVersions[i] : -1);
+                i += 1;
             }
         }
 
@@ -7633,11 +7725,10 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                 }
                 else
                 {
-                    const QPQueue* queue = pregistryTemp->GetQueue();
                     printf("ProcessMessage(): could not set best chain with block\n");
                     printf("  staker: %u\n  Queue: %s\n",
                            block.nStakerID,
-                           queue->ToString().c_str());
+                           pregistryTemp->GetQueueAsString().c_str());
                     return false;
                 }
                 fCheck = false;

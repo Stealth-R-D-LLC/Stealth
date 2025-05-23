@@ -1000,43 +1000,6 @@ string DecodeBase32(const string& str)
     return string((const char*)&vchRet[0], vchRet.size());
 }
 
-string ChunkHex(const string& strHex,
-                size_t nChunk,
-                const string& strIndent,
-                bool add0xPrefix)
-{
-    vector<string> vBytes;
-    istringstream iss(strHex);
-    string strByte;
-
-    while (iss >> strByte)
-    {
-        if (add0xPrefix && strByte.substr(0, 2) != "0x")
-        {
-            vBytes.push_back("0x" + strByte);
-        }
-        else
-        {
-            vBytes.push_back(strByte);
-        }
-    }
-
-    ostringstream ossResult;
-    for (size_t i = 0; i < vBytes.size(); ++i)
-    {
-        if (i % nChunk == 0)
-        {
-            if (i > 0)
-            {
-                ossResult << '\n';
-            }
-            ossResult << strIndent;
-        }
-        ossResult << vBytes[i] << ' ';
-    }
-
-    return ossResult.str();
-}
 
 
 bool WildcardMatch(const char* psz, const char* mask)
@@ -1344,6 +1307,11 @@ string FormatVersion(int nVersion)
         return strprintf("%d.%d.%d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100);
     else
         return strprintf("%d.%d.%d.%d", nVersion/1000000, (nVersion/10000)%100, (nVersion/100)%100, nVersion%100);
+}
+
+string FormatClientVersion()
+{
+    return V_CLIENT_VERSION_FULL_STR;
 }
 
 string FormatFullVersion()

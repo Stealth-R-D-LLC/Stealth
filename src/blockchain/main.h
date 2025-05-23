@@ -524,7 +524,7 @@ public:
     (
 
         READWRITE(this->nVersion);
-        nVersion = this->nVersion;
+        nSerVersion = this->nVersion;
         if (this->nVersion < CTransaction::NOTXTIME_VERSION)
         {
             READWRITE(_nTime);
@@ -996,8 +996,8 @@ public:
 
     IMPLEMENT_SERIALIZE
     (
-        nSerSize += SerReadWrite(s, *(CTransaction*)this, nType, nVersion, ser_action);
-        nVersion = this->nVersion;
+        nSerSize += SerReadWrite(s, *(CTransaction*)this, nType, nSerVersion, ser_action);
+        nSerVersion = this->nVersion;
         READWRITE(hashBlock);
         READWRITE(vMerkleBranch);
         READWRITE(nIndex);
@@ -1046,7 +1046,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         READWRITE(pos);
         READWRITE(vSpent);
     )
@@ -1131,7 +1133,7 @@ public:
     IMPLEMENT_SERIALIZE
     (
         READWRITE(this->nVersion);
-        nVersion = this->nVersion;
+        nSerVersion = this->nVersion;
         READWRITE(hashPrevBlock);
         READWRITE(hashMerkleRoot);
         READWRITE(nTime);
@@ -1844,7 +1846,7 @@ public:
     (
         if (!(nType & SER_GETHASH))
         {
-            READWRITE(nVersion);
+            READWRITE(nSerVersion);
         }
 
         READWRITE(hashNext);
@@ -1964,7 +1966,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (!(nType & SER_GETHASH))
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
         READWRITE(vHave);
     )
 

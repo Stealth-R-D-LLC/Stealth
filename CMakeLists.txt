@@ -57,9 +57,12 @@ endfunction()
 remove_compiler_flags(-O0 -O1 -O2 -O3 -Os -Ofast)
 
 if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  # use "-DCMAKE_BUILD_TYPE=Debug"
+  message(STATUS "Creating DEBUG build.")
   add_compile_options(-O0)
   add_link_options(-O0)
 else()
+  message(STATUS "Creating RELEASE build.")
   add_compile_options(-O2)
   add_link_options(-O2)
 endif()

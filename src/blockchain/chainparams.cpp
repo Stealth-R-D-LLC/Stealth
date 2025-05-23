@@ -64,6 +64,7 @@ ChainParams::ChainParams()
         (         XST_FORKREINSTATE,     63900 )
         (          XST_FORKMISSFIX2,     64000 )
         (          XST_FORKFEELESS2,     64000 )
+        (              XST_FORKIP64,     64200 )
                );
 
     CUTOFF_POW_M = 5460;
@@ -78,6 +79,7 @@ ChainParams::ChainParams()
     REINSTATE_M = 3776758;        // reinstate disqualified stakers
     START_MISSFIX2_M = 5572400;   // fixing staker misses after chain halting
     START_FEELESS2_M = 5798888;   // require feeless inputs to be confirmed
+    START_IP64_M = 28800000;      // IP addresses are 64 bytes
 
     mapForksMainNet = MakeMapIntInt(
         boost::assign::map_list_of
@@ -98,6 +100,7 @@ ChainParams::ChainParams()
         /* Jun  6 23:49:52 MST 2021 */   (       REINSTATE_M, XST_FORKREINSTATE )
        /*  Sep 30 05:20:02 MST 2021 */   (  START_MISSFIX2_M, XST_FORKMISSFIX2  )
        /*  Oct 13 07:05:42 MST 2021 */   (  START_FEELESS2_M, XST_FORKFEELESS2  )
+       /*  Jul             PDT 2021 */   (      START_IP64_M, XST_FORKIP64      )
                                                  );
 
 
@@ -449,6 +452,7 @@ ChainParams::ChainParams()
     REINSTATE_T = 99999999;       // placeholder for testnet
     START_MISSFIX2_T = 99999999;  // placeholder for testnet
     START_FEELESS2_T = 99999999;  // placeholder for testnet
+    START_IP64_T = 99999999;  // placeholder for testnet
 
     // should be similar to aryForksMainNet
     mapForksTestNet = MakeMapIntInt(
@@ -470,6 +474,7 @@ ChainParams::ChainParams()
         /*                          */       (       REINSTATE_T, XST_FORKREINSTATE )
         /*                          */       (  START_MISSFIX2_T, XST_FORKMISSFIX2  )
         /*                          */       (  START_FEELESS2_T, XST_FORKFEELESS2  )
+        /*                          */       (      START_IP64_T, XST_FORKIP64  )
                                                     );
 
 

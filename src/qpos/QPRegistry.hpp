@@ -20,13 +20,11 @@
 #include <boost/thread/lockable_adapter.hpp>
 
 class CBlockIndex;
+class CTxDB;
 
 typedef std::map<unsigned int, QPStaker> QPMapStakers;
 typedef QPMapStakers::iterator QPRegistryIterator;
 typedef QPMapStakers::const_iterator QPRegistryConstIterator;
-
-typedef std::map<unsigned int, const QPStaker*> QPMapPStakers;
-typedef QPMapPStakers::const_iterator QPRegistryPIterator;
 
 typedef boost::variate_generator<boost::mt19937&,
                                  boost::uniform_int<> > QPShuffler;
@@ -69,14 +67,26 @@ private:
     // not persistent
     unsigned int nHeightExitedReplay;
     bool fShouldRollback;
+    std::map<unsigned int, string> mapCertifiedNodes;
+
+    void CopyInternal(const QPRegistry *const pother);
 
     unsigned int Size() const;
-    unsigned int GetIDForPrevSlot() const;
     bool GetPrevRecentBlocksMissedMax(unsigned int nID,
                                       uint32_t &nMaxRet) const;
-    const std::map<CPubKey, int64_t>* GetBalances() const;
-    QPStaker* GetStakerForID(unsigned int nID);
+
+    unsigned int GetNumberOf(bool (QPStaker::* f)() const) const;
+    unsigned int GetNumberProductiveInternal() const;
+    unsigned int GetNumberEnabledInternal() const;
+    unsigned int GetNumberDisabledInternal() const;
+    unsigned int GetNumberQualifiedInternal() const;
+    unsigned int GetNumberDisqualifiedInternal() const;
+
+    QPStaker* GetStakerInternal(unsigned int nID);
+    const QPStaker* GetStakerInternal(unsigned int nID) const;
+
     QPStaker* GetStakerForAlias(const std::string &sAlias);
+
     bool StakerProducedBlock(const CBlockIndex *pindex,
                              int64_t nReward);
     bool StakerMissedBlock(unsigned int nID, int nHeight);
@@ -87,18 +97,86 @@ private:
     bool DisqualifyStaker(unsigned int nID);
     bool DisqualifyStakerIfNecessary(unsigned int nID,
                                      const QPStaker* pstaker);
+
+    void ActivatePubKey(const CPubKey &key, const CBlockIndex* pindex);
+    bool DeactivatePubKey(const CPubKey &key);
+    bool SetStakerAlias(unsigned int nID, const std::string &sAlias);
+    bool SetStakerNft(unsigned int nStakerID, unsigned int nNftID);
+
+    bool IsNftKey(const string &sCharKey) const;
+
+    bool NftIsAvailableInternal(const unsigned int nID) const;
+    bool NftIsAvailableInternal(const unsigned int nID,
+                                std::string &sCharKeyRet) const;
+    bool NftIsAvailableInternal(const std::string sCharKey,
+                                unsigned int& nIDRet) const;
+
     bool DockInactiveKeys(int64_t nMoneySupply);
     void PurgeLowBalances(int64_t nMoneySupply);
     bool NewQueue(unsigned int nTime0, const uint256 &prevHash);
     unsigned int IncrementID();
+
+    bool AliasIsAvailableInternal(const std::string &sAlias,
+                                  std::string &sKeyRet) const;
+    bool GetIDForAliasInternal(const std::string &sAlias,
+                               unsigned int &nIDRet) const;
+    bool GetAliasForIDInternal(unsigned int nID,
+                               std::string &sAliasRet) const;
+    std::string GetAliasForIDInternal(unsigned int nID) const;
+
+    unsigned int GetIDForPrevSlot() const;
+    unsigned int GetIDForCurrentSlot() const;
+
+    uint64_t GetPicoPowerInternal() const;
+    uint64_t GetPicoPowerPrevInternal() const;
+    uint64_t GetPicoPowerCurrentInternal() const;
+    bool HasEnoughPower() const;
+
+    bool CanClaimInternal(const CPubKey &key,
+                          int64_t nValue,
+                          int64_t nClaimTime=0) const;
+
     bool ApplyPurchase(const QPTxDetails& deet, const CBlockIndex* pindex);
     bool ApplySetKey(const QPTxDetails &deet, const CBlockIndex* pindex);
     bool ApplySetState(const QPTxDetails &deet, int nHeight);
     bool ApplyClaim(const QPTxDetails &deet, int64_t nBlockTime);
-
     bool ApplySetMeta(const QPTxDetails &deet);
+    int ApplyOps(const CBlockIndex *const pindex);
 
-    bool SetStakerNft(unsigned int nStakerID, unsigned int nNftID);
+    void GetSlotsInfoInternal(int64_t nTime,
+                              unsigned int nSlotFirst,
+                              const QPQueue& q,
+                              std::vector<QPSlotInfo> &vRet) const;
+
+    bool ReadSnapshotInternal(CTxDB& txdb, int nHeight);
+    bool WriteSnapshotInternal(CTxDB& txdb, int nHeight) const;
+
+
+    bool UpdateOnNewTimeInternal(unsigned int nTime,
+                                 const CBlockIndex* const pindex,
+                                 int nSnapshotType,
+                                 bool fWriteLog = false);
+
+    unsigned int UpdateCertifiedNodesList();
+
+    void ExitReplayModeInternal();
+
+    template<typename Selector>
+    void GetStakersWhere(QPMapStakers& mapRet, Selector select) const
+    {
+        boost::lock_guard<const QPRegistry> lock(*this);
+
+        mapRet.clear();
+        for (const auto& pair : mapStakers)
+        {
+            if (select(pair.second))
+            {
+                mapRet[pair.first] = pair.second;
+            }
+        }
+    }
+
+
 
 public:
     enum SnapType
@@ -124,7 +202,6 @@ public:
     uint256 GetHashLastBlockPrev2Queue() const;
     uint256 GetHashLastBlockPrev3Queue() const;
     int64_t GetTotalEarned() const;
-    unsigned int GetNumberOf(bool (QPStaker::* f)() const) const;
     unsigned int GetNumberProductive() const;
     unsigned int GetNumberEnabled() const;
     unsigned int GetNumberDisabled() const;
@@ -134,7 +211,6 @@ public:
     bool CanEnableStaker(unsigned int nStakerID, int nHeight) const;
     bool IsQualifiedStaker(unsigned int nStakerID) const;
     bool TimestampIsValid(unsigned int nStakerID, unsigned int nTime) const;
-    const QPQueue* GetQueue() const;
     unsigned int GetQueueMinTime() const;
     unsigned int GetCurrentSlot() const;
     unsigned int GetCurrentSlotStart() const;
@@ -143,10 +219,6 @@ public:
     unsigned int GetCurrentID() const;
     unsigned int GetCurrentQueueSize() const;
     unsigned int GetPreviousQueueSize() const;
-    void GetSlotsInfo(int64_t nTime,
-                      unsigned int nSlotFirst,
-                      const QPQueue& q,
-                      std::vector<QPSlotInfo> &vRet) const;
     void GetCurrentSlotsInfo(int64_t nTime,
                              unsigned int nSlotFirst,
                              std::vector<QPSlotInfo> &vRet) const;
@@ -179,35 +251,34 @@ public:
                        unsigned int &nIDRet) const;
     bool GetAliasForID(unsigned int nID,
                        std::string &sAliasRet) const;
-    std::string GetAliasForID(unsigned int nID);
+    std::string GetAliasForID(unsigned int nID) const;
     void AsJSON(json_spirit::Object &objRet) const;
     void GetStakerAsJSON(unsigned int nID,
                          json_spirit::Object &objRet,
                          bool fWithRecentBlocks=false) const;
-    unsigned int GetIDForCurrentSlot() const;
     uint64_t GetPicoPower() const;
     uint64_t GetPicoPowerPrev() const;
     uint64_t GetPicoPowerCurrent() const;
-    bool HasEnoughPower() const;
     bool ShouldRollback() const;
 
-    void GetCertifiedNodes(std::vector<std::string> &vNodesRet) const;
+    void GetCertifiedNodes(
+                std::map<unsigned int, std::string>& mapNodesRet) const;
+    void GetCertifiedNodes(std::vector<std::string>& vNodesRet) const;
     bool IsCertifiedNode(const std::string &sNodeAddress) const;
 
-    const QPStaker* GetStaker(unsigned int nID) const;
+    AUTO_PTR<QPStaker> GetStaker(unsigned int nID) const;
+    AUTO_PTR<QPStaker> GetStakerCopy(unsigned int nID) const;
 
-    const QPStaker* GetNewestStaker() const;
+    AUTO_PTR<QPStaker> GetNewestStaker() const;
 
-    void GetEnabledStakers(std::vector<const QPStaker*> &vRet) const;
-    void GetDisabledStakers(std::vector<const QPStaker*> &vRet) const;
-    void GetStakers(std::vector<const QPStaker*> &vRet) const;
-    void GetStakers(QPMapPStakers &mapRet) const;
+    void GetEnabledStakers(QPMapStakers &vRet) const;
+    void GetDisabledStakers(QPMapStakers &vRet) const;
+    void GetQualifiedStakers(QPMapStakers &vRet) const;
+
+    void GetStakers(QPMapStakers &mapRet) const;
 
     void CheckSynced();
     void Copy(const QPRegistry *const pother);
-    void ActivatePubKey(const CPubKey &key, const CBlockIndex* pindex);
-    bool DeactivatePubKey(const CPubKey &key);
-    bool SetStakerAlias(unsigned int nID, const std::string &sAlias);
 
     bool DockInactiveBalances();
 
@@ -222,6 +293,9 @@ public:
     bool GetNftNickForID(const unsigned int nID,
                          std::string &sNick) const;
 
+    bool ReadSnapshot(CTxDB& txdb, int nHeight);
+    bool WriteSnapshot(CTxDB& txdb, int nHeight) const;
+
     bool UpdateOnNewBlock(const CBlockIndex *const pindex,
                           int nSnapshotType,
                           bool fWriteLog=false,
@@ -231,8 +305,6 @@ public:
                          int nSnapshotType,
                          bool fWriteLog=false);
 
-    int ApplyOps(const CBlockIndex *const pindex);
-
     void EnterReplayMode();
     void ExitReplayMode();
 
@@ -240,10 +312,15 @@ public:
                              unsigned int &nIDRet,
                              unsigned int &nTimeRet);
 
+    std::string GetQueueAsString() const;
+
+    void GetQueueSummaryAsJSON(int nHeight,
+                               json_spirit::Object &objRet) const;
+
     IMPLEMENT_SERIALIZE
     (
         READWRITE(this->nVersion);
-        nVersion = this->nVersion;
+        nSerVersion = this->nVersion;
 
         READWRITE(nRound);
         READWRITE(nRoundSeed);

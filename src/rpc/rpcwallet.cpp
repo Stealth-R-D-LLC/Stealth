@@ -54,6 +54,9 @@ void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
     }
     entry.push_back(Pair("txid", wtx.GetHash().GetHex()));
     entry.push_back(Pair("time", (boost::int64_t)wtx.GetWTxTime()));
+    entry.push_back(Pair("datetime",
+                         DateTimeStrFormat("%x %H:%M:%S",
+                                           wtx.GetWTxTime())));
     entry.push_back(Pair("timereceived", (boost::int64_t)wtx.nTimeReceived));
     BOOST_FOREACH(const PAIRTYPE(string,string)& item, wtx.mapValue)
         entry.push_back(Pair(item.first, item.second));
@@ -79,25 +82,28 @@ Value getinfo(const Array& params, bool fHelp)
     GetProxy(NET_IPV4, proxy);
 
     Object obj, diff;
-    obj.push_back(Pair("version",       FormatFullVersion()));
-    obj.push_back(Pair("protocolversion",(int)PROTOCOL_VERSION));
-    obj.push_back(Pair("walletversion", pwalletMain->GetVersion()));
-    obj.push_back(Pair("balance",       ValueFromAmount(pwalletMain->GetBalance())));
-    obj.push_back(Pair("newmint",       ValueFromAmount(pwalletMain->GetNewMint())));
-    obj.push_back(Pair("stake",         ValueFromAmount(pwalletMain->GetStake())));
-    obj.push_back(Pair("blocks",        (int)nBestHeight));
-    obj.push_back(Pair("blockhash",     pindexBest->phashBlock->GetHex()));
-    obj.push_back(Pair("moneysupply",   ValueFromAmount(pindexBest->nMoneySupply)));
-    obj.push_back(Pair("connections",   (int)vNodes.size()));
-    obj.push_back(Pair("proxy",         (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
-    obj.push_back(Pair("ip",            addrSeenByPeer.ToStringIP()));
-    obj.push_back(Pair("difficulty",    (double)GetDifficulty()));
-    obj.push_back(Pair("testnet",       fTestNet));
-    obj.push_back(Pair("keypoololdest", (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));
-    obj.push_back(Pair("keypoolsize",   (int)pwalletMain->GetKeyPoolSize()));
-    obj.push_back(Pair("paytxfee",      ValueFromAmount(nTransactionFee)));
+    obj.push_back(Pair("version",         FormatClientVersion()));
+    obj.push_back(Pair("buildversion",    FormatFullVersion()));
+    obj.push_back(Pair("protocolversion", (int)PROTOCOL_VERSION));
+    obj.push_back(Pair("walletversion",   pwalletMain->GetVersion()));
+    obj.push_back(Pair("balance",         ValueFromAmount(pwalletMain->GetBalance())));
+    obj.push_back(Pair("newmint",         ValueFromAmount(pwalletMain->GetNewMint())));
+    obj.push_back(Pair("stake",           ValueFromAmount(pwalletMain->GetStake())));
+    obj.push_back(Pair("blocks",          (int)nBestHeight));
+    obj.push_back(Pair("blockhash",       pindexBest->phashBlock->GetHex()));
+    obj.push_back(Pair("moneysupply",     ValueFromAmount(pindexBest->nMoneySupply)));
+    obj.push_back(Pair("connections",     (int)vNodes.size()));
+    obj.push_back(Pair("proxy",           (proxy.first.IsValid() ? proxy.first.ToStringIPPort() : string())));
+    obj.push_back(Pair("ip",              addrSeenByPeer.ToStringIP()));
+    obj.push_back(Pair("difficulty",      (double)GetDifficulty()));
+    obj.push_back(Pair("testnet",         fTestNet));
+    obj.push_back(Pair("keypoololdest",   (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));
+    obj.push_back(Pair("keypoolsize",     (int)pwalletMain->GetKeyPoolSize()));
+    obj.push_back(Pair("paytxfee",        ValueFromAmount(nTransactionFee)));
     if (pwalletMain->IsCrypted())
+    {
         obj.push_back(Pair("unlocked_until", (boost::int64_t)nWalletUnlockTime / 1000));
+    }
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
     return obj;
 }
@@ -1366,7 +1372,9 @@ Value gettransaction(const Array& params, bool fHelp)
         {
             TxToJSON(tx, 0, entry);
             if (hashBlock == 0)
+            {
                 entry.push_back(Pair("confirmations", 0));
+            }
             else
             {
                 entry.push_back(Pair("blockhash", hashBlock.GetHex()));
@@ -1377,19 +1385,27 @@ Value gettransaction(const Array& params, bool fHelp)
                     if (pindex->IsInMainChain())
                     {
                         entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                        if (tx.HasTimestamp())
-                        {
-                            entry.push_back(Pair("txntime", (boost::int64_t)tx.GetTxTime()));
-                        }
                         entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
+                        entry.push_back(Pair("datetime",
+                                             DateTimeStrFormat("%x %H:%M:%S", pindex->nTime)));
                     }
                     else
+                    {
                         entry.push_back(Pair("confirmations", 0));
+                    }
+                    if (tx.HasTimestamp())
+                    {
+                        entry.push_back(Pair("txntime", (boost::int64_t)tx.GetTxTime()));
+                        entry.push_back(Pair("txndatetime",
+                                             DateTimeStrFormat("%x %H:%M:%S", tx.GetTxTime())));
+                    }
                 }
             }
         }
         else
+        {
             throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+        }
     }
 
     return entry;

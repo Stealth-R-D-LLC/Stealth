@@ -55,6 +55,22 @@ unsigned int CoreHashes::SHA256(const unsigned char* pdata,
     return SHA256_DIGEST_LENGTH_;
 }
 
+unsigned int CoreHashes::SHA256D(const unsigned char* pdata,
+                                 unsigned int nbytes,
+                                 unsigned char* pdigest)
+{
+    if (pdigest == nullptr)
+    {
+        throw runtime_error(
+                   "CoreHashes::SHA256(): "
+                   "Pointer to 32 byte digest array is NULL.");
+    }
+    unsigned char pdigest1[SHA256_DIGEST_LENGTH_];
+    CoreHashes::SHA256(pdata, nbytes, pdigest1);
+    CoreHashes::SHA256(pdigest1, SHA256_DIGEST_LENGTH_, pdigest);
+    return SHA256_DIGEST_LENGTH_;
+}
+
 unsigned int CoreHashes::SHA1(const unsigned char* pdata,
                               unsigned int nbytes,
                               unsigned char* pdigest)

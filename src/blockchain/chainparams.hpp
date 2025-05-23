@@ -68,6 +68,7 @@ public:
     int REINSTATE_M;
     int START_MISSFIX2_M;
     int START_FEELESS2_M;
+    int START_IP64_M;
 
     mapIntInt_t mapForksMainNet;
 
@@ -252,6 +253,7 @@ public:
     int REINSTATE_T;
     int START_MISSFIX2_T;
     int START_FEELESS2_T;
+    int START_IP64_T;
 
     mapIntInt_t mapForksTestNet;
 

@@ -385,7 +385,6 @@ public:
     bool WriteRegistrySnapshot(int nHeight, const QPRegistry& registry);
     bool ReadRegistrySnapshot(int nHeight, QPRegistry &registry);
     bool RegistrySnapshotIsViable(int nHeight);
-    bool ReadBestRegistrySnapshot(QPRegistry &registry);
     bool EraseRegistrySnapshot(int nHeight);
 };
 

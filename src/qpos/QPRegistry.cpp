@@ -22,7 +22,7 @@ QPRegistry::QPRegistry()
 
 QPRegistry::QPRegistry(const QPRegistry *const pother)
 {
-    Copy(pother);
+    CopyInternal(pother);
 }
 
 void QPRegistry::SetNull()
@@ -54,6 +54,7 @@ void QPRegistry::SetNull()
     powerRoundPrev.SetNull();
     powerRoundCurrent.SetNull();
     fShouldRollback = false;
+    mapCertifiedNodes.clear();
 }
 
 unsigned int QPRegistry::GetRound() const
@@ -68,6 +69,7 @@ uint32_t QPRegistry::GetRoundSeed() const
 
 unsigned int QPRegistry::Size() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return mapStakers.size();
 }
 
@@ -91,10 +93,6 @@ uint256 QPRegistry::GetBlockHash() const
     return hashBlock;
 }
 
-const QPQueue* QPRegistry::GetQueue() const
-{
-    return &queue;
-}
 
 uint256 QPRegistry::GetHashLastBlockPrev1Queue() const
 {
@@ -113,6 +111,8 @@ uint256 QPRegistry::GetHashLastBlockPrev3Queue() const
 
 int64_t QPRegistry::GetTotalEarned() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     int64_t total = 0;
     QPRegistryConstIterator it;
     for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
@@ -121,8 +121,6 @@ int64_t QPRegistry::GetTotalEarned() const
     }
     return total;
 }
-
-
 
 unsigned int QPRegistry::GetNumberOf(bool (QPStaker::* f)() const) const
 {
@@ -138,34 +136,65 @@ unsigned int QPRegistry::GetNumberOf(bool (QPStaker::* f)() const) const
     return count;
 }
 
-unsigned int QPRegistry::GetNumberProductive() const
+unsigned int QPRegistry::GetNumberProductiveInternal() const
 {
     return GetNumberOf(&QPStaker::IsProductive);
 }
 
-unsigned int QPRegistry::GetNumberEnabled() const
+unsigned int QPRegistry::GetNumberProductive() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetNumberProductiveInternal();
+}
+
+unsigned int QPRegistry::GetNumberEnabledInternal() const
 {
     return GetNumberOf(&QPStaker::IsEnabled);
 }
 
-unsigned int QPRegistry::GetNumberDisabled() const
+unsigned int QPRegistry::GetNumberEnabled() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetNumberEnabledInternal();
+}
+
+unsigned int QPRegistry::GetNumberDisabledInternal() const
 {
     return GetNumberOf(&QPStaker::IsDisabled);
 }
 
-unsigned int QPRegistry::GetNumberQualified() const
+unsigned int QPRegistry::GetNumberDisabled() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetNumberDisabledInternal();
+}
+
+unsigned int QPRegistry::GetNumberQualifiedInternal() const
 {
     return GetNumberOf(&QPStaker::IsQualified);
 }
 
-unsigned int QPRegistry::GetNumberDisqualified() const
+unsigned int QPRegistry::GetNumberQualified() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetNumberQualifiedInternal();
+}
+
+unsigned int QPRegistry::GetNumberDisqualifiedInternal() const
 {
     return GetNumberOf(&QPStaker::IsDisqualified);
 }
 
+unsigned int QPRegistry::GetNumberDisqualified() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetNumberDisqualifiedInternal();
+}
+
 bool QPRegistry::IsEnabledStaker(unsigned int nStakerID) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return false;
@@ -175,7 +204,8 @@ bool QPRegistry::IsEnabledStaker(unsigned int nStakerID) const
 
 bool QPRegistry::CanEnableStaker(unsigned int nStakerID, int nHeight) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return false;
@@ -185,7 +215,8 @@ bool QPRegistry::CanEnableStaker(unsigned int nStakerID, int nHeight) const
 
 bool QPRegistry::IsQualifiedStaker(unsigned int nStakerID) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return false;
@@ -196,6 +227,7 @@ bool QPRegistry::IsQualifiedStaker(unsigned int nStakerID) const
 bool QPRegistry::TimestampIsValid(unsigned int nStakerID,
                                   unsigned int nTime) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     bool fIsValid = true;
     QPWindow window;
     if (!queue.GetWindowForID(nStakerID, window))
@@ -232,48 +264,56 @@ bool QPRegistry::TimestampIsValid(unsigned int nStakerID,
 
 unsigned int QPRegistry::GetQueueMinTime() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.GetMinTime();
 }
 
 unsigned int QPRegistry::GetCurrentSlot() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.GetCurrentSlot();
 }
 
 unsigned int QPRegistry::GetCurrentSlotStart() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.GetCurrentSlotStart();
 }
 
 unsigned int QPRegistry::GetCurrentSlotEnd() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.GetCurrentSlotEnd();
 }
 
 bool QPRegistry::TimeIsInCurrentSlotWindow(unsigned int nTime) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.TimeIsInCurrentSlotWindow(nTime);
 }
 
 unsigned int QPRegistry::GetCurrentID() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.GetCurrentID();
 }
 
 unsigned int QPRegistry::GetCurrentQueueSize() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queue.Size();
 }
 
 unsigned int QPRegistry::GetPreviousQueueSize() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return queuePrev.Size();
 }
 
-void QPRegistry::GetSlotsInfo(int64_t nTime,
-                              unsigned int nSlotFirst,
-                              const QPQueue& q,
-                              vector<QPSlotInfo> &vRet) const
+void QPRegistry::GetSlotsInfoInternal(int64_t nTime,
+                                      unsigned int nSlotFirst,
+                                      const QPQueue& q,
+                                      vector<QPSlotInfo> &vRet) const
 {
     vRet.clear();
     for (unsigned int slot = nSlotFirst; slot < q.Size(); ++slot)
@@ -286,14 +326,16 @@ void QPRegistry::GetCurrentSlotsInfo(int64_t nTime,
                                      unsigned int nSlotFirst,
                                      vector<QPSlotInfo> &vRet) const
 {
-    return GetSlotsInfo(nTime, nSlotFirst, queue, vRet);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetSlotsInfoInternal(nTime, nSlotFirst, queue, vRet);
 }
 
 void QPRegistry::GetPreviousSlotsInfo(int64_t nTime,
                                       unsigned int nSlotFirst,
                                       vector<QPSlotInfo> &vRet) const
 {
-    return GetSlotsInfo(nTime, nSlotFirst, queuePrev, vRet);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetSlotsInfoInternal(nTime, nSlotFirst, queuePrev, vRet);
 }
 
 
@@ -304,11 +346,14 @@ bool QPRegistry::CurrentBlockWasProduced() const
 
 unsigned int QPRegistry::GetRecentBlocksSize() const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     return bRecentBlocks.size();
 }
 
 int QPRegistry::GetRecentBlock(unsigned int n) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     if (n >= bRecentBlocks.size())
     {
         return -1;
@@ -329,6 +374,8 @@ unsigned int QPRegistry::GetNextIDCounter() const
 bool QPRegistry::GetBalanceForPubKey(const CPubKey &key,
                                      int64_t &nBalanceRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     map<CPubKey, int64_t>::const_iterator it = mapBalances.find(key);
     if (it == mapBalances.end())
     {
@@ -340,11 +387,15 @@ bool QPRegistry::GetBalanceForPubKey(const CPubKey &key,
 
 bool QPRegistry::PubKeyIsInLedger(const CPubKey &key) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     return (mapBalances.count(key) != 0);
 }
 
 bool QPRegistry::PubKeyActiveCount(const CPubKey &key, int &nCountRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     map<CPubKey, int>::const_iterator it = mapActive.find(key);
     if (it == mapActive.end())
     {
@@ -356,6 +407,8 @@ bool QPRegistry::PubKeyActiveCount(const CPubKey &key, int &nCountRet) const
 
 bool QPRegistry::PubKeyIsInactive(const CPubKey &key, bool &fInActiveRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     map<CPubKey, int>::const_iterator it = mapActive.find(key);
     if (it == mapActive.end())
     {
@@ -365,15 +418,15 @@ bool QPRegistry::PubKeyIsInactive(const CPubKey &key, bool &fInActiveRet) const
     return true;
 }
 
-bool QPRegistry::CanClaim(const CPubKey &key,
-                          int64_t nValue,
-                          int64_t nClaimTime) const
+bool QPRegistry::CanClaimInternal(const CPubKey &key,
+                                  int64_t nValue,
+                                  int64_t nClaimTime) const
 {
     int64_t nTime = GetAdjustedTime();
     // need to specify time as an input for blockchain sync/validation
     if (nClaimTime > nTime)
     {
-        return error("CanClaim(): can't predict future");
+        return error("CanClaimInternal(): can't predict future");
     }
     if (nClaimTime <= 0)
     {
@@ -382,34 +435,44 @@ bool QPRegistry::CanClaim(const CPubKey &key,
     map<CPubKey, int64_t>::const_iterator it = mapBalances.find(key);
     if (it == mapBalances.end())
     {
-        return error("CanClaim(): no such balance in ledger");
+        return error("CanClaimInternal(): no such balance in ledger");
     }
     if (nValue > it->second)
     {
-        return error("CanClaim(): claim exceeds balance");
+        return error("CanClaimInternal(): claim exceeds balance");
     }
     it = mapLastClaim.find(key);
     if (it != mapLastClaim.end())
     {
         if ((!fTestNet) && (nClaimTime < (it->second + QP_MIN_SECS_PER_CLAIM)))
         {
-            return error("CanClaim(): too soon to claim");
+            return error("CanClaimInternal(): too soon to claim");
         }
     }
     return true;
 }
 
+bool QPRegistry::CanClaim(const CPubKey &key,
+                          int64_t nValue,
+                          int64_t nClaimTime) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return CanClaimInternal(key, nValue, nClaimTime);
+}
+
 bool QPRegistry::GetStakerAuthorities(unsigned int nStakerID,
                                       qpos_authorities &ret) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
-        return error("GetOwnerKey(): no such staker %u", nStakerID);
+        return error("GetStakerAuthorities(): no such staker %u", nStakerID);
     }
     if (pstaker->IsDisqualified())
     {
-        return error("GetOwnerKey(): staker is disqualified %u", nStakerID);
+        return error("GetStakerAuthorities(): staker is disqualified %u", nStakerID);
     }
     ret.owner = pstaker->pubkeyOwner;
     ret.manager = pstaker->pubkeyManager;
@@ -418,10 +481,11 @@ bool QPRegistry::GetStakerAuthorities(unsigned int nStakerID,
     return true;
 }
 
-
 bool QPRegistry::GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return error("GetOwnerKey(): no such staker %u", nStakerID);
@@ -434,10 +498,11 @@ bool QPRegistry::GetOwnerKey(unsigned int nStakerID, CPubKey &keyRet) const
     return true;
 }
 
-
 bool QPRegistry::GetManagerKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return error("GetManagerKey(): no such staker %u", nStakerID);
@@ -452,7 +517,9 @@ bool QPRegistry::GetManagerKey(unsigned int nStakerID, CPubKey &keyRet) const
 
 bool QPRegistry::GetDelegateKey(unsigned int nStakerID, CPubKey &keyRet) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return error("GetDelegateKey(): no such staker %u", nStakerID);
@@ -468,7 +535,9 @@ bool QPRegistry::GetDelegateKey(unsigned int nStakerID, CPubKey &keyRet) const
 bool QPRegistry::GetControllerKey(unsigned int nStakerID,
                                   CPubKey &keyRet) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return error("GetControllerKey(): no such staker %u", nStakerID);
@@ -485,7 +554,9 @@ bool QPRegistry::GetControllerKey(unsigned int nStakerID,
 bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
                            unsigned int &nWeightRet) const
 {
-    const QPStaker* pstaker = GetStaker(nStakerID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nStakerID);
     if (!pstaker)
     {
         return error("GetKeyForID() : no staker for ID %d", nStakerID);
@@ -503,13 +574,10 @@ bool QPRegistry::GetStakerWeight(unsigned int nStakerID,
     return true;
 }
 
-const std::map<CPubKey, int64_t>* QPRegistry::GetBalances() const
-{
-    return &mapBalances;
-}
-
 void QPRegistry::AsJSON(Object &objRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     objRet.clear();
     Array aryQueue;
     for (unsigned int slot = 0; slot < queue.Size(); ++slot)
@@ -529,9 +597,11 @@ void QPRegistry::AsJSON(Object &objRet) const
         objSlot.push_back(Pair("status", strStatus));
         aryQueue.push_back(objSlot);
     }
+
     unsigned int nCurrentSlot = queue.GetCurrentSlot();
 
     vector<pair<unsigned int, const QPStaker*> > vIDs;
+
     QPRegistryConstIterator mit;
     for (mit = mapStakers.begin(); mit != mapStakers.end(); ++mit)
     {
@@ -605,11 +675,17 @@ void QPRegistry::AsJSON(Object &objRet) const
                           fPrevBlockWasProduced));
     objRet.push_back(Pair("current_slot",
                           static_cast<int64_t>(nCurrentSlot)));
-    objRet.push_back(Pair("pico_power", GetPicoPower()));
-    objRet.push_back(Pair("prev_pico_power", GetPicoPowerPrev()));
-    objRet.push_back(Pair("current_pico_power", GetPicoPowerCurrent()));
+
+    objRet.push_back(Pair("pico_power",
+                          GetPicoPowerInternal()));
+    objRet.push_back(Pair("prev_pico_power",
+                          GetPicoPowerPrevInternal()));
+    objRet.push_back(Pair("current_pico_power",
+                          GetPicoPowerCurrentInternal()));
+
     objRet.push_back(Pair("queue", aryQueue));
-    objRet.push_back(Pair("queue_blocks", HexStr(queue.GetBlockStats())));
+    objRet.push_back(Pair("queue_blocks",
+                          HexStr(queue.GetBlockStats())));
     objRet.push_back(Pair("queue_summary", queue.ToString()));
     objRet.push_back(Pair("stakers", objStakers));
     objRet.push_back(Pair("balances", objBalances));
@@ -619,7 +695,9 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
                                  Object &objRet,
                                  bool fWithRecentBlocks) const
 {
-    const QPStaker* pstaker = GetStaker(nID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+
+    const QPStaker* pstaker = GetStakerInternal(nID);
     if (pstaker)
     {
         unsigned int nSeniority = pstaker->IsDisqualified() ?
@@ -637,20 +715,35 @@ void QPRegistry::GetStakerAsJSON(unsigned int nID,
     }
 }
 
+
+string QPRegistry::GetQueueAsString() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return queue.ToString();
+}
+
+void QPRegistry::GetQueueSummaryAsJSON(int nHeight,
+                                       Object &objRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    queue.SummaryAsJSON(nHeight, objRet);
+}
+
 void QPRegistry::CheckSynced()
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
     if (IsInReplayMode())
     {
         int nTime = GetAdjustedTime();
         if (HasEnoughPower() && queue.TimeIsInCurrentSlotWindow(nTime))
         {
             printf("QPRegistry::CheckSynced(): exiting replay mode\n");
-            ExitReplayMode();
+            ExitReplayModeInternal();
         }
     }
 }
 
-void QPRegistry::Copy(const QPRegistry *const pother)
+void QPRegistry::CopyInternal(const QPRegistry *const pother)
 {
     nVersion = pother->nVersion;
     nRound = pother->nRound;
@@ -681,6 +774,23 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     nHeightExitedReplay = pother->nHeightExitedReplay;
     fShouldRollback = pother->fShouldRollback;
 }
+
+void QPRegistry::Copy(const QPRegistry *const pother)
+{
+    if (this < pother)
+    {
+        boost::lock_guard<QPRegistry> lock_this(*const_cast<QPRegistry*>(this));
+        boost::lock_guard<QPRegistry> lock_other(*const_cast<QPRegistry*>(pother));
+        CopyInternal(pother);
+    }
+    else if (this > pother)
+    {
+        boost::lock_guard<QPRegistry> lock_other(*const_cast<QPRegistry*>(pother));
+        boost::lock_guard<QPRegistry> lock_this(*const_cast<QPRegistry*>(this));
+        CopyInternal(pother);
+    }
+}
+
 
 void QPRegistry::ActivatePubKey(const CPubKey &key,
                                 const CBlockIndex* pindex)
@@ -715,11 +825,12 @@ bool QPRegistry::DeactivatePubKey(const CPubKey &key)
 bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
 {
     string sKey;
-    if (!AliasIsAvailable(sAlias, sKey))
+    if (!AliasIsAvailableInternal(sAlias, sKey))
     {
         return false;
     }
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
+    QPStaker staker = *pstaker;
     if (!pstaker)
     {
         return error("SetStakerAlias(): no staker with ID %u", nID);
@@ -736,7 +847,12 @@ bool QPRegistry::SetStakerAlias(unsigned int nID, const string &sAlias)
     return true;
 }
 
-bool QPRegistry::NftIsAvailable(const unsigned int nID) const
+bool QPRegistry::IsNftKey(const string &sCharKey) const
+{
+    return mapNftLookup.count(sCharKey);
+}
+
+bool QPRegistry::NftIsAvailableInternal(const unsigned int nID) const
 {
     // FIXME: this test can be removed after XST_FORKPURCHASE3
     if (GetFork(nBlockHeight) < XST_FORKPURCHASE3)
@@ -749,8 +865,14 @@ bool QPRegistry::NftIsAvailable(const unsigned int nID) const
     }
 }
 
-bool QPRegistry::NftIsAvailable(const unsigned int nID,
-                                string &sCharKeyRet) const
+bool QPRegistry::NftIsAvailable(const unsigned int nID) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return NftIsAvailableInternal(nID);
+}
+
+bool QPRegistry::NftIsAvailableInternal(const unsigned int nID,
+                                        string &sCharKeyRet) const
 {
     sCharKeyRet.clear();
     // FIXME: this test can be removed after XST_FORKPURCHASE3
@@ -771,14 +893,21 @@ bool QPRegistry::NftIsAvailable(const unsigned int nID,
     return (bool)sCharKeyRet.size();
 }
 
-bool QPRegistry::NftIsAvailable(const string sCharKey,
-                                unsigned int& nIDRet) const
+bool QPRegistry::NftIsAvailable(const unsigned int nID,
+                                string &sCharKeyRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return NftIsAvailableInternal(nID, sCharKeyRet);
+}
+
+bool QPRegistry::NftIsAvailableInternal(const string sCharKey,
+                                        unsigned int& nIDRet) const
 {
     nIDRet = 0;
     // FIXME: this can be removed after testing
     if (sCharKey != ToLowercaseSafe(sCharKey))
     {
-        return error("NftIsAvailable(): TSNH alias is not lowercase");
+        return error("NftIsAvailableInternal(): TSNH alias is not lowercase");
     }
     if (mapNftLookup.count(sCharKey))
     {
@@ -791,8 +920,17 @@ bool QPRegistry::NftIsAvailable(const string sCharKey,
     return (bool)nIDRet;
 }
 
+bool QPRegistry::NftIsAvailable(const string sCharKey,
+                                unsigned int& nIDRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return NftIsAvailableInternal(sCharKey, nIDRet);
+}
+
 unsigned int QPRegistry::GetNftOwner(const unsigned int nID) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     unsigned int nStakerID = 0;
     if (mapNftOwnerLookup.count(nID))
     {
@@ -804,6 +942,8 @@ unsigned int QPRegistry::GetNftOwner(const unsigned int nID) const
 bool QPRegistry::GetNftIDForAlias(const string &sAlias,
                                   unsigned int& nIDRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     string sKey = ToLowercaseSafe(sAlias);
     if (mapNftLookup.count(sKey))
     {
@@ -819,6 +959,8 @@ bool QPRegistry::GetNftIDForAlias(const string &sAlias,
 bool QPRegistry::GetNftNickForID(const unsigned int nID,
                                   string &sNickRet) const
 {
+    boost::lock_guard<const QPRegistry> lock(*this);
+
     if (mapNfts.count(nID))
     {
         sNickRet = mapNfts[nID].strNickname;
@@ -830,77 +972,86 @@ bool QPRegistry::GetNftNickForID(const unsigned int nID,
     return (bool)sNickRet.size();
 }
 
-const QPStaker* QPRegistry::GetStaker(unsigned int nID) const
+QPStaker* QPRegistry::GetStakerInternal(unsigned int nID)
 {
     if ((nID > 0) && (nID <= nIDCounter))
     {
-        QPRegistryConstIterator iter = mapStakers.find(nID);
+        auto iter = mapStakers.find(nID);
         if (iter != mapStakers.end())
         {
             return &(iter->second);
         }
     }
-    return NULL;
+    return nullptr;
 }
 
-const QPStaker* QPRegistry::GetNewestStaker() const
+const QPStaker* QPRegistry::GetStakerInternal(unsigned int nID) const
 {
-    return GetStaker(nIDCounter);
-}
-
-void QPRegistry::GetEnabledStakers(vector<const QPStaker*> &vRet) const
-{
-    vRet.clear();
-    QPRegistryConstIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    if ((nID > 0) && (nID <= nIDCounter))
     {
-        if (it->second.IsEnabled())
+        auto iter = mapStakers.find(nID);
+        if (iter != mapStakers.end())
         {
-            vRet.push_back(&(it->second));
+            return &(iter->second);
         }
+    }
+    return nullptr;
+}
+
+AUTO_PTR<QPStaker> QPRegistry::GetStakerCopy(unsigned int nID) const
+{
+    const QPStaker* pstaker = GetStakerInternal(nID);
+    if (!pstaker)
+    {
+        printf("GetStakerCopy(): no such staker ID %u\n", nID);
+        return nullptr;
+    }
+
+    try
+    {
+        return AUTO_PTR<QPStaker>(new QPStaker(*pstaker));
+    }
+    catch (const std::bad_alloc&)
+    {
+        printf("GetStakerCopy(): TSNH could not allocate memory");
+        return nullptr;
     }
 }
 
-
-void QPRegistry::GetDisabledStakers(vector<const QPStaker*> &vRet) const
+AUTO_PTR<QPStaker> QPRegistry::GetStaker(unsigned int nID) const
 {
-    vRet.clear();
-    QPRegistryConstIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
-    {
-        if (it->second.IsDisabled())
-        {
-            vRet.push_back(&(it->second));
-        }
-    }
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetStakerCopy(nID);
 }
 
-void QPRegistry::GetStakers(vector<const QPStaker*> &vRet) const
+AUTO_PTR<QPStaker> QPRegistry::GetNewestStaker() const
 {
-    vRet.clear();
-    for (unsigned int n = 1; n <= nIDCounter; ++n)
-    {
-        QPRegistryConstIterator it = mapStakers.find(n);
-        if (it == mapStakers.end())
-        {
-            // this should never happen: no such ID
-            printf("GetStakers(): TSNH No such ID %u\n", n);
-        }
-        else
-        {
-            vRet.push_back(&(it->second));
-        }
-    }
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetStakerCopy(nIDCounter);
 }
 
-void QPRegistry::GetStakers(QPMapPStakers &mapRet) const
+void QPRegistry::GetEnabledStakers(QPMapStakers &mapRet) const
 {
-    mapRet.clear();
-    QPRegistryConstIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
-    {
-        mapRet[it->first] = &(it->second);
-    }
+    GetStakersWhere(mapRet,
+                    [](const auto& staker) { return staker.IsEnabled(); });
+}
+
+void QPRegistry::GetDisabledStakers(QPMapStakers &mapRet) const
+{
+    GetStakersWhere(mapRet,
+                    [](const auto& staker) { return staker.IsDisabled(); });
+}
+
+void QPRegistry::GetQualifiedStakers(QPMapStakers &mapRet) const
+{
+    GetStakersWhere(mapRet,
+                    [](const auto& staker) { return staker.IsQualified(); });
+}
+
+void QPRegistry::GetStakers(QPMapStakers &mapRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    mapRet = mapStakers;
 }
 
 unsigned int QPRegistry::GetIDForCurrentSlot() const
@@ -912,7 +1063,7 @@ unsigned int QPRegistry::GetIDForCurrentSlot() const
     return queue.GetCurrentID();
 }
 
-uint64_t QPRegistry::GetPicoPower() const
+uint64_t QPRegistry::GetPicoPowerInternal() const
 {
     // will not overflow for a long time
     //    e.g. if staker net blocks is 1 billion (633 yr with just 4 stakers):
@@ -931,7 +1082,13 @@ uint64_t QPRegistry::GetPicoPower() const
     return (w * TRIL) / t;
 }
 
-uint64_t QPRegistry::GetPicoPowerPrev() const
+uint64_t QPRegistry::GetPicoPower() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetPicoPowerInternal();
+}
+
+uint64_t QPRegistry::GetPicoPowerPrevInternal() const
 {
     uint64_t w = static_cast<uint64_t>(powerRoundPrev.GetWeight());
     uint64_t t = static_cast<uint64_t>(powerRoundPrev.GetTotalWeight());
@@ -942,7 +1099,13 @@ uint64_t QPRegistry::GetPicoPowerPrev() const
     return (w * TRIL) / t;
 }
 
-uint64_t QPRegistry::GetPicoPowerCurrent() const
+uint64_t QPRegistry::GetPicoPowerPrev() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetPicoPowerPrevInternal();
+}
+
+uint64_t QPRegistry::GetPicoPowerCurrentInternal() const
 {
     uint64_t w = static_cast<uint64_t>(powerRoundCurrent.GetWeight());
     uint64_t t = static_cast<uint64_t>(powerRoundCurrent.GetTotalWeight());
@@ -953,10 +1116,17 @@ uint64_t QPRegistry::GetPicoPowerCurrent() const
     return (w * TRIL) / t;
 }
 
+uint64_t QPRegistry::GetPicoPowerCurrent() const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetPicoPowerCurrentInternal();
+}
+
+
 bool QPRegistry::HasEnoughPower() const
 {
     return (powerRoundPrev.IsEmpty() ||
-            (GetPicoPower() >= QP_MIN_PICO_POWER));
+            (GetPicoPowerInternal() >= QP_MIN_PICO_POWER));
 }
 
 bool QPRegistry::ShouldRollback() const
@@ -964,39 +1134,34 @@ bool QPRegistry::ShouldRollback() const
     return fShouldRollback;
 }
 
-void QPRegistry::GetCertifiedNodes(vector<string> &vNodesRet) const
+void QPRegistry::GetCertifiedNodes(
+                      map<unsigned int, string>& mapNodesRet) const
 {
-    QPRegistryConstIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    boost::lock_guard<const QPRegistry> lock(*this);
+    mapNodesRet = mapCertifiedNodes;
+}
+
+void QPRegistry::GetCertifiedNodes(vector<string>& vNodesRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    vNodesRet.clear();
+    map<unsigned int, string> mapNodes = mapCertifiedNodes;
+    vNodesRet.reserve(mapNodes.size());
+    for (const auto& pair : mapNodes)
     {
-        if (it->second.IsDisqualified())
-        {
-            continue;
-        }
-        string sValue;
-        if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
-        {
-            vNodesRet.push_back(sValue);
-        }
+        vNodesRet.push_back(pair.second);
     }
 }
 
 bool QPRegistry::IsCertifiedNode(const string &sNodeAddress) const
 {
-    QPRegistryConstIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    boost::lock_guard<const QPRegistry> lock(*this);
+    map<unsigned int, string> mapNodes = mapCertifiedNodes;
+    for (const auto& pair : mapNodes)
     {
-        if (it->second.IsDisqualified())
+        if (pair.second == sNodeAddress)
         {
-            continue;
-        }
-        string sValue;
-        if (it->second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
-        {
-            if (sValue == sNodeAddress)
-            {
-                return true;
-            }
+            return true;
         }
     }
     return false;
@@ -1009,8 +1174,9 @@ bool QPRegistry::GetIDForCurrentTime(CBlockIndex *pindex,
                                      unsigned int &nIDRet,
                                      unsigned int &nTimeRet)
 {
-    nTimeRet = static_cast<unsigned int>(GetAdjustedTime());
+    boost::lock_guard<QPRegistry> lock(*this);
 
+    nTimeRet = static_cast<unsigned int>(GetAdjustedTime());
     // queue has gotten ahead some how
     if (nTimeRet < queue.GetCurrentSlotStart())
     {
@@ -1062,7 +1228,7 @@ bool QPRegistry::GetIDForCurrentTime(CBlockIndex *pindex,
                "   temp height=%d, current_slot: %u\n",
                pindex->nHeight,
                this->nBlockHeight,
-               this->GetCurrentSlot(),
+               this->queue.GetCurrentSlot(),
                pregistryTemp->GetBlockHeight(),
                pregistryTemp->GetCurrentSlot());
     }
@@ -1119,25 +1285,32 @@ bool QPRegistry::GetPrevRecentBlocksMissedMax(unsigned int nID,
     return true;
 }
 
-bool QPRegistry::AliasIsAvailable(const string &sAlias,
-                                  string &sKeyRet) const
+bool QPRegistry::AliasIsAvailableInternal(const string &sAlias,
+                                          string &sKeyRet) const
 {
     if (!AliasIsValid(sAlias))
     {
-        printf("AliasIsAvailable(): not valid: %s\n", sAlias.c_str());
+        printf("AliasIsAvailableInternal(): not valid: %s\n", sAlias.c_str());
         return false;
     }
     sKeyRet = ToLowercaseSafe(sAlias);
     if (mapAliases.count(sKeyRet) > 0)
     {
-        printf("AliasIsAvailable(): alias exists: %s\n", sAlias.c_str());
+        printf("AliasIsAvailableInternal(): alias exists: %s\n", sAlias.c_str());
         return false;
     }
     return true;
 }
 
-bool QPRegistry::GetIDForAlias(const string &sAlias,
-                               unsigned int &nIDRet) const
+bool QPRegistry::AliasIsAvailable(const string &sAlias,
+                                  string &sKeyRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return AliasIsAvailableInternal(sAlias, sKeyRet);
+}
+
+bool QPRegistry::GetIDForAliasInternal(const string &sAlias,
+                                       unsigned int &nIDRet) const
 {
     string sKey = ToLowercaseSafe(sAlias);
     map<string, pair<unsigned int, string> >::const_iterator it;
@@ -1150,10 +1323,17 @@ bool QPRegistry::GetIDForAlias(const string &sAlias,
     return true;
 }
 
-bool QPRegistry::GetAliasForID(unsigned int nID,
-                               string &sAliasRet) const
+bool QPRegistry::GetIDForAlias(const string &sAlias,
+                               unsigned int &nIDRet) const
 {
-    const QPStaker* pstaker = GetStaker(nID);
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetIDForAliasInternal(sAlias, nIDRet);
+}
+
+bool QPRegistry::GetAliasForIDInternal(unsigned int nID,
+                                       string &sAliasRet) const
+{
+    const QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         return error("GetAliasForID(): no such staker");
@@ -1162,13 +1342,20 @@ bool QPRegistry::GetAliasForID(unsigned int nID,
     return true;
 }
 
-string QPRegistry::GetAliasForID(unsigned int nID)
+bool QPRegistry::GetAliasForID(unsigned int nID,
+                               string &sAliasRet) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetAliasForIDInternal(nID, sAliasRet);
+}
+
+string QPRegistry::GetAliasForIDInternal(unsigned int nID) const
 {
     if (nID == 0)
     {
         return STRING_NO_ALIAS;
     }
-    const QPStaker* pstaker = GetStaker(nID);
+    const QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         printf("GetAliasForID(): ERROR: no such staker");
@@ -1177,28 +1364,20 @@ string QPRegistry::GetAliasForID(unsigned int nID)
     return pstaker->GetAlias();
 }
 
-
-QPStaker* QPRegistry::GetStakerForID(unsigned int nID)
+string QPRegistry::GetAliasForID(unsigned int nID) const
 {
-    if ((nID > 0) && (nID <= nIDCounter))
-    {
-        QPMapStakers::iterator iter = mapStakers.find(nID);
-        if (iter != mapStakers.end())
-        {
-            return &(iter->second);
-        }
-    }
-    return NULL;
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return GetAliasForIDInternal(nID);
 }
 
 QPStaker* QPRegistry::GetStakerForAlias(const string &sAlias)
 {
     unsigned int nID;
-    if (!GetIDForAlias(sAlias, nID))
+    if (!GetIDForAliasInternal(sAlias, nID))
     {
         return NULL;
     }
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         printf("GetStakerForAlias(): alias and ID mismatch\n");
@@ -1207,7 +1386,6 @@ QPStaker* QPRegistry::GetStakerForAlias(const string &sAlias)
     return pstaker;
 }
 
-
 // this will only be called for a block that is being added to the end of the
 // chain so that the Registry state is synchronous with the block
 // same goes for StakerMissedBlock
@@ -1215,7 +1393,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
                                      int64_t nReward)
 {
     unsigned int nID = pindex->nStakerID;
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         return error("StakerProducedBlock(): unknown ID %d", nID);
@@ -1259,7 +1437,7 @@ bool QPRegistry::StakerProducedBlock(const CBlockIndex *pindex,
 bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
 {
     int nFork = GetFork(nHeight);
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         return error("StakerMissedBlock(): unknown ID %d", nID);
@@ -1275,13 +1453,13 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
     {
         printf("StakerMissedBlock(): staker=%s, round=%d, seed=%u, slot=%d, "
                "window=%d-%d, picopower=%" PRIu64 ", registryheight=%d\n",
-               GetAliasForID(nID).c_str(),
+               GetAliasForIDInternal(nID).c_str(),
                nRound,
                nRoundSeed,
                queue.GetCurrentSlot(),
                queue.GetCurrentSlotStart(),
                queue.GetCurrentSlotEnd(),
-               GetPicoPower(),
+               GetPicoPowerInternal(),
                nBlockHeight);
     }
     if (nFork >= XST_FORKMISSFIX)
@@ -1295,7 +1473,7 @@ bool QPRegistry::StakerMissedBlock(unsigned int nID, int nHeight)
 
 bool QPRegistry::DisableStaker(unsigned int nID, int nHeight)
 {
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         return error("DisableStaker(): unknown ID");
@@ -1321,7 +1499,7 @@ bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
     if (pstaker->ShouldBeDisabled(nHeight))
     {
         // want at least 3 enabled stakers in times of disaster
-        if (GetNumberEnabled() > 3)
+        if (GetNumberEnabledInternal() > 3)
         {
             fResult = DisableStaker(nID, nHeight);
         }
@@ -1331,7 +1509,7 @@ bool QPRegistry::DisableStakerIfNecessary(unsigned int nID,
 
 bool QPRegistry::DisqualifyStaker(unsigned int nID)
 {
-    QPStaker* pstaker = GetStakerForID(nID);
+    QPStaker* pstaker = GetStakerInternal(nID);
     if (!pstaker)
     {
         return error("DisqualifyStaker(): unknown ID");
@@ -1431,6 +1609,7 @@ bool QPRegistry::NewQueue(unsigned int nTime0, const uint256& prevHash)
     return true;
 }
 
+
 unsigned int QPRegistry::IncrementID()
 {
     nIDCounter += 1;
@@ -1487,11 +1666,32 @@ void QPRegistry::PurgeLowBalances(int64_t nMoneySupply)
     }
 }
 
+bool QPRegistry::ReadSnapshotInternal(CTxDB& txdb, int nHeight)
+{
+    return txdb.ReadRegistrySnapshot(nHeight, *this);
+}
 
-bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
-                                 const CBlockIndex *const pindex,
-                                 int nSnapshotType,
-                                 bool fWriteLog)
+bool QPRegistry::ReadSnapshot(CTxDB& txdb, int nHeight)
+{
+    boost::lock_guard<QPRegistry> lock(*this);
+    return ReadSnapshotInternal(txdb, nHeight);
+}
+
+bool QPRegistry::WriteSnapshotInternal(CTxDB& txdb, int nHeight) const
+{
+    return txdb.WriteRegistrySnapshot(nHeight, *this);
+}
+
+bool QPRegistry::WriteSnapshot(CTxDB& txdb, int nHeight) const
+{
+    boost::lock_guard<const QPRegistry> lock(*this);
+    return WriteSnapshotInternal(txdb, nHeight);
+}
+
+bool QPRegistry::UpdateOnNewTimeInternal(unsigned int nTime,
+                                         const CBlockIndex* const pindex,
+                                         int nSnapshotType,
+                                         bool fWriteLog)
 {
     static const unsigned int N = BLOCKS_PER_SNAPSHOT * RECENT_SNAPSHOTS;
     // blocks per sparse snapshot
@@ -1531,14 +1731,14 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
     if (fWriteSnapshot)
     {
         hashBlockLastSnapshot = hash;
-        txdb.WriteRegistrySnapshot(nHeight, *this);
+        this->WriteSnapshotInternal(txdb, nHeight);
 
         unsigned int nStakerSlot = 0;
         queue.GetSlotForID(pindex->nStakerID, nStakerSlot);
 
-        printf("UpdateOnNewTime(): writing snapshot at %d\n"
+        printf("UpdateOnNewTimeInternal(): writing snapshot at %d\n"
                "   hash=%s\n"
-               "   height=%d, time=%" PRId64 ", "
+               "   height=%d, time=%" PRId64 ", datetime=%s, "
                   "staker_id=%d, staker_slot=%d\n"
                "   round=%d, seed=%u, window=%d-%d, picopower=%" PRIu64 "\n"
                "   %s\n",
@@ -1546,13 +1746,15 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                hash.ToString().c_str(),
                nHeight,
                pindex->GetBlockTime(),
+               DateTimeStrFormat("%x %H:%M:%S",
+                                 pindex->GetBlockTime()).c_str(),
                pindex->nStakerID,
                nStakerSlot,
                nRound,
                nRoundSeed,
                queue.GetCurrentSlotStart(),
                queue.GetCurrentSlotEnd(),
-               GetPicoPower(),
+               GetPicoPowerInternal(),
                queue.ToString().c_str());
 
         int nHeightErase = nHeight - N;
@@ -1572,11 +1774,11 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         if (queue.IsEmpty())
         {
             // qPoS shall begin
-            printf("UpdateOnNewTime(): Starting qPoS at block\n   %s\n",
+            printf("UpdateOnNewTimeInternal(): Starting qPoS at block\n   %s\n",
                    hash.ToString().c_str());
             if (!NewQueue(pindex->nTime + 1, hash))
             {
-                return error("UpdateOnNewTime(): New queue failed.");
+                return error("UpdateOnNewTimeInternal(): New queue failed.");
             }
             nNewQueues += 1;
         }
@@ -1596,7 +1798,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                 }
                 else
                 {
-                    ExitReplayMode();
+                    ExitReplayModeInternal();
                 }
             }
             if (!queue.IncrementSlot())
@@ -1605,7 +1807,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                 PurgeLowBalances(pindex->nMoneySupply);
                 if (!NewQueue(queue.GetMaxTime() + 1, hashBlock))
                 {
-                    return error("UpdateOnNewTime(): New queue failed.");
+                    return error("UpdateOnNewTimeInternal(): New queue failed.");
                 }
                 nNewQueues += 1;
             }
@@ -1625,7 +1827,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
                 }
                 if (OutOfReplayMode())
                 {
-                    ExitReplayMode();
+                    ExitReplayModeInternal();
                 }
             }
         }
@@ -1633,7 +1835,7 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
         {
             if (fWriteLog || fDebugQPoS)
             {
-                printf("UpdateOnNewTime(): %u new queues with %s\n",
+                printf("UpdateOnNewTimeInternal(): %u new queues with %s\n",
                        nNewQueues, hashBlock.ToString().c_str());
                 printf("   newest queue starts at %d\n", queue.GetMinTime());
             }
@@ -1647,11 +1849,38 @@ bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
     return true;
 }
 
+bool QPRegistry::UpdateOnNewTime(unsigned int nTime,
+                                 const CBlockIndex *const pindex,
+                                 int nSnapshotType,
+                                 bool fWriteLog)
+{
+    boost::lock_guard<QPRegistry> lock(*this);
+    return UpdateOnNewTimeInternal(nTime, pindex, nSnapshotType, fWriteLog);
+}
+
+unsigned int QPRegistry::UpdateCertifiedNodesList()
+{
+    mapCertifiedNodes.clear();
+    for (const auto& pair : mapStakers)
+    {
+        if (!pair.second.IsDisqualified())
+        {
+            string sValue;
+            if (pair.second.GetMeta(META_KEY_CERTIFIED_NODE, sValue))
+            {
+                mapCertifiedNodes[pair.first] = sValue;
+            }
+        }
+    }
+    return mapCertifiedNodes.size();
+}
+
 bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                                   int nSnapshotType,
                                   bool fWriteLog,
                                   bool fJustCheck)
 {
+    boost::lock_guard<QPRegistry> lock(*this);
     const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
 
     int nFork = GetFork(pindex->nHeight);
@@ -1690,10 +1919,14 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
     //    for the new block?
     // A: Because we can't advance the queue until we have an event (block)
     //    that says to what time we should advance the queue.
-    if (!UpdateOnNewTime(pindex->nTime, pindexPrev, nSnapshotType, fWriteLog))
-    {
-        return error("UpdateOnNewBlock(): could not update on new time for %s",
-                     pindex->phashBlock->ToString().c_str());
+     if (!UpdateOnNewTimeInternal(pindex->nTime,
+                                  pindexPrev,
+                                  nSnapshotType,
+                                  fWriteLog))
+     {
+         return error(
+             "UpdateOnNewBlock(): could not update on new time for %s",
+             pindex->phashBlock->ToString().c_str());
     }
     if (nFork >= XST_FORKPURCHASE)
     {
@@ -1742,7 +1975,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                    nRoundSeed,
                    queue.GetCurrentSlotStart(),
                    queue.GetCurrentSlotEnd(),
-                   GetPicoPower(),
+                   GetPicoPowerInternal(),
                    queue.ToString().c_str());
         }
 
@@ -1762,7 +1995,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                    nRoundSeed,
                    queue.GetCurrentSlotStart(),
                    queue.GetCurrentSlotEnd(),
-                   GetPicoPower(),
+                   GetPicoPowerInternal(),
                    queue.ToString().c_str());
 
             return error("UpdateOnNewBlock(): staker slot (%d) "
@@ -1788,6 +2021,7 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
             return error("UpdateOnNewBlock(): TSNH no such slot %u",
                          nStakerSlot);
         }
+
         QPMapStakers::iterator it;
         for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
         {
@@ -1796,6 +2030,8 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                 it->second.SawBlock();
             }
         }
+
+        UpdateCertifiedNodesList();
     }
     nBlockHeight = pindex->nHeight;
     hashBlock = *(pindex->phashBlock);
@@ -1806,7 +2042,6 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
 bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
                                const CBlockIndex* pindex)
 {
-
     if (deet.keys.empty())
     {
         return error("ApplyPurchase(): no keys");
@@ -1852,10 +2087,11 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
         return error("ApplyPurchase(): TSNH not a purchase");
     }
     string sKey;
-    if (!AliasIsAvailable(deet.alias, sKey))
+    if (!AliasIsAvailableInternal(deet.alias, sKey))
     {
         return error("ApplyPurchase(): alias not valid");
     }
+
     unsigned int nID = IncrementID();
     mapStakers[nID] = staker;
 
@@ -1863,7 +2099,7 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
     if (deet.id)
     {
         string sKeyUnused;
-        if (!NftIsAvailable(deet.id, sKeyUnused))
+        if (!NftIsAvailableInternal(deet.id, sKeyUnused))
         {
             // this should rarely happen
             return error("ApplyPurchase(): NFT isn't available (by ID)");
@@ -1883,10 +2119,10 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
             return error("ApplyPurchase(): TSNH staker can't set alias to nick");
         }
     }
-    else if (mapNftLookup.count(sKey))
+    else if (IsNftKey(sKey))
     {
         unsigned int nNftID;
-        if (!NftIsAvailable(sKey, nNftID))
+        if (!NftIsAvailableInternal(sKey, nNftID))
         {
             return error("ApplyPurchase(): NFT isn't available (by key)");
         }
@@ -1941,6 +2177,7 @@ bool QPRegistry::ApplyPurchase(const QPTxDetails &deet,
     ActivatePubKey(staker.pubkeyDelegate, pindex);
 
     mapAliases[sKey] = make_pair(nID, deet.alias);
+
     return true;
 }
 
@@ -2076,7 +2313,7 @@ bool QPRegistry::ApplyClaim(const QPTxDetails &deet, int64_t nBlockTime)
         return error("ApplyClaim(): not 1 key");
     }
     CPubKey key = deet.keys[0];
-    if (!CanClaim(key, deet.value, nBlockTime))
+    if (!CanClaimInternal(key, deet.value, nBlockTime))
     {
         return error("ApplyClaim(): key %s can't claim %" PRIu64,
                      HexStr(key.Raw()).c_str(), deet.value);
@@ -2183,6 +2420,8 @@ int QPRegistry::ApplyOps(const CBlockIndex *pindex)
 // This is not ideal. Registry should decide for itself.
 void QPRegistry::EnterReplayMode()
 {
+    boost::lock_guard<QPRegistry> lock(*this);
+
     if (OutOfReplayMode())
     {
         // wait for enough blocks to roll in to advance the queue
@@ -2195,9 +2434,15 @@ void QPRegistry::EnterReplayMode()
     }
 }
 
-void QPRegistry::ExitReplayMode()
+void QPRegistry::ExitReplayModeInternal()
 {
     // Explict exit of replay is only necessary to kickstart
     // block production (typically not needed on mainnet).
     nHeightExitedReplay = nBlockHeight;
+}
+
+void QPRegistry::ExitReplayMode()
+{
+    boost::lock_guard<QPRegistry> lock(*this);
+    ExitReplayModeInternal();
 }

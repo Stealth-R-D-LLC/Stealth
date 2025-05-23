@@ -123,7 +123,7 @@ class CNetAddr
         IMPLEMENT_SERIALIZE
             (
              unsigned char* pip = const_cast<unsigned char*>(this->ip);
-             if (nVersion < CADDR_IP64_VERSION)
+             if (nSerVersion < CADDR_IP64_VERSION)
              {
                  unsigned char ip_16[16];
                  if (fRead)
@@ -195,7 +195,7 @@ class CService : public CNetAddr
         IMPLEMENT_SERIALIZE
             (
              CService* pthis = const_cast<CService*>(this);
-             if (nVersion < CADDR_IP64_VERSION)
+             if (nSerVersion < CADDR_IP64_VERSION)
              {
                  unsigned char ip_16[16];
                  if (fRead)

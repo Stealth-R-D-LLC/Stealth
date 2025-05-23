@@ -1828,7 +1828,7 @@ Value getblockintervalrmsd(const Array& params, bool fHelp)
     return GetWindowedValue(params, helper);
 }
 
-int64_t GetPicoPower(CBlockIndex *pindex)
+int64_t GetBlockPicoPower(CBlockIndex *pindex)
 {
     return static_cast<int64_t>(pindex->nPicoPower);
 }
@@ -1841,7 +1841,7 @@ Value getpicopowermean(const Array& params, bool fHelp)
             strWindowHelp +
             "  - pico_power_mean: mean expressed in units of 1e-12 power");
 
-    StatHelper helper("pico_power_mean", &GetPicoPower, &MeanAsIntValue);
+    StatHelper helper("pico_power_mean", &GetBlockPicoPower, &MeanAsIntValue);
 
     return GetWindowedValue(params, helper);
 }

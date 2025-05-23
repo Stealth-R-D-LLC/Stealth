@@ -990,7 +990,7 @@ Value getqueuesummary(const Array& params, bool fHelp)
     }
 
     Object obj;
-    pregistry->GetQueue()->SummaryAsJSON(nHeight, obj);
+    pregistry->GetQueueSummaryAsJSON(nHeight, obj);
     return obj;
 }
 
@@ -1097,7 +1097,7 @@ Value getblockschedule(const Array& params, bool fHelp)
     {
         const QPSlotInfo& info = vAll[i];
         unsigned int nID = info.nStakerID;
-        const QPStaker* pstaker = pregistryMain->GetStaker(nID);
+        AUTO_PTR<QPStaker> pstaker = pregistryMain->GetStaker(nID);
         if (!pstaker)
         {
             // this should never happen: no such staker
@@ -1153,21 +1153,19 @@ Value getstakersbyid(const Array& params, bool fHelp)
 
     const unsigned int nCounterNext = pregistryMain->GetNextIDCounter();
 
-    vector<const QPStaker*> vpStakers;
-    pregistryMain->GetStakers(vpStakers);
+    QPMapStakers mapStakers;
+    pregistryMain->GetStakers(mapStakers);
 
     Array aryStakers;
-    unsigned int nID = 0;
-    vector<const QPStaker*>::const_iterator vit;
-    for (vit = vpStakers.begin(); vit != vpStakers.end(); ++vit)
+    for (const auto& pair : mapStakers)
     {
-        nID += 1;
-        const QPStaker* pstaker = (const QPStaker *)(*vit);
-        if (pstaker->IsQualified() || fDisqualified)
+        unsigned int nID = pair.first;
+        const QPStaker& staker = pair.second;
+        if (staker.IsQualified() || fDisqualified)
         {
            Object objStkr;
            unsigned int nSeniority = nCounterNext - nID;
-           pstaker->AsJSON(nID, nSeniority, objStkr);
+           staker.AsJSON(nID, nSeniority, objStkr);
            aryStakers.push_back(objStkr);
         }
     }
@@ -1184,43 +1182,38 @@ Value getstakersbyweight(const Array& params, bool fHelp)
             "Returns details of StealthNodes in descending weight.");
     }
 
-    QPMapPStakers mapStakers;
-    pregistryMain->GetStakers(mapStakers);
+    QPMapStakers mapQualifiedStakers;
+    pregistryMain->GetQualifiedStakers(mapQualifiedStakers);
+
     const unsigned int nCounterNext = pregistryMain->GetNextIDCounter();
     vector<pair<unsigned int, unsigned int> > vWeights;
-    QPRegistryPIterator mit;
-    for (mit = mapStakers.begin(); mit != mapStakers.end(); ++mit)
+
+    for (const auto& pair : mapQualifiedStakers)
     {
-        if (mit->second->IsQualified())
-        {
-            unsigned int nID = mit->first;
-            const QPStaker* pstaker = mit->second;
-            unsigned int nSeniority = nCounterNext - nID;
-            unsigned int nWeight = pstaker->GetWeight(nSeniority);
-            vWeights.push_back(make_pair(nWeight, nID));
-        }
+        unsigned int nID = pair.first;
+        const QPStaker& staker = pair.second;
+        unsigned int nSeniority = nCounterNext - nID;
+        unsigned int nWeight = staker.GetWeight(nSeniority);
+        vWeights.push_back(make_pair(nWeight, nID));
     }
 
-    // rank goes in reverse order of weight
-    sort(vWeights.begin(), vWeights.end());
-    reverse(vWeights.begin(), vWeights.end());
+    sort(vWeights.begin(),
+         vWeights.end(),
+         greater<pair<unsigned int, unsigned int>>());
 
     Array aryStakers;
-    vector<pair<unsigned int, unsigned int> >::const_iterator vit;
-    for (vit = vWeights.begin(); vit != vWeights.end(); ++vit)
+    for (const auto& pair : vWeights)
     {
-        unsigned int nID = vit->second;
-        const QPStaker* pstaker = mapStakers[nID];
+        unsigned int nID = pair.second;
+        const QPStaker& staker = mapQualifiedStakers[nID];
         Object objStkr;
-        unsigned int nSeniority =  nCounterNext - nID;
-        pstaker->AsJSON(nID, nSeniority, objStkr);
+        unsigned int nSeniority = nCounterNext - nID;
+        staker.AsJSON(nID, nSeniority, objStkr);
         aryStakers.push_back(objStkr);
     }
 
     return aryStakers;
 }
-
-
 
 Value getstakersummary(const Array& params, bool fHelp)
 {
@@ -1241,7 +1234,7 @@ Value getstakersummary(const Array& params, bool fHelp)
     {
         throw runtime_error("Latest block has no staker.");
     }
-    const QPStaker* pstakerLatest = pregistryMain->GetStaker(nIDLatest);
+    AUTO_PTR<QPStaker> pstakerLatest = pregistryMain->GetStaker(nIDLatest);
     if (!pstakerLatest)
     {
         // this should never happen: the latest staker isn't in registry
@@ -1255,7 +1248,7 @@ Value getstakersummary(const Array& params, bool fHelp)
         throw runtime_error("Next slot has no staker.");
     }
     unsigned int nSlotNext = pregistryMain->GetCurrentSlot();
-    const QPStaker* pstakerNext = pregistryMain->GetStaker(nIDNext);
+    AUTO_PTR<QPStaker> pstakerNext = pregistryMain->GetStaker(nIDNext);
     if (!pstakerNext)
     {
         // this should never happen: the latest staker isn't in registry
@@ -1297,14 +1290,15 @@ Value getstakersummary(const Array& params, bool fHelp)
     int64_t nProducedRecently = 0;
     int64_t nPriceNewest = -1;
     unsigned int nIDNewest = pregistryMain->GetCurrentIDCounter();
-    QPMapPStakers mapStakers;
+    QPMapStakers mapStakers;
     pregistryMain->GetStakers(mapStakers);
-    QPRegistryPIterator it;
-    for (it = mapStakers.begin(); it != mapStakers.end(); ++it)
+    for (const auto& pair : mapStakers)
     {
-        if (it->second->IsEnabled())
+        unsigned int nID = pair.first;
+        const QPStaker& staker = pair.second;
+        if (staker.IsEnabled())
         {
-            if (it->second->DidMissMostRecentBlock())
+            if (staker.DidMissMostRecentBlock())
             {
                 nMissedRecently += 1;
             }
@@ -1313,9 +1307,9 @@ Value getstakersummary(const Array& params, bool fHelp)
                 nProducedRecently += 1;
             }
         }
-        if (it->first == nIDNewest)
+        if (nID == nIDNewest)
         {
-            nPriceNewest = it->second->GetPrice();
+            nPriceNewest = staker.GetPrice();
         }
     }
     uint32_t N = static_cast<uint32_t>(
@@ -1404,27 +1398,26 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
 
     unsigned int nStakers = static_cast<unsigned int>(nStakersIn);
 
-    vector<const QPStaker*> vpStakers;
-    pregistryMain->GetStakers(vpStakers);
+    QPMapStakers mapStakers;
+    pregistryMain->GetStakers(mapStakers);
 
     vector<uint32_t> vBlocks;
     Array aryPrices;
     Array arySupply;
     Array aryFractionalPrices;
-    vector<const QPStaker*>::const_iterator vit;
-    for (vit = vpStakers.begin(); vit != vpStakers.end(); ++vit)
+    for (const auto& pair: mapStakers)
     {
-        const QPStaker* pstaker = (const QPStaker *)(*vit);
-        vBlocks.push_back(pstaker->GetNetBlocks());
-        int64_t nPrice = pstaker->GetPrice();
+        const QPStaker& staker = pair.second;
+        vBlocks.push_back(staker.GetNetBlocks());
+        int64_t nPrice = staker.GetPrice();
         aryPrices.push_back(ValueFromAmount(nPrice));
-        CBlockIndex* p = mapBlockIndex[pstaker->GetHashBlockCreated()];
+        CBlockIndex* p = mapBlockIndex[staker.GetHashBlockCreated()];
         arySupply.push_back(ValueFromAmount(p->nMoneySupply));
         aryFractionalPrices.push_back((double)nPrice / (double)p->nMoneySupply);
     }
 
-    unsigned int N = vpStakers.size();
-    int64_t nPriceNewest = N > 0 ? vpStakers.back()->GetPrice() : -1;
+    unsigned int N = mapStakers.size();
+    int64_t nPriceNewest = N > 0 ? mapStakers.rbegin()->second.GetPrice() : -1;
 
     N += 1;
     int64_t nSupply = pindex->nMoneySupply;
@@ -1511,6 +1504,36 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("years_to_roi", (double)nWeeksROI * (double)DPW / (double)DPY));
     obj.push_back(Pair("weekly_earnings", aryEarned));
     obj.push_back(Pair("weekly_cumulative_earnings", aryEarnedTotal));
+
+    return obj;
+}
+
+Value getcertifiednodes(const Array& params, bool fHelp)
+{
+    if (fHelp || params.size() != 0)
+    {
+        throw runtime_error(
+            "getcertifiednodes\n"
+            "Returns a list of certified nodes.");
+    }
+
+    Object obj;
+
+    map<unsigned int, string> mapNodes;
+    pregistryMain->GetCertifiedNodes(mapNodes);
+    for (const auto& pair : mapNodes)
+    {
+        unsigned int nID = pair.first;
+        const string& strNode = pair.second;
+        string strAlias;
+        if (!pregistryMain->GetAliasForID(nID, strAlias))
+        {
+            // this should never happen: can't get the alias
+            throw runtime_error(
+                      strprintf("TSNH: Can't get staker %u alias.", nID));
+        }
+        obj.push_back(Pair(strAlias, strNode));
+    }
 
     return obj;
 }

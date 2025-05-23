@@ -34,6 +34,7 @@ set_source_files_properties(${C_SOURCES} PROPERTIES
 target_include_directories(${target} PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${STEALTH}/crypto/core-hashes
+    ${STEALTH}/primitives
 )
 
 target_link_libraries(${target}

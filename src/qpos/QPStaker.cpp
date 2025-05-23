@@ -24,6 +24,9 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
                               static_cast<int64_t>(pindex->nHeight)));
         objRet.push_back(Pair("time",
                               static_cast<int64_t>(pindex->nTime)));
+        objRet.push_back(Pair("datetime",
+                              DateTimeStrFormat("%x %H:%M:%S",
+                                                pindex->nTime)));
         if (pindex->IsInMainChain())
         {
             objRet.push_back(Pair("isinmainchain", true));

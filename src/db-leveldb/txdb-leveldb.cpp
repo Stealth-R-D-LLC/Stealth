@@ -751,6 +751,7 @@ bool CTxDB::LoadBlockIndex()
         CBlockIndex* pindex = item.second;
         vSortedByHeight.push_back(make_pair(pindex->nHeight, pindex));
     }
+    printf("  Sorting indices for replay. This may take a while...\n");
     sort(vSortedByHeight.begin(), vSortedByHeight.end());
 
     pregistryMain->SetNull();
@@ -1151,9 +1152,11 @@ bool CTxDB::WriteRegistrySnapshot(int nHeight, const QPRegistry& registry)
     {
         return error("WriteRegistrySnapshot(): could not write best height");
     }
-    if (!Write(make_pair(string("registrySnapshot"), nHeight), registry))
     {
-        return error("WriteRegistrySnapshot(): could not write registry");
+        if (!Write(make_pair(string("registrySnapshot"), nHeight), registry))
+        {
+            return error("WriteRegistrySnapshot(): could not write registry");
+        }
     }
     if (!TxnCommit())
     {
@@ -1164,9 +1167,11 @@ bool CTxDB::WriteRegistrySnapshot(int nHeight, const QPRegistry& registry)
 
 bool CTxDB::ReadRegistrySnapshot(int nHeight, QPRegistry &registry)
 {
-    if (!Read(make_pair(string("registrySnapshot"), nHeight), registry))
     {
-        return error("ReadRegistrySnapshot(): could not read registry at %d", nHeight);
+        if (!Read(make_pair(string("registrySnapshot"), nHeight), registry))
+        {
+            return error("ReadRegistrySnapshot(): could not read registry at %d", nHeight);
+        }
     }
     if (registry.GetBlockHeight() != nHeight)
     {
@@ -1174,17 +1179,6 @@ bool CTxDB::ReadRegistrySnapshot(int nHeight, QPRegistry &registry)
                      "want=%d, registry=%d\n", nHeight, registry.GetBlockHeight());
     }
     return true;
-}
-
-bool CTxDB::ReadBestRegistrySnapshot(QPRegistry &registry)
-{
-    int nHeight;
-    if (!Read(string("bestRegistryHeight"), nHeight))
-    {
-        // no error message because it could simply mean it doesn't exist
-        return false;
-    }
-    return ReadRegistrySnapshot(nHeight, registry);
 }
 
 bool CTxDB::EraseRegistrySnapshot(int nHeight)

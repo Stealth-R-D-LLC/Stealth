@@ -456,7 +456,11 @@ public:
 
         if (fDebugNet) {
             printf("Message size: %d bytes\n", nSize);
+            printf("    (vSend.hex() @ version %d):\n%s\n",
+                   vSend.nVersion,
+                   vSend.hex(16, "    ").c_str());
         }
+
 
         nHeaderStart = -1;
         nMessageStart = -1;

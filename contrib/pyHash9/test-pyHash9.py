@@ -9,20 +9,20 @@ import pyHash9
 
 DEBUG = False
 
-# Test data was created with `make_test_data`
+# Test data was created with function `make_test_data()`
 DATA = {"inputs":
           [
-            "Why did they call it Hash9?",
-            "c9651c459be1b8e6851e92567a92c6c1a42dcdda8cb0a92e8543a0cbdd5cb5b6",
-            "f6890695db4b7d76efecf7706dd62d86ef76446d244d28ad2ff311ff942e76a2",
-            "90b410685cbeba0fae65c1eed50a1de29b3e328151c129a98812605c6cb932d3",
-            "66f0df8aefe751ce74e203a8c4992c0cec78d9b73f1f32c64b0682b6242cb176",
-            "d3460df1588584b13070a7c12b369c99cca3a2a0ed7e5b9bf36505a18274021c",
-            "8ce712e6a8f717f916690d3fc2c4fa8b7ff0f84eb376a7189f018bb5c8460b68",
-            "438d345a5b33f9b087a6e51cd3beab24d446d40b230e3bca93c7c4bb16e5c15b",
-            "782031a14a7601539d4fd5782088b93dc84ddffdda400e5ad3aecc25e22f98fb",
-            "0ce2a5cae0bdff1b279aaef006c3a73927f66976eaa243269bfc46ac4cf797df",
-            "51a5ecf6224f4247c6be97a496faea6fd1056314983c30d5d4a65a872a5d6d28"
+            b"Why did they call it Hash9?",
+            b"c9651c459be1b8e6851e92567a92c6c1a42dcdda8cb0a92e8543a0cbdd5cb5b6",
+            b"f6890695db4b7d76efecf7706dd62d86ef76446d244d28ad2ff311ff942e76a2",
+            b"90b410685cbeba0fae65c1eed50a1de29b3e328151c129a98812605c6cb932d3",
+            b"66f0df8aefe751ce74e203a8c4992c0cec78d9b73f1f32c64b0682b6242cb176",
+            b"d3460df1588584b13070a7c12b369c99cca3a2a0ed7e5b9bf36505a18274021c",
+            b"8ce712e6a8f717f916690d3fc2c4fa8b7ff0f84eb376a7189f018bb5c8460b68",
+            b"438d345a5b33f9b087a6e51cd3beab24d446d40b230e3bca93c7c4bb16e5c15b",
+            b"782031a14a7601539d4fd5782088b93dc84ddffdda400e5ad3aecc25e22f98fb",
+            b"0ce2a5cae0bdff1b279aaef006c3a73927f66976eaa243269bfc46ac4cf797df",
+            b"51a5ecf6224f4247c6be97a496faea6fd1056314983c30d5d4a65a872a5d6d28"
           ],
         "outputs":
           [
@@ -94,7 +94,7 @@ def format_test_data(data):
    print("data = {\"inputs\":\n          [", file=filestr)
    lines = []
    for value in data['inputs']:
-     lines.append("            \"%s\"" % value)
+     lines.append("           b\"%s\"" % value)
    print(",\n".join(lines) + "\n          ],", file=filestr)
    print("        \"outputs\":\n          [", file=filestr)
    lines = []

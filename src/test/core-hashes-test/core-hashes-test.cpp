@@ -97,6 +97,60 @@ TEST_F(CoreHashesTest, SHA256)
     ASSERT_EQ(vchDigest, vchExpected);
 }
 
+TEST_F(CoreHashesTest, SHA256D)
+{
+    // Generate random private key
+    // valtype vchMessage = RandomMessage();
+    valtype vchMessage = {
+        0x38, 0x9d, 0xe1, 0xf5, 0x67, 0xf0, 0x24, 0x2d, 0x13, 0x26, 0x89, 0x4d,
+        0xa4, 0x44, 0x83, 0x5f, 0x1f, 0x79, 0x84, 0x7f, 0xfa, 0xed, 0x7e, 0x83,
+        0xbd, 0xc2, 0xad, 0x88, 0xee, 0x62, 0x0d, 0xca };
+
+    PrintTestingData("SHA256D", "Test Message", vchMessage);
+
+    valtype vchDigest(SHA256_DIGEST_LENGTH_);
+
+    print_info("Testing hash calculation.");
+    ASSERT_NO_THROW(CoreHashes::SHA256D(vchMessage.data(),
+                                        vchMessage.size(),
+                                        vchDigest.data()));
+
+    PrintTestingData("SHA256D", "Calculated Hash", vchDigest);
+
+    valtype vchExpected = {
+        0x82, 0xd2, 0x2b, 0x01, 0x11, 0xd5, 0xc2, 0x45, 0x7b, 0x9f, 0xf0, 0x8b,
+        0xc9, 0x1d, 0xba, 0x3b, 0x67, 0x76, 0x58, 0xf6, 0x46, 0x1c, 0xe9, 0xd5,
+        0xc8, 0x6d, 0x54, 0x98, 0xc3, 0x02, 0x0b, 0x10 };
+
+    PrintTestingData("SHA256D", "Expected Hash", vchExpected);
+
+    print_info("Testing identity of calculated hash.");
+    ASSERT_EQ(vchDigest, vchExpected);
+
+    print_info("Testing ProofHash.");
+    ASSERT_NO_THROW(ProofHash(vchMessage.begin(), vchMessage.end()));
+
+    uint256 proofhash = ProofHash(vchMessage.begin(), vchMessage.end());
+
+    PrintTestingData("SHA256D", "Calculated ProofHash", proofhash);
+
+    uint256 hash = Hash(vchMessage.begin(), vchMessage.end());
+
+    PrintTestingData("SHA256D", "Calculated Hash", hash);
+
+    uint256 hashExpected = uint256("0x100b02c398546dc8d5e91c46f6587667"
+                                     "3bba1dc98bf09f7b45c2d511012bd282");
+
+    PrintTestingData("SHA256D", "Expected (Proof) Hash", hash);
+
+    print_info("Testing identity of calculated proof hash.");
+    ASSERT_EQ(proofhash, hashExpected);
+
+    print_info("Testing identity of calculated hash.");
+    ASSERT_EQ(hash, hashExpected);
+
+}
+
 TEST_F(CoreHashesTest, SHA1)
 {
     // Generate random private key

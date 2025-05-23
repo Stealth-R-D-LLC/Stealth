@@ -135,6 +135,8 @@ Object blockToJSON(const CBlock& block,
                           blockindex ?
                              ValueFromAmount(blockindex->nMint) : -1));
     result.push_back(Pair("time", (boost::int64_t)block.GetBlockTime()));
+    result.push_back(Pair("datetime", DateTimeStrFormat("%x %H:%M:%S",
+                                                        block.GetBlockTime())));
     result.push_back(Pair("nonce", (boost::uint64_t)block.nNonce));
     result.push_back(Pair("bits", HexBits(block.nBits)));
     result.push_back(Pair("difficulty",

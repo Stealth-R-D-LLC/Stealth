@@ -54,22 +54,22 @@ public:
         // This shouldn't be necessary, but peers.dat seems to sometimes
         //    get corrupted, which can play havoc with CPU usage when
         //    nAttempts is deserialized to an absurd value.
-        // Because of how it is used, it makes no computational
-        //    sense for nAttempts to ever be larger than 27:
-        //        log_{1.5}(2^{16}) = 27.35
+        // Because of how it is used, it makes no practical
+        //    sense for nAttempts to ever be larger than 22.
+        // See notes in addrman.cpp.
         int& mutnAttempts = const_cast<int&>(this->nAttempts);
         if (mutnAttempts < 0)
         {
             mutnAttempts = 0;
         }
-        else if (mutnAttempts > 27)
+        else if (mutnAttempts > 22)
         {
-            if (mutnAttempts > 256)
+            if (mutnAttempts > 1048575)
             {
                 printf("WARNING: peers.dat may be corrupted\n");
                 printf("   consider: stop - delete peers.dat - restart\n");
             }
-            mutnAttempts = 27;
+            mutnAttempts = 22;
         }
     )
 
@@ -263,7 +263,7 @@ protected:
 #ifdef DEBUG_ADDRMAN
     // Perform consistency check. Returns an error code or zero.
     int Check_();
-#endif
+#endif  // DEBUG_ADDRMAN
 
     // Select several addresses at once.
     void GetAddr_(std::vector<CAddress> &vAddr);
@@ -272,6 +272,10 @@ protected:
     void Connected_(const CService &addr, int64_t nTime);
 
 public:
+
+    static const unsigned char SER_VERSION_IP32 = 0;
+    static const unsigned char SER_VERSION_IP64 = 1;
+    static const unsigned char SER_VERSION = SER_VERSION_IP64;
 
     IMPLEMENT_SERIALIZE
     (({
@@ -297,7 +301,7 @@ public:
         // changes to the ADDRMAN_ parameters without breaking the on-disk structure.
         {
             LOCK(cs);
-            unsigned char nVersion = 0;
+            unsigned char nVersion = SER_VERSION;
             READWRITE(nVersion);
             READWRITE(nKey);
             READWRITE(nNew);

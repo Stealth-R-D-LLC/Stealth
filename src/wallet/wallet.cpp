@@ -274,7 +274,9 @@ public:
     IMPLEMENT_SERIALIZE
     (
         if (nType & SER_DISK)
-            READWRITE(nVersion);
+        {
+            READWRITE(nSerVersion);
+        }
     )
 };
 
