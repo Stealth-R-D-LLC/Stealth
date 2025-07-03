@@ -10,7 +10,9 @@
 #include <list>
 #include <map>
 
-class CBlockIndex;
+#include <boost/asio.hpp>
+#include <boost/version.hpp>
+#include <boost/asio/version.hpp>
 
 #include "json/json_spirit_reader_template.h"
 #include "json/json_spirit_writer_template.h"
@@ -18,6 +20,61 @@ class CBlockIndex;
 
 #include "util.h"
 #include "checkpoints.h"
+
+
+class CBlockIndex;
+
+
+// Before 1.84.0
+#define BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS (BOOST_ASIO_VERSION < 102803)
+#define BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V4_METHODS (BOOST_ASIO_VERSION < 102803)
+#define BOOST_ASIO_HAS_MAX_CONNECTIONS (BOOST_ASIO_VERSION < 102803)
+#define BOOST_ASIO_HAS_RESOLVER_QUERY (BOOST_ASIO_VERSION < 102803)
+#define BOOST_ASIO_HAS_IO_SERVICE (BOOST_ASIO_VERSION < 102803)
+
+
+namespace boost_asio_compat {
+    
+    inline bool is_v4_compatible(const boost::asio::ip::address_v6& addr) {
+#if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS
+        return addr.is_v4_compatible();
+#else
+        return addr.is_v4_mapped();
+#endif
+    }
+    
+    inline boost::asio::ip::address_v4 to_v4(const boost::asio::ip::address_v6& addr) {
+#if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS
+        return addr.to_v4();
+#else
+        if (addr.is_v4_mapped()) {
+            auto bytes = addr.to_bytes();
+            return boost::asio::ip::address_v4(
+                boost::asio::ip::address_v4::bytes_type{{
+                    bytes[12], bytes[13], bytes[14], bytes[15]
+                }}
+            );
+        }
+        throw boost::system::system_error(
+            boost::asio::error::address_family_not_supported,
+            "Address is not IPv4-compatible"
+        );
+#endif
+    }
+    
+    inline uint32_t to_ulong(const boost::asio::ip::address_v4& addr) {
+#if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V4_METHODS
+        return addr.to_ulong();
+#else
+        auto bytes = addr.to_bytes();
+        return (static_cast<uint32_t>(bytes[0]) << 24) |
+               (static_cast<uint32_t>(bytes[1]) << 16) |
+               (static_cast<uint32_t>(bytes[2]) << 8) |
+               static_cast<uint32_t>(bytes[3]);
+#endif
+    }
+}
+
 
 // HTTP status codes
 enum HTTPStatusCode

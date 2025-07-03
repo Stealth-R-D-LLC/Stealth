@@ -12,7 +12,6 @@
 #include "db.h"
 
 #undef printf
-#include <boost/asio.hpp>
 #include <boost/asio/ip/v6_only.hpp>
 #if BOOST_VERSION >= 106500
     #include <boost/bind/bind.hpp>
@@ -685,10 +684,10 @@ bool ClientAllowed(const boost::asio::ip::address& address)
 {
     // Make sure that IPv4-compatible and IPv4-mapped IPv6 addresses are treated as IPv4 addresses
     if (address.is_v6() &&
-        (address.to_v6().is_v4_compatible() ||
+        (boost_asio_compat::is_v4_compatible(address.to_v6()) ||
          address.to_v6().is_v4_mapped()))
     {
-        return ClientAllowed(address.to_v6().to_v4());
+        return ClientAllowed(boost_asio_compat::to_v4(address.to_v6()));
     }
 
     std::string ipv4addr = address.to_string();
@@ -697,7 +696,7 @@ bool ClientAllowed(const boost::asio::ip::address& address)
         (address == asio::ip::address_v6::loopback()) ||
          (address.is_v4() &&
          // Check whether IPv4 addresses match 127.0.0.0/8 (loopback subnet)
-         (address.to_v4().to_ulong() & 0xff000000) == 0x7f000000))
+         (boost_asio_compat::to_ulong(address.to_v4()) & 0xff000000) == 0x7f000000))
     {
         return true;
     }
@@ -751,8 +750,14 @@ public:
 #else
         ip::tcp::resolver resolver(stream.get_io_service());
 #endif
+#if BOOST_ASIO_HAS_RESOLVER_QUERY
         ip::tcp::resolver::query query(server.c_str(), port.c_str());
         ip::tcp::resolver::iterator endpoint_iterator = resolver.resolve(query);
+#else
+        auto endpoints = resolver.resolve(server.c_str(), port.c_str());
+        auto endpoint_iterator = endpoints.begin();
+#endif
+#if BOOST_ASIO_HAS_RESOLVER_QUERY
         ip::tcp::resolver::iterator end;
         boost::system::error_code error = asio::error::host_not_found;
         while (error && endpoint_iterator != end)
@@ -764,6 +769,22 @@ public:
         {
             return false;
         }
+#else
+        boost::system::error_code error = asio::error::host_not_found;
+        for (const auto& endpoint : endpoints)
+        {
+            stream.lowest_layer().close();
+            stream.lowest_layer().connect(endpoint, error);
+            if (!error)
+            {
+                break;
+            }
+        }
+        if (error)
+        {
+            return false;
+        }
+#endif
         return true;
     }
 
@@ -788,7 +809,11 @@ class AcceptedConnectionImpl : public AcceptedConnection
 {
 public:
     AcceptedConnectionImpl(
+#if BOOST_ASIO_HAS_IO_SERVICE
             asio::io_service& io_service,
+#else
+            asio::io_context& io_service,
+#endif
             ssl::context &context,
             bool fUseSSL) :
         sslStream(io_service, context),
@@ -959,7 +984,11 @@ void ThreadRPCServer2(void* parg)
 
     const bool fUseSSL = GetBoolArg("-rpcssl");
 
+#if BOOST_ASIO_HAS_IO_SERVICE
     asio::io_service io_service;
+#else
+    asio::io_context io_service; // Note: keep same variable name for compatibility
+#endif
 
 #if BOOST_VERSION >= 106600
     ssl::context context(ssl::context::sslv23);
@@ -1035,7 +1064,11 @@ void ThreadRPCServer2(void* parg)
         acceptor->set_option(boost::asio::ip::v6_only(loopback), v6_only_error);
 
         acceptor->bind(endpoint);
+#if BOOST_ASIO_HAS_MAX_CONNECTIONS
         acceptor->listen(socket_base::max_connections);
+#else
+        acceptor->listen(asio::socket_base::max_listen_connections);
+#endif
 
         RPCListen(acceptor, context, fUseSSL);
         // Cancel outstanding listen-requests for this acceptor when shutting down
@@ -1061,7 +1094,11 @@ void ThreadRPCServer2(void* parg)
             acceptor->open(endpoint.protocol());
             acceptor->set_option(boost::asio::ip::tcp::acceptor::reuse_address(true));
             acceptor->bind(endpoint);
+#if BOOST_ASIO_HAS_MAX_CONNECTIONS
             acceptor->listen(socket_base::max_connections);
+#else
+            acceptor->listen(asio::socket_base::max_listen_connections);
+#endif
 
             RPCListen(acceptor, context, fUseSSL);
             // Cancel outstanding listen-requests for this acceptor when shutting down
@@ -1310,7 +1347,11 @@ Object CallRPC(const string& strMethod, const Array& params)
 
     // Connect to localhost
     bool fUseSSL = GetBoolArg("-rpcssl");
+#if BOOST_ASIO_HAS_IO_SERVICE
     asio::io_service io_service;
+#else
+    asio::io_context io_service; // Note: keep same variable name for compatibility
+#endif
 #if BOOST_VERSION >= 106600
     ssl::context context(ssl::context::sslv23);
 #else
