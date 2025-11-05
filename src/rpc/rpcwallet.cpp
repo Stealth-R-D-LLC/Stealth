@@ -299,7 +299,7 @@ Value sendtoaddress(const Array& params, bool fHelp)
         throw runtime_error(
         "sendtoaddress <XSTaddress> <amount> [comment] [comment-to] [feeless] <[\"hexdata\", ...]>\n"
             "<amount> is a real and is rounded to the nearest 0.000001\n"
-            "[feeless] says whether to try send without a money fee (default=false)"
+            "[feeless] says whether to try send without a money fee (default=false)\n"
             "Optional list of hex data will be included as OP_RETURN outputs, if conformant.\n"
             + HelpRequiringPassphrase());
 
