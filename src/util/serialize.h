@@ -188,47 +188,47 @@ enum
 #define WRITEDATA(s, obj)   s.write((char*)&(obj), sizeof(obj))
 #define READDATA(s, obj)    s.read((char*)&(obj), sizeof(obj))
 
-inline unsigned int GetSerializeSize(char a,           int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(signed char a,    int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(unsigned char a,  int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(signed short a,   int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(unsigned short a, int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(signed int a,     int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(unsigned int a,   int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(signed long a,    int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(unsigned long a,  int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(signed long long a,  int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(unsigned long long a,  int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(float a,          int, int=0) { return sizeof(a); }
-inline unsigned int GetSerializeSize(double a,         int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(char a,               int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(signed char a,        int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(unsigned char a,      int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(signed short a,       int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(unsigned short a,     int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(signed int a,         int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(unsigned int a,       int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(signed long a,        int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(unsigned long a,      int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(signed long long a,   int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(unsigned long long a, int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(float a,              int, int=0) { return sizeof(a); }
+inline unsigned int GetSerializeSize(double a,             int, int=0) { return sizeof(a); }
 
-template<typename Stream> inline void Serialize(Stream& s, char a,           int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, signed char a,    int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, unsigned char a,  int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, signed short a,   int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, unsigned short a, int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, signed int a,     int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, unsigned int a,   int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, signed long a,    int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, unsigned long a,  int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, signed long long a,  int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, unsigned long long a,  int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, float a,          int, int=0) { WRITEDATA(s, a); }
-template<typename Stream> inline void Serialize(Stream& s, double a,         int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, char a,               int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, signed char a,        int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, unsigned char a,      int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, signed short a,       int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, unsigned short a,     int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, signed int a,         int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, unsigned int a,       int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, signed long a,        int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, unsigned long a,      int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, signed long long a,   int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, unsigned long long a, int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, float a,              int, int=0) { WRITEDATA(s, a); }
+template<typename Stream> inline void Serialize(Stream& s, double a,             int, int=0) { WRITEDATA(s, a); }
 
-template<typename Stream> inline void Unserialize(Stream& s, char& a,           int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, signed char& a,    int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, unsigned char& a,  int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, signed short& a,   int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, unsigned short& a, int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, signed int& a,     int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, unsigned int& a,   int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, signed long& a,    int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, unsigned long& a,  int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, signed long long& a,  int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, unsigned long long& a,  int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, float& a,          int, int=0) { READDATA(s, a); }
-template<typename Stream> inline void Unserialize(Stream& s, double& a,         int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, char& a,               int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, signed char& a,        int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, unsigned char& a,      int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, signed short& a,       int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, unsigned short& a,     int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, signed int& a,         int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, unsigned int& a,       int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, signed long& a,        int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, unsigned long& a,      int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, signed long long& a,   int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, unsigned long long& a, int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, float& a,              int, int=0) { READDATA(s, a); }
+template<typename Stream> inline void Unserialize(Stream& s, double& a,             int, int=0) { READDATA(s, a); }
 
 inline unsigned int GetSerializeSize(bool a, int, int=0)                          { return sizeof(char); }
 template<typename Stream> inline void Serialize(Stream& s, bool a, int, int=0)    { char f=a; WRITEDATA(s, f); }
@@ -1083,7 +1083,6 @@ public:
             if (nReadPosNext > vch.size())
             {
                 setstate(std::ios::failbit, "CDataStream::ignore() : end of data");
-                nSize = vch.size() - nReadPos;
             }
             nReadPos = 0;
             vch.clear();

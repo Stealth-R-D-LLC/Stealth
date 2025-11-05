@@ -213,12 +213,14 @@ public:
                           int64_t nValue,
                           CWalletTx& wtxNew,
                           bool fAskFee=false,
-                          Feework* pfeework=NULL);
+                          Feework* pfeework=NULL,
+                          const std::vector<valtype>* pvORData=NULL);
     std::string SendMoneyToDestination(const CTxDestination &address,
                                        int64_t nValue,
                                        CWalletTx& wtxNew,
                                        bool fAskFee=false,
-                                       Feework* pfeework=NULL);
+                                       Feework* pfeework=NULL,
+                                       const std::vector<valtype>* pvORData=NULL);
 
     // qPOS
     std::string CheckQPoSEssentials(const std::string &txid,
@@ -273,14 +275,16 @@ public:
                            int64_t& nFeeRet,
                            int& nChangePos,
                            const CCoinControl *coinControl=NULL,
-                           Feework* pfeework=NULL);
+                           Feework* pfeework=NULL,
+                           const std::vector<valtype>* pvORData=NULL);
     bool CreateTransaction(CScript scriptPubKey,
                            int64_t nValue,
                            CWalletTx& wtxNew,
                            CReserveKey& reservekey,
                            int64_t& nFeeRet,
                            const CCoinControl *coinControl=NULL,
-                           Feework* feeless=NULL);
+                           Feework* feeless=NULL,
+                           const std::vector<valtype>* pvORData=NULL);
 
     bool NewStealthAddress(std::string& sError, std::string& sLabel, CStealthAddress& sxAddr);
     bool AddStealthAddress(CStealthAddress& sxAddr);

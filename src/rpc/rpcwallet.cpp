@@ -295,29 +295,40 @@ Value getaddressesbyaccount(const Array& params, bool fHelp)
 
 Value sendtoaddress(const Array& params, bool fHelp)
 {
-    if (fHelp || params.size() < 2 || params.size() > 5)
+    if (fHelp || params.size() < 2 || params.size() > 6)
         throw runtime_error(
-        "sendtoaddress <XSTaddress> <amount> [comment] [comment-to] [feeless]\n"
+        "sendtoaddress <XSTaddress> <amount> [comment] [comment-to] [feeless] <[\"hexdata\", ...]>\n"
             "<amount> is a real and is rounded to the nearest 0.000001\n"
             "[feeless] says whether to try send without a money fee (default=false)"
+            "Optional list of hex data will be included as OP_RETURN outputs, if conformant.\n"
             + HelpRequiringPassphrase());
 
     CBitcoinAddress address(params[0].get_str());
     if (!address.IsValid())
+    {
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Invalid XST address");
+    }
 
     // Amount
     int64_t nAmount = AmountFromValue(params[1]);
 
     if (nAmount < chainParams.MIN_TXOUT_AMOUNT)
+    {
         throw JSONRPCError(-101, "Send amount too small");
+    }
 
     // Wallet comments
     CWalletTx wtx;
-    if (params.size() > 2 && params[2].type() != null_type && !params[2].get_str().empty())
+    if (params.size() > 2 && params[2].type() != null_type &&
+        !params[2].get_str().empty())
+    {
         wtx.mapValue["comment"] = params[2].get_str();
-    if (params.size() > 3 && params[3].type() != null_type && !params[3].get_str().empty())
-        wtx.mapValue["to"]      = params[3].get_str();
+    }
+    if (params.size() > 3 && params[3].type() != null_type &&
+        !params[3].get_str().empty())
+    {
+        wtx.mapValue["to"] = params[3].get_str();
+    }
 
     bool fFeeless = false;
     if (params.size() > 4)
@@ -325,10 +336,43 @@ Value sendtoaddress(const Array& params, bool fHelp)
         fFeeless = params[4].get_bool();
     }
 
+    Array data;
+    if (params.size() > 5)
+    {
+        data = params[5].get_array();
+    }
+    vector<valtype> vORData;
+    BOOST_FOREACH(Value& datum, data)
+    {
+        if (datum.type() != str_type)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "OP_RETURN data must be a string");
+        }
+        string strHex = datum.get_str();
+        if (!IsHex(strHex))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER, "OP_RETURN data must be hex data");
+        }
+        if (strHex.size() > (2 * MAX_OP_RETURN_RELAY))
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                               strprintf("OP_RETURN hex string too long (>%u)",
+                                         2 * MAX_OP_RETURN_RELAY));
+        }
+        if (strHex.empty())
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                               "OP_RETURN hex string is empty");
+        }
+        vORData.push_back(ParseHex(strHex));
+    }
+
     if (pwalletMain->IsLocked())
+    {
         throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED,
                            "Error: Please enter the wallet passphrase "
                               "with walletpassphrase first.");
+    }
 
     Feework feework;
     Feework* pfeework = NULL;
@@ -337,7 +381,8 @@ Value sendtoaddress(const Array& params, bool fHelp)
         pfeework = &feework;
     }
     string strError = pwalletMain->SendMoneyToDestination(address.Get(), nAmount,
-                                                          wtx, false, pfeework);
+                                                          wtx, false, pfeework,
+                                                          &vORData);
     if (strError != "")
     {
         throw JSONRPCError(RPC_WALLET_ERROR, strError);
