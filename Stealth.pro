@@ -18,7 +18,7 @@ win32 {
 
 TEMPLATE = app
 TARGET = "Stealth Qt"
-VERSION = 3.2.1.4
+VERSION = 3.2.1.5
 INCLUDEPATH += src src/json src/qt src/tor
 INCLUDEPATH += src/tor/adapter src/tor/common src/tor/ext
 INCLUDEPATH += src/tor/ext/curve25519_donna src/tor/ext/ed25519/donna
