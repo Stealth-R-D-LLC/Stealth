@@ -7287,7 +7287,9 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
 
         if (fDebugNet || (vInv.size() != 1))
         {
-            printf("   (%" PRIszu " invsz)\n", vInv.size());
+            printf("   (%" PRIszu " invsz from %s)\n",
+                   vInv.size(),
+                   pfrom->addrName.c_str());
         }
 
         BOOST_FOREACH(const CInv& inv, vInv)

@@ -136,6 +136,7 @@ Package names in the following command may differ for Debian variants other than
 
 [source,bash]
 ----
+sudo apt update
 sudo apt install wget git cmake autoconf build-essential \
          openssl libssl-dev pkg-config p7zip-full \
          libcurl4-openssl-dev unzip curl python3-dev \

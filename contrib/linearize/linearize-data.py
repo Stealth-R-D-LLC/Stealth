@@ -134,18 +134,19 @@ def mklookup(settings, blkindex):
     while True:
 
         if (blkCount % 1000) == 0:
-            print("Read %s blocks" % blkCount)
+            print("Read %s blocks" % blkCount, end="\r", flush=True)
 
         # height is 1 + number of blocks
         if (max_height is not None) and (len(lookup) >= (max_height+1)):
             break
 
         if inF is None:
+            print("Read %s blocks" % blkCount)
             fname = "%s/blk%04d.dat" % (settings['input'], inFn)
             if not (os.path.exists(fname) and os.path.isfile(fname)):
-              print("No such file: %s" % fname)
-              if blkCount == 0:
-                sys.exit(1)
+                print("No such file: %s" % fname)
+                if blkCount == 0:
+                    sys.exit(1)
             print("Input file: %s" % fname)
             try:
                 inF = open(fname, "rb")
@@ -164,6 +165,7 @@ def mklookup(settings, blkindex):
 
         inMagic = inhdr[:4]
         if (inMagic != settings['netmagic']):
+            print("Read %s blocks" % blkCount)
             print("Invalid magic: 0x%s" % base64.b16encode(inMagic))
             return lookup
         inLenLE = inhdr[4:]
@@ -172,9 +174,9 @@ def mklookup(settings, blkindex):
         rawblock = inF.read(inLen)
         blk_ver = struct.unpack("<i", rawblock[:4])[0]
         if blk_ver < 8:
-          header_len = 80
+            header_len = 80
         else:
-          header_len = 88
+            header_len = 88
         blk_hdr = rawblock[:header_len]
 
         hash_str = calc_hash_str(blk_hdr)
@@ -183,10 +185,12 @@ def mklookup(settings, blkindex):
 
         if hash_str not in blkset:
             if settings['verbose']:
-              print("Skipping unknown block: %s" % hash_str.decode("utf-8"))
+                print("Read %s blocks" % blkCount)
+                print("Skipping unknown block: %s" % hash_str.decode("utf-8"))
             continue
 
         lookup[hash_str] = position
+    print("Read %s blocks" % blkCount)
 
     return lookup
 
@@ -244,6 +248,7 @@ def copydata(settings, blkindex, blkset):
             try:
                 inF = open(fname, "rb")
             except IOError:
+                print("Wrote %s blocks" % blkCount)
                 print("Suddenly can't read \"%s\". Aborting." % fname)
                 return
             fileset[fname] = inF
@@ -254,11 +259,13 @@ def copydata(settings, blkindex, blkset):
             inF.close()
             inF = None
             inFn = inFn + 1
+            print("Wrote %s blocks" % blkCount)
             print("File \"%s\" changed. Aborting." % fname)
             return
 
         inMagic = inhdr[:4]
         if (inMagic != settings['netmagic']):
+            print("Wrote %s blocks" % blkCount)
             print("Invalid magic: 0x%s. Aborting" % base64.b16encode(inMagic))
             return
 
@@ -277,6 +284,7 @@ def copydata(settings, blkindex, blkset):
 
         if hash_str_check != hash_str:
             _h = hash_str.decode("utf-8")
+            print("Wrote %s blocks" % blkCount)
             print("Block %s unexpectedly changed. Aborting " % _h)
             return
 
@@ -292,6 +300,7 @@ def copydata(settings, blkindex, blkset):
         (blkDate, blkTS) = get_blk_dt(blk_hdr)
         if timestampSplit and (blkDate > lastDate):
             _h = hash_str.decode("utf-8")
+            print("Wrote %s blocks" % blkCount)
             print("New month %s @ %s" % (blkDate.strftime("%Y-%m"), _h))
             lastDate = blkDate
             if outF:
@@ -308,6 +317,8 @@ def copydata(settings, blkindex, blkset):
                 outFname = settings['output_file']
             else:
                 outFname = os.path.join(settings['output'], "blk%05d.dat" % outFn)
+            if blkCount > 0:
+                print("Wrote %s blocks to output file: %s" % (blkCount, outFname))
             print("Output file: %s" % outFname)
             outF = open(outFname, "wb")
 
@@ -320,7 +331,9 @@ def copydata(settings, blkindex, blkset):
             highTS = blkTS
 
         if (blkCount % 1000) == 0:
-            print("Wrote %s blocks" % blkCount)
+            print("Wrote %s blocks" % blkCount, end="\r", flush=True)
+
+    print("Wrote %s blocks" % blkCount)
 
 if __name__ == '__main__':
     if len(sys.argv) != 2:

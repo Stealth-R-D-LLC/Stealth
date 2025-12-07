@@ -9,7 +9,6 @@ import ssl
 import sys
 import argparse
 import tempfile
-import textwrap
 
 try:
   from tqdm import tqdm
@@ -29,7 +28,7 @@ class DownloadProgressBar:
     if not self.pbar:
       self.total = total_size
       self.pbar = tqdm(total=total_size, unit=self.unit, unit_scale=self.unit_scale, unit_divisor=self.unit_divisor)
-    
+
     self.pbar.update(downloaded - self.pbar.n)
 
     if downloaded >= total_size:
@@ -41,48 +40,14 @@ def simple_progress_bar(downloaded, block_size, total_size):
   sys.stdout.flush()
 
 def create_ssl_context():
-  cert_chain = textwrap.dedent("""
-      -----BEGIN CERTIFICATE-----
-      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
-      bP6MvPJwNQzcmRk13NfIRmPVNnGuV/u3gm3c
-      -----END CERTIFICATE-----
-  """).strip()
-
-  context = ssl.create_default_context(cadata=cert_chain)
-
+  # Use system's certificate store
+  context = ssl.create_default_context()
   return context
 
 def download_large_file(file_id, output_filename, ssl_context):
   url = f"https://drive.google.com/uc?export=download&id={file_id}"
   req = urllib.request.Request(url, method="GET")
-  
+
   try:
       with urllib.request.urlopen(req, context=ssl_context) as response:
           response_content = response.read().decode('utf-8')
@@ -110,12 +75,12 @@ def download_large_file(file_id, output_filename, ssl_context):
       file_size = int(response.headers.get('Content-Length', 0))
       print(file_size)
       block_size = 8192
-      
+
       if TQDM_AVAILABLE:
         progress_bar = tqdm(total=file_size, unit='iB', unit_scale=True)
       else:
         progress_bar = simple_progress_bar
-      
+
       size = 0
       while True:
         buffer = response.read(block_size)
@@ -127,12 +92,12 @@ def download_large_file(file_id, output_filename, ssl_context):
           progress_bar.update(len(buffer))
         else:
           progress_bar(size, block_size, file_size)
-      
+
       if TQDM_AVAILABLE:
         progress_bar.close()
       else:
         print()  # New line after progress bar
-    
+
     print("Download completed.")
     return True
   except urllib.error.URLError as e:
@@ -185,12 +150,12 @@ def main():
   file_id = "1WNmH1DiO4-_D-UYupoyFXM-rKMlGVTet"
   output_filename = "xst-bootstrap.7z"
 
-  print("This script will download a large file (3.0G) from Google Drive.")
+  print("This script will download a large file (>3.0GB) from Google Drive.")
   print("Google Drive can't scan this file for viruses due to its size.")
-  
+
   ssl_context = create_ssl_context()
-  print("Using bundled Google Drive certificate chain for secure connection.")
-  
+  print("Using system certificate store for secure connection.")
+
   user_input = input("\033[1mDo you want to proceed with the download? (y/n):\033[0m ").lower()
 
   if user_input == 'y':
