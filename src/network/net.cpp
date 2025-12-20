@@ -795,7 +795,13 @@ bool CNode::IsBanned(CNetAddr ip)
         {
             int64_t t = (*i).second;
             if (GetTime() < t)
+            {
                 fResult = true;
+            }
+            else
+            {
+                setBanned.erase(ip);
+            }
         }
     }
     return fResult;
@@ -807,28 +813,42 @@ bool CNode::Misbehaving(int howmuch)
 {
     if (addr.IsLocal())
     {
-        printf("Warning: Local node %s misbehaving (delta: %d)!\n", addrName.c_str(), howmuch);
+        printf("Warning: Local node %s misbehaving (delta: %d)!\n",
+               addrName.c_str(),
+               howmuch);
         return false;
     }
 
     nMisbehavior += howmuch;
     if (nMisbehavior >= GetArg("-banscore", chainParams.DEFAULT_BANSCORE))
     {
-        int64_t banTime = GetTime()+GetArg("-bantime",
-                                           chainParams.DEFAULT_BANTIME);
-        printf("Misbehaving: %s (%d -> %d) DISCONNECTING\n", addr.ToString().c_str(), nMisbehavior-howmuch, nMisbehavior);
+        int64_t banTime = GetTime() +
+                          GetArg("-bantime", chainParams.DEFAULT_BANTIME);
+        printf("Misbehaving: %s (%d -> %d) DISCONNECTING\n",
+               addr.ToString().c_str(),
+               nMisbehavior - howmuch,
+               nMisbehavior);
         {
             LOCK(cs_setBanned);
             if (setBanned[addr] < banTime)
+            {
                 setBanned[addr] = banTime;
+            }
         }
         CloseSocketDisconnect();
 
-        cPeerBlockCounts.removeLast(nStartingHeight); // remove this node's reported number of blocks
+        cPeerBlockCounts.removeLast(
+            nStartingHeight);  // remove this node's reported number of blocks
 
         return true;
-    } else
-        printf("Misbehaving: %s (%d -> %d)\n", addr.ToString().c_str(), nMisbehavior-howmuch, nMisbehavior);
+    }
+    else
+    {
+        printf("Misbehaving: %s (%d -> %d)\n",
+               addr.ToString().c_str(),
+               nMisbehavior - howmuch,
+               nMisbehavior);
+    }
     return false;
 }
 

@@ -196,7 +196,7 @@ foreach(component atomic chrono system filesystem program_options thread)
 endforeach()
 
 find_package(Boost REQUIRED COMPONENTS
-             atomic chrono system filesystem program_options thread)
+             atomic chrono filesystem program_options thread)
 
 if(NOT Boost_FOUND)
   message(FATAL_ERROR "Boost libraries not found. "
@@ -247,7 +247,7 @@ foreach(component atomic chrono system filesystem program_options thread)
 endforeach()
 
 set(Boost_LIBRARIES "")
-foreach(component atomic chrono system filesystem program_options thread)
+foreach(component atomic chrono filesystem program_options thread)
   if(Boost_${component}_LIBRARY)
     list(APPEND Boost_LIBRARIES ${Boost_${component}_LIBRARY})
   endif()
@@ -502,7 +502,6 @@ target_link_libraries(StealthCoind
   Boost::chrono
   Boost::filesystem
   Boost::program_options
-  Boost::system
   Boost::thread
   OpenSSL::SSL
   OpenSSL::Crypto
