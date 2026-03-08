@@ -368,6 +368,31 @@ inline void PrintHex(const std::vector<unsigned char>& vch,
     printf(pszFormat, HexStr(vch, fSpaces).c_str());
 }
 
+// converts unsigned numbers to binary string representation
+// binary prefix is usually "0b" or "0B"
+template<typename T>
+std::string UnsignedToBinary(const T number,
+                             const unsigned int nSepEvery = 0,
+                             const char* sep = "_",
+                             const char* prefix = "")
+{
+    std::string strResult = prefix;
+    int nBits = 8 * sizeof(T);
+
+    for (int i = nBits - 1; i >= 0; --i)
+    {
+        strResult += ((number >> i) & 1) ? '1' : '0';
+
+        // Add seperator every nSepEvery bits
+        // (if specified and not the last bit)
+        if (nSepEvery > 0 && i > 0 && (nBits - i) % nSepEvery == 0)
+        {
+            strResult += sep;
+        }
+    }
+
+    return strResult;
+}
 
 // Represent a bitset as hex.
 // The returned value is essentially a hex number.
@@ -422,6 +447,14 @@ inline int64_t GetTimeMillis()
                 boost::posix_time::microsec_clock::universal_time()) -
             boost::posix_time::ptime(boost::gregorian::date(1970, 1, 1)))
         .total_milliseconds();
+}
+
+inline int64_t GetTimeMicros()
+{
+    return (boost::posix_time::ptime(
+                boost::posix_time::microsec_clock::universal_time()) -
+            boost::posix_time::ptime(boost::gregorian::date(1970, 1, 1)))
+        .total_microseconds();
 }
 
 inline std::string DateTimeStrFormat(const char* pszFormat, int64_t nTime)

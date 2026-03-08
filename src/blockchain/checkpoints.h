@@ -10,6 +10,7 @@
 #include <map>
 
 class uint256;
+class CBlockMemIndex;
 class CBlockIndex;
 class CSyncCheckpoint;
 
@@ -39,20 +40,17 @@ namespace Checkpoints
     // Return conservative estimate of total number of blocks, 0 if unknown
     int GetTotalBlocksEstimate();
 
-    // Returns last CBlockIndex* in mapBlockIndex that is a checkpoint
-    CBlockIndex* GetLastCheckpoint(const std::map<uint256, CBlockIndex*>& mapBlockIndex);
-
     extern uint256 hashSyncCheckpoint;
     extern CSyncCheckpoint checkpointMessage;
     extern uint256 hashInvalidCheckpoint;
     extern CCriticalSection cs_hashSyncCheckpoint;
 
-    CBlockIndex* GetLastSyncCheckpoint();
+    CBlockMemIndex* GetLastSyncCheckpoint();
     bool WriteSyncCheckpoint(const uint256& hashCheckpoint);
     bool AcceptPendingSyncCheckpoint();
     uint256 AutoSelectSyncCheckpoint();
     bool CheckSync(const uint256& hashBlock,
-                   const CBlockIndex* pindexPrev,
+                   const CBlockMemIndex* pmemIndexPrev,
                    const user_checkpoint* const pUserCheckpoint = NULL);
     bool WantedByPendingSyncCheckpoint(uint256 hashBlock);
     bool ResetSyncCheckpoint();

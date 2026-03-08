@@ -24,6 +24,7 @@
 
 class CBlockIndex;
 
+extern bool fWithExploreAPI;
 
 // Before 1.84.0
 #define BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS (BOOST_ASIO_VERSION < 102803)
@@ -34,7 +35,7 @@ class CBlockIndex;
 
 
 namespace boost_asio_compat {
-    
+
     inline bool is_v4_compatible(const boost::asio::ip::address_v6& addr) {
 #if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS
         return addr.is_v4_compatible();
@@ -42,7 +43,7 @@ namespace boost_asio_compat {
         return addr.is_v4_mapped();
 #endif
     }
-    
+
     inline boost::asio::ip::address_v4 to_v4(const boost::asio::ip::address_v6& addr) {
 #if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V6_METHODS
         return addr.to_v4();
@@ -61,7 +62,7 @@ namespace boost_asio_compat {
         );
 #endif
     }
-    
+
     inline uint32_t to_ulong(const boost::asio::ip::address_v4& addr) {
 #if BOOST_ASIO_HAS_DEPRECATED_ADDRESS_V4_METHODS
         return addr.to_ulong();

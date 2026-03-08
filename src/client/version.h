@@ -63,6 +63,13 @@ static const int BIP0031_VERSION = 60000;
 // "mempool" command, enhanced "getdata" behavior starts with this version:
 static const int MEMPOOL_GD_VERSION = 60002;
 
-static const int DATABASE_VERSION = 61201;
+// 61201: Original version -- never used -- no bnChainTrust in blockindex
+//        Default version for databases that don't have a "version" record
+static const int LEGACY_DATABASE_VERSION = 61201;
+
+// 63300: blockindex is now stored with bnChainTrust and nStakeModifierChecksum
+static const int EXTENDED_BLOCKINDEX_DATABASE_VERSION = 63300;
+
+static const int DATABASE_VERSION = EXTENDED_BLOCKINDEX_DATABASE_VERSION;
 
 #endif

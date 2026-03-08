@@ -19,7 +19,9 @@
 #include <boost/thread/mutex.hpp>
 #include <boost/thread/lockable_adapter.hpp>
 
+class CBlockMemIndex;
 class CBlockIndex;
+class CDiskBlockIndex;
 class CTxDB;
 
 typedef std::map<unsigned int, QPStaker> QPMapStakers;

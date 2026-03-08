@@ -26,6 +26,7 @@ struct qpos_authorities
 };
 
 class CBlockIndex;
+class CDiskBlockIndex;
 
 class QPStaker
 {
@@ -66,7 +67,7 @@ public:
     uint32_t GetRecentBlocksProduced() const;
     uint32_t GetPrevRecentBlocksProduced() const;
     uint256 GetHashBlockCreated() const;
-    const CBlockIndex* GetBlockCreated() const;
+    bool GetBlockCreated(CDiskBlockIndex& diskIndex) const;
     uint256 GetHashTxCreated() const;
     unsigned int GetNOutCreated() const;
     int64_t GetPrice() const;
@@ -79,7 +80,7 @@ public:
     uint32_t GetBlocksSeen() const;
     uint32_t GetNetBlocks() const;
     uint256 GetHashBlockMostRecent() const;
-    const CBlockIndex* GetBlockMostRecent() const;
+    bool GetBlockMostRecent(CDiskBlockIndex& diskIndex) const;
     bool DidMissMostRecentBlock() const;
     bool DidProduceMostRecentBlock() const;
     unsigned int GetWeight(unsigned int nSeniority) const;

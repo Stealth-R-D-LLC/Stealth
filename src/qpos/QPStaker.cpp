@@ -4,7 +4,7 @@
 
 #include "QPStaker.hpp"
 
-#include "main.h"
+#include "txdb-leveldb.h"
 
 using namespace json_spirit;
 using namespace std;
@@ -13,13 +13,13 @@ extern CBlockIndex* pindexBest;
 
 extern Value ValueFromAmount(int64_t amount);
 
-
-void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
+void BlockAsJSONLite(const CBlockIndex* pindex, Object& objRet)
 {
     objRet.clear();
-    objRet.push_back(Pair("hash", pindex->phashBlock->GetHex()));
     if (pindex)
     {
+        uint256 hash = pindex->GetBlockHash();
+        objRet.push_back(Pair("hash", hash.GetHex()));
         objRet.push_back(Pair("height",
                               static_cast<int64_t>(pindex->nHeight)));
         objRet.push_back(Pair("time",
@@ -27,11 +27,17 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
         objRet.push_back(Pair("datetime",
                               DateTimeStrFormat("%x %H:%M:%S",
                                                 pindex->nTime)));
-        if (pindex->IsInMainChain())
+        CMapBlockIndex::const_iterator it = mapBlockIndex.find(hash);
+        if (it == mapBlockIndex.end() || it->second == nullptr)
+        {
+            objRet.push_back(
+                Pair("isinmainchain", "ERROR: TSNH no such block"));
+        }
+        else if (it->second->IsInMainChain())
         {
             objRet.push_back(Pair("isinmainchain", true));
             objRet.push_back(Pair("confirmations",
-                                 pindexBest->nHeight + 1 - pindex->nHeight));
+                                  pindexBest->nHeight + 1 - pindex->nHeight));
         }
         else
         {
@@ -41,10 +47,10 @@ void BlockAsJSONLite(const CBlockIndex *pindex, Object& objRet)
     else
     {
         // this should never happen
+        objRet.push_back(Pair("hash", "ERROR: TSNH block index is null"));
         objRet.push_back(Pair("height", -1));
     }
 }
-
 
 QPStaker::QPStaker()
 {
@@ -128,15 +134,18 @@ uint256 QPStaker::GetHashBlockCreated() const
     return hashBlockCreated;
 }
 
-const CBlockIndex* QPStaker::GetBlockCreated() const
+bool QPStaker::GetBlockCreated(CDiskBlockIndex& diskIndex) const
 {
-    map<uint256, CBlockIndex*>::iterator mi =
+    CMapBlockIndex::iterator mi =
                          mapBlockIndex.find(hashBlockCreated);
     if (mi != mapBlockIndex.end())
     {
-        return (*mi).second;
+        ReadDiskBlockIndex("GetBlockCreated", mi->second, diskIndex);
+        return true;
     }
-    return NULL;
+    printf("GetBlockCreated(): TSNH No such block\n  %s",
+           hashBlockCreated.ToString().c_str());
+    return false;
 }
 
 uint256 QPStaker::GetHashTxCreated() const
@@ -193,15 +202,18 @@ uint256 QPStaker::GetHashBlockMostRecent() const
     return hashBlockMostRecent;
 }
 
-const CBlockIndex* QPStaker::GetBlockMostRecent() const
+bool QPStaker::GetBlockMostRecent(CDiskBlockIndex& diskIndex) const
 {
-    map<uint256, CBlockIndex*>::iterator mi =
+    CMapBlockIndex::iterator mi =
                          mapBlockIndex.find(hashBlockMostRecent);
     if (mi != mapBlockIndex.end())
     {
-        return (*mi).second;
+        ReadDiskBlockIndex("GetBlockMostRecent", mi->second, diskIndex);
+        return true;
     }
-    return NULL;
+    printf("GetBlockMostRecent(): TSNH No such block\n  %s",
+           hashBlockMostRecent.ToString().c_str());
+    return false;
 }
 
 
@@ -354,13 +366,25 @@ void QPStaker::AsJSON(unsigned int nID,
     objRet.push_back(Pair("alias", sAlias));
     objRet.push_back(Pair("id", static_cast<int64_t>(nID)));
     objRet.push_back(Pair("version", nVersion));
-    Object objBlockCreated;
-    BlockAsJSONLite(GetBlockCreated(), objBlockCreated);
-    objRet.push_back(Pair("block_created", objBlockCreated));
+
+    CDiskBlockIndex diskIndex;
+    if (GetBlockCreated(diskIndex))
+    {
+        Object objBlockCreated;
+        BlockAsJSONLite(&diskIndex, objBlockCreated);
+        objRet.push_back(Pair("block_created", objBlockCreated));
+    }
+    else
+    {
+        objRet.push_back(
+            Pair("block_created", "ERROR: TSNH No block created"));
+    }
+
     objRet.push_back(Pair("txid_created", hashTxCreated.GetHex()));
     objRet.push_back(Pair("vout_created", static_cast<int64_t>(nOutCreated)));
     objRet.push_back(Pair("price", ValueFromAmount(nPrice)));
     objRet.push_back(Pair("qualified", fQualified));
+
     if (nHeightDisabled)
     {
         objRet.push_back(Pair("enabled", false));
@@ -411,9 +435,18 @@ void QPStaker::AsJSON(unsigned int nID,
 
     if (hashBlockMostRecent != 0)
     {
-        Object objBlockMR;
-        BlockAsJSONLite(GetBlockMostRecent(), objBlockMR);
-        objRet.push_back(Pair("most_recent_block", objBlockMR));
+        CDiskBlockIndex diskIndex;
+        if (GetBlockMostRecent(diskIndex))
+        {
+            Object objBlockMR;
+            BlockAsJSONLite(&diskIndex, objBlockMR);
+            objRet.push_back(Pair("most_recent_block", objBlockMR));
+        }
+        else
+        {
+            objRet.push_back(
+                Pair("most_recent_block", "ERROR: TSNH No most recent block"));
+        }
     }
 
     if (!objMeta.empty())

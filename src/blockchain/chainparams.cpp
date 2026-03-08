@@ -100,7 +100,7 @@ ChainParams::ChainParams()
         /* Jun  6 23:49:52 MST 2021 */   (       REINSTATE_M, XST_FORKREINSTATE )
        /*  Sep 30 05:20:02 MST 2021 */   (  START_MISSFIX2_M, XST_FORKMISSFIX2  )
        /*  Oct 13 07:05:42 MST 2021 */   (  START_FEELESS2_M, XST_FORKFEELESS2  )
-       /*  Jul             PDT 2021 */   (      START_IP64_M, XST_FORKIP64      )
+       /*  Jul 12 17:51:32 PDT 2025 */   (      START_IP64_M, XST_FORKIP64      )
                                                  );
 
 
@@ -160,7 +160,7 @@ ChainParams::ChainParams()
     // qPoS: 6 min (72 blocks)
     LATEST_INITIAL_BLOCK_DOWNLOAD_TIME_QPOS = 6 * 60;
 
-    FUTURE_DRIFT_MAINNET = 17;
+    FUTURE_DRIFT_MAINNET = 7;
 
     bnProofOfWorkLimitMainNet = CBigNum(~uint256(0) >> 20);
 

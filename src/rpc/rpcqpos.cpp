@@ -34,37 +34,55 @@ string GetRegistryAtHeight(int nHeight, QPRegistry* &pRet)
     }
     else
     {
-        CBlockIndex *pindex = pindexBest;
+        CBlockMemIndex* pmemIndex = pmemIndexBest;
         // TODO: refactor (see also CBlockLocator)
         if (mapBlockLookup.count(nHeight))
         {
-            pindex = mapBlockLookup[nHeight];
+            pmemIndex = mapBlockLookup[nHeight];
         }
         else
         {
-            printf("GetRegistryAtHeight(): TSNH no block found at %d\n",
-                   nHeight);
-            while (pindex)
+            printf(
+                "GetRegistryAtHeight(): TSNH no block found in lookup at %d\n",
+                nHeight);
+            int nIndexHeight = GetMemIndexHeight("GetRegistryAtHeight",
+                                                 pmemIndex);
+            while (pmemIndex)
             {
-                if (pindex->nHeight == nHeight)
+                if (pmemIndex->IsInMainChain())
                 {
-                    mapBlockLookup[nHeight] = pindex;
+                    printf("TSNH block index at height %d is not in "
+                           "lookup:\n   %s\n",
+                           nIndexHeight,
+                           pmemIndex->phashBlock->ToString().c_str());
+                }
+                else
+                {
+                    printf("TSNH block index at height %d is not in main "
+                           "chain:\n  %s\n",
+                           nIndexHeight,
+                           pmemIndex->phashBlock->ToString().c_str());
+                }
+                mapBlockLookup[nIndexHeight] = pmemIndex;
+                if (nIndexHeight == nHeight)
+                {
                     break;
                 }
-                pindex = pindex->pprev;
+                pmemIndex = pmemIndex->pprev;
+                nIndexHeight -= 1;
             }
-            if (!pindex)
+            if (!pmemIndex)
             {
-                return strprintf("TSNH: index not found at %d", nHeight);
+                return strprintf("TSNH: index not found at %d\n", nHeight);
             }
         }
         CTxDB txdb;
-        CBlockIndex* pindexUnused;
-        CBlockIndex* pindexCurrent;
-        if (!RewindRegistry(txdb, pRet, pindex, pindex,
+        CBlockMemIndex* pmemIndexUnused;
+        CBlockMemIndex* pmemIndexCurrent;
+        if (!RewindRegistry(txdb, pRet, pmemIndex, pmemIndex,
                             QPRegistry::NO_SNAPS,
-                            pindexUnused,
-                            pindexCurrent))
+                            pmemIndexUnused,
+                            pmemIndexCurrent))
         {
             return strprintf("TSRH Error rewinding registry to %d.", nHeight);
         }
@@ -609,7 +627,7 @@ Value setstakermeta(const Array& params, bool fHelp)
             throw JSONRPCError(RPC_QPOS_META_VALUE_NOT_VALID,
                            "Meta value is not valid");
     }
-                   
+
     string txid, sAlias;
     unsigned int nOut;
     valtype vchPubKey;
@@ -1405,21 +1423,39 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
     Array aryPrices;
     Array arySupply;
     Array aryFractionalPrices;
-    for (const auto& pair: mapStakers)
+    CTxDB txdb("r");
+    for (const auto& pair : mapStakers)
     {
         const QPStaker& staker = pair.second;
         vBlocks.push_back(staker.GetNetBlocks());
         int64_t nPrice = staker.GetPrice();
         aryPrices.push_back(ValueFromAmount(nPrice));
-        CBlockIndex* p = mapBlockIndex[staker.GetHashBlockCreated()];
-        arySupply.push_back(ValueFromAmount(p->nMoneySupply));
-        aryFractionalPrices.push_back((double)nPrice / (double)p->nMoneySupply);
+        if (mapBlockIndex.count(staker.GetHashBlockCreated()) == 0)
+        {
+
+            throw runtime_error(
+                strprintf("TSNH staker %s creation block is unknown",
+                          pregistryMain->GetAliasForID(pair.first).c_str()));
+        }
+        CBlockMemIndex* pmemIndex = mapBlockIndex[staker.GetHashBlockCreated()];
+        if (pmemIndex == nullptr)
+        {
+
+            throw runtime_error(
+                strprintf("TSNH staker %s creation block index is null",
+                          pregistryMain->GetAliasForID(pair.first).c_str()));
+        }
+        int64_t nMoneySupply = GetMemIndexMoneySupply("getstakerpriceinfo",
+                                                      pmemIndex,
+                                                      &txdb);
+        arySupply.push_back(ValueFromAmount(nMoneySupply));
+        aryFractionalPrices.push_back((double) nPrice / (double) nMoneySupply);
     }
 
     unsigned int N = mapStakers.size();
     int64_t nPriceNewest = N > 0 ? mapStakers.rbegin()->second.GetPrice() : -1;
-
     N += 1;
+
     int64_t nSupply = pindex->nMoneySupply;
     int nFork = GetFork(pindex->nHeight + 1);
     int64_t nPriceNext = GetStakerPrice(N, nSupply, nFork);

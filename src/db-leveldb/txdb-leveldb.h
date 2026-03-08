@@ -373,6 +373,7 @@ public:
     bool ReadDiskTx(COutPoint outpoint, CTransaction& tx, CTxIndex& txindex);
     bool ReadDiskTx(COutPoint outpoint, CTransaction& tx);
     bool WriteBlockIndex(const CDiskBlockIndex& blockindex);
+    bool ReadBlockIndex(const uint256& hash, CDiskBlockIndex& blockindex);
     bool ReadHashBestChain(uint256& hashBestChain);
     bool WriteHashBestChain(uint256 hashBestChain);
     bool ReadBestInvalidTrust(CBigNum& bnBestInvalidTrust);
@@ -388,5 +389,73 @@ public:
     bool EraseRegistrySnapshot(int nHeight);
 };
 
+bool ReadDiskBlockIndex(const char* caller,
+                        const CBlockMemIndex* pmemIndex,
+                        CDiskBlockIndex& diskIndex,
+                        CTxDB* ptxdb = nullptr,
+                        bool fStrict = true);
+bool WriteDiskBlockIndex(const char* caller,
+                         const CBlockMemIndex* pmemIndex,
+                         CDiskBlockIndex& diskIndex,
+                         CTxDB* ptxdb = nullptr,
+                         bool fStrict = true);
 
-#endif // BITCOIN_DB_H
+// templated accessor for CBlockMemIndex
+template<typename T>
+T GetMemIndexAttr(const char* caller,
+                  const CBlockMemIndex* pmemIndex,
+                  CTxDB* ptxdb,
+                  T CBlockIndex::* member)
+{
+    std::unique_ptr<CTxDB> ownedTxdb;
+    if (ptxdb == nullptr)
+    {
+        ownedTxdb = MAKE_AUTO<CTxDB>("r");
+        ptxdb = ownedTxdb.get();
+    }
+    CDiskBlockIndex diskIndex;
+    ReadDiskBlockIndex(caller, pmemIndex, diskIndex, ptxdb);
+    return static_cast<const CBlockIndex&>(diskIndex).*member;
+}
+
+int GetMemIndexHeight(const char* caller,
+                      const CBlockMemIndex* pmemIndex,
+                      CTxDB* ptxdb = nullptr);
+
+unsigned int GetMemIndexTime(const char* caller,
+                             const CBlockMemIndex* pmemIndex,
+                             CTxDB* ptxdb = nullptr);
+
+int64_t GetMemIndexBlockTime(const char* caller,
+                             const CBlockMemIndex* pmemIndex,
+                             CTxDB* ptxdb = nullptr);
+
+int GetMemIndexVersion(const char* caller,
+                       const CBlockMemIndex* pmemIndex,
+                       CTxDB* ptxdb = nullptr);
+
+CBigNum GetMemIndexChainTrust(const char* caller,
+                              const CBlockMemIndex* pmemIndex,
+                              CTxDB* ptxdb = nullptr);
+
+int GetMemIndexFlags(const char* caller,
+                     const CBlockMemIndex* pmemIndex,
+                     CTxDB* ptxdb = nullptr);
+
+int64_t GetMemIndexMoneySupply(const char* caller,
+                               const CBlockMemIndex* pmemIndex,
+                               CTxDB* ptxdb = nullptr);
+
+bool IsMemIndexProofOfStake(const char* caller,
+                            const CBlockMemIndex* pmemIndex,
+                            CTxDB* ptxdb = nullptr);
+
+unsigned int GetMemIndexStakeModifierChecksum(const char* caller,
+                                              const CBlockMemIndex* pmemIndex,
+                                              CTxDB* ptxdb = nullptr);
+
+uint256 GetMemIndexHashMerkleRoot(const char* caller,
+                                  const CBlockMemIndex* pmemIndex,
+                                  CTxDB* ptxdb = nullptr);
+
+#endif  // BITCOIN_LEVELDB_H

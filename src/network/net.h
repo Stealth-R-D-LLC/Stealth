@@ -22,7 +22,7 @@
 
 class CRequestTracker;
 class CNode;
-class CBlockIndex;
+class CBlockMemIndex;
 
 extern const CAddress CADDR_NULL;
 
@@ -217,7 +217,7 @@ public:
     std::map<uint256, CRequestTracker> mapRequests;
     CCriticalSection cs_mapRequests;
     uint256 hashContinue;
-    CBlockIndex* pindexLastGetBlocksBegin;
+    CBlockMemIndex* pmemIndexLastGetBlocksBegin;
     uint256 hashLastGetBlocksEnd;
     int64_t nLastGetBlocks;
     int nStartingHeight;
@@ -261,7 +261,7 @@ public:
         nRefCount = 0;
         nReleaseTime = 0;
         hashContinue = 0;
-        pindexLastGetBlocksBegin = 0;
+        pmemIndexLastGetBlocksBegin = nullptr;
         hashLastGetBlocksEnd = 0;
         nLastGetBlocks = 0;
         nStartingHeight = -1;
@@ -688,7 +688,7 @@ public:
 
 
 
-    void PushGetBlocks(CBlockIndex* pindexBegin, uint256 hashEnd);
+    void PushGetBlocks(CBlockMemIndex* pmemIndexBegin, uint256 hashEnd);
     bool IsSubscribed(unsigned int nChannel);
     void Subscribe(unsigned int nChannel, unsigned int nHops=0);
     void CancelSubscribe(unsigned int nChannel);

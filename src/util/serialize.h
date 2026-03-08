@@ -27,8 +27,10 @@
 
 #if __cplusplus >= 201103L
     #define AUTO_PTR std::unique_ptr
+    #define MAKE_AUTO std::make_unique
 #else
     #define AUTO_PTR std::auto_ptr
+    #define MAKE_AUTO std::auto_ptr
 #endif
 
 // for berkeley-db

@@ -149,22 +149,33 @@ QList<TransactionRecord> TransactionRecord::decomposeTransaction(const CWallet *
     return parts;
 }
 
-void TransactionRecord::updateStatus(const CWalletTx &wtx)
+void TransactionRecord::updateStatus(const CWalletTx& wtx)
 {
     // Determine transaction status
 
     // Find the block the tx is in
-    CBlockIndex* pindex = NULL;
-    std::map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(wtx.hashBlock);
+    CBlockMemIndex* pmemIndex = NULL;
+    CMapBlockMemIndex::iterator mi = mapBlockIndex.find(wtx.hashBlock);
     if (mi != mapBlockIndex.end())
-        pindex = (*mi).second;
+    {
+        pmemIndex = (*mi).second;
+    }
+
+    int nHeight = std::numeric_limits<int>::max();
+    if (pmemIndex != nullptr)
+    {
+        CTxDB txdb("r");
+        nHeight = GetMemIndexHeight("TransactionRecord:updateStatus",
+                                    txdb,
+                                    pmemIndex);
+    }
 
     // Sort order, unrecorded transactions sort to the top
     status.sortKey = strprintf("%010d-%01d-%010u-%03d",
-        (pindex ? pindex->nHeight : std::numeric_limits<int>::max()),
-        (wtx.IsCoinBase() ? 1 : 0),
-        wtx.nTimeReceived,
-        idx);
+                               nHeight,
+                               (wtx.IsCoinBase() ? 1 : 0),
+                               wtx.nTimeReceived,
+                               idx);
     status.confirmed = wtx.IsConfirmed();
     status.depth = wtx.GetDepthInMainChain();
     status.cur_num_blocks = nBestHeight;
@@ -184,7 +195,8 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx)
     }
     else
     {
-        if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
+        if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 &&
+            wtx.GetRequestCount() == 0)
         {
             status.status = TransactionStatus::Offline;
         }
@@ -199,7 +211,8 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx)
     }
 
     // For generated transactions, determine maturity
-    if(type == TransactionRecord::Generated || type == TransactionRecord::StakeMint)
+    if (type == TransactionRecord::Generated ||
+        type == TransactionRecord::StakeMint)
     {
         int64_t nCredit = wtx.GetCredit(true);
         if (nCredit == 0)
@@ -211,8 +224,11 @@ void TransactionRecord::updateStatus(const CWalletTx &wtx)
                 status.matures_in = wtx.GetBlocksToMaturity();
 
                 // Check if the block was requested by anyone
-                if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 && wtx.GetRequestCount() == 0)
+                if (GetAdjustedTime() - wtx.nTimeReceived > 2 * 60 &&
+                    wtx.GetRequestCount() == 0)
+                {
                     status.maturity = TransactionStatus::MaturesWarning;
+                }
             }
             else
             {

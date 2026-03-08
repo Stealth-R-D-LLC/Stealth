@@ -791,7 +791,6 @@ void QPRegistry::Copy(const QPRegistry *const pother)
     }
 }
 
-
 void QPRegistry::ActivatePubKey(const CPubKey &key,
                                 const CBlockIndex* pindex)
 {
@@ -1881,7 +1880,8 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
                                   bool fJustCheck)
 {
     boost::lock_guard<QPRegistry> lock(*this);
-    const CBlockIndex *pindexPrev = (pindex->pprev ? pindex->pprev : pindex);
+    const CBlockMemIndex* pmemIndexPrev = (pindex->pprev ? pindex->pprev
+                                                         : pindex);
 
     int nFork = GetFork(pindex->nHeight);
 
@@ -1915,12 +1915,14 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
         }
      }
 
-    // Q: Why do we update on new time before updating the registry
-    //    for the new block?
-    // A: Because we can't advance the queue until we have an event (block)
-    //    that says to what time we should advance the queue.
+     // Q: Why do we update on new time before updating the registry
+     //    for the new block?
+     // A: Because we can't advance the queue until we have an event (block)
+     //    that says to what time we should advance the queue.
+     CDiskBlockIndex diskIndexPrev;
+     ReadDiskBlockIndex("UpdateOnNewBlock", pmemIndexPrev, diskIndexPrev);
      if (!UpdateOnNewTimeInternal(pindex->nTime,
-                                  pindexPrev,
+                                  &diskIndexPrev,
                                   nSnapshotType,
                                   fWriteLog))
      {
@@ -2009,7 +2011,8 @@ bool QPRegistry::UpdateOnNewBlock(const CBlockIndex *const pindex,
             return error("UpdateOnNewBlock(): "
                          "block already produced for this slot");
         }
-        int64_t nReward = GetQPoSReward(pindex->pprev);
+
+        int64_t nReward = GetQPoSReward(pmemIndexPrev);
         if (!StakerProducedBlock(pindex, nReward))
         {
             return error("UpdateOnNewBlock(): no staker with ID %u",

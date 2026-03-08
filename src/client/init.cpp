@@ -1022,14 +1022,14 @@ bool AppInit2()
     {
         string strMatch = mapArgs["-printblock"];
         int nFound = 0;
-        for (map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.begin(); mi != mapBlockIndex.end(); ++mi)
+        for (CMapBlockIndex::iterator mi = mapBlockIndex.begin(); mi != mapBlockIndex.end(); ++mi)
         {
             uint256 hash = (*mi).first;
             if (strncmp(hash.ToString().c_str(), strMatch.c_str(), strMatch.size()) == 0)
             {
-                CBlockIndex* pindex = (*mi).second;
+                CBlockMemIndex* pmemIndex = (*mi).second;
                 CBlock block;
-                block.ReadFromDisk(pindex);
+                block.ReadFromDisk(pmemIndex);
                 block.BuildMerkleTree();
                 block.print();
                 printf("\n");
@@ -1052,38 +1052,61 @@ bool AppInit2()
     if (nLoadWalletRet != DB_LOAD_OK)
     {
         if (nLoadWalletRet == DB_CORRUPT)
-            strErrors << _("Error loading wallet.dat: Wallet corrupted") << "\n";
+        {
+            strErrors << _("Error loading wallet.dat: Wallet corrupted")
+                      << "\n";
+        }
         else if (nLoadWalletRet == DB_NONCRITICAL_ERROR)
         {
-            string msg(_("Warning: error reading wallet.dat! All keys read correctly, but transaction data"
-                         " or address book entries might be missing or incorrect."));
-            uiInterface.ThreadSafeMessageBox(msg, _("Stealth"), CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION | CClientUIInterface::MODAL);
+            string msg(
+                _("Warning: error reading wallet.dat! All keys read "
+                  "correctly, but transaction data"
+                  " or address book entries might be missing or incorrect."));
+            uiInterface.ThreadSafeMessageBox(
+                msg,
+                _("Stealth"),
+                CClientUIInterface::OK | CClientUIInterface::ICON_EXCLAMATION |
+                    CClientUIInterface::MODAL);
         }
         else if (nLoadWalletRet == DB_TOO_NEW)
-            strErrors << _("Error loading wallet.dat: Wallet requires newer version of Stealth") << "\n";
+        {
+            strErrors << _("Error loading wallet.dat: Wallet requires newer "
+                           "version of Stealth")
+                      << "\n";
+        }
         else if (nLoadWalletRet == DB_NEED_REWRITE)
         {
-            strErrors << _("Wallet needed to be rewritten: restart Stealth to complete") << "\n";
+            strErrors << _("Wallet needed to be rewritten: restart Stealth to "
+                           "complete")
+                      << "\n";
             printf("%s", strErrors.str().c_str());
             return InitError(strErrors.str());
         }
         else
+        {
             strErrors << _("Error loading wallet.dat") << "\n";
+        }
     }
 
     if (GetBoolArg("-upgradewallet", fFirstRun))
     {
         int nMaxVersion = GetArg("-upgradewallet", 0);
-        if (nMaxVersion == 0) // the -upgradewallet without argument case
+        // the -upgradewallet without argument case
+        if (nMaxVersion == 0)
         {
             printf("Performing wallet upgrade to %i\n", FEATURE_LATEST);
             nMaxVersion = CLIENT_VERSION;
-            pwalletMain->SetMinVersion(FEATURE_LATEST); // permanently upgrade the wallet immediately
+            // permanently upgrade the wallet immediately
+            pwalletMain->SetMinVersion(FEATURE_LATEST);
         }
         else
+        {
             printf("Allowing wallet upgrade up to %i\n", nMaxVersion);
+        }
         if (nMaxVersion < pwalletMain->GetVersion())
+        {
             strErrors << _("Cannot downgrade wallet") << "\n";
+        }
         pwalletMain->SetMaxVersion(nMaxVersion);
     }
 
@@ -1094,10 +1117,15 @@ bool AppInit2()
 
         CPubKey newDefaultKey;
         if (!pwalletMain->GetKeyFromPool(newDefaultKey, false))
+        {
             strErrors << _("Cannot initialize keypool") << "\n";
+        }
         pwalletMain->SetDefaultKey(newDefaultKey);
-        if (!pwalletMain->SetAddressBookName(pwalletMain->vchDefaultKey.GetID(), ""))
+        if (!pwalletMain
+                 ->SetAddressBookName(pwalletMain->vchDefaultKey.GetID(), ""))
+        {
             strErrors << _("Cannot write default address") << "\n";
+        }
     }
 
     printf("%s", strErrors.str().c_str());
@@ -1105,25 +1133,35 @@ bool AppInit2()
 
     RegisterWallet(pwalletMain);
 
-    CBlockIndex *pindexRescan = pindexBest;
+    CBlockMemIndex *pmemIndexRescan = pmemIndexBest;
     if (GetBoolArg("-rescan"))
-        pindexRescan = pindexGenesisBlock;
+    {
+        pmemIndexRescan = pmemIndexGenesisBlock;
+    }
     else
     {
         CWalletDB walletdb(strWalletFileName);
         CBlockLocator locator;
         if (walletdb.ReadBestBlock(locator))
-            pindexRescan = locator.GetBlockIndex();
+        {
+            pmemIndexRescan = locator.GetBlockIndex();
+        }
     }
-    if (pindexBest != pindexRescan && pindexBest && pindexRescan &&
-        pindexBest->nHeight > pindexRescan->nHeight)
+
+    if ((pmemIndexBest != pmemIndexRescan) && pmemIndexBest &&
+        pmemIndexRescan && pindexBest)
     {
-        uiInterface.InitMessage(_("Rescanning..."));
-        printf("Rescanning last %i blocks (from block %i)...\n",
-               pindexBest->nHeight - pindexRescan->nHeight, pindexRescan->nHeight);
-        nStart = GetTimeMillis();
-        pwalletMain->ScanForWalletTransactions(pindexRescan, true);
-        printf(" rescan      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+        int nRescanHeight = GetMemIndexHeight("AppInit2", pmemIndexRescan);
+        if (pindexBest->nHeight > nRescanHeight)
+        {
+            uiInterface.InitMessage(_("Rescanning..."));
+            printf("Rescanning last %i blocks (from block %i)...\n",
+                   pindexBest->nHeight - nRescanHeight,
+                   nRescanHeight);
+            nStart = GetTimeMillis();
+            pwalletMain->ScanForWalletTransactions(pmemIndexRescan, true);
+            printf(" rescan      %15" PRId64 "ms\n", GetTimeMillis() - nStart);
+        }
     }
 
     // ********************************************************* Step 9: import blocks
@@ -1178,30 +1216,30 @@ bool AppInit2()
         uiInterface.InitMessage(_("Reindexing for the Explore API."));
         printf("Reindexing for the Explore API.\n");
         CTxDB txdb;
-        CBlockIndex *pindex = pindexGenesisBlock;
+        CBlockMemIndex *pmemIndex = pmemIndexGenesisBlock;
         int count = 0;
-        while (pindex->pnext != NULL)
+        while (pmemIndex->pnext != NULL)
         {
             if ((count == 1) || ((count > 0) && (count % 10000 == 0)))
             {
                 printf("Reindexed %d blocks for Explore API\n", count);
             }
             CBlock block;
-            block.ReadFromDisk(pindex, true);
+            block.ReadFromDisk(pmemIndex, true);
             if (!ExploreConnectBlock(txdb, &block))
             {
                 Shutdown(NULL);
             }
             count += 1;
-            pindex = pindex->pnext;
+            pmemIndex = pmemIndex->pnext;
         }
-        if (pindex != pindexBest)
+        if (pmemIndex != pmemIndexBest)
         {
             printf("AppInit2(): Can't find forward path through best chain\n");
             Shutdown(NULL);
         }
         CBlock blockBest;
-        blockBest.ReadFromDisk(pindex, true);
+        blockBest.ReadFromDisk(pmemIndex, true);
         if (!ExploreConnectBlock(txdb, &blockBest))
         {
             Shutdown(NULL);

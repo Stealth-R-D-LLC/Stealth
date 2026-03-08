@@ -190,23 +190,25 @@ void SpecOpToJSON(const CScript& scriptPubKey, Object& obj,
         feework.ExtractFeework(vSolutions.front());
         feework.limit = chainParams.TX_FEEWORK_LIMIT;
         CBlock block;
-        CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
-        CBlockIndex* pblocknext = pblockindex;
-        while (pblockindex->nHeight > feework.height)
+        CBlockMemIndex* pmemIndex = mapBlockIndex[hashBestChain];
+        CBlockMemIndex* pmemIndexNext = pmemIndex;
+        int nHeight = GetMemIndexHeight("SpecOpToJSON", pmemIndex);
+        while (nHeight > feework.height)
         {
-            pblocknext = pblockindex;
-            pblockindex = pblockindex->pprev;
-            if (!pblockindex->pprev)
+            pmemIndexNext = pmemIndex;
+            pmemIndex = pmemIndex->pprev;
+            nHeight -= 1;
+            if (!pmemIndex->pprev)
             {
                 break;
             }
         }
-        feework.pblockhash = pblockindex->phashBlock;
+        feework.pblockhash = pmemIndex->phashBlock;
         if (ptx)
         {
             CTransaction tx(*ptx);
             feework.bytes = ::GetSerializeSize(tx, SER_NETWORK, PROTOCOL_VERSION);
-            tx.CheckFeework(feework, true, bfrFeeworkValidator, pblocknext,
+            tx.CheckFeework(feework, true, bfrFeeworkValidator, pmemIndexNext,
                             1, GMF_BLOCK, false);
         }
         feework.AsJSON(obj);
@@ -259,25 +261,31 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     entry.push_back(Pair("version", tx.nVersion));
     if (tx.HasTimestamp())
     {
-        entry.push_back(Pair("time", (boost::int64_t)tx.GetTxTime()));
+        entry.push_back(Pair("time", (int64_t) tx.GetTxTime()));
     }
-    entry.push_back(Pair("locktime", (boost::int64_t)tx.nLockTime));
+    entry.push_back(Pair("locktime", (int64_t) tx.nLockTime));
     Array vin;
-    BOOST_FOREACH(const CTxIn& txin, tx.vin)
+    BOOST_FOREACH (const CTxIn& txin, tx.vin)
     {
         Object in;
         if (tx.IsCoinBase())
-            in.push_back(Pair("coinbase", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        {
+            in.push_back(
+                Pair("coinbase",
+                     HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+        }
         else
         {
             in.push_back(Pair("txid", txin.prevout.hash.GetHex()));
-            in.push_back(Pair("vout", (boost::int64_t)txin.prevout.n));
+            in.push_back(Pair("vout", (int64_t) txin.prevout.n));
             Object o;
             o.push_back(Pair("asm", txin.scriptSig.ToString()));
-            o.push_back(Pair("hex", HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
+            o.push_back(
+                Pair("hex",
+                     HexStr(txin.scriptSig.begin(), txin.scriptSig.end())));
             in.push_back(Pair("scriptSig", o));
         }
-        in.push_back(Pair("sequence", (boost::int64_t)txin.nSequence));
+        in.push_back(Pair("sequence", (int64_t) txin.nSequence));
         vin.push_back(in);
     }
     entry.push_back(Pair("vin", vin));
@@ -287,7 +295,7 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
         const CTxOut& txout = tx.vout[i];
         Object out;
         out.push_back(Pair("value", ValueFromAmount(txout.nValue)));
-        out.push_back(Pair("n", (boost::int64_t)i));
+        out.push_back(Pair("n", (int64_t)i));
         Object o;
         ScriptPubKeyToJSON(txout.scriptPubKey, o, &tx);
         out.push_back(Pair("scriptPubKey", o));
@@ -298,15 +306,20 @@ void TxToJSON(const CTransaction& tx, const uint256 hashBlock, Object& entry)
     if (hashBlock != 0)
     {
         entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-        map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+        CMapBlockIndex::iterator mi = mapBlockIndex.find(hashBlock);
         if (mi != mapBlockIndex.end() && (*mi).second)
         {
-            CBlockIndex* pindex = (*mi).second;
-            if (pindex->IsInMainChain())
+            CBlockMemIndex* pmemIndex = (*mi).second;
+            if (pmemIndex->IsInMainChain())
             {
-                entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                entry.push_back(Pair("blocktime", (boost::int64_t)pindex->nTime));
+                CDiskBlockIndex diskIndex;
+                ReadDiskBlockIndex("TxToJSON", pmemIndex, diskIndex);
+                entry.push_back(Pair("confirmations",
+                                     1 + nBestHeight - diskIndex.nHeight));
+                entry.push_back(
+                    Pair("time", (int64_t) diskIndex.nTime));
+                entry.push_back(
+                    Pair("blocktime", (int64_t) diskIndex.nTime));
             }
             else
                 entry.push_back(Pair("confirmations", 0));

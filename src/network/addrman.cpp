@@ -5,8 +5,6 @@
 #include "addrman.h"
 
 #include <random>
-#include <chrono>
-
 
 extern bool fShutdown;
 
@@ -427,8 +425,7 @@ CAddress CAddrMan::Select_(int nUnkBias)
     // using prng here because it is much more efficient than
     //    getting cryptographically secure random data and
     //    secure randomness is not needed to select addresses
-    static mt19937_64 rng(
-        chrono::steady_clock::now().time_since_epoch().count());
+    static mt19937_64 rng(GetTimeMillis());
     uniform_int_distribution<uint64_t> dist(0, RANDMAX);
 
     if (size() == 0)

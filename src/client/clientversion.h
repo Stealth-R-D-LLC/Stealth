@@ -7,9 +7,9 @@
 
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
-#define CLIENT_VERSION_MINOR       2
-#define CLIENT_VERSION_REVISION    1
-#define CLIENT_VERSION_BUILD       6
+#define CLIENT_VERSION_MINOR       3
+#define CLIENT_VERSION_REVISION    0
+#define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
 //          keep existing
@@ -43,6 +43,7 @@ static const int CLIENT_PROTOCOL_VERSION = 64200;
 
 // proto   version   notes
 // -----   -------    ----------------------------------------------------------
+//       : 3.3.0.0  : Lean mapBlockIndex
 //       : 3.2.1.4  : Add sendtoaddress facility for OP_RETURN data
 //       : 3.2.1.3  : Fixed building with BOOST_ASIO_VERSION > 102802 (1.28.2)
 //       : 3.2.1.2  : Making QPRegistry thread safe / forks from 16 byte IP

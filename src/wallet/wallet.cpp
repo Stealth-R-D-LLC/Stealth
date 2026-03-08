@@ -575,7 +575,9 @@ bool CWallet::AddToWallet(const CWalletTx& wtxIn)
                         }
                     }
 
-                    unsigned int& blocktime = mapBlockIndex[wtxIn.hashBlock]->nTime;
+                    unsigned int blocktime = GetMemIndexTime(
+                        "AddToWallet",
+                        mapBlockIndex[wtxIn.hashBlock]);
                     wtx.nTimeSmart = std::max(latestEntry, std::min(blocktime, latestNow));
                 }
                 else
@@ -770,7 +772,7 @@ unsigned int CWalletTx::GetTxTime() const
         return CTransaction::GetTxTime();
     }
 
-    map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+    CMapBlockIndex::iterator mi = mapBlockIndex.find(hashBlock);
     if (mi == mapBlockIndex.end())
     {
            if (fDebug)
@@ -781,8 +783,8 @@ unsigned int CWalletTx::GetTxTime() const
            // not in a block yet, give an earliest possible time
            return pindexBest->nTime + 1;
     }
-    CBlockIndex* pindex = (*mi).second;
-    return pindex->nTime;
+    CBlockMemIndex* pmemIndex = (*mi).second;
+    return GetMemIndexTime("CWalletTx::GetTxTime", pmemIndex);
 }
 
 int CWalletTx::GetRequestCount() const
@@ -977,27 +979,30 @@ bool CWalletTx::WriteToDisk()
     return CWalletDB(pwallet->strWalletFile).WriteTx(GetHash(), *this);
 }
 
-// Scan the block chain (starting in pindexStart) for transactions
+// Scan the block chain (starting in pmemIndexStart) for transactions
 // from or to us. If fUpdate is true, found transactions that already
 // exist in the wallet will be updated.
-int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
+int CWallet::ScanForWalletTransactions(CBlockMemIndex* pmemIndexStart,
+                                       bool fUpdate)
 {
     int ret = 0;
 
-    CBlockIndex* pindex = pindexStart;
+    CTxDB txdb("r");
+
+    CBlockMemIndex* pmemIndex = pmemIndexStart;
     {
         LOCK(cs_wallet);
-        while (pindex)
+        while (pmemIndex)
         {
-            if ((!fUpdate) &&
-                 nTimeFirstKey &&
-                 (pindex->nTime < (nTimeFirstKey - 7200)))
+            if ((!fUpdate) && nTimeFirstKey &&
+                (GetMemIndexTime("ScanForWalletTransactions", pmemIndex, &txdb) <
+                 (nTimeFirstKey - 7200)))
             {
-                pindex = pindex->pnext;
+                pmemIndex = pmemIndex->pnext;
                 continue;
             }
             CBlock block;
-            block.ReadFromDisk(pindex, true);
+            block.ReadFromDisk(pmemIndex, true);
             BOOST_FOREACH(CTransaction& tx, block.vtx)
             {
                 if (AddToWalletIfInvolvingMe(tx, &block, fUpdate))
@@ -1005,7 +1010,7 @@ int CWallet::ScanForWalletTransactions(CBlockIndex* pindexStart, bool fUpdate)
                     ret++;
                 }
             }
-            pindex = pindex->pnext;
+            pmemIndex = pmemIndex->pnext;
         }
     }
     return ret;
@@ -1029,26 +1034,36 @@ void CWallet::ReacceptWalletTransactions()
         LOCK(cs_wallet);
         fRepeat = false;
         vector<CDiskTxPos> vMissingTx;
-        BOOST_FOREACH(PAIRTYPE(const uint256, CWalletTx)& item, mapWallet)
+        BOOST_FOREACH (PAIRTYPE(const uint256, CWalletTx) & item, mapWallet)
         {
             CWalletTx& wtx = item.second;
-            if ((wtx.IsCoinBase() && wtx.IsSpent(0)) || (wtx.IsCoinStake() && wtx.IsSpent(1)))
+            if ((wtx.IsCoinBase() && wtx.IsSpent(0)) ||
+                (wtx.IsCoinStake() && wtx.IsSpent(1)))
+            {
                 continue;
+            }
 
             CTxIndex txindex;
             bool fUpdated = false;
             if (txdb.ReadTxIndex(wtx.GetHash(), txindex))
             {
-                // Update fSpent if a tx got spent somewhere else by a copy of wallet.dat
+                // Update fSpent if a tx got spent somewhere else by a copy of
+                // wallet.dat
                 if (txindex.vSpent.size() != wtx.vout.size())
                 {
-                    printf("ERROR: ReacceptWalletTransactions() : txindex.vSpent.size() %" PRIszu " != wtx.vout.size() %" PRIszu "\n", txindex.vSpent.size(), wtx.vout.size());
+                    printf("ERROR: ReacceptWalletTransactions() : "
+                           "txindex.vSpent.size() %" PRIszu
+                           " != wtx.vout.size() %" PRIszu "\n",
+                           txindex.vSpent.size(),
+                           wtx.vout.size());
                     continue;
                 }
                 for (unsigned int i = 0; i < txindex.vSpent.size(); i++)
                 {
                     if (wtx.IsSpent(i))
+                    {
                         continue;
+                    }
                     if (!txindex.vSpent[i].IsNull() && IsMine(wtx.vout[i]))
                     {
                         wtx.MarkSpent(i);
@@ -1058,7 +1073,8 @@ void CWallet::ReacceptWalletTransactions()
                 }
                 if (fUpdated)
                 {
-                    printf("ReacceptWalletTransactions found spent coin %s XST\n  %s\n",
+                    printf("ReacceptWalletTransactions found spent coin %s "
+                           "XST\n  %s\n",
                            FormatMoney(wtx.GetCredit()).c_str(),
                            wtx.GetHash().ToString().c_str());
                     wtx.MarkDirty();
@@ -1069,14 +1085,19 @@ void CWallet::ReacceptWalletTransactions()
             {
                 // Re-accept any txes of ours that aren't already in a block
                 if (!(wtx.IsCoinBase() || wtx.IsCoinStake()))
+                {
                     wtx.AcceptWalletTransaction(txdb);
+                }
             }
         }
         if (!vMissingTx.empty())
         {
             // TODO: optimize this to scan just part of the block chain?
-            if (ScanForWalletTransactions(pindexGenesisBlock))
-                fRepeat = true;  // Found missing transactions: re-do re-accept.
+            if (ScanForWalletTransactions(pmemIndexGenesisBlock))
+            {
+                fRepeat = true;  // Found missing transactions: re-do
+                                 // re-accept.
+            }
         }
     }
 }
@@ -1798,8 +1819,14 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                 if (fFeeless)
                 {
                     static const int DEPTH_WANTED = 4;
-                    CBlockIndex* pindex = mapBlockIndex[hashBestChain];
-                    int nHeight = pindex->nHeight;
+                    CDiskBlockIndex diskIndex(pindexBest);
+                    if (pindexBest->phashBlock == nullptr)
+                    {
+                        printf("CreateTransaction(): phashBlock is null\n");
+                        return false;
+                    }
+                    CBlockMemIndex* pmemIndex = mapBlockIndex[*(pindexBest->phashBlock)];
+                    int nHeight = diskIndex.nHeight;
                     // If possible, go several blocks deep in the edge case
                     // where the lead blocks get reorganized before this
                     // transaction is ossified in the chain.
@@ -1807,24 +1834,31 @@ bool CWallet::CreateTransaction(const vector<pair<CScript, int64_t> >& vecSend,
                     int nDeepest = nHeight - chainParams.FEELESS_MAX_DEPTH;
                     unsigned int nBlocks = 0;
                     unsigned int nSizeTotal = 0;
-                    CBlockIndex* pindexFeework = pindexGenesisBlock;
-                    while (pindex->nHeight >= nDeepest)
+                    CBlockMemIndex* pmemIndexFeework = pmemIndexGenesisBlock;
+                    CDiskBlockIndex diskIndexFeework(pindexGenesisBlock);
+                    int nFeeworkHeight = 0;
+                    while (diskIndex.nHeight >= nDeepest)
                     {
-                        if (nHeightWanted <= pindex->nHeight)
+                        if (nHeightWanted <= diskIndex.nHeight)
                         {
-                            pindexFeework = pindex;
+                            pmemIndexFeework = pmemIndex;
+                            nFeeworkHeight = diskIndex.nHeight;
                         }
                         nBlocks += 1;
-                        nSizeTotal += pindex->nBlockSize;
-                        if (!pindex->pprev)
+                        nSizeTotal += diskIndex.nBlockSize;
+                        if (!pmemIndex->pprev)
                         {
                             break;
                         }
-                        pindex = pindex->pprev;
+                        pmemIndex = pmemIndex->pprev;
+                        ReadDiskBlockIndex("CreateTransaction",
+                                           pmemIndex,
+                                           diskIndex,
+                                           &txdb);
                     }
                     int nBlockSize = nSizeTotal / nBlocks;
-                    pfeework->height = pindexFeework->nHeight;
-                    pfeework->pblockhash = pindexFeework->phashBlock;
+                    pfeework->height = nFeeworkHeight;
+                    pfeework->pblockhash = pmemIndexFeework->phashBlock;
                     // sign to see how big the tx would be
                     int nIn = 0;
                     BOOST_FOREACH(const PAIRTYPE(const CWalletTx*,unsigned int)& coin, setCoins)
@@ -2735,7 +2769,10 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
             continue; // only count coins meeting min age requirement
 
         bool fKernelFound = false;
-        for (unsigned int n=0; n<min(nSearchInterval,(int64_t)nMaxStakeSearchInterval) && !fKernelFound && !fShutdown && pindexPrev == pindexBest; n++)
+        for (unsigned int n = 0;
+             (n < min(nSearchInterval, (int64_t) nMaxStakeSearchInterval)) &&
+             !fKernelFound && !fShutdown && (pindexPrev == pindexBest);
+             n++)
         {
             // printf(">> In.....\n");
             // Search backward in time from the given txNew timestamp
@@ -2954,9 +2991,7 @@ bool CWallet::CreateCoinStake(const CKeyStore& keystore,unsigned int nBits,
 // Call after CreateTransaction unless you want to abort
 bool CWallet::CommitTransaction(CWalletTx& wtxNew, CReserveKey& reservekey)
 {
-    mapValue_t mapNarr;
-    FindStealthTransactions(wtxNew, mapNarr);
-
+    mapValue_t mapNarr; FindStealthTransactions(wtxNew, mapNarr);
     if (!mapNarr.empty())
     {
         BOOST_FOREACH(const PAIRTYPE(string,string)& item, mapNarr)
@@ -4306,46 +4341,77 @@ void CWallet::UpdatedTransaction(const uint256 &hashTx)
             NotifyTransactionChanged(this, hashTx, CT_UPDATED);
     }
 }
-void CWallet::GetKeyBirthTimes(std::map<CKeyID, int64_t> &mapKeyBirth) const {
+
+void CWallet::GetKeyBirthTimes(std::map<CKeyID, int64_t>& mapKeyBirth) const
+{
     mapKeyBirth.clear();
 
     // get birth times for keys with metadata
-    for (std::map<CKeyID, CKeyMetadata>::const_iterator it = mapKeyMetadata.begin(); it != mapKeyMetadata.end(); it++)
+    for (std::map<CKeyID, CKeyMetadata>::const_iterator it =
+             mapKeyMetadata.begin();
+         it != mapKeyMetadata.end();
+         it++)
+    {
         if (it->second.nCreateTime)
+        {
             mapKeyBirth[it->first] = it->second.nCreateTime;
+        }
+    }
 
     // map in which we'll infer heights of other keys
-    CBlockIndex *pindexMax = FindBlockByHeight(std::max(0, nBestHeight - 144)); // the tip can be reorganised; use a 144-block safety margin
-    std::map<CKeyID, CBlockIndex*> mapKeyFirstBlock;
+    // the tip can be reorganised; use a 144-block safety margin
+    CBlockMemIndex* pmemIndexMax = FindBlockByHeight(
+        std::max(0, nBestHeight - 144));
+
+    std::map<CKeyID, CBlockMemIndex*> mapKeyFirstBlock;
     std::set<CKeyID> setKeys;
     GetKeys(setKeys);
-    BOOST_FOREACH(const CKeyID &keyid, setKeys) {
+    BOOST_FOREACH (const CKeyID& keyid, setKeys)
+    {
         if (mapKeyBirth.count(keyid) == 0)
-            mapKeyFirstBlock[keyid] = pindexMax;
+        {
+            mapKeyFirstBlock[keyid] = pmemIndexMax;
+        }
     }
     setKeys.clear();
 
     // if there are no such keys, we're done
     if (mapKeyFirstBlock.empty())
+    {
         return;
+    }
+
+    CTxDB txdb("r");
 
     // find first block that affects those keys, if there are any left
     std::vector<CKeyID> vAffected;
-    for (std::map<uint256, CWalletTx>::const_iterator it = mapWallet.begin(); it != mapWallet.end(); it++) {
+    for (std::map<uint256, CWalletTx>::const_iterator it = mapWallet.begin();
+         it != mapWallet.end();
+         it++)
+    {
         // iterate over all wallet transactions...
-        const CWalletTx &wtx = (*it).second;
-        std::map<uint256, CBlockIndex*>::const_iterator blit = mapBlockIndex.find(wtx.hashBlock);
-        if (blit != mapBlockIndex.end() && blit->second->IsInMainChain()) {
+        const CWalletTx& wtx = (*it).second;
+        CMapBlockIndex::const_iterator blit = mapBlockIndex.find(
+            wtx.hashBlock);
+        if (blit != mapBlockIndex.end() && blit->second->IsInMainChain())
+        {
+            CBlockMemIndex* pmemIndex = blit->second;
             // ... which are already in a block
-            int nHeight = blit->second->nHeight;
-            BOOST_FOREACH(const CTxOut &txout, wtx.vout) {
+            int nHeight = GetMemIndexHeight("GetKeyBirthTimes", pmemIndex, &txdb);
+            BOOST_FOREACH (const CTxOut& txout, wtx.vout)
+            {
                 // iterate over all their outputs
                 ::ExtractAffectedKeys(*this, txout.scriptPubKey, vAffected);
-                BOOST_FOREACH(const CKeyID &keyid, vAffected) {
+                BOOST_FOREACH (const CKeyID& keyid, vAffected)
+                {
                     // ... and all their affected keys
-                    std::map<CKeyID, CBlockIndex*>::iterator rit = mapKeyFirstBlock.find(keyid);
-                    if (rit != mapKeyFirstBlock.end() && nHeight < rit->second->nHeight)
-                        rit->second = blit->second;
+                    std::map<CKeyID, CBlockMemIndex*>::iterator
+                        rit = mapKeyFirstBlock.find(keyid);
+                    if (rit != mapKeyFirstBlock.end() &&
+                        nHeight < GetMemIndexHeight("GetKeyBirthTimes", rit->second, &txdb))
+                    {
+                        rit->second = pmemIndex;
+                    }
                 }
                 vAffected.clear();
             }
@@ -4353,6 +4419,15 @@ void CWallet::GetKeyBirthTimes(std::map<CKeyID, int64_t> &mapKeyBirth) const {
     }
 
     // Extract block timestamps for those keys
-    for (std::map<CKeyID, CBlockIndex*>::const_iterator it = mapKeyFirstBlock.begin(); it != mapKeyFirstBlock.end(); it++)
-        mapKeyBirth[it->first] = it->second->nTime - 7200; // block times can be 2h off
+    for (std::map<CKeyID, CBlockMemIndex*>::const_iterator it =
+             mapKeyFirstBlock.begin();
+         it != mapKeyFirstBlock.end();
+         it++)
+    {
+        CBlockMemIndex* pmemIndex = it->second;
+        // block times can be 2h off
+        mapKeyBirth[it->first] = GetMemIndexTime("GetKeyBirthTimes",
+                                                 pmemIndex,
+                                                 &txdb) - 7200;
+    }
 }

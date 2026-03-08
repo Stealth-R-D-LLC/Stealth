@@ -1122,11 +1122,11 @@ bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block)
 {
     const uint256 h = block->GetHash();
 
-    CBlockIndex* pindex;
-    map<uint256, CBlockIndex*>::const_iterator mi = mapBlockIndex.find(h);
+    CBlockMemIndex* pmemIndex;
+    CMapBlockIndex::const_iterator mi = mapBlockIndex.find(h);
     if (mi != mapBlockIndex.end() && (*mi).second)
     {
-        pindex = (*mi).second;
+        pmemIndex = (*mi).second;
     }
     else
     {
@@ -1142,11 +1142,14 @@ bool ExploreConnectBlock(CTxDB& txdb, const CBlock *const block)
         txdb.WriteExploreSentinel();
     }
 
+    CDiskBlockIndex diskIndex;
+    ReadDiskBlockIndex("ExploreConnectBlock", pmemIndex, diskIndex, &txdb);
+
     int nVtx = 0;
     BOOST_FOREACH(const CTransaction& tx, block->vtx)
     {
         if (!ExploreConnectTx(txdb, tx, h,
-                              pindex->nTime, pindex->nHeight, nVtx))
+                              diskIndex.nTime, diskIndex.nHeight, nVtx))
         {
             return false;
         }

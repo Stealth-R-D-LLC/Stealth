@@ -150,6 +150,9 @@ cache
 # asciidoctor
 *.html
 
+# diffs
+*.diff
+
 
 ################################
 # IDEs

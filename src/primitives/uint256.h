@@ -21,7 +21,7 @@ template<unsigned int BITS>
 class base_uint
 {
 protected:
-    enum { WIDTH=BITS/32 };
+    static constexpr int WIDTH = BITS / 32;
     unsigned int pn[WIDTH];
 public:
 

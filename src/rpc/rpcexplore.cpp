@@ -26,12 +26,31 @@ extern MapBalanceCounts mapAddressBalances;
 
 static const unsigned int SEC_PER_DAY = 86400;
 
+//
+// Check Explore API
+//
+string CheckExploreAPI(bool& fHelp)
+{
+    if (fWithExploreAPI)
+    {
+       return "== Explore API ==\n";
+    }
+    else if (fHelp)
+    {
+       return "== Explore API ==\n";
+    }
+    else
+    {
+       fHelp = true;
+       return "** ERROR: Explore API only **\n";
+    }
+}
+
 
 //
 // Types
 //
 typedef pair<int, int> txkey_t;
-
 
 class AddrInOutList : public ExploreInOutList
 {
@@ -373,21 +392,25 @@ class StatHelper
 {
 public:
     string label;
-    int64_t (*Get)(CBlockIndex*);
+    std::function<int64_t(CBlockIndex*)> Get;
     Value (*Reduce)(const vector<int64_t>&);
 
+    // No CTxDB
     StatHelper(const string& labelIn,
                int64_t (*GetIn)(CBlockIndex*),
                Value (*ReduceIn)(const vector<int64_t>&))
-    {
-        label = labelIn;
-        Get = GetIn;
-        Reduce = ReduceIn;
-    }
-    string GetLabel() const
-    {
-        return label;
-    }
+        : label(labelIn), Get(GetIn), Reduce(ReduceIn) {}
+
+    // Using a CTxDB
+    StatHelper(const string& labelIn,
+               int64_t (*GetIn)(CBlockIndex*, CTxDB*),
+               Value (*ReduceIn)(const vector<int64_t>&),
+               CTxDB* ptxdb)
+        : label(labelIn),
+          Get([GetIn, ptxdb](CBlockIndex* p) { return GetIn(p, ptxdb); }),
+          Reduce(ReduceIn) {}
+
+    string GetLabel() const { return label; }
 };
 
 
@@ -508,11 +531,13 @@ void GetHDTxs(const uchar_vector_secure& vchExtKey, vector<HDTxInfo>& vHDTxRet)
 
 Value getaddressbalance(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  != 1))
     {
         throw runtime_error(
-                "getaddressbalance <address>\n"
-                "Returns the balance of <address>.");
+            strExploreHelp +
+            "getaddressbalance <address>\n"
+            "Returns the balance of <address>.");
     }
 
     string strAddress = params[0].get_str();
@@ -535,11 +560,13 @@ Value getaddressbalance(const Array &params, bool fHelp)
 
 Value getaddressinfo(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() != 1))
     {
         throw runtime_error(
-                "getaddressinfo <address>\n"
-                "Returns info about <address>.");
+            strExploreHelp +
+            "getaddressinfo <address>\n"
+            "Returns info about <address>.");
     }
 
     string strAddress = params[0].get_str();
@@ -552,15 +579,17 @@ Value getaddressinfo(const Array &params, bool fHelp)
 
 Value getaddressinputs(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  < 1) || (params.size() > 3))
     {
         throw runtime_error(
-                "getaddressinputs <address> [start] [max]\n"
-                "Returns [max] inputs of <address> beginning with [start]\n"
-                "  For example, if [start]=101 and [max]=100 means to\n"
-                "  return the second 100 inputs (if possible).\n"
-                "    [start] is the nth input (default: 1)\n"
-                "    [max] is the max inputs to return (default: 100)");
+            strExploreHelp +
+            "getaddressinputs <address> [start] [max]\n"
+            "Returns [max] inputs of <address> beginning with [start]\n"
+            "  For example, if [start]=101 and [max]=100 means to\n"
+            "  return the second 100 inputs (if possible).\n"
+            "    [start] is the nth input (default: 1)\n"
+            "    [max] is the max inputs to return (default: 100)");
     }
 
     string strAddress = params[0].get_str();
@@ -629,15 +658,17 @@ Value getaddressinputs(const Array &params, bool fHelp)
 
 Value getaddressoutputs(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  < 1) || (params.size() > 3))
     {
         throw runtime_error(
-                "getaddressoutputs <address> [start] [max]\n"
-                "Returns [max] outputs of <address> beginning with [start]\n"
-                "  For example, if [start]=101 and [max]=100 means to\n"
-                "  return the second 100 outputs (if possible).\n"
-                "    [start] is the nth output (default: 1)\n"
-                "    [max] is the max outputs to return (default: 100)");
+            strExploreHelp +
+            "getaddressoutputs <address> [start] [max]\n"
+            "Returns [max] outputs of <address> beginning with [start]\n"
+            "  For example, if [start]=101 and [max]=100 means to\n"
+            "  return the second 100 outputs (if possible).\n"
+            "    [start] is the nth output (default: 1)\n"
+            "    [max] is the max outputs to return (default: 100)");
     }
 
     string strAddress = params[0].get_str();
@@ -706,17 +737,19 @@ Value getaddressoutputs(const Array &params, bool fHelp)
 
 Value getaddresstxspg(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 3) || (params.size() > 4))
     {
         throw runtime_error(
-                "getaddresstxspg <address> <page> <perpage> [ordering]\n"
-                "Returns up to <perpage> transactions of <address>\n"
-                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
-                "  For example, <page>=2 and <perpage>=20 means to\n"
-                "  return transactions 21 - 40 (if possible).\n"
-                "    <page> is the page number\n"
-                "    <perpage> is the number of transactions per page\n"
-                "    [ordering] by blockchain position (default=true -> forward)");
+            strExploreHelp +
+            "getaddresstxspg <address> <page> <perpage> [ordering]\n"
+            "Returns up to <perpage> transactions of <address>\n"
+            "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+            "  For example, <page>=2 and <perpage>=20 means to\n"
+            "  return transactions 21 - 40 (if possible).\n"
+            "    <page> is the page number\n"
+            "    <perpage> is the number of transactions per page\n"
+            "    [ordering] by blockchain position (default=true -> forward)");
     }
 
     // leading params = 1 (1st param is <address>, 2nd is <page>)
@@ -769,15 +802,17 @@ Value getaddresstxspg(const Array &params, bool fHelp)
 
 Value getaddressinouts(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 1) || (params.size() > 3))
     {
         throw runtime_error(
-                "getaddressinouts <address> [start] [max]\n"
-                "Returns [max] inputs + outputs of <address> beginning with [start]\n"
-                "  For example, if [start]=101 and [max]=100 means to\n"
-                "  return the second 100 in-outs (if possible).\n"
-                "    [start] is the nth in-out (default: 1)\n"
-                "    [max] is the max in-outs to return (default: 100)");
+            strExploreHelp +
+            "getaddressinouts <address> [start] [max]\n"
+            "Returns [max] inputs + outputs of <address> beginning with [start]\n"
+            "  For example, if [start]=101 and [max]=100 means to\n"
+            "  return the second 100 in-outs (if possible).\n"
+            "    [start] is the nth in-out (default: 1)\n"
+            "    [max] is the max in-outs to return (default: 100)");
     }
 
     string strAddress = params[0].get_str();
@@ -841,17 +876,19 @@ Value getaddressinouts(const Array &params, bool fHelp)
 
 Value getaddressinoutspg(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 3) || (params.size() > 4))
     {
         throw runtime_error(
-                "getaddressinoutspg <address> <page> <perpage> [ordering]\n"
-                "Returns up to <perpage> inputs + outputs of <address>\n"
-                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
-                "  For example, <page>=2 and <perpage>=20 means to\n"
-                "  return in-outs 21 - 40 (if possible).\n"
-                "    <page> is the page number\n"
-                "    <perpage> is the number of input/outputs per page\n"
-                "    [ordering] by blockchain position (default=true -> forward)");
+            strExploreHelp +
+            "getaddressinoutspg <address> <page> <perpage> [ordering]\n"
+            "Returns up to <perpage> inputs + outputs of <address>\n"
+            "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+            "  For example, <page>=2 and <perpage>=20 means to\n"
+            "  return in-outs 21 - 40 (if possible).\n"
+            "    <page> is the page number\n"
+            "    <perpage> is the number of input/outputs per page\n"
+            "    [ordering] by blockchain position (default=true -> forward)");
     }
 
     // leading params = 1 (1st param is <address>, 2nd is <page>)
@@ -912,14 +949,16 @@ Value getaddressinoutspg(const Array &params, bool fHelp)
 
 Value getchildkey(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 2) || (params.size() > 3))
     {
         throw runtime_error(
-                strprintf(
-                  "getchildkey <extended key> <child> [network byte]\n"
-                  "Returns key and address information about the child.\n"
-                  "The [network byte] defaults to %d",
-                  (int)CBitcoinAddress::PUBKEY_ADDRESS));
+            strExploreHelp +
+            strprintf(
+              "getchildkey <extended key> <child> [network byte]\n"
+              "Returns key and address information about the child.\n"
+              "The [network byte] defaults to %d",
+              (int)CBitcoinAddress::PUBKEY_ADDRESS));
     }
 
     string strExtKey = params[0].get_str();
@@ -975,17 +1014,19 @@ Value getchildkey(const Array &params, bool fHelp)
 
 Value gethdaccountpg(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 3) || (params.size() > 4))
     {
         throw runtime_error(
-                "gethdaccountpg <extended key> <page> <perpage> [ordering]\n"
-                "Returns up to <perpage> transactions of <extended key>\n"
-                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
-                "  For example, <page>=2 and <perpage>=20 means to\n"
-                "  return transactions 21 - 40 (if possible).\n"
-                "    <page> is the page number\n"
-                "    <perpage> is the number of transactions per page\n"
-                "    [ordering] by blockchain position (default=true -> forward)");
+            strExploreHelp +
+            "gethdaccountpg <extended key> <page> <perpage> [ordering]\n"
+            "Returns up to <perpage> transactions of <extended key>\n"
+            "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+            "  For example, <page>=2 and <perpage>=20 means to\n"
+            "  return transactions 21 - 40 (if possible).\n"
+            "    <page> is the page number\n"
+            "    <perpage> is the number of transactions per page\n"
+            "    [ordering] by blockchain position (default=true -> forward)");
     }
 
     // leading params = 1 (1st param is <address>, 2nd is <page>)
@@ -1200,11 +1241,13 @@ Value gethdaccountpg(const Array &params, bool fHelp)
 
 Value gethdaccount(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  != 1))
     {
         throw runtime_error(
-                "gethdaccount <extended key>\n"
-                "Returns all transactions for the <extended key>.");
+            strExploreHelp +
+            "gethdaccount <extended key>\n"
+            "Returns all transactions for the <extended key>.");
     }
 
     string strExtKey = params[0].get_str();
@@ -1243,12 +1286,14 @@ void DescribeChild(uint64_t i,
 
 Value gethdaddresses(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  != 1))
     {
         throw runtime_error(
-                "gethdaddresses <extended key>\n"
-                "Returns all known addresses for the <extended key> "
-                "separated by external and change");
+            strExploreHelp +
+            "gethdaddresses <extended key>\n"
+            "Returns all known addresses for the <extended key> "
+            "separated by external and change");
     }
 
     string strExtKey = params[0].get_str();
@@ -1346,14 +1391,16 @@ boost::int64_t GetRichListSize(int64_t nMinBalance)
 
 Value getrichlistsize(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  > 1))
     {
         throw runtime_error(
-                strprintf(
-                    "getrichlistsize [minbalance]\n"
-                    "Returns the number of addresses with balances\n"
-                    "  greater than [minbalance] (default: %s).",
-                    FormatMoney(nMaxDust).c_str()));
+            strExploreHelp +
+            strprintf(
+                "getrichlistsize [minbalance]\n"
+                "Returns the number of addresses with balances\n"
+                "  greater than [minbalance] (default: %s).",
+                FormatMoney(nMaxDust).c_str()));
     }
 
     int64_t nMinBalance = nMaxDust;
@@ -1414,9 +1461,11 @@ void GetRichList(int nStart, int nMax, Object& objRet)
 
 Value getrichlist(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size()  > 2))
     {
         throw runtime_error(
+            strExploreHelp +
             "getrichlist [start] [max]\n"
             "Returns [max] addresses from rich list beginning with [start]\n"
             "  For example, if [start]=101 and [max]=100 means to\n"
@@ -1460,17 +1509,19 @@ Value getrichlist(const Array &params, bool fHelp)
 
 Value getrichlistpg(const Array &params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || (params.size() < 2) || (params.size() > 3))
     {
         throw runtime_error(
-                "getrichlistpg <page> <perpage> [ordering]\n"
-                "Returns up to <perpage> addresses of the rich list\n"
-                "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
-                "  For example, <page>=2 and <perpage>=20 means to\n"
-                "  return addresses ranking 21 - 40 (if possible).\n"
-                "    <page> is the page number\n"
-                "    <perpage> is the number of address per page\n"
-                "    [ordering] by balance (default=true -> descending)");
+            strExploreHelp +
+            "getrichlistpg <page> <perpage> [ordering]\n"
+            "Returns up to <perpage> addresses of the rich list\n"
+            "  beginning with 1 + (<perpage> * (<page> - 1>))\n"
+            "  For example, <page>=2 and <perpage>=20 means to\n"
+            "  return addresses ranking 21 - 40 (if possible).\n"
+            "    <page> is the page number\n"
+            "    <perpage> is the number of address per page\n"
+            "    [ordering] by balance (default=true -> descending)");
     }
 
     // leading params = 0 (first param is <page>)
@@ -1628,9 +1679,15 @@ Value GetWindowedValue(const Array& params,
         throw runtime_error("No blocks.\n");
     }
 
-    unsigned int nTime = pindexBest->nTime;
+    CBlockMemIndex *pmemIndex = pmemIndexBest;
+    CDiskBlockIndex diskIndex(pindexBest);
 
-    if (nTime < pindexGenesisBlock->pnext->nTime)
+    CTxDB txdb("r");
+
+    unsigned int nTime = diskIndex.nTime;
+    if (nTime < GetMemIndexTime("GetWindowedValue",
+                                pmemIndexGenesisBlock->pnext,
+                                &txdb))
     {
         throw runtime_error("TSNH: Invalid block time.\n");
     }
@@ -1640,14 +1697,14 @@ Value GetWindowedValue(const Array& params,
 
     vector<unsigned int> vBlockTimes;
     vector<int64_t> vNumbers;
-    CBlockIndex *pindex = pindexBest;
-    while (pindex->pprev)
+    while (pmemIndex->pprev)
     {
         vBlockTimes.push_back(nTime);
-        int64_t number = helper.Get(pindex);
+        int64_t number = helper.Get(&diskIndex);
         vNumbers.push_back(number);
-        pindex = pindex->pprev;
-        nTime = pindex->nTime;
+        pmemIndex = pmemIndex->pprev;
+        ReadDiskBlockIndex("GetWindowedValue", pmemIndex, diskIndex, &txdb);
+        nTime = diskIndex.nTime;
         if (nTime < nPeriodStart)
         {
             break;
@@ -1725,16 +1782,18 @@ static const string strWindowHelp =
             "  - number_blocks: number of blocks in each window\n";
 
 
-int64_t GetTxVolume(CBlockIndex *pindex)
+int64_t GetTxVolume(CBlockIndex* pindex)
 {
     return pindex->nTxVolume;
 }
 
 Value gettxvolume(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
     {
         throw runtime_error(
+            strExploreHelp +
             "gettxvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - tx_volume: number of transactions in each window");
@@ -1748,16 +1807,18 @@ Value gettxvolume(const Array& params, bool fHelp)
 }
 
 
-int64_t GetXSTVolume(CBlockIndex *pindex)
+int64_t GetXSTVolume(CBlockIndex* pindex)
 {
     return pindex->nXSTVolume;
 }
 
 Value getxstvolume(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
     {
         throw runtime_error(
+            strExploreHelp +
             "getxstvolume <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - xst_volume: amount of xst transferred in each window");
@@ -1768,12 +1829,19 @@ Value getxstvolume(const Array& params, bool fHelp)
     return GetWindowedValue(params, helper);
 }
 
-int64_t GetBlockInterval(CBlockIndex *pindex)
+int64_t GetBlockInterval(CBlockIndex* pindex, CTxDB* ptxdb)
 {
+    if (ptxdb == nullptr)
+    {
+        throw runtime_error("GetBlockInterval(): TSNH ptxdb is null");
+    }
     int64_t interval;
     if (pindex->pnext)
     {
-        interval = (int64_t)(pindex->pnext->nTime - pindex->nTime);
+        interval = (int64_t) (GetMemIndexTime("GetBlockInterval",
+                                              pindex->pnext,
+                                              ptxdb) -
+                              pindex->nTime);
     }
     else
     {
@@ -1785,61 +1853,88 @@ int64_t GetBlockInterval(CBlockIndex *pindex)
 
 Value getblockinterval(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
     {
         throw runtime_error(
+            strExploreHelp +
             "getblockinterval <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - block_interval: total block interval for the window in seconds");
     }
 
-    StatHelper helper("block_interval", &GetBlockInterval, &SumAsIntValue);
+    CTxDB txdb("r");
+
+    StatHelper helper("block_interval",
+                      &GetBlockInterval,
+                      &SumAsIntValue,
+                      &txdb);
 
     return GetWindowedValue(params, helper);
 }
 
 Value getblockintervalmean(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
     {
         throw runtime_error(
+            strExploreHelp +
             "getblockintervalmean <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
-            "  - block_interval_mean: rmsd of the block intervals for the window in seconds");
+            "  - block_interval_mean: rmsd of the block intervals for the "
+            "window in seconds");
     }
 
-    StatHelper helper("block_interval_mean", &GetBlockInterval, &MeanAsRealValue);
+    CTxDB txdb("r");
+
+    StatHelper helper("block_interval_mean",
+                      &GetBlockInterval,
+                      &MeanAsRealValue,
+                      &txdb);
 
     return GetWindowedValue(params, helper);
 }
 
 Value getblockintervalrmsd(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
     {
         throw runtime_error(
+            strExploreHelp +
             "getblockintervalrmsd <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
-            "  - block_interval_rmsd: rmsd of the block intervals for the window in seconds");
+            "  - block_interval_rmsd: rmsd of the block intervals for the "
+            "window in seconds");
     }
 
-    StatHelper helper("block_interval_rmsd", &GetBlockInterval, &RMSDAsRealValue);
+    CTxDB txdb("r");
+
+    StatHelper helper("block_interval_rmsd",
+                      &GetBlockInterval,
+                      &RMSDAsRealValue,
+                      &txdb);
 
     return GetWindowedValue(params, helper);
 }
 
-int64_t GetBlockPicoPower(CBlockIndex *pindex)
+int64_t GetBlockPicoPower(CBlockIndex* pindex)
 {
     return static_cast<int64_t>(pindex->nPicoPower);
 }
 
 Value getpicopowermean(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() < 1 || params.size() > 3)
+    {
         throw runtime_error(
+            strExploreHelp +
             "getpicopowermean <period> <windowsize> <windowspacing>\n" +
             strWindowHelp +
             "  - pico_power_mean: mean expressed in units of 1e-12 power");
+    }
 
     StatHelper helper("pico_power_mean", &GetBlockPicoPower, &MeanAsIntValue);
 
@@ -1848,9 +1943,11 @@ Value getpicopowermean(const Array& params, bool fHelp)
 
 Value gethourlymissed(const Array& params, bool fHelp)
 {
+    string strExploreHelp = CheckExploreAPI(fHelp);
     if (fHelp || params.size() != 1)
     {
         throw runtime_error(
+            strExploreHelp +
             "gethourlymissed <hours>\n"
             "  - hours: number of hours to look back");
     }
@@ -1876,27 +1973,31 @@ Value gethourlymissed(const Array& params, bool fHelp)
         throw runtime_error("Number of windows must be greater than 0.");
     }
 
-    CBlockIndex* pindex = pindexBest;
+    CBlockMemIndex* pmemIndex = pmemIndexBest;
+    CDiskBlockIndex diskIndex(pindexBest);
 
     // constrain window boundaries to multiples of QP_TARGET_SPACING
-    int64_t nTimeNow = QP_TARGET_SPACING * (pindex->nTime / QP_TARGET_SPACING);
+    int64_t nTimeNow = QP_TARGET_SPACING * (diskIndex.nTime / QP_TARGET_SPACING);
     int64_t nTimeBeginning = nTimeNow - (nWindows * nSecondsPerWindow);
     int64_t nTimeLater = nTimeNow;
     int64_t nTimeEarlier = nTimeLater - nSecondsPerWindow;
-    int nHeightLater = pindex->nHeight;
+    int nHeightLater = diskIndex.nHeight;
     int nOvershoot = 0;
     bool fComplete = false;
+
+    CTxDB txdb("r");
 
     vector<int> vMissed;
     while (nHeightLater > nStartQPoS)
     {
-        if (!pindex->pprev)
+        if (!pmemIndex->pprev)
         {
             // this should never happen: no earlier block
             throw runtime_error("TSNH: No earlier block.");
         }
-        pindex = pindex->pprev;
-        if (pindex->nTime <= nTimeEarlier)
+        pmemIndex = pmemIndex->pprev;
+        ReadDiskBlockIndex("gethourlymissed", pmemIndex, diskIndex, &txdb);
+        if (diskIndex.nTime <= nTimeEarlier)
         {
             //
             //      + + + o o + + +
@@ -1929,11 +2030,11 @@ Value gethourlymissed(const Array& params, bool fHelp)
             // So, for window 3-4, the total missed is 1:
             //           0 + 1 = 1 (misses + undershoot = 1).
 
-            int nBlocks = nHeightLater - pindex->nHeight;
+            int nBlocks = nHeightLater - diskIndex.nHeight;
 
             // See above: nOvershoot is carried and applied as undershoot
             int nMissed = nOvershoot + nBlocksPerWindow - nBlocks;
-            int nTimeOvershoot = (nTimeEarlier - pindex->nTime);
+            int nTimeOvershoot = (nTimeEarlier - diskIndex.nTime);
             // Take modulo nBlocksPerWindow because nTimeOvershoot could span
             // more than 1 window. In these cases, there will be full
             // windows that have no blocks.
@@ -1960,12 +2061,12 @@ Value gethourlymissed(const Array& params, bool fHelp)
             {
                 break;
             }
-            else if (pindex->nTime <= nTimeBeginning)
+            else if (diskIndex.nTime <= nTimeBeginning)
             {
                 fComplete = true;
                 break;
             }
-            nHeightLater = pindex->nHeight;
+            nHeightLater = diskIndex.nHeight;
         }
     }
 

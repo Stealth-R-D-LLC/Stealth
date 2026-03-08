@@ -4,13 +4,10 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "wallet.h"
-#include "walletdb.h"
 #include "bitcoinrpc.h"
-#include "init.h"
-#include "base58.h"
-#include "feeless.hpp"
 #include "stealthaddress.h"
+#include "txdb-leveldb.h"
+#include "init.h"
 
 #include <boost/assign/list_of.hpp>
 
@@ -21,7 +18,9 @@ using namespace boost::assign;
 int64_t nWalletUnlockTime;
 static CCriticalSection cs_nWalletUnlockTime;
 
-extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, json_spirit::Object& entry);
+extern void TxToJSON(const CTransaction& tx,
+                     const uint256 hashBlock,
+                     json_spirit::Object& entry);
 
 std::string HelpRequiringPassphrase()
 {
@@ -33,9 +32,16 @@ std::string HelpRequiringPassphrase()
 void EnsureWalletIsUnlocked()
 {
     if (pwalletMain->IsLocked())
-        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Please enter the wallet passphrase with walletpassphrase first.");
+    {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED,
+                           "Error: Please enter the wallet passphrase with "
+                           "walletpassphrase first.");
+    }
     if (fWalletUnlockMintOnly)
-        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED, "Error: Wallet unlocked for block minting only.");
+    {
+        throw JSONRPCError(RPC_WALLET_UNLOCK_NEEDED,
+                           "Error: Wallet unlocked for block minting only.");
+    }
 }
 
 void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
@@ -47,17 +53,18 @@ void WalletTxToJSON(const CWalletTx& wtx, Object& entry)
     unsigned int nBlockTime = 0;
     if (confirms > 0)
     {
-        nBlockTime = mapBlockIndex[wtx.hashBlock]->nTime;
+        nBlockTime = GetMemIndexTime("WalletTxToJSON",
+                                     mapBlockIndex[wtx.hashBlock]);
         entry.push_back(Pair("blockhash", wtx.hashBlock.GetHex()));
         entry.push_back(Pair("blockindex", wtx.nIndex));
-        entry.push_back(Pair("blocktime", (boost::int64_t)(nBlockTime)));
+        entry.push_back(Pair("blocktime", (int64_t)(nBlockTime)));
     }
     entry.push_back(Pair("txid", wtx.GetHash().GetHex()));
-    entry.push_back(Pair("time", (boost::int64_t)wtx.GetWTxTime()));
+    entry.push_back(Pair("time", (int64_t)wtx.GetWTxTime()));
     entry.push_back(Pair("datetime",
                          DateTimeStrFormat("%x %H:%M:%S",
                                            wtx.GetWTxTime())));
-    entry.push_back(Pair("timereceived", (boost::int64_t)wtx.nTimeReceived));
+    entry.push_back(Pair("timereceived", (int64_t)wtx.nTimeReceived));
     BOOST_FOREACH(const PAIRTYPE(string,string)& item, wtx.mapValue)
         entry.push_back(Pair(item.first, item.second));
 }
@@ -97,12 +104,12 @@ Value getinfo(const Array& params, bool fHelp)
     obj.push_back(Pair("ip",              addrSeenByPeer.ToStringIP()));
     obj.push_back(Pair("difficulty",      (double)GetDifficulty()));
     obj.push_back(Pair("testnet",         fTestNet));
-    obj.push_back(Pair("keypoololdest",   (boost::int64_t)pwalletMain->GetOldestKeyPoolTime()));
+    obj.push_back(Pair("keypoololdest",   (int64_t)pwalletMain->GetOldestKeyPoolTime()));
     obj.push_back(Pair("keypoolsize",     (int)pwalletMain->GetKeyPoolSize()));
     obj.push_back(Pair("paytxfee",        ValueFromAmount(nTransactionFee)));
     if (pwalletMain->IsCrypted())
     {
-        obj.push_back(Pair("unlocked_until", (boost::int64_t)nWalletUnlockTime / 1000));
+        obj.push_back(Pair("unlocked_until", (int64_t)nWalletUnlockTime / 1000));
     }
     obj.push_back(Pair("errors",        GetWarnings("statusbar")));
     return obj;
@@ -1184,7 +1191,7 @@ void AcentryToJSON(const CAccountingEntry& acentry, const string& strAccount, Ar
         Object entry;
         entry.push_back(Pair("account", acentry.strAccount));
         entry.push_back(Pair("category", "move"));
-        entry.push_back(Pair("time", (boost::int64_t)acentry.nTime));
+        entry.push_back(Pair("time", (int64_t)acentry.nTime));
         entry.push_back(Pair("amount", ValueFromAmount(acentry.nCreditDebit)));
         entry.push_back(Pair("otheraccount", acentry.strOtherAccount));
         entry.push_back(Pair("comment", acentry.strComment));
@@ -1315,11 +1322,14 @@ Value listaccounts(const Array& params, bool fHelp)
 Value listsinceblock(const Array& params, bool fHelp)
 {
     if (fHelp)
+    {
         throw runtime_error(
             "listsinceblock [blockhash] [target-confirmations]\n"
-            "Get all transactions in blocks since block [blockhash], or all transactions if omitted");
+            "Get all transactions in blocks since block [blockhash], or all "
+            "transactions if omitted");
+    }
 
-    CBlockIndex *pindex = NULL;
+    CBlockMemIndex* pmemIndex = NULL;
     int target_confirms = 1;
 
     if (params.size() > 0)
@@ -1327,7 +1337,7 @@ Value listsinceblock(const Array& params, bool fHelp)
         uint256 blockId = 0;
 
         blockId.SetHex(params[0].get_str());
-        pindex = CBlockLocator(blockId).GetBlockIndex();
+        pmemIndex = CBlockLocator(blockId).GetBlockIndex();
     }
 
     if (params.size() > 1)
@@ -1335,19 +1345,33 @@ Value listsinceblock(const Array& params, bool fHelp)
         target_confirms = params[1].get_int();
 
         if (target_confirms < 1)
-            throw JSONRPCError(RPC_INVALID_PARAMETER, "Invalid parameter");
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                               "Invalid target-confirmations (<1)");
+        }
+        if (target_confirms > pindexBest->nHeight + 1)
+        {
+            throw JSONRPCError(RPC_INVALID_PARAMETER,
+                               "Invalid target-confirmations (>best)");
+        }
     }
 
-    int depth = pindex ? (1 + nBestHeight - pindex->nHeight) : -1;
+    int depth = pmemIndex ? (1 + nBestHeight -
+                             GetMemIndexHeight("listsinceblock", pmemIndex))
+                          : -1;
 
     Array transactions;
 
-    for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin(); it != pwalletMain->mapWallet.end(); it++)
+    for (map<uint256, CWalletTx>::iterator it = pwalletMain->mapWallet.begin();
+         it != pwalletMain->mapWallet.end();
+         it++)
     {
         CWalletTx tx = (*it).second;
 
         if (depth == -1 || tx.GetDepthInMainChain() < depth)
+        {
             ListTransactions(tx, "*", 0, true, transactions);
+        }
     }
 
     uint256 lastblock;
@@ -1356,16 +1380,32 @@ Value listsinceblock(const Array& params, bool fHelp)
     {
         lastblock = hashBestChain;
     }
+    else if (target_confirms == pindexBest->nHeight + 1)
+    {
+        lastblock = hashGenesisBlock;
+    }
     else
     {
         int target_height = pindexBest->nHeight + 1 - target_confirms;
 
-        CBlockIndex *block;
-        for (block = pindexBest;
-             block && block->nHeight > target_height;
-             block = block->pprev)  { }
+        CMapBlockLookup::const_iterator it = mapBlockLookup.find(
+            target_height);
+        if (it == mapBlockLookup.end())
+        {
+            throw runtime_error(
+                strprintf("Target height %d not found", target_height));
+        }
 
-        lastblock = block ? block->GetBlockHash() : 0;
+        CBlockMemIndex* pmemIndexTarget = it->second;
+
+        if (pmemIndex == nullptr)
+        {
+            throw runtime_error(
+                strprintf("TSNH Unexpected null pointer found for height %d",
+                          target_height));
+        }
+
+        lastblock = pmemIndexTarget->GetBlockHash();
     }
 
     Object ret;
@@ -1423,16 +1463,25 @@ Value gettransaction(const Array& params, bool fHelp)
             else
             {
                 entry.push_back(Pair("blockhash", hashBlock.GetHex()));
-                map<uint256, CBlockIndex*>::iterator mi = mapBlockIndex.find(hashBlock);
+                CMapBlockIndex::iterator mi = mapBlockIndex.find(hashBlock);
                 if (mi != mapBlockIndex.end() && (*mi).second)
                 {
-                    CBlockIndex* pindex = (*mi).second;
-                    if (pindex->IsInMainChain())
+                    CBlockMemIndex* pmemIndex = (*mi).second;
+                    if (pmemIndex->IsInMainChain())
                     {
-                        entry.push_back(Pair("confirmations", 1 + nBestHeight - pindex->nHeight));
-                        entry.push_back(Pair("time", (boost::int64_t)pindex->nTime));
-                        entry.push_back(Pair("datetime",
-                                             DateTimeStrFormat("%x %H:%M:%S", pindex->nTime)));
+                        CDiskBlockIndex diskIndex;
+                        ReadDiskBlockIndex("gettransaction",
+                                           pmemIndex,
+                                           diskIndex);
+                        entry.push_back(
+                            Pair("confirmations",
+                                 1 + nBestHeight - diskIndex.nHeight));
+                        entry.push_back(
+                            Pair("time", (int64_t) diskIndex.nTime));
+                        entry.push_back(
+                            Pair("datetime",
+                                 DateTimeStrFormat("%x %H:%M:%S",
+                                                   diskIndex.nTime)));
                     }
                     else
                     {
@@ -1440,16 +1489,20 @@ Value gettransaction(const Array& params, bool fHelp)
                     }
                     if (tx.HasTimestamp())
                     {
-                        entry.push_back(Pair("txntime", (boost::int64_t)tx.GetTxTime()));
-                        entry.push_back(Pair("txndatetime",
-                                             DateTimeStrFormat("%x %H:%M:%S", tx.GetTxTime())));
+                        entry.push_back(
+                            Pair("txntime", (int64_t) tx.GetTxTime()));
+                        entry.push_back(
+                            Pair("txndatetime",
+                                 DateTimeStrFormat("%x %H:%M:%S",
+                                                   tx.GetTxTime())));
                     }
                 }
             }
         }
         else
         {
-            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "No information available about transaction");
+            throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY,
+                               "No information available about transaction");
         }
     }
 
@@ -1927,14 +1980,17 @@ Value createfeework(const Array& params, bool fHelp)
     // check height first because it is quicker
     int nHeight = params[1].get_int();
 
-    CBlockIndex* pindex = mapBlockIndex[hashBestChain];
+    CBlockMemIndex* pmemIndex = mapBlockIndex[hashBestChain];
+    CTxDB txdb("r");
+    CDiskBlockIndex diskIndex;
+    ReadDiskBlockIndex("createfeework", pmemIndex, diskIndex, &txdb);
 
-    if (nHeight > pindex->nHeight)
+    if (nHeight > diskIndex.nHeight)
     {
         throw runtime_error("unknown block");
     }
 
-    int nDeepest = max(1, pindex->nHeight - chainParams.FEELESS_MAX_DEPTH);
+    int nDeepest = max(1, diskIndex.nHeight - chainParams.FEELESS_MAX_DEPTH);
     if (nHeight < nDeepest)
     {
         throw runtime_error("block is too deep");
@@ -1942,20 +1998,21 @@ Value createfeework(const Array& params, bool fHelp)
 
     unsigned int nBlocks = 0;
     unsigned int nSizeTotal = 0;
-    const uint256* phashBlock = pindex->phashBlock;;
-    while (pindex->nHeight >= nDeepest)
+    const uint256* phashBlock = pmemIndex->phashBlock;;
+    while (diskIndex.nHeight >= nDeepest)
     {
-        if (pindex->nHeight == nHeight)
+        if (diskIndex.nHeight == nHeight)
         {
-            phashBlock = pindex->phashBlock;
+            phashBlock = pmemIndex->phashBlock;
         }
         nBlocks += 1;
-        nSizeTotal += pindex->nBlockSize;
-        if (!pindex->pprev)
+        nSizeTotal += diskIndex.nBlockSize;
+        if (!pmemIndex->pprev)
         {
             break;
         }
-        pindex = pindex->pprev;
+        pmemIndex = pmemIndex->pprev;
+        ReadDiskBlockIndex("createfeework", pmemIndex, diskIndex, &txdb);
     }
 
     // check the block size second
@@ -2002,7 +2059,7 @@ Value createfeework(const Array& params, bool fHelp)
     }
 
     Object result;
-    result.push_back(Pair("rounds", (boost::int64_t)nRounds));
+    result.push_back(Pair("rounds", (int64_t)nRounds));
     feework.AsJSON(result);
     CDataStream ssTx(SER_NETWORK, PROTOCOL_VERSION);
     ssTx << txNew;
@@ -2272,8 +2329,6 @@ Value clearwallettransactions(const Array& params, bool fHelp)
             "delete all transactions from wallet - reload with scanforalltxns\n"
             "Warning: Backup your wallet first!");
 
-
-
     Object result;
 
     uint32_t nTransactions = 0;
@@ -2309,13 +2364,13 @@ Value clearwallettransactions(const Array& params, bool fHelp)
         datValue.set_ulen(vchValueData.size());
         datValue.set_data(&vchValueData[0]);
 
-        unsigned int fFlags = DB_NEXT; // same as using DB_FIRST for new cursor
+        // same as using DB_FIRST for new cursor
+        unsigned int fFlags = DB_NEXT;
         while (true)
         {
             int ret = pcursor->get(&datKey, &datValue, fFlags);
 
-            if (ret == ENOMEM
-                || ret == DB_BUFFER_SMALL)
+            if ((ret == ENOMEM) || (ret == DB_BUFFER_SMALL))
             {
                 if (datKey.get_size() > datKey.get_ulen())
                 {
@@ -2330,31 +2385,34 @@ Value clearwallettransactions(const Array& params, bool fHelp)
                     datValue.set_ulen(vchValueData.size());
                     datValue.set_data(&vchValueData[0]);
                 };
-                // -- try once more, when DB_BUFFER_SMALL cursor is not expected to move
+                // -- try once more, when DB_BUFFER_SMALL cursor is not
+                // expected to move
                 ret = pcursor->get(&datKey, &datValue, fFlags);
             };
 
             if (ret == DB_NOTFOUND)
-                break;
-            else
-            if (datKey.get_data() == NULL || datValue.get_data() == NULL
-                || ret != 0)
             {
-                snprintf(cbuf, sizeof(cbuf), "wallet DB error %d, %s", ret, db_strerror(ret));
+                break;
+            }
+            else if (datKey.get_data() == NULL ||
+                     datValue.get_data() == NULL || ret != 0)
+            {
+                snprintf(cbuf,
+                         sizeof(cbuf),
+                         "wallet DB error %d, %s",
+                         ret,
+                         db_strerror(ret));
                 throw runtime_error(cbuf);
             };
 
             CDataStream ssValue(SER_DISK, CLIENT_VERSION);
             ssValue.SetType(SER_DISK);
             ssValue.clear();
-            ssValue.write((char*)datKey.get_data(), datKey.get_size());
+            ssValue.write((char*) datKey.get_data(), datKey.get_size());
 
             ssValue >> vchType;
 
-
             std::string strType(vchType.begin(), vchType.end());
-
-            //printf("strType %s\n", strType.c_str());
 
             if (strType == "tx")
             {
@@ -2363,21 +2421,22 @@ Value clearwallettransactions(const Array& params, bool fHelp)
 
                 if ((ret = pcursor->del(0)) != 0)
                 {
-                    printf("Delete transaction failed %d, %s\n", ret, db_strerror(ret));
+                    printf("Delete transaction failed %d, %s\n",
+                           ret,
+                           db_strerror(ret));
                     continue;
                 };
 
                 pwalletMain->mapWallet.erase(hash);
-                pwalletMain->NotifyTransactionChanged(pwalletMain, hash, CT_DELETED);
+                pwalletMain->NotifyTransactionChanged(pwalletMain,
+                                                      hash,
+                                                      CT_DELETED);
 
                 nTransactions++;
             };
         };
         pcursor->close();
         walletdb.TxnCommit();
-
-
-        //pwalletMain->mapWallet.clear();
     }
 
     snprintf(cbuf, sizeof(cbuf), "Removed %u transactions.", nTransactions);
@@ -2398,30 +2457,34 @@ Value scanforalltxns(const Array& params, bool fHelp)
     Object result;
     int32_t nFromHeight = 0;
 
-    CBlockIndex *pindex = pindexGenesisBlock;
-
+    CBlockMemIndex* pmemIndex = pmemIndexGenesisBlock;
 
     if (params.size() > 0)
+    {
         nFromHeight = params[0].get_int();
-
+    }
 
     if (nFromHeight > 0)
     {
-        pindex = mapBlockIndex[hashBestChain];
-        while (pindex->nHeight > nFromHeight
-            && pindex->pprev)
-            pindex = pindex->pprev;
+        CMapBlockLookup::const_iterator it = mapBlockLookup.find(nFromHeight);
+        if (it == mapBlockLookup.end())
+        {
+            throw runtime_error("fromHeight not found");
+        }
+        pmemIndex = it->second;
     };
 
-    if (pindex == NULL)
+    if (pmemIndex == nullptr)
+    {
         throw runtime_error("Genesis Block is not set.");
+    }
 
     {
         LOCK2(cs_main, pwalletMain->cs_wallet);
 
         pwalletMain->MarkDirty();
 
-        pwalletMain->ScanForWalletTransactions(pindex, true);
+        pwalletMain->ScanForWalletTransactions(pmemIndex, true);
         pwalletMain->ReacceptWalletTransactions();
     }
 
@@ -2433,66 +2496,76 @@ Value scanforalltxns(const Array& params, bool fHelp)
 Value scanforstealthtxns(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() > 1)
-        throw runtime_error(
-            "scanforstealthtxns [fromHeight]\n"
-            "Scan blockchain for owned stealth transactions.");
+    {
+        throw runtime_error("scanforstealthtxns [fromHeight]\n"
+                            "Scan blockchain for owned stealth transactions.");
+    }
 
     Object result;
     uint32_t nBlocks = 0;
     uint32_t nTransactions = 0;
     int32_t nFromHeight = 0;
 
-    CBlockIndex *pindex = pindexGenesisBlock;
-
+    CBlockMemIndex* pmemIndex = pmemIndexGenesisBlock;
 
     if (params.size() > 0)
+    {
         nFromHeight = params[0].get_int();
-
+    }
 
     if (nFromHeight > 0)
     {
-        pindex = mapBlockIndex[hashBestChain];
-        while (pindex->nHeight > nFromHeight
-            && pindex->pprev)
-            pindex = pindex->pprev;
+        CMapBlockLookup::const_iterator it = mapBlockLookup.find(nFromHeight);
+        if (it == mapBlockLookup.end())
+        {
+            throw runtime_error("fromHeight not found");
+        }
+        pmemIndex = it->second;
     };
 
-    if (pindex == NULL)
+    if (pmemIndex == nullptr)
+    {
         throw runtime_error("Genesis Block is not set.");
+    }
 
     // -- locks in AddToWalletIfInvolvingMe
 
-    bool fUpdate = true; // todo: option?
+    bool fUpdate = true;  // todo: option?
 
     pwalletMain->nStealth = 0;
     pwalletMain->nFoundStealth = 0;
 
-    while (pindex)
+    while (pmemIndex)
     {
         nBlocks++;
         CBlock block;
-        block.ReadFromDisk(pindex, true);
+        block.ReadFromDisk(pmemIndex, true);
 
-        BOOST_FOREACH(CTransaction& tx, block.vtx)
+        BOOST_FOREACH (CTransaction& tx, block.vtx)
         {
             if (!tx.IsStandard())
             {
-                continue; // leave out coinbase and others
+                continue;  // leave out coinbase and others
             }
             nTransactions++;
 
             pwalletMain->AddToWalletIfInvolvingMe(tx, &block, fUpdate);
         };
 
-        pindex = pindex->pnext;
+        pmemIndex = pmemIndex->pnext;
     };
 
     printf("Scanned %u blocks, %u transactions\n", nBlocks, nTransactions);
-    printf("Found %u stealth transactions in blockchain.\n", pwalletMain->nStealth);
-    printf("Found %u new owned stealth transactions.\n", pwalletMain->nFoundStealth);
+    printf("Found %u stealth transactions in blockchain.\n",
+           pwalletMain->nStealth);
+    printf("Found %u new owned stealth transactions.\n",
+           pwalletMain->nFoundStealth);
 
     char cbuf[256];
-    snprintf(cbuf, sizeof(cbuf), "%u new stealth transactions.", pwalletMain->nFoundStealth);
+    snprintf(cbuf,
+             sizeof(cbuf),
+             "%u new stealth transactions.",
+             pwalletMain->nFoundStealth);
 
     result.push_back(Pair("result", "Scan complete."));
     result.push_back(Pair("found", std::string(cbuf)));

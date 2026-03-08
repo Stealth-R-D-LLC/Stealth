@@ -3,42 +3,49 @@
 // Distributed under the MIT/X11 software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
-#include "main.h"
+// #include "main.h"
+#include "txdb-leveldb.h"
 #include "bitcoinrpc.h"
+
 
 using namespace json_spirit;
 using namespace std;
+
 
 extern QPRegistry *pregistryMain;
 
 extern void TxToJSON(const CTransaction& tx, const uint256 hashBlock, json_spirit::Object& entry);
 
-
-double GetDifficulty(const CBlockIndex* blockindex)
+double GetDifficulty(const CBlockIndex* pindex)
 {
+    CDiskBlockIndex diskIndexLast;
     // Floating point number that is a multiple of the minimum difficulty,
     // minimum difficulty = 1.0.
-    if (blockindex == NULL)
+    if (pindex == NULL)
     {
-        if (pindexBest == NULL)
+        if (pmemIndexBest == NULL)
         {
             return 1.0;
         }
         else
         {
-            blockindex = GetLastBlockIndex(pindexBest, false);
+            GetLastBlockIndex(pmemIndexBest, diskIndexLast, false);
         }
     }
+    else
+    {
+        diskIndexLast.Update(pindex);
+    }
 
-    if (GetFork(blockindex->nHeight) >= XST_FORKQPOS)
+    if (GetFork(diskIndexLast.nHeight) >= XST_FORKQPOS)
     {
         return 0.0;
     }
 
-    int nShift = (blockindex->nBits >> 24) & 0xff;
+    int nShift = (diskIndexLast.nBits >> 24) & 0xff;
 
     double dDiff =
-        (double)0x0000ffff / (double)(blockindex->nBits & 0x00ffffff);
+        (double)0x0000ffff / (double)(diskIndexLast.nBits & 0x00ffffff);
 
     while (nShift < 29)
     {
@@ -56,24 +63,39 @@ double GetDifficulty(const CBlockIndex* blockindex)
 
 double GetPoSKernelPS()
 {
+    // 2**32
+    constexpr double DIFF_MULTIPLIER = 4294967296.0;
+
     int nPoSInterval = 72;
     double dStakeKernelsTriedAvg = 0;
-    int nStakesHandled = 0, nStakesTime = 0;
+    int nStakesHandled = 0;
+    int nStakesTime = 0;
 
-    CBlockIndex* pindex = pindexBest;;
-    CBlockIndex* pindexPrevStake = NULL;
+    CTxDB txdb("r");
 
-    while (pindex && nStakesHandled < nPoSInterval)
+    CBlockMemIndex* pmemIndex = pmemIndexBest;
+
+    CDiskBlockIndex diskIndex;
+    CBlockMemIndex* pmemIndexPrevStake = nullptr;
+
+    while (pmemIndex && (nStakesHandled < nPoSInterval))
     {
-        if (pindex->IsProofOfStake())
+        ReadDiskBlockIndex("GetPoSKernelPS", pmemIndex, diskIndex, &txdb);
+        if (diskIndex.IsProofOfStake())
         {
-            dStakeKernelsTriedAvg += GetDifficulty(pindex) * 4294967296.0;
-            nStakesTime += pindexPrevStake ? (pindexPrevStake->nTime - pindex->nTime) : 0;
-            pindexPrevStake = pindex;
+            dStakeKernelsTriedAvg += GetDifficulty(&diskIndex) *
+                                     DIFF_MULTIPLIER;
+            if (pmemIndexPrevStake != nullptr)
+            {
+                nStakesTime += GetMemIndexTime("GetPoSKernelPS",
+                                               pmemIndexPrevStake,
+                                               &txdb) -
+                               diskIndex.nTime;
+            }
+            pmemIndexPrevStake = pmemIndex;
             nStakesHandled++;
         }
-
-        pindex = pindex->pprev;
+        pmemIndex = pmemIndex->pprev;
     }
 
     return nStakesTime ? dStakeKernelsTriedAvg / nStakesTime : 0;
@@ -88,16 +110,30 @@ Object blockToJSON(const CBlock& block,
 
     if (block.IsQuantumProofOfStake())
     {
-        int nConfs = blockindex ?
-                        (pindexBest->nHeight + 1 - blockindex->nHeight) : 0;
-        if (blockindex && blockindex->IsInMainChain())
+        int nConfs = 0;
+        bool fInMainChain = false; 
+        if (blockindex)
+        {
+            nConfs = pindexBest->nHeight + 1 - blockindex->nHeight;
+            CBlockMemIndex* pmemIndex = nullptr;
+            uint256 hash = blockindex->GetBlockHash();
+            CMapBlockIndex::const_iterator it = mapBlockIndex.find(hash);
+            if (it != mapBlockIndex.end())
+            {
+                pmemIndex = it->second;
+            }
+            if (pmemIndex && pmemIndex->IsInMainChain())
+            {
+                fInMainChain = true;
+            }
+        }
+        if (fInMainChain)
         {
             result.push_back(Pair("isinmainchain", true));
             result.push_back(Pair("confirmations", nConfs));
         }
         else
         {
-
             result.push_back(Pair("isinmainchain", false));
             result.push_back(Pair("confirmations", 0));
             result.push_back(Pair("depth", nConfs));
@@ -241,18 +277,25 @@ Value getblockcount(const Array& params, bool fHelp)
     return nBestHeight;
 }
 
-
 Value getdifficulty(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
+    {
         throw runtime_error(
             "getdifficulty\n"
             "Returns the difficulty as a multiple of the minimum difficulty.");
+    }
 
     Object obj;
-    obj.push_back(Pair("proof-of-work",        GetDifficulty()));
-    obj.push_back(Pair("proof-of-stake",       GetDifficulty(GetLastBlockIndex(pindexBest, true))));
-    obj.push_back(Pair("search-interval",      (int)nLastCoinStakeSearchInterval));
+    obj.push_back(Pair("proof-of-work", GetDifficulty()));
+    const CBlockMemIndex* pmemIndexLastBlock = GetLastBlockIndex(pmemIndexBest,
+                                                                 true);
+    CDiskBlockIndex diskIndexLastBlock;
+    ReadDiskBlockIndex("getdifficulty",
+                       pmemIndexLastBlock,
+                       diskIndexLastBlock);
+    obj.push_back(Pair("proof-of-stake", GetDifficulty(&diskIndexLastBlock)));
+    obj.push_back(Pair("search-interval", (int) nLastCoinStakeSearchInterval));
     return obj;
 }
 
@@ -294,16 +337,20 @@ Value getrawmempool(const Array& params, bool fHelp)
 Value getblockhash(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 1)
+    {
         throw runtime_error(
             "getblockhash <index>\n"
             "Returns hash of block in best-block-chain at <index>.");
+    }
 
     int nHeight = params[0].get_int();
     if (nHeight < 0 || nHeight > nBestHeight)
+    {
         throw runtime_error("Block number out of range.");
+    }
 
-    CBlockIndex* pblockindex = FindBlockByHeight(nHeight);
-    return pblockindex->phashBlock->GetHex();
+    CBlockMemIndex* pmemIndex = FindBlockByHeight(nHeight);
+    return pmemIndex->phashBlock->GetHex();
 }
 
 Value getblockhash9(const Array& params, bool fHelp)
@@ -317,32 +364,33 @@ Value getblockhash9(const Array& params, bool fHelp)
     if (nHeight < 0 || nHeight > nBestHeight)
         throw runtime_error("Block number out of range.");
 
-    CBlockIndex* pblockindex = FindBlockByHeight(nHeight);
+    CBlockMemIndex* pmemIndex = FindBlockByHeight(nHeight);
 
     CBlock block;
-    block.ReadFromDisk(pblockindex, true);
+    block.ReadFromDisk(pmemIndex, true);
 
     return block.GetHash9().GetHex();
 }
 
-
 Value getblock(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
+    {
         throw runtime_error(
             "getblock <hash> [txinfo]\n"
             "txinfo optional to print more detailed tx info\n"
             "Returns details of a block with given block-hash.");
+    }
 
     string strHash = params[0].get_str();
     uint256 hash(strHash);
 
     CBlock block;
-    CBlockIndex* pblockindex = NULL;
+    CBlockMemIndex* pmemIndex = NULL;
     if (mapBlockIndex.count(hash))
     {
-        pblockindex = mapBlockIndex[hash];
-        block.ReadFromDisk(pblockindex, true);
+        pmemIndex = mapBlockIndex[hash];
+        block.ReadFromDisk(pmemIndex, true);
     }
     else if (mapOrphanBlocks.count(hash))
     {
@@ -353,7 +401,12 @@ Value getblock(const Array& params, bool fHelp)
         throw JSONRPCError(RPC_INVALID_ADDRESS_OR_KEY, "Block not found");
     }
 
-    return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
+    CDiskBlockIndex diskIndex;
+    ReadDiskBlockIndex("getblock", pmemIndex, diskIndex);
+
+    return blockToJSON(block,
+                       &diskIndex,
+                       params.size() > 1 ? params[1].get_bool() : false);
 }
 
 Value getblockbynumber(const Array& params, bool fHelp)
@@ -372,59 +425,104 @@ Value getblockbynumber(const Array& params, bool fHelp)
         throw runtime_error("Block number out of range.");
     }
 
-    CBlock block;
-    CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
-    while (pblockindex->nHeight > nHeight)
+    CMapBlockLookup::const_iterator it = mapBlockLookup.find(nHeight);
+
+    if (it == mapBlockLookup.end())
     {
-        pblockindex = pblockindex->pprev;
+        throw runtime_error("Block number not in lookup.");
     }
 
-    uint256 hash = *pblockindex->phashBlock;
+    const CBlockMemIndex* pmemIndex = it->second;
+    CDiskBlockIndex diskIndex;
+    ReadDiskBlockIndex("getblockbynumber", pmemIndex, diskIndex);
 
-    pblockindex = mapBlockIndex[hash];
-    block.ReadFromDisk(pblockindex, true);
+    CBlock block;
 
-    return blockToJSON(block, pblockindex, params.size() > 1 ? params[1].get_bool() : false);
+    block.ReadFromDisk(pmemIndex, true);
+
+    return blockToJSON(block,
+                       &diskIndex,
+                       params.size() > 1 ? params[1].get_bool() : false);
 }
 
 Value getbestblock(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
-     {
+    {
         throw runtime_error(
             "getbestblock [txinfo]\n"
             "txinfo optional to print more detailed tx info (default=false)\n"
             "Returns the newest block from the longest block chain.");
     }
-    CBlockIndex* pblockindex = mapBlockIndex[hashBestChain];
     CBlock block;
-    block.ReadFromDisk(pblockindex, true);
-    return blockToJSON(block, pblockindex,
+    block.ReadFromDisk(pmemIndexBest, true);
+    return blockToJSON(block,
+                       pindexBest,
                        params.size() > 1 ? params[1].get_bool() : false);
 }
 
 Value getnewestblockbeforetime(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() < 1 || params.size() > 2)
-        throw runtime_error(
-            "getnewestblockbeforetime <time>\n"
-            "Returns the hash of the newest block that has\n"
-            "   a time stamp earlier than <time>\n"
-            "<time> is a unix epoch (seconds)");
+    {
+        throw runtime_error("getnewestblockbeforetime <time>\n"
+                            "Returns the hash of the newest block that has\n"
+                            "   a time stamp earlier than <time>\n"
+                            "<time> is a unix epoch (seconds)");
+    }
+
+    constexpr int STEP_SIZE = 10000;
 
     unsigned int nTime = params[0].get_int();
 
-    CBlockIndex* pindex = pindexBest;
+    int nHeight = nBestHeight;
+    CBlockMemIndex* pmemIndex = pmemIndexBest;
+    CBlockMemIndex* pmemIndexLast = pmemIndex;
+    CDiskBlockIndex diskIndex(pindexBest);
+    diskIndex.UpdatePointers(pmemIndexBest);
+
+    CTxDB txdb("r");
+
+    while (diskIndex.nTime > nTime)
+    {
+        nHeight = max(0, nHeight - STEP_SIZE);
+        if (nHeight == 0)
+        {
+            pmemIndexLast = pmemIndex;
+            pmemIndex = pmemIndexGenesisBlock;
+            diskIndex = CDiskBlockIndex(pindexGenesisBlock);
+            break;
+        }
+        CMapBlockLookup::const_iterator it = mapBlockLookup.find(nHeight);
+
+        if (it == mapBlockLookup.end())
+        {
+            throw runtime_error(
+                strprintf("TSNH Block number %d not in lookup.", nHeight));
+        }
+        pmemIndexLast = pmemIndex;
+        pmemIndex = it->second;
+        ReadDiskBlockIndex("getnewestblockbeforetime",
+                           pmemIndex,
+                           diskIndex,
+                           &txdb);
+    }
+
+    pmemIndex = pmemIndexLast;
 
     bool fFound = false;
-    while (pindex->pprev)
+    while (pmemIndex->pprev)
     {
-        if (pindex->nTime < nTime)
+        ReadDiskBlockIndex("getnewestblockbeforetime",
+                           pmemIndex,
+                           diskIndex,
+                           &txdb);
+        if (diskIndex.nTime < nTime)
         {
             fFound = true;
             break;
         }
-        pindex = pindex->pprev;
+        pmemIndex = pmemIndex->pprev;
     }
 
     if (!fFound)
@@ -432,7 +530,7 @@ Value getnewestblockbeforetime(const Array& params, bool fHelp)
         throw runtime_error("Time precedes genesis block.");
     }
 
-    return pindex->GetBlockHash().ToString();
+    return pmemIndex->GetBlockHash().ToString();
 }
 
 
@@ -440,19 +538,27 @@ Value getnewestblockbeforetime(const Array& params, bool fHelp)
 Value getcheckpoint(const Array& params, bool fHelp)
 {
     if (fHelp || params.size() != 0)
-        throw runtime_error(
-            "getcheckpoint\n"
-            "Show info of synchronized checkpoint.\n");
+    {
+        throw runtime_error("getcheckpoint\n"
+                            "Show info of synchronized checkpoint.\n");
+    }
 
     Object result;
-    CBlockIndex* pindexCheckpoint;
+    CBlockMemIndex* pmemIndexCheckpoint;
 
-    result.push_back(Pair("synccheckpoint", Checkpoints::hashSyncCheckpoint.ToString().c_str()));
-    pindexCheckpoint = mapBlockIndex[Checkpoints::hashSyncCheckpoint];
-    result.push_back(Pair("height", pindexCheckpoint->nHeight));
-    result.push_back(Pair("timestamp", DateTimeStrFormat(pindexCheckpoint->GetBlockTime()).c_str()));
+    result.push_back(Pair("synccheckpoint",
+                          Checkpoints::hashSyncCheckpoint.ToString().c_str()));
+    pmemIndexCheckpoint = mapBlockIndex[Checkpoints::hashSyncCheckpoint];
+    CDiskBlockIndex diskIndexCheckpoint;
+    ReadDiskBlockIndex("getcheckpoint", pmemIndexCheckpoint, diskIndexCheckpoint);
+    result.push_back(Pair("height", diskIndexCheckpoint.nHeight));
+    result.push_back(
+        Pair("timestamp",
+             DateTimeStrFormat(diskIndexCheckpoint.GetBlockTime()).c_str()));
     if (mapArgs.count("-checkpointkey"))
+    {
         result.push_back(Pair("checkpointmaster", true));
+    }
 
     return result;
 }
