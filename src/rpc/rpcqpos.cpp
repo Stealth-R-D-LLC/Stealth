@@ -1448,6 +1448,12 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
         int64_t nMoneySupply = GetMemIndexMoneySupply("getstakerpriceinfo",
                                                       pmemIndex,
                                                       &txdb);
+        if (nMoneySupply == 0)
+        {
+            throw runtime_error(
+                strprintf("TSNH money supply is 0\n  %s\n",
+                          pmemIndex->phashBlock->ToString().c_str()));
+        }
         arySupply.push_back(ValueFromAmount(nMoneySupply));
         aryFractionalPrices.push_back((double) nPrice / (double) nMoneySupply);
     }
@@ -1457,6 +1463,11 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
     N += 1;
 
     int64_t nSupply = pindex->nMoneySupply;
+    if (nSupply == 0)
+    {
+        throw runtime_error(strprintf("TSNH money supply is 0\n  %s\n",
+                                      pindex->phashBlock->ToString().c_str()));
+    }
     int nFork = GetFork(pindex->nHeight + 1);
     int64_t nPriceNext = GetStakerPrice(N, nSupply, nFork);
     nSupply -= nPriceNext;
@@ -1480,6 +1491,11 @@ Value getstakerpriceinfo(const Array& params, bool fHelp)
     static const uint32_t BPW = 120960;
 
     nSupply = pindex->nMoneySupply;
+    if (nSupply == 0)
+    {
+        throw runtime_error(strprintf("TSNH money supply is 0\n  %s\n",
+                                      pindex->phashBlock->ToString().c_str()));
+    }
     uint32_t nQualified = (uint32_t)pregistryMain->GetNumberQualified();
     uint32_t nHypothetical = nQualified + 1;
     // blocks per month per staker

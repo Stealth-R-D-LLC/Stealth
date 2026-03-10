@@ -4630,6 +4630,11 @@ bool CBlock::SetBestChain(CTxDB& txdb,
         {
             return error("SetBestChain() : SetBestChainInner failed");
         }
+        // update working diskIndexNewBest for connected block
+        ReadDiskBlockIndex("SetBestChain",
+                           pmemIndexNewBest,
+                           diskIndexNewBest,
+                           &txdb);
     }
     else
     {

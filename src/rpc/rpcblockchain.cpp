@@ -167,6 +167,9 @@ Object blockToJSON(const CBlock& block,
                ValueFromAmount(GetQPoSReward(blockindex->pprev))));
         }
     }
+    result.push_back(Pair("moneysupply",
+                          blockindex ?
+                             ValueFromAmount(blockindex->nMoneySupply) : -1));
     result.push_back(Pair("mint",
                           blockindex ?
                              ValueFromAmount(blockindex->nMint) : -1));
