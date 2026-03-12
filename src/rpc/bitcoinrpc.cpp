@@ -230,35 +230,72 @@ string CRPCTable::help(string strCommand) const
 {
     string strRet;
     set<rpcfn_type> setDone;
-    for (map<string, const CRPCCommand*>::const_iterator mi = mapCommands.begin(); mi != mapCommands.end(); ++mi)
+    for (map<string, const CRPCCommand*>::const_iterator mi =
+             mapCommands.begin();
+         mi != mapCommands.end();
+         ++mi)
     {
-        const CRPCCommand *pcmd = mi->second;
+        const CRPCCommand* pcmd = mi->second;
         string strMethod = mi->first;
-        // We already filter duplicates, but these deprecated screw up the sort order
+        // We already filter duplicates, but these deprecated calls
+        // screw up the sort order
         if (strMethod.find("label") != string::npos)
+        {
             continue;
+        }
         if (strCommand != "" && strMethod != strCommand)
+        {
             continue;
+        }
         try
         {
             Array params;
             rpcfn_type pfn = pcmd->actor;
             if (setDone.insert(pfn).second)
+            {
                 (*pfn)(params, true);
+            }
         }
         catch (std::exception& e)
         {
             // Help text is returned in an exception
             string strHelp = string(e.what());
             if (strCommand == "")
-                if (strHelp.find('\n') != string::npos)
-                    strHelp = strHelp.substr(0, strHelp.find('\n'));
+            {
+                string strTag = "";
+                size_t nNewline = strHelp.find('\n');
+                if (nNewline != string::npos)
+                {
+                    string strFirstLine = strHelp.substr(0, nNewline);
+                    if (strFirstLine.size() > 6 &&
+                        strFirstLine.substr(0, 3) == "== " &&
+                        strFirstLine.substr(strFirstLine.size() - 3) == " ==")
+                    {
+                        strTag = "*" +
+                                 strFirstLine.substr(3,
+                                                     strFirstLine.size() - 6) +
+                                 "*";
+                        strHelp = strHelp.substr(nNewline + 1);
+                        nNewline = strHelp.find('\n');
+                    }
+                }
+                if (nNewline != string::npos)
+                {
+                    strHelp = strHelp.substr(0, nNewline);
+                }
+                if (!strTag.empty())
+                {
+                    strHelp = strHelp + "   " + strTag;
+                }
+            }
             strRet += strHelp + "\n";
         }
     }
     if (strRet == "")
+    {
         strRet = strprintf("help: unknown command: %s\n", strCommand.c_str());
-    strRet = strRet.substr(0,strRet.size()-1);
+    }
+    strRet = strRet.substr(0, strRet.size() - 1);
     return strRet;
 }
 
