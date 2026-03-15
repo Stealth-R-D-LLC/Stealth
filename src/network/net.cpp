@@ -97,7 +97,7 @@ void AddOneShot(string strDest)
 
 unsigned short GetListenPort()
 {
-    return (unsigned short)(GetArg("-port", GetDefaultPort()));
+    return (unsigned short)(GetArg("-port", (uint64_t) GetDefaultPort()));
 }
 
 unsigned short GetTorPort()
@@ -825,10 +825,10 @@ bool CNode::Misbehaving(int howmuch)
     }
 
     nMisbehavior += howmuch;
-    if (nMisbehavior >= GetArg("-banscore", chainParams.DEFAULT_BANSCORE))
+    if (nMisbehavior >= GetArg("-banscore", (int64_t) chainParams.DEFAULT_BANSCORE))
     {
         int64_t banTime = GetTime() +
-                          GetArg("-bantime", chainParams.DEFAULT_BANTIME);
+                          GetArg("-bantime", (int64_t) chainParams.DEFAULT_BANTIME);
         printf("Misbehaving: %s (%d -> %d) DISCONNECTING\n",
                addr.ToString().c_str(),
                nMisbehavior - howmuch,
@@ -904,18 +904,19 @@ void ThreadSocketHandler(void* parg)
 
 void ThreadSocketHandler2(void* parg)
 {
-
     // Remodeling entails the forced disconnecting of
     // nodes. It's better to rate limit this process.
     static int REMODELSLEEP = GetArg("-remodelsleep",
-                                     chainParams.DEFAULT_REMODELSLEEP);
+                                     (int64_t)
+                                         chainParams.DEFAULT_REMODELSLEEP);
 
     static int MAXCONNECTIONS = GetArg("-maxconnections",
-                                       chainParams.DEFAULT_MAXCONNECTIONS);
+                                       (int64_t)
+                                           chainParams.DEFAULT_MAXCONNECTIONS);
 
-    static int MINCONNREMODEL = GetArg("-minconnremodel",
-                                       min(MAXCONNECTIONS,
-                                           chainParams.DEFAULT_MINCONNREMODEL));
+    static int MINCONNREMODEL = GetArg(
+        "-minconnremodel",
+        (int64_t) min(MAXCONNECTIONS, chainParams.DEFAULT_MINCONNREMODEL));
 
     printf("ThreadSocketHandler started\n");
     list<CNode*> vNodesDisconnected;
@@ -1173,7 +1174,7 @@ void ThreadSocketHandler2(void* parg)
                 }
                 else if (nInbound >=
                          (GetArg("-maxconnections",
-                                 chainParams.DEFAULT_MAXCONNECTIONS) -
+                                 (int64_t) chainParams.DEFAULT_MAXCONNECTIONS) -
                           chainParams.MAX_OUTBOUND_CONNECTIONS))
                 {
                     {
@@ -2601,10 +2602,10 @@ void StartNode(void* parg)
     if (semOutbound == NULL)
     {
         // initialize semaphore
-        int nMaxOutbound = min(chainParams.MAX_OUTBOUND_CONNECTIONS,
-                               (int)
-                                   GetArg("-maxconnections",
-                                          chainParams.DEFAULT_MAXCONNECTIONS));
+        int nMaxOutbound = min(
+            chainParams.MAX_OUTBOUND_CONNECTIONS,
+            (int) GetArg("-maxconnections",
+                         (int64_t) chainParams.DEFAULT_MAXCONNECTIONS));
         semOutbound = new CSemaphore(nMaxOutbound);
     }
 

@@ -70,17 +70,17 @@ public:
 //
 unsigned int GetMaxHDChildren()
 {
-    return GetArg("-maxhdchildren", chainParams.MAX_HD_CHILDREN);
+    return GetArg("-maxhdchildren", (uint64_t) chainParams.MAX_HD_CHILDREN);
 }
 
 unsigned int GetMaxHDInOuts()
 {
-    return GetArg("-maxhdinouts", chainParams.MAX_HD_INOUTS);
+    return GetArg("-maxhdinouts", (uint64_t) chainParams.MAX_HD_INOUTS);
 }
 
 unsigned int GetMaxHDTxs()
 {
-    return GetArg("-maxhdtxs", chainParams.MAX_HD_TXS);
+    return GetArg("-maxhdtxs", (uint64_t) chainParams.MAX_HD_TXS);
 }
 
 

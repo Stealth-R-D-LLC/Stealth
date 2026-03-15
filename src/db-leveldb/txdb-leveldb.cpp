@@ -335,7 +335,7 @@ uint256 GetMemIndexHashMerkleRoot(const char* caller,
 static leveldb::Options GetOptions()
 {
     leveldb::Options options;
-    int nCacheSizeMB = GetArg("-dbcache", chainParams.DEFAULT_DBCACHE);
+    int nCacheSizeMB = GetArg("-dbcache", (int64_t) chainParams.DEFAULT_DBCACHE);
     options.block_cache = leveldb::NewLRUCache(nCacheSizeMB * 1048576);
     options.filter_policy = leveldb::NewBloomFilterPolicy(10);
     return options;
@@ -1595,9 +1595,9 @@ bool CTxDB::LoadBlockIndex()
 
     // Verify blocks in the best chain
     int nCheckLevel = GetArg("-checklevel",
-                             chainParams.DEFAULT_CHECKLEVEL);
+                             (int64_t) chainParams.DEFAULT_CHECKLEVEL);
     int nCheckDepth = GetArg("-checkblocks",
-                             chainParams.DEFAULT_CHECKBLOCKS);
+                             (int64_t) chainParams.DEFAULT_CHECKBLOCKS);
     if (nCheckDepth == 0)
         nCheckDepth = 1000000000; // suffices until the year 19000
     // no need to check genesis

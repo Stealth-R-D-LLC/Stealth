@@ -508,6 +508,15 @@ std::string GetArg(const std::string& strArg, const std::string& strDefault);
 int64_t GetArg(const std::string& strArg, int64_t nDefault);
 
 /**
+ * Return uint64_t argument or default value
+ *
+ * @param strArg Argument to get (e.g. "-foo")
+ * @param default (e.g. 1)
+ * @return command-line argument (0 if invalid number) or default value
+ */
+uint64_t GetArg(const std::string& strArg, uint64_t nDefault);
+
+/**
  * Return boolean argument or default value
  *
  * @param strArg Argument to get (e.g. "-foo")

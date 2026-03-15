@@ -623,14 +623,34 @@ void ParseParameters(int argc, const char* const argv[])
 std::string GetArg(const std::string& strArg, const std::string& strDefault)
 {
     if (mapArgs.count(strArg))
+    {
         return mapArgs[strArg];
+    }
     return strDefault;
 }
 
 int64_t GetArg(const std::string& strArg, int64_t nDefault)
 {
     if (mapArgs.count(strArg))
+    {
         return atoi64(mapArgs[strArg]);
+    }
+    return nDefault;
+}
+
+uint64_t GetArg(const std::string& strArg, uint64_t nDefault)
+{
+    if (mapArgs.count(strArg))
+    {
+        const std::string& strValue = mapArgs[strArg];
+        errno = 0;
+        char* pEnd;
+        uint64_t nValue = strtoull(strValue.c_str(), &pEnd, 10);
+        if (pEnd != strValue.c_str() && *pEnd == '\0' && errno != ERANGE)
+        {
+            return nValue;
+        }
+    }
     return nDefault;
 }
 

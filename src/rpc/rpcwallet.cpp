@@ -1534,8 +1534,9 @@ Value keypoolrefill(const Array& params, bool fHelp)
             "Fills the keypool."
             + HelpRequiringPassphrase());
     }
-    unsigned int nSize = max(GetArg("-keypool", chainParams.DEFAULT_KEYPOOL),
-                             (int64_t)0);
+    unsigned int nSize = max(GetArg("-keypool",
+                                    (uint64_t) chainParams.DEFAULT_KEYPOOL),
+                             (uint64_t) 0);
     if (params.size() > 0)
     {
         if (params[0].get_int() < 0)

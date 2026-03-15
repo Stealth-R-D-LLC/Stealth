@@ -1084,7 +1084,9 @@ void ThreadRPCServer2(void* parg)
     const bool loopback = !mapArgs.count("-rpcallowip");
     asio::ip::address bindAddress = loopback ? asio::ip::address_v6::loopback() :
                                                asio::ip::address_v6::any();
-    ip::tcp::endpoint endpoint(bindAddress, GetArg("-rpcport", GetDefaultRPCPort()));
+    ip::tcp::endpoint endpoint(bindAddress,
+                               GetArg("-rpcport",
+                                      (uint64_t) GetDefaultRPCPort()));
     boost::system::error_code v6_only_error;
     boost::shared_ptr<ip::tcp::acceptor> acceptor(new ip::tcp::acceptor(io_service));
 

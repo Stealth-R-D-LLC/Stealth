@@ -94,7 +94,7 @@ bool CDBEnv::Open(boost::filesystem::path pathEnv_)
         nEnvFlags |= DB_PRIVATE;
     }
 
-    int nDbCache = GetArg("-dbcache", chainParams.DEFAULT_DBCACHE);
+    int nDbCache = GetArg("-dbcache", (int64_t) chainParams.DEFAULT_DBCACHE);
     dbenv.set_lg_dir(pathLogDir.string().c_str());
     dbenv.set_cachesize(nDbCache / 1024, (nDbCache % 1024) * 1048576, 1);
     dbenv.set_lg_bsize(1048576);
@@ -321,7 +321,9 @@ void CDB::Close()
     int nLogSize = 0;
     if (nMinutes)
     {
-        nLogSize = GetArg("-dblogsize", chainParams.DEFAULT_DBLOGSIZE) * 1024;
+        nLogSize = GetArg("-dblogsize",
+                          (int64_t) chainParams.DEFAULT_DBLOGSIZE) *
+                   1024;
     }
     bitdb.dbenv.txn_checkpoint(nLogSize, nMinutes, 0);
 

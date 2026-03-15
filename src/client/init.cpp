@@ -353,6 +353,8 @@ std::string HelpMessage()
         "  -permitdirtybootstrap  " + _("Allow duplicate stake for bootstrap from block***.dat file") + "\n" +
         "  -maxheight             " + _("For testing, don't allow more blocks than height") + "\n" +
 
+        "  -minpicopower          " + _("Minimum pico power to exit replay (default: 510000000000 = 5.1e11)") + "\n" +
+
         "  -exploreapi=1          " + _("enable the expolore API (default: false") + "\n" +
         "  -reindexexplore=1      " + _("reindex all explore API information on start (default: false") + "\n" +
         "  -maxdust               " + strprintf(_("Maximum coin value considered \"dust\" (default: %" PRId64 ")"),
@@ -522,7 +524,7 @@ bool AppInit2()
 
     if (mapArgs.count("-timeout"))
     {
-        int nNewTimeout = GetArg("-timeout", chainParams.DEFAULT_TIMEOUT);
+        int nNewTimeout = GetArg("-timeout", (int64_t) chainParams.DEFAULT_TIMEOUT);
         if (nNewTimeout > 0 && nNewTimeout < 600000)
             nConnectTimeout = nNewTimeout;
     }
@@ -657,7 +659,7 @@ bool AppInit2()
     // ********************************************************* Step 6: network initialization
 
     // uiInterface.InitMessage(_("Initializing network..."));
-    int nSocksVersion = GetArg("-socks", 5);
+    int nSocksVersion = GetArg("-socks", (int64_t) 5);
 
     if (nSocksVersion != 4 && nSocksVersion != 5)
         return InitError(strprintf(_("Unknown -socks proxy version requested: %d"), nSocksVersion));
@@ -777,12 +779,19 @@ bool AppInit2()
         }
         CService addrOnion;
         p2p_port = GetDefaultPort();
-        onion_port = (unsigned short)GetArg("-torport", chainParams.DEFAULT_TORPORT);
-        if (mapArgs.count("-tor") && mapArgs["-tor"] != "0") {
+        onion_port = (unsigned short)
+            GetArg("-torport", (uint64_t) chainParams.DEFAULT_TORPORT);
+        if (mapArgs.count("-tor") && mapArgs["-tor"] != "0")
+        {
             addrOnion = CService(mapArgs["-tor"], onion_port);
             if (!addrOnion.IsValid())
-                return InitError(strprintf(_("Invalid -tor address: '%s'"), mapArgs["-tor"].c_str()));
-        } else {
+            {
+                return InitError(strprintf(_("Invalid -tor address: '%s'"),
+                                           mapArgs["-tor"].c_str()));
+            }
+        }
+        else
+        {
             addrOnion = CService("127.0.0.1", onion_port);
         }
         SetProxy(NET_TOR, addrOnion, 5);
@@ -792,13 +801,15 @@ bool AppInit2()
     {
         // -torext can override normal proxy, -notorext disables tor entirely
         if (!(mapArgs.count("-torext") && mapArgs["-torext"] == "0") &&
-            (fProxy || mapArgs.count("-torext") || fExternalTor)) {
+            (fProxy || mapArgs.count("-torext") || fExternalTor))
+        {
             CService addrOnion;
             if (!mapArgs.count("-torext"))
             {
                 if (fExternalTor)
                 {
-                    return InitError(std::string("Specify -torext address (e.g. '127.0.0.1:9150')"));
+                    return InitError(std::string(
+                        "Specify -torext address (e.g. '127.0.0.1:9150')"));
                 }
                 else
                 {
@@ -811,7 +822,8 @@ bool AppInit2()
             }
             if (!addrOnion.IsValid())
             {
-                return InitError(strprintf(_("Invalid -torext address: '%s'"), mapArgs["-torext"].c_str()));
+                return InitError(strprintf(_("Invalid -torext address: '%s'"),
+                                           mapArgs["-torext"].c_str()));
             }
             SetProxy(NET_TOR, addrOnion);
             SetReachable(NET_TOR);
@@ -951,7 +963,7 @@ bool AppInit2()
     // ********************************************************* Step 7: load blockchain
 
 
-    nMaxHeight = GetArg("-maxheight", -1);
+    nMaxHeight = GetArg("-maxheight", (int64_t) -1);
 
     fWithExploreAPI = GetBoolArg("-exploreapi", false);
 
@@ -1090,7 +1102,7 @@ bool AppInit2()
 
     if (GetBoolArg("-upgradewallet", fFirstRun))
     {
-        int nMaxVersion = GetArg("-upgradewallet", 0);
+        int nMaxVersion = GetArg("-upgradewallet", (int64_t) 0);
         // the -upgradewallet without argument case
         if (nMaxVersion == 0)
         {

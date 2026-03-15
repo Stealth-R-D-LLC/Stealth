@@ -1125,7 +1125,8 @@ uint64_t QPRegistry::GetPicoPowerCurrent() const
 bool QPRegistry::HasEnoughPower() const
 {
     return (powerRoundPrev.IsEmpty() ||
-            (GetPicoPowerInternal() >= QP_MIN_PICO_POWER));
+            (GetPicoPowerInternal() >=
+             GetArg("-minpicopower", QP_MIN_PICO_POWER)));
 }
 
 bool QPRegistry::ShouldRollback() const

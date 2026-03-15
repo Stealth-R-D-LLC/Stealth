@@ -9132,22 +9132,25 @@ BlockCreationResult CreateNewBlock(CWallet* pwallet,
 
     // Largest block you're willing to create:
     unsigned int nBlockMaxSize = GetArg("-blockmaxsize",
-                                        chainParams.DEFAULT_BLOCKMAXSIZE);
+                                        (uint64_t)
+                                            chainParams.DEFAULT_BLOCKMAXSIZE);
     // Limit to betweeen 1K and MAX_BLOCK_SIZE-1K for sanity:
-    nBlockMaxSize = max((unsigned int)1000,
-                        min((unsigned int)(chainParams.MAX_BLOCK_SIZE - 1000),
+    nBlockMaxSize = max((unsigned int) 1000,
+                        min((unsigned int) (chainParams.MAX_BLOCK_SIZE - 1000),
                             nBlockMaxSize));
 
     // How much of the block should be dedicated to high-priority transactions,
     // included regardless of the fees they pay
-    unsigned int nBlockPrioritySize = GetArg("-blockprioritysize",
-                                             chainParams.DEFAULT_BLOCKPRIORITYSIZE);
+    unsigned int nBlockPrioritySize = GetArg(
+        "-blockprioritysize",
+        (uint64_t) chainParams.DEFAULT_BLOCKPRIORITYSIZE);
     nBlockPrioritySize = min(nBlockMaxSize, nBlockPrioritySize);
 
-    // Minimum block size you want to create; block will be filled with free transactions
-    // until there are no more or the block reaches this size:
+    // Minimum block size you want to create; block will be filled with free
+    // transactions until there are no more or the block reaches this size:
     unsigned int nBlockMinSize = GetArg("-blockminsize",
-                                        chainParams.DEFAULT_BLOCKMINSIZE);
+                                        (uint64_t)
+                                            chainParams.DEFAULT_BLOCKMINSIZE);
     nBlockMinSize = min(nBlockMaxSize, nBlockMinSize);
 
     // Fee-per-kilobyte amount considered the same as "free"
@@ -10134,7 +10137,7 @@ void static ThreadStealthMiner(void* parg)
 void GenerateXST(bool fGenerate, CWallet* pwallet)
 {
     fGenerateXST = fGenerate;
-    nLimitProcessors = GetArg("-genproclimit", -1);
+    nLimitProcessors = GetArg("-genproclimit", (int64_t) -1);
     if (nLimitProcessors == 0)
         fGenerateXST = false;
     fLimitProcessors = (nLimitProcessors != -1);

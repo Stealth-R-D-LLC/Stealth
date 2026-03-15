@@ -31,10 +31,16 @@ extern int nBestHeight;
 extern int GetTargetSpacing(const int nHeight);
 
 
-inline unsigned int ReceiveBufferSize() { return 1000*GetArg("-maxreceivebuffer",
-                                                             chainParams.DEFAULT_MAXRECEIVEBUFFER); }
-inline unsigned int SendBufferSize() { return 1000*GetArg("-maxsendbuffer",
-                                                          chainParams.DEFAULT_MAXSENDBUFFER); }
+inline unsigned int ReceiveBufferSize()
+{
+    return 1000 * GetArg("-maxreceivebuffer",
+                         (uint64_t) chainParams.DEFAULT_MAXRECEIVEBUFFER);
+}
+inline unsigned int SendBufferSize()
+{
+    return 1000 * GetArg("-maxsendbuffer",
+                         (uint64_t) chainParams.DEFAULT_MAXSENDBUFFER);
+}
 
 void AddOneShot(std::string strDest);
 bool RecvLine(SOCKET hSocket, std::string& strLine);
