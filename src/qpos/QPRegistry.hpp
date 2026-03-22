@@ -33,6 +33,8 @@ typedef boost::variate_generator<boost::mt19937&,
 
 static const uint64_t SYNCREG_SLEEP_MS = 1;
 
+uint64_t GetMinPicoPower();
+
 class QPRegistry
     : public boost::basic_lockable_adapter<boost::mutex>
 {

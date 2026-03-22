@@ -2379,7 +2379,7 @@ void ThreadMessageHandler2(void* parg)
         {
             unsigned int nStakersThis = pregistryMain->GetCurrentQueueSize();
             unsigned int nStakersLast = pregistryMain->GetPreviousQueueSize();
-            unsigned int nPcmRatio = 10000 * nStakersThis / nStakersLast;
+            unsigned int nPcmRatio = (10000 * nStakersThis) / nStakersLast;
             if (vNodes.empty() ||
                 (pindexBest->nTime <
                  (GetTime() - QP_REGISTRY_MAX_FALL_BEHIND)) ||

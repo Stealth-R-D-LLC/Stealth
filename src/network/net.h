@@ -729,8 +729,10 @@ inline void RelayInventory(const CInv& inv)
     // Put on lists to offer to the other nodes
     {
         LOCK(cs_vNodes);
-        BOOST_FOREACH(CNode* pnode, vNodes)
+        BOOST_FOREACH (CNode* pnode, vNodes)
+        {
             pnode->PushInventory(inv);
+        }
     }
 }
 
@@ -749,7 +751,8 @@ inline void RelayMessage<>(const CInv& inv, const CDataStream& ss)
     {
         LOCK(cs_mapRelay);
         // Expire old relay messages
-        while (!vRelayExpiration.empty() && vRelayExpiration.front().first < GetTime())
+        while (!vRelayExpiration.empty() &&
+               vRelayExpiration.front().first < GetTime())
         {
             mapRelay.erase(vRelayExpiration.front().second);
             vRelayExpiration.pop_front();
@@ -762,6 +765,7 @@ inline void RelayMessage<>(const CInv& inv, const CDataStream& ss)
 
     RelayInventory(inv);
 }
+
 class CTransaction;
 void RelayTransaction(const CTransaction& tx, const uint256& hash);
 void RelayTransaction(const CTransaction& tx, const uint256& hash, const CDataStream& ss);

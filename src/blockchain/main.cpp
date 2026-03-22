@@ -3447,17 +3447,19 @@ bool IsInitialBlockDownload()
     {
         return true;
     }
-    static int nLastUpdate = pindexBest->nTime;
-    static CBlockIndex* pindexLastBest = pindexBest;
-    if (pindexLastBest != pindexBest)
+    static CBlockMemIndex* pmemIndexLastBest = pmemIndexBest;
+    static int nLastUpdate = GetMemIndexTime("IsInitialBlockDownload",
+                                             pmemIndexLastBest);
+    if (pmemIndexLastBest != pmemIndexBest)
     {
-        nLastUpdate = pindexLastBest->nTime;
-        pindexLastBest = pindexBest;
+        nLastUpdate = GetMemIndexTime("IsInitialBlockDownload",
+                                      pmemIndexLastBest);
+        pmemIndexLastBest = pmemIndexBest;
     }
     int nTime = GetTime();
     // covers future drift-type edge cases
     return ((nTime - nLastUpdate) > nBack) ||
-           ((nTime - (int)pindexBest->nTime) > nBack);
+           ((nTime - (int) pindexBest->nTime) > nBack);
 }
 
 void static InvalidChainFound(CTxDB& txdb, CBlockMemIndex* pmemIndexNew)
@@ -7906,11 +7908,8 @@ bool static ProcessMessage(CNode* pfrom, string strCommand, CDataStream& vRecv)
                                     }
                                 }
                             }
-                            else
-                            {
-                                pfrom->PushMessage(inv.GetCommand(), (*mi).second);
-                                pushed = true;
-                            }
+                            pfrom->PushMessage(inv.GetCommand(), (*mi).second);
+                            pushed = true;
                         }
                         else
                         {

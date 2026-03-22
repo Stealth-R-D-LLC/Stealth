@@ -15,6 +15,11 @@ extern bool fDebugQPoS;
 extern bool fDebugBlockCreation;
 extern Value ValueFromAmount(int64_t amount);
 
+uint64_t GetMinPicoPower()
+{
+    return GetArg("-minpicopower", QP_MIN_PICO_POWER);
+}
+
 QPRegistry::QPRegistry()
 {
     SetNull();
@@ -734,11 +739,29 @@ void QPRegistry::CheckSynced()
     boost::lock_guard<const QPRegistry> lock(*this);
     if (IsInReplayMode())
     {
-        int nTime = GetAdjustedTime();
-        if (HasEnoughPower() && queue.TimeIsInCurrentSlotWindow(nTime))
+        if (HasEnoughPower())
         {
-            printf("QPRegistry::CheckSynced(): exiting replay mode\n");
-            ExitReplayModeInternal();
+            int nTime = GetAdjustedTime();
+            if (queue.TimeIsInCurrentSlotWindow(nTime))
+            {
+                printf("QPRegistry::CheckSynced(): exiting replay mode "
+                       "(%" PRIu64 " >= %" PRIu64 ")\n",
+                       GetPicoPowerInternal(),
+                       GetMinPicoPower());
+                ExitReplayModeInternal();
+            }
+            else
+            {
+                printf("QPRegistry::CheckSynced(): NOT exiting replay mode "
+                       "(time outside current slot window)\n");
+            }
+        }
+        else
+        {
+            printf("QPRegistry::CheckSynced(): NOT exiting replay mode "
+                   "(%" PRIu64 " < %" PRIu64 ")\n",
+                   GetPicoPowerInternal(),
+                   GetMinPicoPower());
         }
     }
 }
@@ -1125,8 +1148,7 @@ uint64_t QPRegistry::GetPicoPowerCurrent() const
 bool QPRegistry::HasEnoughPower() const
 {
     return (powerRoundPrev.IsEmpty() ||
-            (GetPicoPowerInternal() >=
-             GetArg("-minpicopower", QP_MIN_PICO_POWER)));
+            (GetPicoPowerInternal() >= GetMinPicoPower()));
 }
 
 bool QPRegistry::ShouldRollback() const
