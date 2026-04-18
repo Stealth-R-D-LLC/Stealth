@@ -3,17 +3,19 @@
 rpcuser=bitcoinrpc
 rpcpassword=YOURPASSWORD
 host=127.0.0.1
+
 # mainnet rpc port 46502
 # testnet rpc port 46503
 port=46502
 
-# hashlist must include block 0 (genesis)
 # if you have a previous hashlist, just add 1 to the highest
 # go to the bottom of the file and then getblock on the hash
+# overridden by command line option --min_height MIN (-m MIN)
 min_height=0
 
 # bootstrap.dat hashlist settings (linearize-hashes)
 # just use the highest block of your chain
+# overridden by command line option --max_height MAX (-M MAX)
 max_height=850000
 
 
@@ -23,12 +25,18 @@ max_height=850000
 # testnet magic cfedfffd
 netmagic=70352205
 
+# path to Stealth data dir
+input=/home/user/.StealthCoin
+
 # mainnet: 1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a
 # testnet: 3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634
-hash_genesis=3dd6302f58a524d7c0bf7a8ee945cab05e2367bed482193eddecbb2a4c3bc634
-input=/path/to/.StealthCoin
+# if specified, this hash must be contained in the haslist (linearize-data.py)
+# overridden by commaind line option --chain_id HASH (-C HASH)
+chain_id=1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a
 
 output_file=bootstrap.dat
+
+# overridden by command line option --hashlist FILE (-H FILE)
 hashlist=hashlist.txt
 
 # 1 new blk####.dat every 4 years
@@ -37,5 +45,5 @@ split_year=4
 
 # debugging settings
 
-# warn of unknown blocks (true or false)
+# warn of unknown blocks (true or false, default=false)
 verbose=false

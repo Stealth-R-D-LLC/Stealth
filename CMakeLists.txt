@@ -538,6 +538,25 @@ add_dependencies(copy_bootstrap_script StealthCoind)
 
 
 ##############################################################################
+## download-stealth-snapshot
+##############################################################################
+
+set(SNAPSHOT_SCRIPT_SOURCE ${CMAKE_SOURCE_DIR}/scripts/download-stealth-snapshot)
+
+set(SNAPSHOT_SCRIPT_DESTINATION ${CMAKE_BINARY_DIR}/download-stealth-snapshot)
+
+add_custom_command(
+  OUTPUT ${SNAPSHOT_SCRIPT_DESTINATION}
+  COMMAND ${CMAKE_COMMAND} -E copy ${SNAPSHOT_SCRIPT_SOURCE} ${SNAPSHOT_SCRIPT_DESTINATION}
+  DEPENDS ${SNAPSHOT_SCRIPT_SOURCE}
+)
+
+add_custom_target(copy_snapshot_script ALL DEPENDS ${SNAPSHOT_SCRIPT_DESTINATION})
+
+add_dependencies(copy_snapshot_script StealthCoind)
+
+
+##############################################################################
 ## install
 ##############################################################################
 
@@ -547,9 +566,16 @@ install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-bootstrap
   DESTINATION bin
   RENAME download-stealth-bootstrap)
 
+install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-snapshot
+  DESTINATION bin
+  RENAME download-stealth-snapshot)
+
 set(SCRIPT_INSTALL_DIR "" CACHE PATH "Custom installation directory for utility scripts")
 if(SCRIPT_INSTALL_DIR)
   install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-bootstrap
     DESTINATION ${SCRIPT_INSTALL_DIR}
     RENAME download-stealth-bootstrap)
+  install(PROGRAMS ${CMAKE_SOURCE_DIR}/scripts/download-stealth-snapshot
+    DESTINATION ${SCRIPT_INSTALL_DIR}
+    RENAME download-stealth-snapshot)
 endif()

@@ -11,6 +11,8 @@
 using namespace std;
 using namespace json_spirit;
 
+extern bool IsInitialBlockDownload();
+
 extern bool fDebugQPoS;
 extern bool fDebugBlockCreation;
 extern Value ValueFromAmount(int64_t amount);
@@ -744,10 +746,13 @@ void QPRegistry::CheckSynced()
             int nTime = GetAdjustedTime();
             if (queue.TimeIsInCurrentSlotWindow(nTime))
             {
-                printf("QPRegistry::CheckSynced(): exiting replay mode "
-                       "(%" PRIu64 " >= %" PRIu64 ")\n",
-                       GetPicoPowerInternal(),
-                       GetMinPicoPower());
+                if (!IsInitialBlockDownload())
+                {
+                    printf("QPRegistry::CheckSynced(): exiting replay mode "
+                           "(%" PRIu64 " >= %" PRIu64 ")\n",
+                           GetPicoPowerInternal(),
+                           GetMinPicoPower());
+                }
                 ExitReplayModeInternal();
             }
             else
@@ -756,7 +761,7 @@ void QPRegistry::CheckSynced()
                        "(time outside current slot window)\n");
             }
         }
-        else
+        else if (!IsInitialBlockDownload())
         {
             printf("QPRegistry::CheckSynced(): NOT exiting replay mode "
                    "(%" PRIu64 " < %" PRIu64 ")\n",

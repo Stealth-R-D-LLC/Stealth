@@ -16,6 +16,12 @@ try:
 except ImportError:
   TQDM_AVAILABLE = False
 
+try:
+  import certifi
+  CERTIFI_AVAILABLE = True
+except ImportError:
+  CERTIFI_AVAILABLE = False
+
 class DownloadProgressBar:
   def __init__(self, total=0, unit='iB', unit_scale=True, unit_divisor=1024):
     self.pbar = None
@@ -40,9 +46,33 @@ def simple_progress_bar(downloaded, block_size, total_size):
   sys.stdout.flush()
 
 def create_ssl_context():
-  # Use system's certificate store
-  context = ssl.create_default_context()
-  return context
+  """
+  Build an SSL context that works on macOS, Linux, and Windows.
+
+  macOS's Python does not use the system keychain by default.  We try
+  certifi first (most reliable), then the system store, then a glob search
+  for certifi's cacert.pem left by the official Python installer.
+  """
+  if CERTIFI_AVAILABLE:
+    return ssl.create_default_context(cafile=certifi.where())
+
+  import glob
+  ctx = ssl.create_default_context()
+
+  if sys.platform == "darwin" and not ctx.get_ca_certs():
+    for pattern in [
+      "/Library/Frameworks/Python.framework/Versions/*/lib/python*/site-packages/certifi/cacert.pem",
+      "/usr/local/lib/python*/site-packages/certifi/cacert.pem",
+      "/opt/homebrew/lib/python*/site-packages/certifi/cacert.pem",
+    ]:
+      matches = glob.glob(pattern)
+      if matches:
+        try:
+          return ssl.create_default_context(cafile=matches[0])
+        except Exception:
+          pass
+
+  return ctx
 
 def download_large_file(file_id, output_filename, ssl_context):
   url = f"https://drive.google.com/uc?export=download&id={file_id}"
@@ -154,7 +184,12 @@ def main():
   print("Google Drive can't scan this file for viruses due to its size.")
 
   ssl_context = create_ssl_context()
-  print("Using system certificate store for secure connection.")
+  if CERTIFI_AVAILABLE:
+    print("SSL: using certifi certificate bundle.")
+  else:
+    print("SSL: using system certificate store.")
+    if sys.platform == "darwin":
+      print("     (If SSL errors occur, run: \033[1mpip3 install certifi\033[0m)")
 
   user_input = input("\033[1mDo you want to proceed with the download? (y/n):\033[0m ").lower()
 

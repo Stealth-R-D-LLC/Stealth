@@ -8,7 +8,7 @@
 // These need to be macros, as version.cpp's and bitcoin-qt.rc's voodoo requires it
 #define CLIENT_VERSION_MAJOR       3
 #define CLIENT_VERSION_MINOR       3
-#define CLIENT_VERSION_REVISION    4
+#define CLIENT_VERSION_REVISION    5
 #define CLIENT_VERSION_BUILD       0
 
 // cloners: add your new forks higher than highest here
@@ -43,6 +43,8 @@ static const int CLIENT_PROTOCOL_VERSION = 64200;
 
 // proto   version   notes
 // -----   -------    ----------------------------------------------------------
+//       : 3.3.5.0  : Clean logging spam in block download & snapshot support
+//       : 3.3.4.0  : Fixed transaction relay bug
 //       : 3.3.3.0  : Added support for -minpicopower
 //       : 3.3.2.0  : Fixed help RPC for StealthExplore commands
 //       : 3.3.1.0  : Fixed 0 money supply for best block

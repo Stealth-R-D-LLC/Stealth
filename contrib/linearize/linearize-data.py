@@ -3,7 +3,7 @@
 # linearize-data.py: Construct a linear, no-fork version of the chain.
 #
 # Copyright (c) 2013 The Bitcoin developers
-# Copyright (c) 2016-2018 Stealth R&D LLC
+# Copyright (c) 2016-2026 Stealth R&D LLC
 # Distributed under the MIT/X11 software license, see the accompanying
 # file COPYING or http://www.opensource.org/licenses/mit-license.php.
 #
@@ -18,6 +18,7 @@ import hashlib
 import datetime
 import time
 import codecs
+import argparse
 
 from pyHash9 import hash9
 
@@ -131,10 +132,14 @@ def mklookup(settings, blkindex):
     # keeps track of blocks
     blkCount = 0
 
+    VERBOSE = settings['verbose']
+    DO_PROGRESS = not settings['quiet']
+    UPDATE_EVERY = 1000
     while True:
 
-        if (blkCount % 1000) == 0:
-            print("Read %s blocks" % blkCount, end="\r", flush=True)
+        if DO_PROGRESS and (blkCount > 0) and ((blkCount % UPDATE_EVERY) == 0):
+            print("Read %s blocks" % blkCount, end="\r", flush=True,
+                                                         file=sys.stderr)
 
         # height is 1 + number of blocks
         if (max_height is not None) and (len(lookup) >= (max_height+1)):
@@ -184,7 +189,7 @@ def mklookup(settings, blkindex):
         blkCount += 1
 
         if hash_str not in blkset:
-            if settings['verbose']:
+            if VERBOSE:
                 print("Read %s blocks" % blkCount)
                 print("Skipping unknown block: %s" % hash_str.decode("utf-8"))
             continue
@@ -240,6 +245,7 @@ def copydata(settings, blkindex, blkset):
     if settings['split_timestamp'] != 0:
         timestampSplit = True
 
+    DO_PROGRESS = not settings['quiet']
     for (blkCount, hash_str) in enumerate(blkindex):
         fname, fpos = lookup[hash_str]
         if fname in fileset:
@@ -330,17 +336,32 @@ def copydata(settings, blkindex, blkset):
         if blkTS > highTS:
             highTS = blkTS
 
-        if (blkCount % 1000) == 0:
-            print("Wrote %s blocks" % blkCount, end="\r", flush=True)
+        if DO_PROGRESS and ((blkCount % 1000) == 0):
+            print("Wrote %s blocks" % blkCount, end="\r", flush=True,
+                                                          file=sys.stderr)
 
     print("Wrote %s blocks" % blkCount)
 
 if __name__ == '__main__':
-    if len(sys.argv) != 2:
-        print("Usage: linearize-data.py CONFIG-FILE")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Construct a linear, no-fork version of the chain.")
+    parser.add_argument("config", metavar="CONFIG-FILE",
+        help="Configuration file (key=value format)")
+    parser.add_argument("-H", "--hashlist", metavar="FILE",
+        help="Path to the hash list file (overrides 'hashlist' in config)")
+    parser.add_argument("-c", "--chain_id", metavar="HEX",
+        help="64-character hex block hash identifying the chain head "
+             "(overrides 'chain_id' in config)")
+    parser.add_argument("-q", "--quiet", action="store_true", default=False,
+        help="Suppress progress output to stderr (default: show progress)")
+    args = parser.parse_args()
 
-    f = open(sys.argv[1])
+    # Validate --chain_id if provided
+    if args.chain_id is not None:
+        if not re.fullmatch(r'[0-9a-fA-F]{64}', args.chain_id):
+            parser.error("--chain_id must be exactly 64 hexadecimal characters")
+
+    f = open(args.config)
     for line in f:
         # skip comment lines
         m = re.search(r'^\s*#', line)
@@ -354,6 +375,13 @@ if __name__ == '__main__':
         settings[m.group(1)] = m.group(2)
     f.close()
 
+    # Apply CLI overrides (take precedence over config file values)
+    if args.hashlist is not None:
+        settings['hashlist'] = args.hashlist
+    if args.chain_id is not None:
+        settings['chain_id'] = args.chain_id
+    settings['quiet'] = args.quiet
+
     if 'max_height' in settings:
         try:
             settings['max_height'] = int(settings['max_height'])
@@ -366,7 +394,9 @@ if __name__ == '__main__':
     if 'input' not in settings:
         settings['input'] = 'input'
     if 'hashlist' not in settings:
-        settings['hashlist'] = 'hashlist.txt'
+        print("Missing required configuration option \"hashlist\" "
+              "(set in config or via -H/--hashlist)")
+        sys.exit(1)
     if 'file_timestamp' not in settings:
         settings['file_timestamp'] = 0
     if 'split_timestamp' not in settings:
@@ -378,6 +408,8 @@ if __name__ == '__main__':
         if settings['verbose'] is None:
             print("Value for \"verbose\" setting should be \"true\"/\"false\"")
             sys.exit(1)
+    else:
+        settings['verbose'] = False
 
     settings['max_out_sz'] = int(settings['max_out_sz'])
     settings['split_timestamp'] = int(settings['split_timestamp'])
@@ -393,15 +425,15 @@ if __name__ == '__main__':
     blkset = mkblockset(blkindex)
 
 
-    if "hash_genesis" in settings:
-      hash_genesis = settings['hash_genesis']
+    if "chain_id" in settings:
+        chain_id = settings['chain_id']
+        print(f"Chain ID: {chain_id}")
+        chain_id_bytes = bytes(chain_id, "utf-8")
+        if chain_id_bytes not in blkset:
+            print("Chain ID not found, exiting")
+            sys.exit(1)
     else:
-      hash_genesis = "1aaa07c5805c4ea8aee33c9f16a057215bc06d59f94fc12132c6135ed2d9712a"
+        print("WARNING: No chain ID provided, not verifying")
 
-    hash_genesis = bytes(hash_genesis, "utf-8")
-    if not hash_genesis in blkset:
-        print("hash %s not found" % hash_genesis.decode("utf-8"))
-    else:
-        copydata(settings, blkindex, blkset)
-
+    copydata(settings, blkindex, blkset)
 
