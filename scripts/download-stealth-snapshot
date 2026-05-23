@@ -483,10 +483,16 @@ def main():
         ).strip()
         data_dir = os.path.abspath(custom) if custom else default_dir
 
+        create_data_dir = False
         if not os.path.isdir(data_dir):
-            print(f"{RED}Error: '{data_dir}' does not exist.{RESET}")
-            sys.exit(1)
-        if not check_writable(data_dir):
+            print()
+            print(f"  {YELLOW}'{data_dir}' does not exist.{RESET}")
+            if yn(f"  Create it?"):
+                create_data_dir = True
+            else:
+                print(f"{RED}Cancelled.{RESET}")
+                sys.exit(0)
+        if not create_data_dir and not check_writable(data_dir):
             print(f"{RED}Error: '{data_dir}' is not writable.{RESET}")
             sys.exit(1)
 
@@ -521,6 +527,8 @@ def main():
                     "keep")
         print(f"  Set up data dir      : {GREEN}yes{RESET}")
         print(f"    Path               : {CYAN}{data_dir}{RESET}")
+        if create_data_dir:
+            print(f"    Create directory   : {GREEN}yes{RESET}")
         print(f"    debug.log          : {dl_label}")
     else:
         print(f"  Set up data dir      : {BOLD}no{RESET}")
@@ -669,6 +677,19 @@ def main():
     # ── Step 5: Data-directory setup ──────────────────────────────────────────
     if do_setup:
         step_header(5, total_steps, f"Setting up {data_dir}")
+
+        if create_data_dir:
+            print(f"  Creating directory {CYAN}{data_dir}{RESET} ...")
+            try:
+                os.makedirs(data_dir, exist_ok=True)
+                print(f"  {GREEN}Directory created.{RESET}")
+                summary.append(("Directory created", data_dir, GREEN))
+            except OSError as e:
+                print(f"{RED}  Failed to create '{data_dir}': {e}{RESET}")
+                sys.exit(1)
+            if not check_writable(data_dir):
+                print(f"{RED}  Error: '{data_dir}' is not writable.{RESET}")
+                sys.exit(1)
 
         print("  Cleaning blockchain data ...")
         backup_path = clean_data_dir(data_dir, debug_log_action)
