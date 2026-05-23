@@ -287,6 +287,7 @@ function(find_bdb)
     HINTS
       ${DEPS}/bdb/bdb-stealth/include
       ${BDB_ROOT}/include
+      /usr/local/BerkeleyDB.4.8
       /usr/local/opt/berkeley-db/include
       /opt/homebrew/opt/berkeley-db/include
       /opt/local/include
