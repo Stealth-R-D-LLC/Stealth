@@ -46,7 +46,6 @@ def gen_rpc_password():
     """Return a cryptographically secure 40-character base58 password."""
     return "".join(secrets.choice(BASE58_ALPHABET) for _ in range(RPC_PASSWORD_LEN))
 
-
 # ── Terminal colours ──────────────────────────────────────────────────────────
 BOLD   = "\033[1m"
 RED    = "\033[31m"
@@ -55,7 +54,6 @@ YELLOW = "\033[33m"
 BLUE   = "\033[94m"
 CYAN   = "\033[96m"
 RESET  = "\033[0m"
-
 
 # =============================================================================
 # SSL
@@ -90,7 +88,6 @@ def create_ssl_context():
 
     return ctx
 
-
 # =============================================================================
 # README parsing
 # =============================================================================
@@ -110,7 +107,6 @@ def parse_readme(text):
         "sha256": sha256_match.group(1).strip() if sha256_match else None,
     }
 
-
 # =============================================================================
 # Checksum helpers
 # =============================================================================
@@ -125,7 +121,6 @@ def file_checksum(path, algorithm="sha256", chunk=1 << 20):
                 break
             h.update(buf)
     return h.hexdigest()
-
 
 def verify_checksum(path, expected_md5=None, expected_sha256=None):
     """
@@ -155,7 +150,6 @@ def verify_checksum(path, expected_md5=None, expected_sha256=None):
             ok = False
     return ok
 
-
 # =============================================================================
 # Google Drive download
 # =============================================================================
@@ -165,7 +159,6 @@ def _filename_from_response(response):
     cd = response.headers.get("Content-Disposition", "")
     m = re.search(r'filename\*?=["\']?(?:UTF-8\'\')?([^"\';\r\n]+)', cd, re.IGNORECASE)
     return urllib.parse.unquote(m.group(1).strip().strip('"\'')) if m else None
-
 
 def _stream_to_disk(url, fallback_filename, ssl_context):
     """Stream a URL to disk. Returns (local_path, filename) or (None, None)."""
@@ -218,7 +211,6 @@ def _stream_to_disk(url, fallback_filename, ssl_context):
         print(f"\n{RED}  Download error: {e}{RESET}")
         return None, None
 
-
 def download_google_drive_file(file_id, fallback_filename, ssl_context, label=None):
     """
     Download a file from Google Drive, transparently handling the large-file
@@ -267,7 +259,6 @@ def download_google_drive_file(file_id, fallback_filename, ssl_context, label=No
     )
     return _stream_to_disk(download_url, fallback_filename, ssl_context)
 
-
 # =============================================================================
 # GPG
 # =============================================================================
@@ -294,7 +285,6 @@ def import_signing_key(fingerprint, keyserver):
     print(f"  {GREEN}Signing key imported.{RESET}")
     return True
 
-
 def verify_signature(snapshot_file, sig_file):
     print(f"  Verifying {CYAN}{snapshot_file}{RESET} ...")
     r = subprocess.run(
@@ -310,7 +300,6 @@ def verify_signature(snapshot_file, sig_file):
         for line in output.splitlines():
             print(f"    {line}")
     return r.returncode == 0
-
 
 # =============================================================================
 # Data-directory helpers
@@ -340,7 +329,6 @@ def clean_data_dir(data_dir, debug_log_action):
             (shutil.rmtree if os.path.isdir(path) else os.remove)(path)
 
     return backup_path
-
 
 def extract_snapshot(archive_path, data_dir):
     """
@@ -400,7 +388,6 @@ def extract_snapshot(archive_path, data_dir):
         if os.path.isdir(staging):
             shutil.rmtree(staging, ignore_errors=True)
 
-
 # =============================================================================
 # UI helpers
 # =============================================================================
@@ -413,22 +400,17 @@ def check_writable(path):
     except OSError:
         return False
 
-
 def yn(question):
     return input(f"{BOLD}{question} (y/n): {RESET}").strip().lower() == "y"
 
-
 def divider(char=u"\u2500", width=56):
     print(char * width)
-
-
 
 def step_header(n, total, title):
     print()
     divider()
     print(f"{BOLD}Step {n}/{total}: {title}{RESET}")
     divider()
-
 
 # =============================================================================
 # Main
@@ -674,8 +656,7 @@ def main():
 
             summary.append(("Snapshot checksum", "PASSED" if cksum_ok else "FAILED",
                              GREEN if cksum_ok else RED))
-        summary.
-                append(("Snapshot", snapshot_name or snapshot_local, GREEN))
+        summary.append(("Snapshot", snapshot_name or snapshot_local, GREEN))
 
     # ── Step 4: Signature verification ───────────────────────────────────────
     step_header(4, total_steps, "Signature verification")
@@ -777,7 +758,6 @@ def main():
     print(f"  {BLUE}{WIKI_URL}{RESET}")
     divider(u"\u2550")
     print()
-
 
 if __name__ == "__main__":
     main()
