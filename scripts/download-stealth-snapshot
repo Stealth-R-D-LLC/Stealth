@@ -13,6 +13,7 @@ import argparse
 import hashlib
 import tempfile
 import time
+import secrets
 
 try:
     from tqdm import tqdm
@@ -37,6 +38,14 @@ WIKI_URL = "https://github.com/Stealth-R-D-LLC/Stealth/wiki/Mainnet-Snapshot-Ins
 
 # Blockchain data cleaned out before extraction
 CLEANUP_GLOBS = ["blk*.dat", "bootstrap.dat*", "database", "txleveldb"]
+
+BASE58_ALPHABET = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"
+RPC_PASSWORD_LEN = 40
+
+def gen_rpc_password():
+    """Return a cryptographically secure 40-character base58 password."""
+    return "".join(secrets.choice(BASE58_ALPHABET) for _ in range(RPC_PASSWORD_LEN))
+
 
 # ── Terminal colours ──────────────────────────────────────────────────────────
 BOLD   = "\033[1m"
@@ -413,6 +422,7 @@ def divider(char=u"\u2500", width=56):
     print(char * width)
 
 
+
 def step_header(n, total, title):
     print()
     divider()
@@ -484,11 +494,17 @@ def main():
         data_dir = os.path.abspath(custom) if custom else default_dir
 
         create_data_dir = False
+        daemon_mode = None
         if not os.path.isdir(data_dir):
             print()
             print(f"  {YELLOW}'{data_dir}' does not exist.{RESET}")
             if yn(f"  Create it?"):
                 create_data_dir = True
+                print()
+                daemon_raw = input(
+                    f"{BOLD}  Run the Stealth client in daemon mode? (Y/n): {RESET}"
+                ).strip().lower()
+                daemon_mode = daemon_raw != "n"
             else:
                 print(f"{RED}Cancelled.{RESET}")
                 sys.exit(0)
@@ -529,6 +545,9 @@ def main():
         print(f"    Path               : {CYAN}{data_dir}{RESET}")
         if create_data_dir:
             print(f"    Create directory   : {GREEN}yes{RESET}")
+            print(f"    Write StealthCoin.conf : {GREEN}yes{RESET}")
+            daemon_label = f"{GREEN}yes{RESET}" if daemon_mode else f"{BOLD}no{RESET}"
+            print(f"    daemon mode        : {daemon_label}")
         print(f"    debug.log          : {dl_label}")
     else:
         print(f"  Set up data dir      : {BOLD}no{RESET}")
@@ -655,7 +674,8 @@ def main():
 
             summary.append(("Snapshot checksum", "PASSED" if cksum_ok else "FAILED",
                              GREEN if cksum_ok else RED))
-        summary.append(("Snapshot", snapshot_name or snapshot_local, GREEN))
+        summary.
+                append(("Snapshot", snapshot_name or snapshot_local, GREEN))
 
     # ── Step 4: Signature verification ───────────────────────────────────────
     step_header(4, total_steps, "Signature verification")
@@ -689,6 +709,31 @@ def main():
                 sys.exit(1)
             if not check_writable(data_dir):
                 print(f"{RED}  Error: '{data_dir}' is not writable.{RESET}")
+                sys.exit(1)
+
+            # Write StealthCoin.conf with a secure RPC password
+            conf_path = os.path.join(data_dir, "StealthCoin.conf")
+            rpc_password = gen_rpc_password()
+            conf_lines = [
+                "rpcuser=stealthrpc",
+                f"rpcpassword={rpc_password}",
+            ]
+            if daemon_mode:
+                conf_lines.append("daemon=1")
+            conf_content = "\n".join(conf_lines) + "\n"
+            print(f"  Writing {CYAN}{conf_path}{RESET} ...")
+            try:
+                with open(conf_path, "w") as cf:
+                    cf.write(conf_content)
+                print(f"  {GREEN}StealthCoin.conf written.{RESET}")
+                summary.append(("StealthCoin.conf", conf_path, GREEN))
+                summary.append(("  rpcuser", "stealthrpc", CYAN))
+                summary.append(("  rpcpassword", rpc_password, CYAN))
+                daemon_val = "yes (daemon=1)" if daemon_mode else "no"
+                daemon_colour = GREEN if daemon_mode else BOLD
+                summary.append(("  daemon mode", daemon_val, daemon_colour))
+            except OSError as e:
+                print(f"{RED}  Failed to write StealthCoin.conf: {e}{RESET}")
                 sys.exit(1)
 
         print("  Cleaning blockchain data ...")
