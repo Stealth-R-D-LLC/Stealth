@@ -1,0 +1,58 @@
+FROM ubuntu:18.04 as build
+
+# install bulk of dependencies
+RUN apt-get update \
+	&& apt-get upgrade -y \
+	&& DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \ 
+	wget vim-common jq ca-certificates git cmake autoconf build-essential \
+	openssl libssl-dev doxygen libncurses5-dev \
+    libreadline7 libreadline-dev zlib1g-dev \
+    tcsh libbz2-dev libtool \
+    libssl-dev libprotobuf-dev \
+    protobuf-compiler pkg-config p7zip-full \
+    libcurl4-openssl-dev unzip curl python-dev \
+    libxml2-dev libxslt1-dev libkrb5-dev
+
+# install BDB and LibEvent
+ENV HOME /root
+RUN cd \
+	&& mkdir -p ${HOME}/Deps/bdb \
+	&& cd ${HOME}/Deps/bdb \
+	&& wget http://download.oracle.com/berkeley-db/db-4.8.30.NC.tar.gz \
+	&& echo '12edc0df75bf9abd7f82f821795bcee50f42cb2e5f76a6a281b85732798364ef db-4.8.30.NC.tar.gz' | sha256sum -c \
+	&& tar xvf db-4.8.30.NC.tar.gz \
+	&& cd db-4.8.30.NC/build_unix/ \
+	&& ../dist/configure --disable-shared --enable-cxx --with-pic --prefix=/usr/local \
+	&& make -j2 \
+	&& make install
+
+# install libevent
+RUN apt-get install -y --no-install-recommends libevent-dev \
+	&& apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+# set key environment variables
+ENV DEPS ${HOME}/Deps
+RUN cd ${DEPS}
+ENV XSTDIR ${DEPS}/stealth
+
+# build boost
+ENV BOOSTR 1
+ENV BOOSTS 65
+ENV BOOSTM 1
+ENV BOOSTP ${BOOSTR}_${BOOSTS}_${BOOSTM}
+ENV BOOSTV ${BOOSTR}.${BOOSTS}.${BOOSTM}
+ENV BUILDDIR build-xst
+ENV BOOST_ROOT ${DEPS}/boost/boost-xst
+
+RUN mkdir -p ${DEPS}/boost \
+	&& wget https://sourceforge.net/projects/boost/files/boost/${BOOSTV}/boost_${BOOSTP}.tar.bz2 \
+	&& tar xvf boost_${BOOSTP}.tar.bz2 \
+	&& mkdir -p ${BOOST_ROOT} \
+	&& cd boost_${BOOSTP} \
+	&& ./bootstrap.sh \
+	&& ./b2 --prefix=$BOOST_ROOT --build-dir=${BUILDDIR} link=static install
+
+# build the stealth client
+ENV BOOST_LIB_PATH ${BOOST_ROOT}/lib
+ENV BOOST_INCLUDE_PATH ${BOOST_ROOT}/include
+ENV BOOST_LIB_SUFFIX ""

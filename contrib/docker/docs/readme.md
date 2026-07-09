@@ -11,11 +11,11 @@
 
 The docker image can be built in the directory of the `Dockerfile`. The command is:
 
-    docker build --tag stealth-xenial .
+    docker build --tag stealth-16.04 -f Dockerfile-ubuntu-16.04 .
 
-This command tags the image "stealth-xenial", named after the Ubuntu version (xenial) on which the image is based.
+This command tags the image "stealth-16.04", named after the Ubuntu version (16.04) on which the image is based.
 
-Change the tag to `--tag stealth-t-xenial` if the image is intended to be used with testnet (*i.e.* `docker build --tag stealth-t-xenial .`).
+Change the tag to `--tag stealth-t-16.04` if the image is intended to be used with testnet (*i.e.* `docker build --tag stealth-t-16.04 .`).
 
 List the image to confirm the build after completion:
 
@@ -24,9 +24,9 @@ List the image to confirm the build after completion:
 Output will resemble the following:
 
     \REPOSITORY          TAG                 IMAGE ID            CREATED             SIZE
-    stealth-xenial      latest              a14f33165963        20 minutes ago      360MB
+    stealth-16.04       latest              a14f33165963        20 minutes ago      360MB
     <none>              <none>              2b1c93348e09        20 minutes ago      1.47GB
-    ubuntu              xenial              005d2078bdfa        6 weeks ago         125MB
+    ubuntu              16.04               005d2078bdfa        6 weeks ago         125MB
     phusion/baseimage   0.10.2              4ca439e72536        22 months ago       233MB
 
 # Initialize the Container by Running It
