@@ -16,6 +16,7 @@
 #include "feature/dirclient.h"
 #include "feature/directory.h"
 #include "feature/fp_pair.h"
+#include "feature/hs_cache.h"
 #include "feature/geoip_stats.h"
 #include "lib/compress.h"
 
@@ -263,6 +264,38 @@ connection_dir_is_anonymous(const dir_connection_t *dir_conn)
   return !channel_is_client(CONST_TO_OR_CIRCUIT(circ)->p_chan);
 }
 
+/** Did <b>conn</b> ever send us a version 0 sendme cell and we allowed
+ * it? Used to decide whether to count consensus fetches from it in our
+ * geoip stats.
+ *
+ * Note that this function might have false negatives in some cases, i.e.
+ * it could tell us that the conn never sent a v0 sendme when actually it
+ * did but its linked edge connection or OR connection got broken before
+ * we called this function. For our geoip stats these false negatives
+ * would mean overcounting users by including some of the v0-using
+ * clients.
+ *
+ * We think these false positives should be unlikely or maybe even
+ * impossible when called from connection_dirserv_flushed_some(), but
+ * be careful calling it from elsewhere.
+ * */
+bool
+connection_dir_used_obsolete_sendme(const dir_connection_t *conn)
+{
+  const edge_connection_t *edge_conn = NULL;
+  const circuit_t *circ = NULL;
+  bool used_obsolete_sendme = 0;
+  const connection_t *linked_conn = TO_CONN(conn)->linked_conn;
+  if (linked_conn)
+    edge_conn = CONST_TO_EDGE_CONN(linked_conn);
+  if (edge_conn)
+    circ = edge_conn->on_circuit;
+  if (circ && CIRCUIT_IS_ORCIRC(circ))
+    used_obsolete_sendme = CONST_TO_OR_CIRCUIT(circ)->used_obsolete_sendme;
+
+  return used_obsolete_sendme;
+}
+
 /** Parse an HTTP request line at the start of a headers string.  On failure,
  * return -1.  On success, set *<b>command_out</b> to a copy of the HTTP
  * command ("get", "post", etc), set *<b>url_out</b> to a copy of the URL, and
@@ -327,7 +360,7 @@ http_get_header(const char *headers, const char *which)
   const char *cp = headers;
   while (cp) {
     if (!strcasecmpstart(cp, which)) {
-      char *eos;
+      const char *eos;
       cp += strlen(which);
       if ((eos = strchr(cp,'\r')))
         return tor_strndup(cp, eos-cp);
@@ -490,6 +523,17 @@ connection_dir_about_to_close(dir_connection_t *dir_conn)
     /* It's a directory connection and connecting or fetching
      * failed: forget about this router, and maybe try again. */
     connection_dir_client_request_failed(dir_conn);
+  }
+
+  /* If we are an HSDir, mark the corresponding descriptor as downloaded. This
+   * is needed for the OOM cache cleanup.
+   *
+   * This is done when the direction connection is closed in order to raise the
+   * attack cost of filling the cache with bogus descriptors. That attacker
+   * would need to increase that downloaded counter for the attack to be
+   * successful which is expensive. */
+  if (conn->purpose == DIR_PURPOSE_SERVER && dir_conn->hs_ident) {
+    hs_cache_mark_dowloaded_as_dir(dir_conn->hs_ident);
   }
 
   connection_dir_client_refetch_hsdesc_if_needed(dir_conn);
@@ -670,14 +714,13 @@ dir_split_resource_into_fingerprints(const char *resource,
   }
   if (decode_hex || decode_base64) {
     const size_t encoded_len = decode_hex ? hex_digest_len : base64_digest_len;
-    int i;
+    int i, n_valid = 0;
+    int n_bad_length = 0, n_bad_encoding = 0;
     char *cp, *d = NULL;
     for (i = 0; i < smartlist_len(fp_tmp); ++i) {
       cp = smartlist_get(fp_tmp, i);
       if (strlen(cp) != encoded_len) {
-        log_info(LD_DIR,
-                 "Skipping digest %s with non-standard length.", escaped(cp));
-        smartlist_del_keeporder(fp_tmp, i--);
+        ++n_bad_length;
         goto again;
       }
       d = tor_malloc_zero(digest_len);
@@ -685,15 +728,23 @@ dir_split_resource_into_fingerprints(const char *resource,
           (base16_decode(d, digest_len, cp, hex_digest_len) != digest_len) :
           (base64_decode(d, digest_len, cp, base64_digest_len)
                          != digest_len)) {
-          log_info(LD_DIR, "Skipping non-decodable digest %s", escaped(cp));
-          smartlist_del_keeporder(fp_tmp, i--);
+          ++n_bad_encoding;
           goto again;
       }
-      smartlist_set(fp_tmp, i, d);
+      smartlist_set(fp_tmp, n_valid++, d);
       d = NULL;
     again:
       tor_free(cp);
       tor_free(d);
+    }
+    /* Compact valid digests in order, then discard the unused slots without
+     * shifting the list for each rejected digest. Their contents have already
+     * been freed or moved into the valid prefix. */
+    while (smartlist_len(fp_tmp) > n_valid)
+      smartlist_del(fp_tmp, smartlist_len(fp_tmp) - 1);
+    if (n_bad_length || n_bad_encoding) {
+      log_info(LD_DIR, "Skipping %d digests with non-standard length and "
+               "%d non-decodable digests.", n_bad_length, n_bad_encoding);
     }
   }
   if (sort_uniq) {

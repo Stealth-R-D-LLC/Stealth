@@ -22,6 +22,7 @@
 #include "core/conflux_util.h"
 #include "core/conflux_pool.h"
 #include "core/conflux_st.h"
+#include "core/circuituse.h"
 #include "lib/compat_time.h"
 #include "app/config.h"
 
@@ -291,13 +292,14 @@ conflux_update_p_streams(origin_circuit_t *circ, edge_connection_t *stream)
 }
 
 /**
- * Sync the next_stream_id, timestamp_dirty, and circuit_idle_timeout
- * fields of a conflux set to the values in a particular circuit.
+ * Sync the next_stream_id, timestamp_dirty, circuit_idle_timeout,
+ * unusable_for_new_conns and the isolation fields from the given ref_circ into
+ * all legs of the conflux set.
  *
- * This is called upon link, and whenever one of these fields
- * changes on ref_circ. The ref_circ values are copied to all
- * other circuits in the conflux set.
-*/
+ * This is called upon link, and whenever one of these fields changes on
+ * ref_circ. The ref_circ values are copied to all other circuits in the
+ * conflux set.
+ */
 void
 conflux_sync_circ_fields(conflux_t *cfx, origin_circuit_t *ref_circ)
 {
@@ -313,6 +315,10 @@ conflux_sync_circ_fields(conflux_t *cfx, origin_circuit_t *ref_circ)
     leg->circ->timestamp_dirty = TO_CIRCUIT(ref_circ)->timestamp_dirty;
     ocirc->circuit_idle_timeout = ref_circ->circuit_idle_timeout;
     ocirc->unusable_for_new_conns = ref_circ->unusable_for_new_conns;
+    /* All legs carry the same streams, so they must carry the same stream
+     * isolation state. Whichever leg survives and ends up first in the set
+     * is the one circuit_is_acceptable() will be asked about. */
+    circuit_copy_isolation(ocirc, ref_circ);
   } CONFLUX_FOR_EACH_LEG_END(leg);
 }
 
@@ -442,3 +448,33 @@ conflux_validate_legs(const conflux_t *cfx)
     conflux_log_set(LOG_PROTOCOL_WARN, cfx, is_client);
   }
 }
+
+/** Return the nonce for a circuit, for use on the control port */
+const uint8_t *
+conflux_get_nonce(const circuit_t *circ)
+{
+  if (circ->conflux_pending_nonce) {
+    return circ->conflux_pending_nonce;
+  } else if (circ->conflux) {
+    return circ->conflux->nonce;
+  } else {
+    return NULL;
+  }
+}
+
+/** Return the conflux RTT for a circuit, for use on the control port */
+uint64_t
+conflux_get_circ_rtt(const circuit_t *circ)
+{
+  if (circ->conflux) {
+    conflux_leg_t *leg = conflux_get_leg(circ->conflux, circ);
+    if (BUG(!leg)) {
+      return 0;
+    } else {
+      return leg->circ_rtts_usec;
+    }
+  } else {
+    return 0;
+  }
+}
+

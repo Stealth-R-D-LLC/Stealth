@@ -32,6 +32,7 @@
 #include "feature/node_st.h"
 #include "feature/routerinfo_st.h"
 #include "feature/routerlist_st.h"
+#include "feature/routerstatus_st.h"
 #include "feature/vote_routerstatus_st.h"
 
 #include "lib/order.h"
@@ -112,8 +113,7 @@ dirserv_thinks_router_is_unreliable(time_t now,
 }
 
 /** Return 1 if <b>ri</b>'s descriptor is "active" -- running, valid,
- * not hibernating, having observed bw greater 0, and not too old. Else
- * return 0.
+ * not hibernating, and not too old. Else return 0.
  */
 static int
 router_is_active(const routerinfo_t *ri, const node_t *node, time_t now)
@@ -125,28 +125,51 @@ router_is_active(const routerinfo_t *ri, const node_t *node, time_t now)
   if (!node->is_running || !node->is_valid || ri->is_hibernating) {
     return 0;
   }
-  /* Only require bandwidth capacity in non-test networks, or
-   * if TestingTorNetwork, and TestingMinExitFlagThreshold is non-zero */
-  if (!ri->bandwidthcapacity) {
-    if (get_options()->TestingTorNetwork) {
-      if (dirauth_get_options()->TestingMinExitFlagThreshold > 0) {
-        /* If we're in a TestingTorNetwork, and TestingMinExitFlagThreshold is,
-         * then require bandwidthcapacity */
-        return 0;
-      }
-    } else {
-      /* If we're not in a TestingTorNetwork, then require bandwidthcapacity */
-      return 0;
-    }
-  }
   return 1;
+}
+
+/** Return true iff <b>router</b> had the HSDir flag in a reasonably live
+ * consensus.
+ *
+ * This lets a relay that already holds the flag skip the uptime requirement,
+ * for instance after a restart. A new identity still has to wait for the
+ * uptime so a relay can't bruteforce a key for a known SRV and land on the
+ * hashring before the SRV changes.
+ *
+ * The consensus is looked up by RSA identity but the hashring position comes
+ * from the ed25519 identity. We rely on key pinning to keep that pair fixed,
+ * otherwise a relay could keep its RSA identity and swap in a ground ed25519
+ * key. Without pinning, or without an ed25519 key, this returns false. */
+static bool
+router_was_hs_dir_in_consensus(const routerinfo_t *router, time_t now)
+{
+  networkstatus_t *ns = NULL;
+  const routerstatus_t *rs = NULL;
+
+  /* Without key pinning, RSA identity can be kept while ed25519 key (used for
+   * the hashring position) is bruteforced which would enable the hashring
+   * positioning attack. */
+  if (!dirauth_get_options()->AuthDirPinKeys ||
+      !router->cache_info.signing_key_cert) {
+    return false;
+  }
+  /* Using the reasonably live consensus allows us a greater chance to recover
+   * after let say a massive network wide DDoS. Use the microdesc flavor
+   * because this is the one clients build the hashring from. */
+  ns = networkstatus_get_reasonably_live_consensus(now, FLAV_MICRODESC);
+  if (!ns) {
+    return false;
+  }
+  rs = networkstatus_vote_find_entry(ns,
+                                     router->cache_info.identity_digest);
+  return rs && rs->is_hs_dir;
 }
 
 /** Return true iff <b>router</b> should be assigned the "HSDir" flag.
  *
- * Right now this means it advertises support for it, it has a high uptime,
- * it's a directory cache, it has the Stable and Fast flags, and it's currently
- * considered Running.
+ * Right now this means it advertises support for it, it has a high uptime
+ * or had the HSDir flag in a recent consensus, it's a directory cache, it
+ * has the Stable and Fast flags, and it's currently considered Running.
  *
  * This function needs to be called after router-\>is_running has
  * been set.
@@ -175,7 +198,8 @@ dirserv_thinks_router_is_hs_dir(const routerinfo_t *router,
   return (router->wants_to_be_hs_dir &&
           router->supports_tunnelled_dir_requests &&
           node->is_stable && node->is_fast &&
-          uptime >= dirauth_get_options()->MinUptimeHidServDirectoryV2 &&
+          (uptime >= dirauth_get_options()->MinUptimeHidServDirectoryV2 ||
+           router_was_hs_dir_in_consensus(router, now)) &&
           router_is_active(router, node, now));
 }
 
@@ -623,6 +647,17 @@ dirauth_set_routerstatus_from_routerinfo(routerstatus_t *rs,
     if (listbadexits)
       rs->is_bad_exit = 1;
     rs->is_exit = rs->is_possible_guard = rs->is_hs_dir = rs->is_v2_dir = 0;
+  }
+
+  /* Strip rs flags based on node flags. */
+  if (node->strip_guard) {
+    rs->is_possible_guard = 0;
+  }
+  if (node->strip_hsdir) {
+    rs->is_hs_dir = 0;
+  }
+  if (node->strip_v2dir) {
+    rs->is_v2_dir = 0;
   }
 
   /* Set rs->is_staledesc. */

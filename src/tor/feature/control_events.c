@@ -1,5 +1,5 @@
 /* Copyright (c) 2004-2006, Roger Dingledine, Nick Mathewson.
- * Copyright (c) 2007-2021, The Tor Project, Inc. */
+ * Copyright (c) 2007-2024, The Tor Project, Inc. */
 /* See LICENSE for licensing information */
 
 /**
@@ -834,7 +834,7 @@ control_event_stream_status(entry_connection_t *conn, stream_status_event_t tp,
     const char *reason_str = stream_end_reason_to_control_string(reason_code);
     char *r = NULL;
     if (!reason_str) {
-      tor_asprintf(&r, " UNKNOWN_%d", reason_code);
+      tor_asprintf(&r, "UNKNOWN_%d", reason_code);
       reason_str = r;
     }
     if (reason_code & END_STREAM_REASON_FLAG_REMOTE)
@@ -1294,6 +1294,21 @@ static struct cached_bw_event_t {
   uint32_t n_read;
   uint32_t n_written;
 } cached_bw_events[N_BW_EVENTS_TO_CACHE];
+
+void
+stats_init(void)
+{
+  stats_prev_n_read = get_bytes_read();
+  stats_prev_n_written = get_bytes_written();
+}
+
+void
+stats_clear(void)
+{
+  memset(cached_bw_events, 0, sizeof cached_bw_events);
+  stats_prev_n_read = stats_prev_n_written = 0;
+  n_measurements = next_measurement_idx = 0;
+}
 
 /** A second or more has elapsed: tell any interested control
  * connections how much bandwidth we used. */

@@ -86,6 +86,13 @@
  * that the resolver is wedged? */
 #define RESOLVE_MAX_TIMEOUT 300
 
+/** The clipped TTL sent back in the RESOLVED cell for every DNS queries.
+ *
+ * See https://gitlab.torproject.org/tpo/core/tor/-/issues/40979 for a thorough
+ * explanation but this is first and foremost a security fix in order to avoid
+ * an exit DNS cache oracle. */
+#define RESOLVED_CLIPPED_TTL (60)
+
 /** Our evdns_base; this structure handles all our name lookups. */
 static struct evdns_base *the_evdns_base = NULL;
 
@@ -508,12 +515,13 @@ MOCK_IMPL(STATIC void,
 send_resolved_cell,(edge_connection_t *conn, uint8_t answer_type,
                     const cached_resolve_t *resolved))
 {
-  char buf[RELAY_PAYLOAD_SIZE], *cp = buf;
+  // (We use the minimum here to ensure that we never
+  // generate a too-big message.)
+  char buf[RELAY_PAYLOAD_SIZE_MIN], *cp = buf;
   size_t buflen = 0;
-  uint32_t ttl;
+  uint32_t ttl = RESOLVED_CLIPPED_TTL;
 
   buf[0] = answer_type;
-  ttl = conn->address_ttl;
 
   switch (answer_type)
     {
@@ -563,6 +571,12 @@ send_resolved_cell,(edge_connection_t *conn, uint8_t answer_type,
   connection_edge_send_command(conn, RELAY_COMMAND_RESOLVED, buf, buflen);
 }
 
+void
+dns_send_resolved_error_cell(edge_connection_t *conn, uint8_t answer_type)
+{
+  send_resolved_cell(conn, answer_type, NULL);
+}
+
 /** Send a response to the RESOLVE request of a connection for an in-addr.arpa
  * address on connection <b>conn</b> which yielded the result <b>hostname</b>.
  * The answer type will be RESOLVED_HOSTNAME.
@@ -575,17 +589,18 @@ MOCK_IMPL(STATIC void,
 send_resolved_hostname_cell,(edge_connection_t *conn,
                              const char *hostname))
 {
-  char buf[RELAY_PAYLOAD_SIZE];
+  char buf[RELAY_PAYLOAD_SIZE_MAX];
   size_t buflen;
-  uint32_t ttl;
+  uint32_t ttl = RESOLVED_CLIPPED_TTL;
 
   if (BUG(!hostname))
     return;
 
   size_t namelen = strlen(hostname);
 
-  tor_assert(namelen < 256);
-  ttl = conn->address_ttl;
+  if (BUG(namelen >= 256)) {
+    return;
+  }
 
   buf[0] = RESOLVED_TYPE_HOSTNAME;
   buf[1] = (uint8_t)namelen;
@@ -1178,8 +1193,8 @@ dns_found_answer(const char *address, uint8_t query_type,
  * resolution.
  *
  * Do this by sending a RELAY_RESOLVED cell (if the pending stream had sent us
- * RELAY_RESOLVE cell), or by launching an exit connection (if the pending
- * stream had send us a RELAY_BEGIN cell).
+ * a RELAY_RESOLVE cell), or by launching an exit connection (if the pending
+ * stream had sent us a RELAY_BEGIN cell).
  */
 static void
 inform_pending_connections(cached_resolve_t *resolve)
@@ -1705,6 +1720,13 @@ evdns_callback(int result, char type, int count, int ttl, void *addresses,
       log_debug(LD_EXIT, "eventdns said that %s resolves to %s",
                 safe_str(escaped_address),
                 escaped_safe_str(hostname));
+      if (! name_is_valid_for_dns(hostname)) {
+        log_fn(LOG_PROTOCOL_WARN, LD_EXIT,
+               "Received an invalid name %s in a PTR record. Ignoring.",
+               escaped_safe_str(hostname));
+        hostname = NULL;
+        result = DNS_ERR_NOTEXIST;
+      }
       tor_free(escaped_address);
     } else if (count) {
       log_info(LD_EXIT, "eventdns returned only unrecognized answer types "
@@ -1812,6 +1834,13 @@ launch_resolve,(cached_resolve_t *resolve))
     if (configure_nameservers(1) < 0) {
       return -1;
     }
+  }
+
+  if (! name_is_valid_for_dns(resolve->address)) {
+    log_fn(LOG_PROTOCOL_WARN, LD_EXIT,
+           "Rejecting DNS %s address as invalid for DNS.",
+           escaped_safe_str(resolve->address));
+    return -1;
   }
 
   r = tor_addr_parse_PTR_name(

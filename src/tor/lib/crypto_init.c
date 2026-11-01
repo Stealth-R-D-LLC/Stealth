@@ -26,6 +26,7 @@
 #include "lib/crypto_options_st.h"
 #include "lib/toronion_conftypes.h"
 #include "lib/util_bug.h"
+#include "ext/polyval/polyval.h"
 
 #include "lib/subsys.h"
 
@@ -68,6 +69,8 @@ crypto_early_init(void)
 #ifdef ENABLE_NSS
     crypto_nss_early_init(0);
 #endif
+
+    polyval_detect_implementation();
 
     if (crypto_seed_rng() < 0)
       return -1;

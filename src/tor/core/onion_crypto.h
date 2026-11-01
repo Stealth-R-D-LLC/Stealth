@@ -13,6 +13,7 @@
 #define TOR_ONION_CRYPTO_H
 
 #include "lib/crypto_ed25519.h"
+#include "core/relay_crypto.h"
 
 typedef struct server_onion_keys_t {
   uint8_t my_identity[DIGEST_LEN];
@@ -29,11 +30,19 @@ void onion_handshake_state_release(onion_handshake_state_t *state);
  * Parameters negotiated as part of a circuit handshake.
  */
 typedef struct circuit_params_t {
+  /** True if we have requested congestion control.
+   */
+  bool cc_requested;
   /** Is true if congestion control is enabled in consensus or param,
    * as per congestion_control_enabled() result. */
   bool cc_enabled;
   /** The number of cells in a sendme increment. Only used if cc_enabled=1. */
   uint8_t sendme_inc_cells;
+
+  /** Which algorithm did we negotiate? */
+  relay_crypto_alg_t crypto_alg;
+  /** Which cell format did we negotiate? */
+  relay_cell_fmt_t cell_fmt;
 } circuit_params_t;
 
 int onion_skin_create(int type,
@@ -47,13 +56,13 @@ int onion_skin_server_handshake(int type,
                       const circuit_params_t *ns_params,
                       uint8_t *reply_out,
                       size_t reply_out_maxlen,
-                      uint8_t *keys_out, size_t key_out_len,
+                      uint8_t *keys_out, size_t *keys_len_out,
                       uint8_t *rend_nonce_out,
                       circuit_params_t *negotiated_params_out);
 int onion_skin_client_handshake(int type,
                       const onion_handshake_state_t *handshake_state,
                       const uint8_t *reply, size_t reply_len,
-                      uint8_t *keys_out, size_t key_out_len,
+                      uint8_t *keys_out, size_t *keys_out_len,
                       uint8_t *rend_authenticator_out,
                       circuit_params_t *negotiated_params_out,
                       const char **msg_out);
@@ -62,5 +71,11 @@ server_onion_keys_t *server_onion_keys_new(void);
 void server_onion_keys_free_(server_onion_keys_t *keys);
 #define server_onion_keys_free(keys) \
   FREE_AND_NULL(server_onion_keys_t, server_onion_keys_free_, (keys))
+
+struct trn_extension_st;
+struct trn_extension_field_st;
+const struct trn_extension_field_st *trn_extension_find(
+                                        const struct trn_extension_st *ext,
+                                        uint8_t ext_type);
 
 #endif /* !defined(TOR_ONION_CRYPTO_H) */

@@ -153,6 +153,8 @@ cache
 # diffs
 *.diff
 
+# patches
+*.patch
 
 ################################
 # IDEs

@@ -65,6 +65,7 @@
 #include "core/conflux.h"
 #include "core/conflux_pool.h"
 #include "core/crypt_path.h"
+#include "core/dos.h"
 #include "core/extendinfo.h"
 #include "core/status.h"
 #include "core/trace_probes_circuit.h"
@@ -158,6 +159,10 @@ double cc_stats_circ_close_cwnd_ma = 0;
 double cc_stats_circ_close_ss_cwnd_ma = 0;
 
 uint64_t cc_stats_circs_closed = 0;
+
+/** Total number of circuit protocol violation. This is incremented when the
+ * END_CIRC_REASON_TORPROTOCOL is used to close a circuit. */
+uint64_t circ_n_proto_violation = 0;
 
 /********* END VARIABLES ************/
 
@@ -703,6 +708,18 @@ circuit_close_all_marked(void)
   smartlist_clear(circuits_pending_close);
 }
 
+#ifdef TOR_UNIT_TESTS
+/** Return the number of circuits on the circuits_pending_close list.
+ *  Exposed for testing. */
+STATIC int
+circuit_count_pending_close(void)
+{
+  if (!circuits_pending_close)
+    return 0;
+  return smartlist_len(circuits_pending_close);
+}
+#endif
+
 /** Return a pointer to the global list of circuits. */
 MOCK_IMPL(smartlist_t *,
 circuit_get_global_list,(void))
@@ -1130,6 +1147,8 @@ or_circuit_new(circid_t p_circ_id, channel_t *p_chan)
   cell_queue_init(&circ->p_chan_cells);
 
   init_circuit_base(TO_CIRCUIT(circ));
+  dos_stream_init_circ_tbf(circ);
+  dos_begindir_init_circ_tbf(circ);
 
   tor_trace(TR_SUBSYS(circuit), TR_EV(new_or), circ);
   return circ;
@@ -1324,6 +1343,15 @@ circuit_clear_cpath(origin_circuit_t *circ)
   cpath_free(cpath);
 
   circ->cpath = NULL;
+  /* This will ensure that we don't accept any more authenticated
+   * SENDMEs on this circuit if we have already registered a hop,
+   * since an origin circuit never receives a relay cell from
+   * a NULL layer.
+   *
+   * In practice this funciton is only called from tests and form
+   * circuit_free_, so there's no actual risk of confusion.
+   */
+  circ->base_.sendme_digest_hop = NULL;
 }
 
 /** Release all storage held by circuits. */
@@ -1333,6 +1361,12 @@ circuit_free_all(void)
   smartlist_t *lst = circuit_get_global_list();
 
   SMARTLIST_FOREACH_BEGIN(lst, circuit_t *, tmp) {
+    tmp->global_circuitlist_idx = -1;
+    /* Must run before the resolving_streams loop below: for conflux circuits,
+     * this calls linked_circuit_free() -> linked_nullify_streams(), which
+     * NULLs the shared stream pointer on non-last legs so that the loop is
+     * a no-op for them and only the last leg actually frees the streams. */
+    circuit_about_to_free_atexit(tmp);
     if (! CIRCUIT_IS_ORIGIN(tmp)) {
       or_circuit_t *or_circ = TO_OR_CIRCUIT(tmp);
       while (or_circ->resolving_streams) {
@@ -1342,8 +1376,6 @@ circuit_free_all(void)
         or_circ->resolving_streams = next_conn;
       }
     }
-    tmp->global_circuitlist_idx = -1;
-    circuit_about_to_free_atexit(tmp);
     circuit_free(tmp);
     SMARTLIST_DEL_CURRENT(lst, tmp);
   } SMARTLIST_FOREACH_END(tmp);
@@ -1668,6 +1700,17 @@ circuit_unlink_all_from_channel(channel_t *chan, int reason)
   SMARTLIST_FOREACH_BEGIN(detached, circuit_t *, circ) {
     int mark = 0;
     if (circ->n_chan == chan) {
+      /* An established connection can fail while CREATE is outstanding.
+       * Notify its pending directory requests here: generic circuit cleanup
+       * must not mistake cancellation for a failed connection. */
+      if (!circ->marked_for_close && CIRCUIT_IS_ORIGIN(circ)) {
+        origin_circuit_t *ocirc = TO_ORIGIN_CIRCUIT(circ);
+        if (ocirc->cpath &&
+            ocirc->cpath->state == CPATH_STATE_AWAITING_KEYS) {
+          connection_ap_fail_onehop(ocirc->cpath->extend_info->identity_digest,
+                                    ocirc->build_state);
+        }
+      }
 
       circuit_set_n_circid_chan(circ, 0, NULL);
       mark = 1;
@@ -1822,30 +1865,6 @@ circuit_get_next_by_purpose(origin_circuit_t *start, uint8_t purpose)
   return NULL;
 }
 
-/** We might cannibalize this circuit: Return true if its last hop can be used
- *  as a v3 rendezvous point. */
-static int
-circuit_can_be_cannibalized_for_v3_rp(const origin_circuit_t *circ)
-{
-  if (!circ->build_state) {
-    return 0;
-  }
-
-  extend_info_t *chosen_exit = circ->build_state->chosen_exit;
-  if (BUG(!chosen_exit)) {
-    return 0;
-  }
-
-  const node_t *rp_node = node_get_by_id(chosen_exit->identity_digest);
-  if (rp_node) {
-    if (node_supports_v3_rendezvous_point(rp_node)) {
-      return 1;
-    }
-  }
-
-  return 0;
-}
-
 /** We are trying to create a circuit of purpose <b>purpose</b> and we are
  *  looking for cannibalizable circuits. Return the circuit purpose we would be
  *  willing to cannibalize. */
@@ -1973,13 +1992,6 @@ circuit_find_to_cannibalize(uint8_t purpose_to_produce, extend_info_t *info,
               goto next;
             hop = hop->next;
           } while (hop != circ->cpath);
-        }
-
-        if ((flags & CIRCLAUNCH_IS_V3_RP) &&
-            !circuit_can_be_cannibalized_for_v3_rp(circ)) {
-          log_debug(LD_GENERAL, "Skipping uncannibalizable circuit for v3 "
-                    "rendezvous point.");
-          goto next;
         }
 
         if (!best || (best->build_state->need_uptime && !need_uptime))
@@ -2172,6 +2184,7 @@ circuit_synchronize_written_or_bandwidth(const circuit_t *c,
 
 /** Mark <b>circ</b> to be closed next time we call
  * circuit_close_all_marked(). Do any cleanup needed:
+ *   - If state is CHAN_WAIT, remove circ from circuits_pending_chans.
  *   - If state is onionskin_pending, remove circ from the onion_pending
  *     list.
  *   - If circ isn't open yet: call circuit_build_failed() if we're
@@ -2194,6 +2207,10 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
   assert_circuit_ok(circ);
   tor_assert(line);
   tor_assert(file);
+
+  if (reason == END_CIRC_REASON_TORPROTOCOL) {
+    circ_n_proto_violation++;
+  }
 
   /* Check whether the circuitpadding subsystem wants to block this close */
   if (circpad_marked_circuit_for_padding(circ, reason)) {
@@ -2226,6 +2243,14 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
     reason = END_CIRC_REASON_NONE;
   }
 
+  /* If a callback above (e.g. pathbias probing failing to send on a full
+   * queue) recursively called circuit_mark_for_close on this circuit, it is
+   * already marked and on circuits_pending_close. Bail out to avoid
+   * performing cleanup twice. */
+  if (circ->marked_for_close) {
+    return;
+  }
+
   circuit_synchronize_written_or_bandwidth(circ, CIRCUIT_N_CHAN);
   circuit_synchronize_written_or_bandwidth(circ, CIRCUIT_P_CHAN);
 
@@ -2242,6 +2267,18 @@ circuit_mark_for_close_, (circuit_t *circ, int reason, int line,
   circ->marked_for_close_file = file;
   circ->marked_for_close_reason = reason;
   circ->marked_for_close_orig_reason = orig_reason;
+
+  if (CIRCUIT_IS_ORIGIN(circ))
+    circuit_build_times_note_connection_failure(TO_ORIGIN_CIRCUIT(circ),
+                                               orig_reason);
+
+  /* Marked circuits must not remain on the pending channel list (waiting for a
+   * n_chan) even before the deferred cleanup in circuit_about_to_free(). */
+  if (circ->state == CIRCUIT_STATE_CHAN_WAIT) {
+    if (circuits_pending_chans) {
+      smartlist_remove(circuits_pending_chans, circ);
+    }
+  }
 
   if (!CIRCUIT_IS_ORIGIN(circ)) {
     or_circuit_t *or_circ = TO_OR_CIRCUIT(circ);
@@ -2352,10 +2389,6 @@ circuit_about_to_free(circuit_t *circ)
       origin_circuit_t *ocirc = TO_ORIGIN_CIRCUIT(circ);
       circuit_build_failed(ocirc); /* take actions if necessary */
     }
-  }
-  if (circ->state == CIRCUIT_STATE_CHAN_WAIT) {
-    if (circuits_pending_chans)
-      smartlist_remove(circuits_pending_chans, circ);
   }
   if (circuits_pending_other_guards) {
     smartlist_remove(circuits_pending_other_guards, circ);
@@ -2743,8 +2776,12 @@ circuits_handle_oom(size_t current_allocation)
        * outbuf due to a malicious destination holding off the read on us. */
       if ((conn->type == CONN_TYPE_DIR && conn->linked_conn == NULL) ||
           CONN_IS_EDGE(conn)) {
-        if (!conn->marked_for_close)
+        if (!conn->marked_for_close) {
+          if (CONN_IS_EDGE(conn)) {
+            TO_EDGE_CONN(conn)->end_reason = END_STREAM_REASON_RESOURCELIMIT;
+          }
           connection_mark_for_close(conn);
+        }
         mem_recovered += single_conn_free_bytes(conn);
 
         if (conn->type == CONN_TYPE_DIR) {

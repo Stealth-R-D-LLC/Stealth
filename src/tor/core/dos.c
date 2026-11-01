@@ -27,6 +27,7 @@
 #include "core/dos_sys.h"
 
 #include "core/dos_options_st.h"
+#include "core/or_circuit_st.h"
 #include "core/or_connection_st.h"
 
 /*
@@ -77,6 +78,50 @@ static uint64_t conn_num_addr_connect_rejected;
 /** Consensus parameter: How many times a client IP is allowed to hit the
  * circ_max_cell_queue_size_out limit before being marked. */
 static uint32_t dos_num_circ_max_outq;
+
+/*
+ * Stream denial of service mitigation.
+ *
+ * Namespace used for this mitigation framework is "dos_stream_".
+ */
+
+/* Is the connection DoS mitigation enabled? */
+static unsigned int dos_stream_enabled = 0;
+
+/* Consensus parameters. They can be changed when a new consensus arrives.
+ * They are initialized with the hardcoded default values. */
+static dos_stream_defense_type_t dos_stream_defense_type;
+static uint32_t dos_stream_rate = DOS_STREAM_RATE_DEFAULT;
+static uint32_t dos_stream_burst = DOS_STREAM_BURST_DEFAULT;
+
+/* Keep some stats for the heartbeat so we can report out. */
+static uint64_t stream_num_rejected;
+
+/*
+ * BEGIN_DIR limit denial of service mitigation.
+ *
+ * Namespace used for this mitigation framework is "dos_begindir_".
+ */
+
+/* Is the one BEGIN_DIR per circuit limit enabled? */
+static unsigned int dos_begindir_enabled = 0;
+
+/* Is the per circuit BEGIN_DIR rate limit enabled? */
+static unsigned int dos_begindir_rate_enabled = 0;
+
+/* Consensus parameters. They can be changed when a new consensus arrives.
+ * They are initialized with the hardcoded default values. */
+static dos_stream_defense_type_t dos_begindir_defense_type =
+  DOS_BEGINDIR_DEFENSE_TYPE_DEFAULT;
+static uint32_t dos_begindir_rate = DOS_BEGINDIR_RATE_DEFAULT;
+static uint32_t dos_begindir_burst = DOS_BEGINDIR_BURST_DEFAULT;
+
+/* Keep some stats for the heartbeat so we can report out. */
+static uint64_t begindir_num_rejected;
+static uint64_t begindir_rate_num_rejected;
+
+/* BEGIN_DIR HSDir requests rejected by the per circuit lifetime limit. */
+static uint64_t begindir_hsdir_num_rejected;
 
 /*
  * General interface of the denial of service mitigation subsystem.
@@ -258,6 +303,133 @@ get_param_conn_connect_defense_time_period(const networkstatus_t *ns)
                                  INT32_MAX);
 }
 
+/* Return true iff the stream creation mitigation is enabled. We look at the
+ * consensus for this else a default value is returned. */
+MOCK_IMPL(STATIC unsigned int,
+get_param_stream_enabled, (const networkstatus_t *ns))
+{
+  if (dos_get_options()->DoSStreamCreationEnabled != -1) {
+    return dos_get_options()->DoSStreamCreationEnabled;
+  }
+
+  return !!networkstatus_get_param(ns, "DoSStreamCreationEnabled",
+                                   DOS_STREAM_ENABLED_DEFAULT, 0, 1);
+}
+
+/* Return true iff the BEGIN_DIR limit is enabled. We look at the consensus
+ * for this else a default value is returned. There is deliberately no torrc
+ * option: only the directory authorities decide this. */
+MOCK_IMPL(STATIC unsigned int,
+get_param_begindir_limit_enabled, (const networkstatus_t *ns))
+{
+  return !!networkstatus_get_param(ns, "DoSBeginDirLimitEnabled",
+                                   DOS_BEGINDIR_LIMIT_ENABLED_DEFAULT, 0, 1);
+}
+
+/* Return true iff the BEGIN_DIR rate limit is enabled. We look at the
+ * consensus for this else a default value is returned. */
+MOCK_IMPL(STATIC unsigned int,
+get_param_begindir_rate_enabled, (const networkstatus_t *ns))
+{
+  if (dos_get_options()->DoSBeginDirRateEnabled != -1) {
+    return dos_get_options()->DoSBeginDirRateEnabled;
+  }
+
+  return !!networkstatus_get_param(ns, "DoSBeginDirRateEnabled",
+                                   DOS_BEGINDIR_RATE_ENABLED_DEFAULT, 0, 1);
+}
+
+/* Return the parameter for how many BEGIN_DIR per second are allowed on a
+ * circuit. */
+static uint32_t
+get_param_begindir_rate(const networkstatus_t *ns)
+{
+  if (dos_get_options()->DoSBeginDirRate) {
+    return dos_get_options()->DoSBeginDirRate;
+  }
+  return networkstatus_get_param(ns, "DoSBeginDirRate",
+                                 DOS_BEGINDIR_RATE_DEFAULT,
+                                 1, INT32_MAX);
+}
+
+/* Return the parameter for the maximum BEGIN_DIR burst on a circuit. */
+static uint32_t
+get_param_begindir_burst(const networkstatus_t *ns)
+{
+  if (dos_get_options()->DoSBeginDirBurst) {
+    return dos_get_options()->DoSBeginDirBurst;
+  }
+  return networkstatus_get_param(ns, "DoSBeginDirBurst",
+                                 DOS_BEGINDIR_BURST_DEFAULT,
+                                 1, INT32_MAX);
+}
+
+/* Return the consensus parameter of the BEGIN_DIR rate defense type. */
+static uint32_t
+get_param_begindir_defense_type(const networkstatus_t *ns)
+{
+  if (dos_get_options()->DoSBeginDirDefenseType) {
+    return dos_get_options()->DoSBeginDirDefenseType;
+  }
+  return networkstatus_get_param(ns, "DoSBeginDirDefenseType",
+                                 DOS_BEGINDIR_DEFENSE_TYPE_DEFAULT,
+                                 DOS_STREAM_DEFENSE_NONE,
+                                 DOS_STREAM_DEFENSE_MAX);
+}
+
+/* Return the parameter for the time rate that is how many stream per circuit
+ * over this time span. */
+static uint32_t
+get_param_stream_rate(const networkstatus_t *ns)
+{
+  /* This is in seconds. */
+  if (dos_get_options()->DoSStreamCreationRate) {
+    return dos_get_options()->DoSStreamCreationRate;
+  }
+  return networkstatus_get_param(ns, "DoSStreamCreationRate",
+                                 DOS_STREAM_RATE_DEFAULT,
+                                 1, INT32_MAX);
+}
+
+/* Return the parameter for the maximum circuit count for the circuit time
+ * rate. */
+static uint32_t
+get_param_stream_burst(const networkstatus_t *ns)
+{
+  if (dos_get_options()->DoSStreamCreationBurst) {
+    return dos_get_options()->DoSStreamCreationBurst;
+  }
+  return networkstatus_get_param(ns, "DoSStreamCreationBurst",
+                                 DOS_STREAM_BURST_DEFAULT,
+                                 1, INT32_MAX);
+}
+
+/* Return the consensus parameter of the circuit creation defense type. */
+static uint32_t
+get_param_stream_defense_type(const networkstatus_t *ns)
+{
+  if (dos_get_options()->DoSStreamCreationDefenseType) {
+    return dos_get_options()->DoSStreamCreationDefenseType;
+  }
+  return networkstatus_get_param(ns, "DoSStreamCreationDefenseType",
+                                 DOS_STREAM_DEFENSE_TYPE_DEFAULT,
+                                 DOS_STREAM_DEFENSE_NONE,
+                                 DOS_STREAM_DEFENSE_MAX);
+}
+
+/* Set the BEGIN_DIR parameters located in the consensus or their default if
+ * none are present. Unlike the rest of the subsystem, they also apply to
+ * bridges since they serve directory requests. */
+static void
+set_dos_begindir_parameters(const networkstatus_t *ns)
+{
+  dos_begindir_enabled = get_param_begindir_limit_enabled(ns);
+  dos_begindir_rate_enabled = get_param_begindir_rate_enabled(ns);
+  dos_begindir_defense_type = get_param_begindir_defense_type(ns);
+  dos_begindir_rate = get_param_begindir_rate(ns);
+  dos_begindir_burst = get_param_begindir_burst(ns);
+}
+
 /* Set circuit creation parameters located in the consensus or their default
  * if none are present. Called at initialization or when the consensus
  * changes. */
@@ -283,6 +455,15 @@ set_dos_parameters(const networkstatus_t *ns)
 
   /* Circuit. */
   dos_num_circ_max_outq = get_param_dos_num_circ_max_outq(ns);
+
+  /* Stream. */
+  dos_stream_enabled = get_param_stream_enabled(ns);
+  dos_stream_defense_type = get_param_stream_defense_type(ns);
+  dos_stream_rate = get_param_stream_rate(ns);
+  dos_stream_burst = get_param_stream_burst(ns);
+
+  /* BEGIN_DIR. */
+  set_dos_begindir_parameters(ns);
 }
 
 /* Free everything for the circuit creation DoS mitigation subsystem. */
@@ -760,6 +941,145 @@ dos_conn_addr_get_defense_type(const tor_addr_t *addr)
   return DOS_CONN_DEFENSE_NONE;
 }
 
+/* Stream creation public API. */
+
+/** Return the number of rejected stream and resolve. */
+uint64_t
+dos_get_num_stream_rejected(void)
+{
+  return stream_num_rejected;
+}
+
+/* Refill the given per circuit stream <b>bucket</b> and take one token from
+ * it. Return true iff a token was available. */
+static bool
+dos_stream_bucket_consume(token_bucket_ctr_t *bucket)
+{
+  token_bucket_ctr_refill(bucket, (uint32_t) monotime_coarse_absolute_sec());
+
+  if (token_bucket_ctr_get(bucket) > 0) {
+    token_bucket_ctr_dec(bucket, 1);
+    return true;
+  }
+  return false;
+}
+
+/* Return the action to take against a new exit stream request (BEGIN or
+ *  RESOLVE cell). Return DOS_STREAM_DEFENSE_NONE when no action should be
+ *  taken. Increment the appropriate counter when the cell was found to go
+ *  over a limit. */
+dos_stream_defense_type_t
+dos_stream_new_request(or_circuit_t *circ)
+{
+  if (!dos_stream_enabled || circ == NULL)
+    return DOS_STREAM_DEFENSE_NONE;
+
+  if (dos_stream_bucket_consume(&circ->stream_limiter)) {
+    return DOS_STREAM_DEFENSE_NONE;
+  }
+  /* if defense type is DOS_STREAM_DEFENSE_NONE but DoSStreamEnabled is true,
+   * we count offending cells as rejected, despite them being actually
+   * accepted. */
+  ++stream_num_rejected;
+  return dos_stream_defense_type;
+}
+
+/* Initialize the token bucket for stream rate limit on a circuit. */
+void
+dos_stream_init_circ_tbf(or_circuit_t *circ)
+{
+  token_bucket_ctr_init(&circ->stream_limiter, dos_stream_rate,
+                        dos_stream_burst,
+                        (uint32_t) monotime_coarse_absolute_sec());
+}
+
+/* BEGIN_DIR limit public API. */
+
+/** Return the number of rejected BEGIN_DIR. */
+uint64_t
+dos_get_num_begindir_rejected(void)
+{
+  return begindir_num_rejected;
+}
+
+/** Return true iff we should refuse a BEGIN_DIR cell on <b>circ</b>.
+ *
+ * The first BEGIN_DIR from an authenticated previous hop uses the circuit's
+ * lifetime allowance, even while the limit is disabled, so circuits opened
+ * before the parameter flipped are handled correctly. Every later one is
+ * refused when the limit is enabled. */
+bool
+dos_begindir_should_refuse(or_circuit_t *circ)
+{
+  if (circ == NULL || circ->p_chan == NULL) {
+    return false;
+  }
+  /* Clients and bridges reuse one-hop directory circuits by design. */
+  if (channel_is_client(circ->p_chan)) {
+    return false;
+  }
+  if (!circ->already_received_begindir) {
+    circ->already_received_begindir = 1;
+    return false;
+  }
+  if (!dos_begindir_enabled) {
+    return false;
+  }
+  ++begindir_num_rejected;
+  return true;
+}
+
+/** Return the number of BEGIN_DIR that went over the rate limit. */
+uint64_t
+dos_get_num_begindir_rate_rejected(void)
+{
+  return begindir_rate_num_rejected;
+}
+
+/** Return the action to take against a BEGIN_DIR cell on <b>circ</b>.
+ * Return DOS_STREAM_DEFENSE_NONE when no action should be taken. Increment
+ * the rejected counter when the cell was found to go over the limit. */
+dos_stream_defense_type_t
+dos_begindir_new_request(or_circuit_t *circ)
+{
+  if (!dos_begindir_rate_enabled || circ == NULL) {
+    return DOS_STREAM_DEFENSE_NONE;
+  }
+
+  if (dos_stream_bucket_consume(&circ->begindir_limiter)) {
+    return DOS_STREAM_DEFENSE_NONE;
+  }
+  /* Like the stream limit, a defense type of DOS_STREAM_DEFENSE_NONE still
+   * counts offending cells as rejected even though they are accepted. */
+  ++begindir_rate_num_rejected;
+  return dos_begindir_defense_type;
+}
+
+/** Initialize the token bucket for the BEGIN_DIR rate limit on a circuit. */
+void
+dos_begindir_init_circ_tbf(or_circuit_t *circ)
+{
+  token_bucket_ctr_init(&circ->begindir_limiter, dos_begindir_rate,
+                        dos_begindir_burst,
+                        (uint32_t) monotime_coarse_absolute_sec());
+}
+
+/** Record a BEGIN_DIR HSDir request rejected by the per circuit lifetime
+ * limit. */
+void
+dos_note_begindir_hsdir_rejected(void)
+{
+  ++begindir_hsdir_num_rejected;
+}
+
+/** Return the number of BEGIN_DIR HSDir requests rejected by the lifetime
+ * limit. */
+uint64_t
+dos_get_num_begindir_hsdir_rejected(void)
+{
+  return begindir_hsdir_num_rejected;
+}
+
 /* General API */
 
 /* Take any appropriate actions for the given geoip entry that is about to get
@@ -945,7 +1265,34 @@ dos_log_heartbeat(void)
                            "[DoSRefuseSingleHopClientRendezvous disabled]");
   }
 
+  if (dos_stream_enabled) {
+    smartlist_add_asprintf(elems,
+                           "%" PRIu64 " stream rejected",
+                           stream_num_rejected);
+  } else {
+    smartlist_add_asprintf(elems, "[DoSStreamCreationEnabled disabled]");
+  }
+
+  if (dos_begindir_enabled) {
+    smartlist_add_asprintf(elems,
+                           "%" PRIu64 " BEGIN_DIR rejected",
+                           dos_get_num_begindir_rejected());
+  } else {
+    smartlist_add_asprintf(elems, "[DoSBeginDirLimitEnabled disabled]");
+  }
+
+  if (dos_begindir_rate_enabled) {
+    smartlist_add_asprintf(elems,
+                           "%" PRIu64 " BEGIN_DIR rate rejected",
+                           dos_get_num_begindir_rate_rejected());
+  } else {
+    smartlist_add_asprintf(elems, "[DoSBeginDirRateEnabled disabled]");
+  }
+
   /* HS DoS stats. */
+  smartlist_add_asprintf(elems,
+                         "%" PRIu64 " BEGIN_DIR HSDir requests rejected",
+                         dos_get_num_begindir_hsdir_rejected());
   smartlist_add_asprintf(elems,
                          "%" PRIu64 " INTRODUCE2 rejected",
                          hs_dos_get_intro2_rejected_count());
@@ -1034,8 +1381,11 @@ dos_consensus_has_changed(const networkstatus_t *ns)
   /* There are two ways to configure this subsystem, one at startup through
    * dos_init() which is called when the options are parsed. And this one
    * through the consensus. We don't want to enable any DoS mitigation if we
-   * aren't a public relay. */
+   * aren't a public relay, except the BEGIN_DIR limits for bridges. */
   if (!public_server_mode(get_options())) {
+    if (server_mode(get_options())) {
+      set_dos_begindir_parameters(ns);
+    }
     return;
   }
 
@@ -1073,4 +1423,12 @@ dos_init(void)
 {
   /* To initialize, we only need to get the parameters. */
   set_dos_parameters(NULL);
+}
+
+/* Initialize the Denial of Service subsystem for a bridge. Bridges serve
+ * directory requests, so only the BEGIN_DIR limits apply to them. */
+void
+dos_bridge_init(void)
+{
+  set_dos_begindir_parameters(NULL);
 }

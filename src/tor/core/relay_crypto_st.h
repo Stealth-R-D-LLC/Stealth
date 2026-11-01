@@ -12,27 +12,29 @@
 #ifndef RELAY_CRYPTO_ST_H
 #define RELAY_CRYPTO_ST_H
 
-#define crypto_cipher_t aes_cnt_cipher_t
-struct crypto_cipher_t;
-struct crypto_digest_t;
+#include "core/tor1_crypt_st.h"
+#include "core/relay_crypto_cgo.h"
+
+typedef enum relay_crypto_kind_t {
+  RCK_TOR1,
+  RCK_CGO,
+} relay_crypto_kind_t;
+
+typedef struct cgo_pair_t {
+  // NOTE: Using pointers here is a bit awkward; we may want to refactor
+  // eventually.
+  cgo_crypt_t *fwd;
+  cgo_crypt_t *back;
+  /* The last tag that we got when originating or recognizing a message */
+  uint8_t last_tag[SENDME_TAG_LEN_CGO];
+} cgo_pair_t;
 
 struct relay_crypto_t {
-  /* crypto environments */
-  /** Encryption key and counter for cells heading towards the OR at this
-   * step. */
-  struct crypto_cipher_t *f_crypto;
-  /** Encryption key and counter for cells heading back from the OR at this
-   * step. */
-  struct crypto_cipher_t *b_crypto;
-
-  /** Digest state for cells heading towards the OR at this step. */
-  struct crypto_digest_t *f_digest; /* for integrity checking */
-  /** Digest state for cells heading away from the OR at this step. */
-  struct crypto_digest_t *b_digest;
-
-  /** Digest used for the next SENDME cell if any. */
-  uint8_t sendme_digest[DIGEST_LEN];
+  relay_crypto_kind_t kind;
+  union {
+    struct tor1_crypt_t tor1;
+    cgo_pair_t cgo;
+  } c;
 };
-#undef crypto_cipher_t
 
 #endif /* !defined(RELAY_CRYPTO_ST_H) */

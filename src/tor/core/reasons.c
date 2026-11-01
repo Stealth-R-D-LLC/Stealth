@@ -23,7 +23,11 @@
 /***************************** Edge (stream) reasons **********************/
 
 /** Convert the reason for ending a stream <b>reason</b> into the format used
- * in STREAM events. Return NULL if the reason is unrecognized. */
+ * in STREAM events. Return NULL if the reason is unrecognized.
+ *
+ * Note: For all specified remote reasons that can occur in a Relay END
+ * message, these are the same as the specified name of the END reason.
+ */
 const char *
 stream_end_reason_to_control_string(int reason)
 {
@@ -456,7 +460,7 @@ bandwidth_weight_rule_to_string(bandwidth_weight_rule_t rule)
 }
 
 /** Given a RELAY_END reason value, convert it to an HTTP response to be
- * send over an HTTP tunnel connection. */
+ * sent over an HTTP tunnel connection. */
 const char *
 end_reason_to_http_connect_response_line(int endreason)
 {
@@ -464,38 +468,51 @@ end_reason_to_http_connect_response_line(int endreason)
   /* XXXX these are probably all wrong. Should they all be 502? */
   switch (endreason) {
     case 0:
-      return "HTTP/1.0 200 OK\r\n\r\n";
+      return "HTTP/1.0 200 OK\r\n";
     case END_STREAM_REASON_MISC:
-      return "HTTP/1.0 500 Internal Server Error\r\n\r\n";
+      return "HTTP/1.0 500 Internal Server Error\r\n";
     case END_STREAM_REASON_RESOLVEFAILED:
-      return "HTTP/1.0 404 Not Found (resolve failed)\r\n\r\n";
+      return "HTTP/1.0 503 Service Unavailable (resolve failed)\r\n";
     case END_STREAM_REASON_NOROUTE:
-      return "HTTP/1.0 404 Not Found (no route)\r\n\r\n";
+      return "HTTP/1.0 503 Service Unavailable (no route)\r\n";
     case END_STREAM_REASON_CONNECTREFUSED:
-      return "HTTP/1.0 403 Forbidden (connection refused)\r\n\r\n";
+      return "HTTP/1.0 403 Forbidden (connection refused)\r\n";
     case END_STREAM_REASON_EXITPOLICY:
-      return "HTTP/1.0 403 Forbidden (exit policy)\r\n\r\n";
+      return "HTTP/1.0 403 Forbidden (exit policy)\r\n";
     case END_STREAM_REASON_DESTROY:
-      return "HTTP/1.0 502 Bad Gateway (destroy cell received)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (destroy cell received)\r\n";
     case END_STREAM_REASON_DONE:
-      return "HTTP/1.0 502 Bad Gateway (unexpected close)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (unexpected close)\r\n";
     case END_STREAM_REASON_TIMEOUT:
-      return "HTTP/1.0 504 Gateway Timeout\r\n\r\n";
+      return "HTTP/1.0 504 Gateway Timeout\r\n";
     case END_STREAM_REASON_HIBERNATING:
-      return "HTTP/1.0 502 Bad Gateway (hibernating server)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (hibernating server)\r\n";
     case END_STREAM_REASON_INTERNAL:
-      return "HTTP/1.0 502 Bad Gateway (internal error)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (internal error)\r\n";
     case END_STREAM_REASON_RESOURCELIMIT:
-      return "HTTP/1.0 502 Bad Gateway (resource limit)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (resource limit)\r\n";
     case END_STREAM_REASON_CONNRESET:
-      return "HTTP/1.0 403 Forbidden (connection reset)\r\n\r\n";
+      return "HTTP/1.0 403 Forbidden (connection reset)\r\n";
     case END_STREAM_REASON_TORPROTOCOL:
-      return "HTTP/1.0 502 Bad Gateway (tor protocol violation)\r\n\r\n";
+      return "HTTP/1.0 502 Bad Gateway (tor protocol violation)\r\n";
     case END_STREAM_REASON_ENTRYPOLICY:
-      return "HTTP/1.0 403 Forbidden (entry policy violation)\r\n\r\n";
-    case END_STREAM_REASON_NOTDIRECTORY: FALLTHROUGH;
+      return "HTTP/1.0 403 Forbidden (entry policy violation)\r\n";
+    case END_STREAM_REASON_NOTDIRECTORY:
+      return "HTTP/1.0 502 Bad Gateway (not a directory)\r\n";
+    case END_STREAM_REASON_CANT_ATTACH:
+      return "HTTP/1.0 503 Service Unavailable (no circuit)\r\n";
+    case END_STREAM_REASON_NET_UNREACHABLE:
+      return "HTTP/1.0 503 Service Unavailable (network unreachable)\r\n";
+    case END_STREAM_REASON_PRIVATE_ADDR:
+      return "HTTP/1.0 403 Forbidden (private address)\r\n";
+
     default:
-      tor_assert_nonfatal_unreached();
-      return "HTTP/1.0 500 Internal Server Error (weird end reason)\r\n\r\n";
+      /* The reason may come straight from the other side's END cell,
+       * or be a local reason we have no better line for. Give a
+       * generic error response. */
+      log_fn(LOG_PROTOCOL_WARN, LD_PROTOCOL,
+             "Reason for ending (%d) not recognized; "
+             "sending generic HTTP error.", endreason);
+      return "HTTP/1.0 500 Internal Server Error (weird end reason)\r\n";
   }
 }

@@ -41,10 +41,10 @@ typedef struct half_edge_t {
   /**
    * Did this edge use congestion control? If so, use
    * timer instead of pending data approach */
-  uint8_t used_ccontrol : 1;
+  unsigned int used_ccontrol : 1;
 
   /** Is there a connected cell pending? */
-  uint8_t connected_pending : 1;
+  unsigned int connected_pending : 1;
 } half_edge_t;
 
 #endif /* !defined(HALF_EDGE_ST_H) */

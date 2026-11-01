@@ -43,7 +43,11 @@ OBJS += \
   obj/conflux_cell.o \
   obj/orconn_event.o \
   obj/dos.o \
-  obj/onion_tap.o \
+  obj/relay_msg.o \
+  obj/relay_crypto_cgo.o \
+  obj/relay_crypto_tor1.o \
+  obj/subproto_request.o \
+  obj/polyval.o \
   obj/protover.o \
   obj/trace_probes_cc.o \
   obj/dos_config.o \
@@ -456,6 +460,13 @@ obj/%.o: tor/app/%.c
 	  rm -f $(@:%.o=%.d)
 
 obj/%.o: tor/ext/%.c
+	$(CC) -c $(TOR_DEFS) $(TOR_CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
+	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
+	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \
+	      -e '/^$$/ d' -e 's/$$/ :/' < $(@:%.o=%.d) >> $(@:%.o=%.P); \
+	  rm -f $(@:%.o=%.d)
+
+obj/%.o: tor/ext/polyval/%.c
 	$(CC) -c $(TOR_DEFS) $(TOR_CFLAGS) -MMD -MF $(@:%.o=%.d) -o $@ $<
 	@cp $(@:%.o=%.d) $(@:%.o=%.P); \
 	  sed -e 's/#.*//' -e 's/^[^:]*: *//' -e 's/ *\\$$//' \

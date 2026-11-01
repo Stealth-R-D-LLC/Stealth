@@ -24,7 +24,6 @@ void connection_or_clear_identity(or_connection_t *conn);
 void connection_or_clear_identity_map(void);
 void clear_broken_connection_map(int disable);
 
-void connection_or_block_renegotiation(or_connection_t *conn);
 int connection_or_reached_eof(or_connection_t *conn);
 int connection_or_process_inbuf(or_connection_t *conn);
 ssize_t connection_or_num_cells_writeable(or_connection_t *conn);
@@ -36,6 +35,7 @@ int connection_or_digest_is_known_relay(const char *id_digest);
 void connection_or_update_token_buckets(smartlist_t *conns,
                                         const or_options_t *options);
 
+void connection_or_note_establishment_failure(or_connection_t *conn);
 void connection_or_connect_failed(or_connection_t *conn,
                                   int reason, const char *msg);
 void connection_or_notify_error(or_connection_t *conn,
@@ -45,7 +45,7 @@ MOCK_DECL(or_connection_t *,
           (const tor_addr_t *addr, uint16_t port,
            const char *id_digest,
            const struct ed25519_public_key_t *ed_id,
-           channel_tls_t *chan));
+           channel_tls_t *chan, bool for_origin_circ));
 
 void connection_or_close_normally(or_connection_t *orconn, int flush);
 MOCK_DECL(void,connection_or_close_for_error,
@@ -128,9 +128,5 @@ STATIC void note_or_connect_failed(const or_connection_t *or_conn);
  */
 MOCK_DECL(void, connection_or_change_state,
           (or_connection_t *conn, uint8_t state));
-
-#ifdef TOR_UNIT_TESTS
-extern int testing__connection_or_pretend_TLSSECRET_is_supported;
-#endif
 
 #endif /* !defined(TOR_CONNECTION_OR_H) */

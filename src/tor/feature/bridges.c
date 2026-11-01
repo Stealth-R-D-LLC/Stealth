@@ -199,6 +199,14 @@ bridge_get_addr_port(const bridge_info_t *bridge)
   return &bridge->addrport_configured;
 }
 
+/** Returns the descriptor download schedule for this configured bridge. */
+download_status_t *
+bridge_get_dl_status(bridge_info_t *bridge)
+{
+  tor_assert(bridge);
+  return &bridge->fetch_status;
+}
+
 /**
  * Given a <b>bridge</b>, return the transport name. If none were configured,
  * NULL is returned.
@@ -316,7 +324,8 @@ addr_is_a_configured_bridge(const tor_addr_t *addr,
 /** If we have a bridge configured whose digest matches
  * <b>ei->identity_digest</b>, or a bridge with no known digest whose address
  * matches <b>ei->addr</b>:<b>ei->port</b>, return 1.  Else return 0.
- * If <b>ei->onion_key</b> is NULL, check for address/port matches only.
+ * If <b>ei</b> has no onion key configured, check for address/port matches
+ * only.
  *
  * Note that if the extend_info_t contains multiple addresses, we return true
  * only if _every_ address is a bridge.
@@ -324,7 +333,8 @@ addr_is_a_configured_bridge(const tor_addr_t *addr,
 int
 extend_info_is_a_configured_bridge(const extend_info_t *ei)
 {
-  const char *digest = ei->onion_key ? ei->identity_digest : NULL;
+  const char *digest = curve25519_public_key_is_ok(&ei->curve25519_onion_key)
+    ? ei->identity_digest : NULL;
   const tor_addr_port_t *ap1 = NULL, *ap2 = NULL;
   if (! tor_addr_is_null(&ei->orports[0].addr))
     ap1 = &ei->orports[0];
@@ -738,7 +748,7 @@ launch_direct_bridge_descriptor_fetch(bridge_info_t *bridge)
   memcpy(&bridge_addrport.addr, &bridge->addr, sizeof(tor_addr_t));
   bridge_addrport.port = bridge->port;
 
-  guard_state = get_guard_state_for_bridge_desc_fetch(bridge->identity);
+  guard_state = get_guard_state_for_bridge_desc_fetch(bridge);
 
   directory_request_t *req =
     directory_request_new(DIR_PURPOSE_FETCH_SERVERDESC);

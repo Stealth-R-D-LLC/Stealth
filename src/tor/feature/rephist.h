@@ -15,8 +15,6 @@
 void rep_hist_init(void);
 void rep_hist_dump_stats(time_t now, int severity);
 
-void rep_hist_make_router_pessimal(const char *id, time_t when);
-
 void rep_history_clean(time_t before);
 
 void rep_hist_note_router_reachable(const char *id, const tor_addr_t *at_addr,
@@ -102,8 +100,8 @@ void rep_hist_note_dns_error(int type, uint8_t error);
 void rep_hist_consensus_has_changed(const networkstatus_t *ns);
 
 /** We combine ntor and ntorv3 stats, so we have 3 stat types:
- * tap, fast, and ntor. The max type is ntor (2) */
-#define MAX_ONION_STAT_TYPE   ONION_HANDSHAKE_TYPE_NTOR
+ * tap, fast, and ntor. The max type is ntor_v3 (3) */
+#define MAX_ONION_STAT_TYPE   MAX_ONION_HANDSHAKE_TYPE
 
 extern uint64_t rephist_total_alloc;
 extern uint32_t rephist_total_num;
@@ -191,6 +189,8 @@ uint64_t rep_hist_get_n_tcp_exhaustion(void);
 
 uint64_t rep_hist_get_n_read_limit_reached(void);
 uint64_t rep_hist_get_n_write_limit_reached(void);
+
+uint64_t rep_hist_get_drop_cell_received_count(void);
 
 #ifdef TOR_UNIT_TESTS
 struct hs_v2_stats_t;

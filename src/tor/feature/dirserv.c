@@ -15,6 +15,7 @@
 #include "feature/routerlist.h"
 #include "feature/router.h"
 #include "feature/routermode.h"
+#include "feature/geoip_stats.h"
 #include "feature/predict_ports.h"
 
 #include "feature/cached_dir_st.h"
@@ -777,6 +778,22 @@ connection_dirserv_flushed_some(dir_connection_t *conn)
     connection_buf_add_compress("", 0, conn, 1);
     tor_compress_free(conn->compress_state);
     conn->compress_state = NULL;
+  }
+
+  /* only count networkstatus serves as successful when the spool runs dry */
+  if (conn->should_count_geoip_when_finished) {
+    tor_addr_t addr;
+    /* but as a special case, check if conn is on a circuit that used a
+     * version-0 sendme (bugs 41191 and 41192), because we don't want to
+     * count clients that should exit after they receive our consensus. */
+    if (!connection_dir_used_obsolete_sendme(conn) &&
+        tor_addr_parse(&addr, (TO_CONN(conn))->address) >= 0) {
+      geoip_note_client_seen(GEOIP_CLIENT_NETWORKSTATUS,
+                             &addr, NULL,
+                             time(NULL));
+    }
+    geoip_note_ns_response(GEOIP_SUCCESS);
+    conn->should_count_geoip_when_finished = 0;
   }
   return 0;
 }

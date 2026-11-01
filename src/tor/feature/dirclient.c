@@ -328,6 +328,23 @@ should_use_directory_guards(const or_options_t *options)
   return 1;
 }
 
+/** Return the stream isolation flags for a tunneled directory request.
+ *
+ * Anonymized requests never share a circuit. Neither do one-hop requests
+ * from public relays: a relay authenticates its channels, so the far end
+ * can't tell its one-hop circuits from multi-hop ones and accepts a single
+ * BEGIN_DIR per circuit. Clients and bridges don't authenticate, so they act
+ * as clients and keep sharing one-hop circuits. */
+STATIC int
+dirclient_tunnel_isolation_flags(const or_options_t *options,
+                                 int anonymized_connection)
+{
+  if (anonymized_connection || public_server_mode(options)) {
+    return ISO_STREAM;
+  }
+  return ISO_SESSIONGRP;
+}
+
 /** Pick an unconstrained directory server from among our guards, the latest
  * networkstatus, or the fallback dirservers, for use in downloading
  * information of type <b>type</b>, and return its routerstatus. */
@@ -688,7 +705,6 @@ directory_choose_address_routerstatus(const routerstatus_t *status,
   /* We rejected all addresses in the relay's status. This means we can't
    * connect to it. */
   if (!have_or && !have_dir) {
-    static int logged_backtrace = 0;
     char *ipv6_str = tor_addr_to_str_dup(&status->ipv6_addr);
     log_info(LD_BUG, "Rejected all OR and Dir addresses from %s when "
              "launching an outgoing directory connection to: IPv4 %s OR %d "
@@ -697,10 +713,7 @@ directory_choose_address_routerstatus(const routerstatus_t *status,
              status->ipv4_dirport, ipv6_str, status->ipv6_orport,
              status->ipv4_dirport);
     tor_free(ipv6_str);
-    if (!logged_backtrace) {
-      log_backtrace(LOG_INFO, LD_BUG, "Addresses came from");
-      logged_backtrace = 1;
-    }
+    log_backtrace_once(LOG_INFO, LD_BUG, "Addresses came from");
     return -1;
   }
 
@@ -714,11 +727,6 @@ directory_choose_address_routerstatus(const routerstatus_t *status,
 void
 connection_dir_client_request_failed(dir_connection_t *conn)
 {
-  if (conn->guard_state) {
-    /* We haven't seen a success on this guard state, so consider it to have
-     * failed. */
-    entry_guard_failed(&conn->guard_state);
-  }
   if (!entry_list_is_constrained(get_options()))
     /* We must not set a directory to non-running for HS purposes else we end
      * up flagging nodes from the hashring has unusable. It doesn't have direct
@@ -1325,15 +1333,11 @@ directory_initiate_request,(directory_request_t *request))
 
   /* Make sure that the destination addr and port we picked is viable. */
   if (!port || tor_addr_is_null(&addr)) {
-    static int logged_backtrace = 0;
     log_warn(LD_DIR,
              "Cannot make an outgoing %sconnection without a remote %sPort.",
              use_begindir ? "begindir " : "",
              use_begindir ? "OR" : "Dir");
-    if (!logged_backtrace) {
-      log_backtrace(LOG_INFO, LD_BUG, "Address came from");
-      logged_backtrace = 1;
-    }
+    log_backtrace_once(LOG_INFO, LD_BUG, "Address came from");
     return;
   }
 
@@ -1396,10 +1400,11 @@ directory_initiate_request,(directory_request_t *request))
 
     entry_connection_t *linked_conn;
 
-    /* Anonymized tunneled connections can never share a circuit.
-     * One-hop directory connections can share circuits with each other
-     * but nothing else. */
-    int iso_flags = anonymized_connection ? ISO_STREAM : ISO_SESSIONGRP;
+    /* Anonymized tunneled connections can never share a circuit, and
+     * neither can a relay's one-hop ones. A client's one-hop directory
+     * connections can share circuits with each other but nothing else. */
+    int iso_flags = dirclient_tunnel_isolation_flags(get_options(),
+                                                     anonymized_connection);
 
     /* If it's an anonymized connection, remember the fact that we
      * wanted it for later: maybe we'll want it again soon. */
@@ -2281,7 +2286,7 @@ handle_response_fetch_consensus(dir_connection_t *conn,
     }
 
     new_consensus = consensus_diff_apply(consensus_body, consensus_body_len,
-                                         body, body_len);
+                                         body, body_len, true);
     tor_munmap_file(mapped_consensus);
     if (new_consensus == NULL) {
       log_warn(LD_DIR, "Could not apply consensus diff received from server "

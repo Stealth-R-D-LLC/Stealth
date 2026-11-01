@@ -1608,6 +1608,7 @@ routerstatus_has_visibly_changed(const routerstatus_t *a,
          a->is_exit != b->is_exit ||
          a->is_stable != b->is_stable ||
          a->is_fast != b->is_fast ||
+         a->is_middle_only != b->is_middle_only ||
          a->is_flagged_running != b->is_flagged_running ||
          a->is_named != b->is_named ||
          a->is_unnamed != b->is_unnamed ||
@@ -1954,7 +1955,7 @@ networkstatus_set_current_consensus(const char *consensus,
   int free_consensus = 1; /* Free 'c' at the end of the function */
   int checked_protocols_already = 0;
 
-  if (flav < 0) {
+  if (flav < 0 || flav >= N_CONSENSUS_FLAVORS) {
     /* XXXX we don't handle unrecognized flavors yet. */
     log_warn(LD_BUG, "Unrecognized consensus flavor %s", flavor);
     return -2;
@@ -1982,6 +1983,7 @@ networkstatus_set_current_consensus(const char *consensus,
 
   if ((int)c->flavor != flav) {
     /* This wasn't the flavor we thought we were getting. */
+    tor_assert(c->flavor < N_CONSENSUS_FLAVORS);
     if (require_flavor) {
       log_warn(LD_DIR, "Got consensus with unexpected flavor %s (wanted %s)",
                networkstatus_get_flavor_name(c->flavor), flavor);
@@ -2140,6 +2142,10 @@ networkstatus_set_current_consensus(const char *consensus,
     }
     current_md_consensus = c;
     free_consensus = 0; /* avoid free */
+  } else {
+    tor_assert_nonfatal_unreached();
+    result = -2;
+    goto done;
   }
 
   waiting = &consensus_waiting_for_certs[flav];
