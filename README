@@ -1,6 +1,6 @@
 = Stealth [XST]
 
-Stealth is a fast, feelesss, private, and scalable blockchain built on the Junaeth cryptocurrency protocol.
+Stealth is a fast, feeless, private, and scalable blockchain built on the Junaeth cryptocurrency protocol.
 Stealth consensus is achieved through a novel protocol wherein validators, called "StealthNodes", are permanently bonded.
 In other words, creating a StealthNode requires a one-way burn of XST, the functional currency of the Stealth blockchain.
 Because StealthNodes are permanently bonded with irrevocable blockchain rights, StealthNode owners are beholden to no one, acting entirely independently and fully in the interests of their StealthNode assets.
