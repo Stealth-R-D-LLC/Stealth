@@ -14,6 +14,14 @@ Temporal binding allows feeless transactions to expire, making sustained denial-
 Transaction expiration also allows for a quick (2 minute), no-fee resolution in the exceedingly rare event that a feeless transaction becomes stuck without confirmation.
 No other cryptocurrency offers quick, feeless resolution to stuck transactions, which happen with every payment system.
 
+== The Next Chapter
+
+The whitepaper https://github.com/Stealth-R-D-LLC/NextChapter[_Stealth: The Next Chapter — Private Payments, Final Settlement and Quantum Security_] describes the new Stealth protocol, run by a node written in Rust.
+It covers the XSS shielded sidechain, post-quantum security, BFT finality, consensus custody and the XST ↔ XSS bridge, a private messenger, commit-reveal enclave addresses, a trustless light client, and StealthPay with x402 agentic payments.
+
+* https://github.com/Stealth-R-D-LLC/NextChapter/releases/latest/download/Stealth-NextChapter-Whitepaper.pdf[Download the whitepaper (PDF)]
+* https://github.com/Stealth-R-D-LLC/NextChapter/issues[Questions, comments and errata]
+
 == Money supply
 
 * Algorithm: X13
